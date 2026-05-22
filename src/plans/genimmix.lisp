@@ -1,0 +1,168 @@
+(in-package #:clamsara)
+
+;;; --- GenImmix Plan ---
+;;; Generational with copying nursery and Immix mature space.
+
+(defclass genimmix-plan (generational-plan-trait plan)
+  ((immix-mature-space :initform nil :accessor plan-immix-mature-space))
+  (:documentation "GenImmix: copying nursery, Immix mature."))
+
+(defmethod plan-collect ((plan genimmix-plan))
+  (if (plan-current-gc-is-nursery-p plan)
+      (gen-minor-collect plan)
+      (gen-major-collect plan)))
+
+(defmethod gen-minor-collect ((plan genimmix-plan))
+  (let* ((vm (plan-vm plan))
+         (n-from (plan-nursery-from plan))
+         (n-to (plan-nursery-to plan))
+         (immix-space (plan-immix-mature-space plan))
+         (barrier (plan-barrier plan))
+         (tracer nil)
+         (promoted (make-array 1024 :element-type 'fixnum :initial-element 0 :fill-pointer 0)))
+    (vm-stop-mutators vm)
+    (space-prepare n-to vm :cycle-kind :minor)
+    (labels ((promote-or-copy (ref)
+               (when (and (vm-address-in-space-p vm ref n-from)
+                          (not (vm-object-is-forwarded-p vm ref)))
+                 (let ((age (vm-object-age vm ref)))
+                   (if (>= age (plan-survivor-threshold plan))
+                       (let* ((alloc (space-allocator immix-space))
+                              (n-words (vm-object-total-words vm ref))
+                              (dst (alloc alloc n-words)))
+                         (when (null dst)
+                           (error 'heap-exhausted :plan plan))
+                         (vm-object-copy vm ref dst)
+                         (setf (vm-object-age vm dst) age)
+                         (setf (vm-object-is-marked-p vm dst) t)
+                         (immix-mark-object-lines vm immix-space dst
+                                                  (immix-space-line-mark-state immix-space))
+                         (vector-push-extend dst promoted)
+                         dst)
+                       (let* ((n-words (vm-object-total-words vm ref))
+                              (nursery-alloc (space-allocator n-to))
+                              (dst (alloc nursery-alloc n-words)))
+                         (when (null dst)
+                           (error 'heap-exhausted :plan plan))
+                         (vm-object-copy vm ref dst)
+                         (setf (vm-object-age vm dst) (1+ age))
+                         dst)))))
+             (trace-ref (ref)
+               (let ((already-fwd (vm-object-is-forwarded-p vm ref)))
+                 (when already-fwd
+                   (return-from trace-ref
+                     (vm-object-forwarding-pointer vm ref))))
+               (let ((new-addr (promote-or-copy ref)))
+                 (when new-addr
+                   (setf (vm-object-forwarding-pointer vm ref) new-addr)
+                   (when tracer (tracer-enqueue tracer new-addr))
+                   new-addr))))
+      (setf tracer (make-tracer vm #'trace-ref :queue-size 4096))
+      (setf (tracer-trace-fn-enqueues-p tracer) t)
+      (vm-scan-roots vm plan
+        (lambda (root)
+          (when (and root (not (zerop root)))
+            (let ((result (trace-ref root)))
+              (when result (tracer-enqueue tracer result))))))
+      (when barrier
+        (barrier-card-scan barrier plan
+          (lambda (ref slot-idx)
+            (declare (ignore slot-idx))
+            (let ((result (funcall #'trace-fn ref)))
+              (when result (tracer-enqueue tracer result))))))
+      (tracer-process-queue tracer))
+    (loop for i from 0 below (fill-pointer promoted)
+          do (setf (vm-object-is-marked-p vm (aref promoted i)) t))
+    ;; Swap nursery
+    (rotatef (copying-from-space-p n-from) (copying-from-space-p n-to))
+    (setf (plan-nursery-from plan) n-to
+          (plan-nursery-to plan) n-from
+          (plan-nursery plan) n-to)
+    (vm-update-roots-forwarded vm)
+    (when barrier (barrier-clear-all barrier))
+    (vm-clear-all-forwarding vm)
+    (incf (plan-minor-gc-count plan))
+    (vm-post-gc-cleanup vm)
+    (vm-resume-mutators vm)))
+
+(defmethod gen-major-collect ((plan genimmix-plan))
+  (let* ((vm (plan-vm plan))
+         (n-from (plan-nursery-from plan))
+         (n-to (plan-nursery-to plan))
+         (immix-space (plan-immix-mature-space plan))
+         (tracer nil))
+    (vm-stop-mutators vm)
+    (space-prepare n-to vm :cycle-kind :major)
+    (space-prepare immix-space vm :cycle-kind :major)
+    (flet ((trace-fn (ref)
+             (space-trace-object immix-space vm ref tracer :cycle-kind :major)))
+      (setf tracer (make-tracer vm #'trace-fn :queue-size 4096))
+      (setf (tracer-trace-fn-enqueues-p tracer) t)
+      (vm-scan-roots vm plan
+        (lambda (root)
+          (when (and root (not (zerop root)))
+            (space-trace-object immix-space vm root tracer :cycle-kind :major)
+            (tracer-enqueue tracer root))))
+      (tracer-process-queue tracer))
+    ;; Sweep Immix space
+    (space-sweep immix-space vm)
+    ;; Swap nursery
+    (when (and n-from n-to)
+      (rotatef (copying-from-space-p n-from) (copying-from-space-p n-to))
+      (setf (plan-nursery-from plan) n-to
+            (plan-nursery-to plan) n-from
+            (plan-nursery plan) n-to))
+    (vm-update-roots-forwarded vm)
+    (let ((barrier (plan-barrier plan)))
+      (when barrier (barrier-clear-all barrier)))
+    (vm-clear-all-forwarding vm)
+    (vm-clear-all-mark-bits vm)
+    (incf (plan-major-gc-count plan))
+    (vm-post-gc-cleanup vm)
+    (vm-resume-mutators vm)))
+
+(defmethod plan-get-space ((plan genimmix-plan) (designator (eql :default)))
+  (plan-nursery plan))
+
+(defmethod plan-allocate ((plan genimmix-plan) size (designator (eql :default)))
+  (let* ((space (plan-nursery plan))
+         (alloc (space-allocator space)))
+    (or (alloc alloc size)
+        (plan-handle-allocation-failure plan size designator))))
+
+(defmethod plan-handle-allocation-failure ((plan genimmix-plan) size space-designator)
+  (flet ((try-alloc ()
+           (let* ((space (plan-nursery plan))
+                  (alloc (space-allocator space)))
+             (alloc alloc size))))
+    (plan-request-gc plan)
+    (gen-minor-collect plan)
+    (or (try-alloc)
+        (progn
+          (gen-major-collect plan)
+          (or (try-alloc)
+              (error 'heap-exhausted :plan plan))))))
+
+(defun make-genimmix-plan (vm heap-size &rest initargs)
+  (declare (ignore initargs))
+  (let* ((plan (make-instance 'genimmix-plan
+                  :name "GenImmix" :vm vm
+                  :constraints (make-instance 'plan-constraints
+                                 :moves-objects t :generational t
+                                 :needs-log-bit t :barrier :object
+                                 :needs-forwarding t))))
+    (initialize-plan-heap plan heap-size)
+    (let* ((pr (plan-page-resource plan))
+           (immix-space (make-immix-space plan pr :name :immix-mature :size 0))
+           (immix-alloc (make-immix-allocator immix-space pr)))
+      (setf (space-allocator immix-space) immix-alloc)
+      (gen-plan-init-nursery plan heap-size)
+      (setf (plan-immix-mature-space plan) immix-space)
+      (plan-add-space plan immix-space)
+      (setf (plan-default-space plan) (plan-nursery-from plan))
+      (let ((barrier (make-object-barrier vm (plan-card-table plan) plan)))
+        (setf (plan-barrier plan) barrier
+              (vm-barrier vm) barrier))
+      plan)))
+
+(register-plan-selector :genimmix #'make-genimmix-plan)

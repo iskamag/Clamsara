@@ -7,7 +7,8 @@
   :serial t
   :pathname "src"
   :components
-  ((:file "package")
+  (  (:file "package")
+   (:file "metaclass")
    (:file "types")
    (:file "heap")
    (:file "space")
@@ -17,6 +18,7 @@
    (:file "tracer")
    (:file "allocator")
    (:file "plan")
+   (:file "compile")
    (:file "vm")
    (:file "reference")
    (:file "finalization")
@@ -35,8 +37,10 @@
    (:module "vm"
     :components
     ((:file "simulator")))
-   (:file "sanity")
-   (:file "simulator"))
+                (:file "metaclass")
+                (:file "compile")
+                (:file "sanity")
+                (:file "simulator"))
   :in-order-to ((asdf:test-op (asdf:test-op #:clamsara/tests))))
 
 (asdf:defsystem #:clamsara/tests
@@ -59,8 +63,9 @@
    (:file "test-tracer")
    (:file "test-collectors")
    (:file "test-gen")
-   (:file "test-sanity")
-   (:file "test-maclina")
-   (:file "test-clamsara"))
+               (:file "test-sanity")
+               (:file "test-maclina")
+               (:file "test-clamsara")
+               (:file "test-compile"))
   :perform (asdf:test-op (o c)
              (funcall (read-from-string "clamsara.tests:run-tests"))))

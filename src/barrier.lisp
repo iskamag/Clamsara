@@ -33,7 +33,8 @@
 (defclass object-barrier ()
   ((card-table :initarg :card-table :accessor barrier-card-table)
    (nursery-start :initarg :nursery-start :accessor barrier-nursery-start)
-   (nursery-end :initarg :nursery-end :accessor barrier-nursery-end)))
+   (nursery-end :initarg :nursery-end :accessor barrier-nursery-end))
+  (:metaclass barrier-metaclass))
 
 (defun make-object-barrier (card-table nursery-start nursery-end)
   (make-instance 'object-barrier

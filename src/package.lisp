@@ -1,5 +1,7 @@
 (defpackage #:clamsara
   (:use #:cl #:closer-mop)
+  (:shadowing-import-from #:closer-mop #:defgeneric #:defmethod #:standard-generic-function)
+  (:shadow #:space)
   (:export
    ;; Types & constants
    #:address #:address= #:address+ #:address- #:address-index

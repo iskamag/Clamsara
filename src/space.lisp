@@ -3,7 +3,6 @@
 ;;; --- Space: A contiguous range of pages within the heap ---
 
 (defclass space ()
-  (:metaclass space-metaclass)
   ((name :initarg :name :reader space-name :type keyword)
    (kind :initarg :kind :reader space-kind :type keyword)
    (start-page :initarg :start-page :accessor space-start-page :type fixnum)
@@ -11,6 +10,7 @@
    (allocator :initarg :allocator :accessor space-allocator)
    (page-resource :initarg :page-resource :reader space-page-resource :initform nil)
    (constraints :initarg :constraints :reader space-constraints :initform nil))
+  (:metaclass space-metaclass)
   (:documentation "A space is a contiguous range of pages within the heap."))
 
 (defclass space-constraints ()

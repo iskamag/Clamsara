@@ -1,6 +1,7 @@
 (defpackage #:clamsara.tests
-  (:use #:cl #:fiveam #:clamsara)
+  (:use #:cl #:alexandria #:serapeum #:fiveam #:clamsara)
   (:shadow #:space)
+  (:nicknames #:clamsara-tests)
   (:export #:run-tests))
 
 (in-package #:clamsara.tests)

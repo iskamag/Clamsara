@@ -73,7 +73,7 @@
                   (let ((val (vm-object-reference vm addr slot)))
                     (when (and (>= val nursery-start)
                                (< val nursery-end))
-                      (funcall scan-fn addr val)))))))))))
+                      (funcall scan-fn addr val))))))))))))
 
 (defmethod barrier-clear-all ((b object-barrier))
   (fill (card-table-cards b) 0))

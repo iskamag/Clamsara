@@ -68,8 +68,8 @@
         (barrier-card-scan barrier plan
           (lambda (ref slot-idx)
             (declare (ignore slot-idx))
-            (let ((result (funcall #'trace-fn ref)))
-              (when result (tracer-enqueue tracer result))))))
+             (let ((result (funcall #'trace-ref ref)))
+               (when result (tracer-enqueue tracer result))))))
       (tracer-process-queue tracer))
     (loop for i from 0 below (fill-pointer promoted)
           do (setf (vm-object-is-marked-p vm (aref promoted i)) t))

@@ -282,10 +282,12 @@
          (start-line (floor start +immix-line-size-words+))
          (end-line (ceiling end +immix-line-size-words+)))
     (loop for line from start-line below end-line
-          for page-idx = (floor (* line +immix-line-size-words+) +page-size-words+)
+          for line-addr = (* line +immix-line-size-words+)
+          for page-idx = (floor line-addr +page-size-words+)
           for block = (gethash page-idx (immix-space-blocks space))
           when block do
-            (let ((line-idx (mod line +immix-lines-per-block+)))
+            (let* ((block-start-addr (* page-idx +page-size-words+))
+                   (line-idx (floor (- line-addr block-start-addr) +immix-line-size-words+)))
               (when (zerop (aref (immix-block-line-marks block) line-idx))
                 (setf (aref (immix-block-line-marks block) line-idx) mark-state)
                 (incf (immix-block-live-lines block)))))))

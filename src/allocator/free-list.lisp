@@ -19,11 +19,16 @@
   (make-instance 'free-list-allocator :space space :page-resource page-resource))
 
 ;;; --- Free Chunk Representation ---
-;;; A free chunk is stored as a cons cell: (start-address . size-in-words)
+;;; A free chunk is a dedicated struct to avoid host allocations during GC.
 
-(defun chunk-start (chunk) (car chunk))
-(defun chunk-size (chunk) (cdr chunk))
-(defun chunk-end (chunk) (+ (chunk-start chunk) (chunk-size chunk)))
+(defstruct free-list-chunk
+  "A contiguous range of free words."
+  (start 0 :type fixnum)
+  (size 0 :type fixnum))
+
+(defun chunk-start (chunk) (free-list-chunk-start chunk))
+(defun chunk-size (chunk) (free-list-chunk-size chunk))
+(defun chunk-end (chunk) (+ (free-list-chunk-start chunk) (free-list-chunk-size chunk)))
 
 (defun bin-index-for-size (size)
   (min (1- +free-list-bins+)
@@ -43,8 +48,8 @@
                   (remove-chunk-from-bin a bin found)
                   (let ((excess (- chunk-words size)))
                     (when (>= excess 4)
-                      (let ((remainder (cons (+ addr size) excess)))
-                        (add-chunk-to-bin a remainder))))
+                       (let ((remainder (make-free-list-chunk :start (+ addr size) :size excess)))
+                         (add-chunk-to-bin a remainder))))
                   (incf (free-list-total-allocated a) size)
                   (return-from alloc (make-address addr))))))
     ;; No free chunk found: try to acquire a new page
@@ -54,10 +59,10 @@
                          (let ((pr (allocator-page-resource a)))
                            (when pr
                              (page-resource-get pr 1 :kind :boxed))))))
-      (when page-idx
-        (let ((chunk (cons (* page-idx +page-size-words+) +page-size-words+)))
-          (add-chunk-to-bin a chunk)
-          (alloc a size))))))
+       (when page-idx
+         (let ((chunk (make-free-list-chunk :start (* page-idx +page-size-words+) :size +page-size-words+)))
+           (add-chunk-to-bin a chunk)
+           (alloc a size))))))
 
 ;;; --- Free ---
 
@@ -66,20 +71,22 @@
 
 (defmethod free ((a free-list-allocator) addr size &key)
   (let* ((start (address-index addr))
-         (chunk (cons start size)))
+         (chunk (make-free-list-chunk :start start :size size)))
     ;; Coalesce with preceding chunk
     (when (> start 0)
       (let ((prev (find-chunk-ending-at a start)))
         (when prev
           (remove-chunk-from-bin a (bin-index-for-size (chunk-size prev)) prev)
-          (setf chunk (cons (chunk-start prev) (+ (chunk-size prev) size)))
-          (setf start (chunk-start prev)))))
+          (setf (free-list-chunk-start chunk) (chunk-start prev)
+                (free-list-chunk-size chunk) (+ (chunk-size prev) size)
+                start (chunk-start prev)))))
     ;; Coalesce with following chunk
-    (let ((following-start (+ start (cdr chunk))))
+    (let ((following-start (+ start (free-list-chunk-size chunk))))
       (let ((following (find-chunk-by-address a following-start)))
         (when following
           (remove-chunk-from-bin a (bin-index-for-size (chunk-size following)) following)
-          (setf chunk (cons (car chunk) (+ (cdr chunk) (chunk-size following)))))))
+          (setf (free-list-chunk-size chunk)
+                (+ (free-list-chunk-size chunk) (chunk-size following))))))
     (add-chunk-to-bin a chunk)
     (decf (free-list-total-allocated a) size)
     addr))
@@ -119,7 +126,7 @@
 ;;; --- Free-List Initialization ---
 
 (defun free-list-allocator-add-page (allocator page-index)
-  (let ((chunk (cons (* page-index +page-size-words+) +page-size-words+)))
+  (let ((chunk (make-free-list-chunk :start (* page-index +page-size-words+) :size +page-size-words+)))
     (add-chunk-to-bin allocator chunk)))
 
 (defun free-list-allocator-clear (allocator)

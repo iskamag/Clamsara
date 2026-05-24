@@ -171,6 +171,7 @@
     (let ((barrier (plan-barrier plan)))
       (when barrier (barrier-clear-all barrier)))
     (vm-clear-all-forwarding vm)
+    (vm-clear-all-mark-bits vm)
     (incf (plan-major-gc-count plan))
     (vm-post-gc-cleanup vm)
     (vm-resume-mutators vm)))

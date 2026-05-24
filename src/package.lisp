@@ -135,14 +135,18 @@
    #:vm-valid-reference-p
    #:vm-object-reference-store
    #:vm-object-copy
-   ;; Simulator VM
-   #:simulator-vm
-   #:make-simulator-vm
-   #:*simulated-stack*
-   #:*simulated-thread-id*
-   #:push-stack-frame
-   #:pop-stack-frame
-   #:clear-simulated-stack
+    ;; Simulator VM
+    #:simulator-vm
+    #:make-simulator-vm
+    #:simulator-vm-heap
+    #:simulator-vm-metadata-words
+    #:simulator-vm-forwarding-pointers
+    #:simulator-vm-page-table
+    #:*simulated-stack*
+    #:*simulated-thread-id*
+    #:push-stack-frame
+    #:pop-stack-frame
+    #:clear-simulated-stack
    ;; Space
    #:space
    #:space-name
@@ -183,14 +187,17 @@
    #:make-bump-allocator
    #:make-free-list-allocator
    #:bump-allocator-reset
-   #:free-list-allocator-add-page
-   #:free-list-allocator-clear
+    #:free-list-allocator-add-page
+    #:free-list-allocator-clear
+    #:allocator-bins
+    #:free-list-chunk
    ;; Immix
-   #:immix-block
-   #:immix-space-blocks
-   #:immix-space-recycled-blocks
-   #:immix-space-current-block
-   #:immix-space-line-mark-state
+    #:immix-block
+    #:immix-block-line-marks
+    #:immix-space-blocks
+    #:immix-space-recycled-blocks
+    #:immix-space-current-block
+    #:immix-space-line-mark-state
    #:+immix-lines-per-block+
    #:+immix-line-size-words+
    #:+immix-block-size-words+
@@ -219,7 +226,9 @@
    #:plan-add-space
    #:plan-find-space
    #:initialize-plan-heap
-   #:plan-tracer
+    #:plan-tracer
+    #:plan-card-table
+    #:plan-current-gc-is-nursery-p
    ;; Generational
    #:generational-plan-trait
    #:plan-survivor-threshold
@@ -247,7 +256,8 @@
    #:tracer-process-roots
    #:tracer-empty-p
    #:tracer-dequeue
-   #:tracer-visit-count
+    #:tracer-visit-count
+    #:tracer-trace-fn-enqueues-p
    ;; Mutator
    #:mutator-context
    #:make-mutator

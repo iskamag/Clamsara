@@ -146,12 +146,15 @@ hot-path functions contributed by COMPONENT."))
 (defun boot-gc (plan)
   "Compile all hot-path functions for PLAN and link them into the VM binding.
 After this call, PLAN is ready for collection on the target runtime,
-and no CLOS dispatch occurs on the hot path."
-  (let ((forms (compile-to-functions plan)))
-    (loop for (name . lambda-form) in forms
-          do (let ((fn (compile nil lambda-form)))
-               (setf (gethash name (plan-function-table plan)) fn))))
-  plan)
+and no CLOS dispatch occurs on the hot path.
+Idempotent: skips if function-table already populated."
+  (let ((table (plan-function-table plan)))
+    (when (zerop (hash-table-count table))
+      (let ((forms (compile-to-functions plan)))
+        (loop for (name . lambda-form) in forms
+              do (let ((fn (compile nil lambda-form)))
+                   (setf (gethash name table) fn)))))
+    plan))
 
 ;;; --- Plan initialization ---
 

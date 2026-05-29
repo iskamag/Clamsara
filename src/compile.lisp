@@ -163,15 +163,7 @@ Idempotent: skips if function-table already populated."
   (:documentation "Initialize PLAN's spaces with VM and HEAP-SIZE."))
 
 (defmethod plan-initialize-spaces ((plan plan) vm heap-size)
-  "Default: create a single space."
-  (setf (plan-spaces plan)
-        (list (make-instance 'space
-                             :name :default
-                             :kind :default
-                             :start-page 0
-                             :page-count (ceiling heap-size +page-size-words+)
-                             :vm vm
-                             :allocator (make-instance 'bump-allocator
-                                                      :space-start 0
-                                                      :space-end heap-size))))
+  "Default no-op. Each plan type provides its own make-* function that
+calls initialize-plan-heap and sets up spaces."
+  (declare (ignore vm heap-size))
   plan)

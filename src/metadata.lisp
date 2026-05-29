@@ -3,15 +3,20 @@
 ;;; --- Side Metadata ---
 ;;; GC flags are stored in side metadata, separate from the object payload.
 ;;; Each word in *metadata-words* holds per-word metadata bits.
+;;; SIDE METADATA IS THE SOLE AUTHORITATIVE SOURCE for mark, log, pin,
+;;; age, generation, and object-start. The object header gc-flags field
+;;; contains convenience mirrors (forwarded, pinned, has-young-pointers,
+;;; logged) but correctness must not depend on header flags. There is no
+;;; header mark flag.
 ;;;
-;;; Bit layout per metadata word:
-;;;   bit 0: word-is-object-start
-;;;   bit 1: word-is-marked
-;;;   bit 2: word-is-logged (has young pointers / nursery object)
-;;;   bit 3: word-is-pinned
+;;; Per-word bit layout:
+;;;   bit 0: object-start
+;;;   bit 1: marked (authoritative)
+;;;   bit 2: logged
+;;;   bit 3: pinned
 ;;;   bits 4-7: age (4 bits)
-;;;   bits 8-31: generation (24 bits, typically 1-2 used)
-;;;   bits 32-63: reserved / forwarding
+;;;   bits 8-15: generation (8 bits, typically 1-2 used)
+;;;   bits 16-63: reserved (forwarding status for :separate-region mode)
 
 (defconstant +obj-start-bit-offset+ 0)
 (defconstant +marked-bit-offset+ 1)
@@ -22,11 +27,30 @@
 (defconstant +generation-shift+ 8)
 
 (defvar *metadata-words* nil
-  "Simple-vector of (unsigned-byte 64) for side metadata. Indexed by address.")
+  "Simple-vector of (unsigned-byte 64) holding side metadata. Indexed by
+address. One word per heap word. This is the authoritative source for
+mark, log, pin, age, generation, and object-start.")
+
+;;; --- Forwarding Placement ---
+;;; Forwarding placement is controlled by a metadata specification.
+;;; :in-header -- the dead object's first word is overwritten with a tagged
+;;;   forwarding address (used by STW collectors). Cost: zero extra memory.
+;;; :separate-region -- a forwarding-table simple-vector holds forwarding
+;;;   destinations (used by concurrent collectors that need CAS-separated state).
+
+(defclass metadata-spec ()
+  ((name :initarg :name :reader metadata-spec-name)
+   (placement :initarg :placement :reader metadata-spec-placement
+    :type (member :in-header :side :separate-region))
+   (bit-offset :initarg :bit-offset :reader metadata-spec-bit-offset)))
+
+(defvar *forwarding-placement* :separate-region
+  "Default forwarding placement. :in-header for STW VMs, :separate-region
+for concurrent VMs. Override with vm-forwarding-placement generic.")
 
 (defvar *forwarding-pointers* nil
-  "Simple-vector of fixnums holding forwarding addresses. Indexed by source address.
-Forwarding status is determined by checking whether vm-object-is-forwarded-p returns T.")
+  "Simple-vector of fixnums holding forwarding addresses. Indexed by source
+address. Only used when *forwarding-placement* is :separate-region.")
 
 (defun ensure-metadata (word-count)
   "Initialize metadata arrays for a heap of WORD-COUNT words."
@@ -36,7 +60,7 @@ Forwarding status is determined by checking whether vm-object-is-forwarded-p ret
   (ensure-forwarding-pointers word-count))
 
 (defun ensure-forwarding-pointers (word-count)
-  "Initialize forwarding pointer array."
+  "Initialize forwarding pointer array (for :separate-region mode)."
   (setf *forwarding-pointers* (make-array word-count
                                           :element-type 'fixnum
                                           :initial-element 0)))
@@ -124,39 +148,63 @@ Forwarding status is determined by checking whether vm-object-is-forwarded-p ret
         (logandc2 (aref *metadata-words* addr) (ash 1 +pinned-bit-offset+))))
 
 ;;; --- Forwarding ---
-;;; For stop-the-world collectors, forwarding pointers are stored in-object:
-;;; the dead object's first word is overwritten with a forwarding pointer.
-;;; We use a side table for thread-safe forwarding since some plans need it.
+;;; Forwarding placement is determined by *forwarding-placement*.
+;;; :in-header -- overwrites dead object's first word with tagged address.
+;;; :separate-region -- uses *forwarding-pointers* side table.
+;;; set-object-forwarding sets both the side table (when active) and the
+;;; header forwarded flag (as a convenience mirror) so that header-only
+;;; forwarding checks work as a fast path.
 
 (defun object-forwarded-p (addr)
-  "Check if the object at ADDR has been forwarded (uses in-object header flag)."
+  "Check if the object at ADDR has been forwarded."
   (declare (type fixnum addr))
-  (when (and *forwarding-pointers* (< addr (length *forwarding-pointers*)))
-    (not (zerop (aref *forwarding-pointers* addr)))))
+  (ecase *forwarding-placement*
+    (:in-header
+     (object-flag-set-p addr +flag-forwarded+))
+    (:separate-region
+     (when (and *forwarding-pointers* (< addr (length *forwarding-pointers*)))
+       (not (zerop (aref *forwarding-pointers* addr)))))))
 
 (defun object-forwarding-address (addr)
   "Return the forwarding address, or NIL if not forwarded."
   (declare (type fixnum addr))
-  (when (and *forwarding-pointers* (< addr (length *forwarding-pointers*)))
-    (let ((fwd (aref *forwarding-pointers* addr)))
-      (if (zerop fwd) nil fwd))))
+  (ecase *forwarding-placement*
+    (:in-header
+     (when (object-flag-set-p addr +flag-forwarded+)
+       (ldb (byte 63 0) (object-header addr))))
+    (:separate-region
+     (when (and *forwarding-pointers* (< addr (length *forwarding-pointers*)))
+       (let ((fwd (aref *forwarding-pointers* addr)))
+         (if (zerop fwd) nil fwd))))))
 
 (defun set-object-forwarding (src-addr dst-addr)
   "Set the forwarding pointer from SRC-ADDR to DST-ADDR."
   (declare (type fixnum src-addr dst-addr))
-  (setf (aref *forwarding-pointers* src-addr) dst-addr)
-  ;; Also set the forwarded flag in the object header
-  (set-object-flag src-addr +flag-forwarded+)
+  (ecase *forwarding-placement*
+    (:in-header
+     (setf (object-header src-addr) (logior dst-addr (ash 1 +forwarded-flag-bit+)))
+     (set-object-flag src-addr +flag-forwarded+))
+    (:separate-region
+     (setf (aref *forwarding-pointers* src-addr) dst-addr)
+     (set-object-flag src-addr +flag-forwarded+)))
   dst-addr)
 
 (defun clear-object-forwarding (addr)
   (declare (type fixnum addr))
-  (setf (aref *forwarding-pointers* addr) 0)
-  (clear-object-flag addr +flag-forwarded+))
+  (ecase *forwarding-placement*
+    (:in-header
+     (clear-object-flag addr +flag-forwarded+))
+    (:separate-region
+     (when *forwarding-pointers*
+       (setf (aref *forwarding-pointers* addr) 0)
+       (clear-object-flag addr +flag-forwarded+)))))
 
 (defun clear-all-forwarding ()
-  (when *forwarding-pointers*
-    (fill *forwarding-pointers* 0)))
+  (ecase *forwarding-placement*
+    (:in-header nil)
+    (:separate-region
+     (when *forwarding-pointers*
+       (fill *forwarding-pointers* 0)))))
 
 ;;; --- Age (generation survivor count) ---
 

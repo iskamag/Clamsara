@@ -7,11 +7,6 @@
   ((immix-mature-space :initform nil :accessor plan-immix-mature-space))
   (:documentation "GenImmix: copying nursery, Immix mature."))
 
-(defmethod plan-collect ((plan genimmix-plan))
-  (if (plan-current-gc-is-nursery-p plan)
-      (gen-minor-collect plan)
-      (gen-major-collect plan)))
-
 (defmethod gen-minor-collect ((plan genimmix-plan))
   (let* ((vm (plan-vm plan))
          (n-from (plan-nursery-from plan))

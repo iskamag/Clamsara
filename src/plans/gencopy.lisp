@@ -7,6 +7,8 @@
     :accessor plan-survivor-threshold :type fixnum)
    (minor-gc-count :initform 0 :accessor plan-minor-gc-count :type fixnum)
    (major-gc-count :initform 0 :accessor plan-major-gc-count :type fixnum)
+   (last-major-gc-minor-count :initform 0
+    :accessor plan-last-major-gc-minor-count :type fixnum)
    (current-gc-is-nursery :initform nil :accessor plan-current-gc-is-nursery-p)
    (nursery :initarg :nursery :accessor plan-nursery)
    (nursery-from :initform nil :accessor plan-nursery-from)
@@ -14,6 +16,43 @@
    (mature-from :initform nil :accessor plan-mature-from)
    (mature-to :initform nil :accessor plan-mature-to))
   (:documentation "Mixin that adds generational behavior to a plan."))
+
+(defmethod should-minor-gc-p ((plan generational-plan-trait))
+  (and (not (plan-gc-requested plan))
+       (< (plan-minor-gc-count plan)
+          (+ (plan-last-major-gc-minor-count plan)
+             (plan-max-minor-gcs-before-major plan)))
+       (not (nursery-exhausted-p plan))
+       (not (mature-dead-ratio-exceeded-p plan))))
+
+(defmethod nursery-exhausted-p ((plan generational-plan-trait))
+  (let ((nursery (plan-nursery-from plan)))
+    (and nursery
+         (> (bump-allocator-occupancy (space-allocator nursery)) 3/4))))
+
+(defmethod plan-collect ((plan generational-plan-trait) &key (cycle-kind :minor))
+  (if (eq cycle-kind :major)
+      (gen-major-collect plan)
+      (if (should-minor-gc-p plan)
+          (gen-minor-collect plan)
+          (progn
+            (setf (plan-last-major-gc-minor-count plan)
+                  (plan-minor-gc-count plan))
+            (gen-major-collect plan)))))
+
+(defmethod plan-handle-allocation-failure ((plan generational-plan-trait) size space-designator)
+  (flet ((try-alloc ()
+           (let* ((space (plan-get-space plan space-designator))
+                  (alloc (space-allocator space)))
+             (alloc alloc size))))
+    (or (try-alloc)
+        (progn
+          (plan-collect plan :cycle-kind :minor)
+          (or (try-alloc)
+              (progn
+                (plan-collect plan :cycle-kind :major)
+                (or (try-alloc)
+                    (error 'heap-exhausted :plan plan))))))))
 
 (defgeneric gen-minor-collect (plan)
   (:documentation "Execute a minor (nursery) GC cycle."))
@@ -66,12 +105,6 @@
 
 (defclass gencopy-plan (generational-plan-trait plan) ()
   (:documentation "Generational copying collector."))
-
-(defmethod plan-collect ((plan gencopy-plan))
-  (let ((type (plan-current-gc-is-nursery-p plan)))
-    (if type
-        (gen-minor-collect plan)
-        (gen-major-collect plan))))
 
 (defmethod gen-minor-collect ((plan gencopy-plan))
   (let* ((vm (plan-vm plan))

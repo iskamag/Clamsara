@@ -3,7 +3,7 @@
 ;;; --- Object Model ---
 ;;; Objects in the heap are contiguous ranges of words.
 ;;; Layout:
-;;;   Word 0: HEADER -- [size(24) | type-tag(8) | flags(32)]
+;;;   Word 0: HEADER -- [size(24) | type-tag(8) | gc-flags(16) | spare(16)]
 ;;;   Word 1: SLOT 0
 ;;;   Word 2: SLOT 1
 ;;;   ...
@@ -12,7 +12,12 @@
 ;;; The header encodes:
 ;;;   - SIZE: number of reference slots (for tracing)
 ;;;   - TYPE-TAG: object type for scanning
-;;;   - FLAGS: marked, forwarded, pinned, has-young-pointers
+;;;   - GC-FLAGS: forwarded, pinned, has-young-pointers, logged (16 bits)
+;;;   - SPARE: VM-use (16 bits)
+;;;
+;;; GC-FLAGS are convenience mirrors of side metadata. The side metadata
+;;; bits are authoritative. There is no header mark flag; the mark bit
+;;; lives exclusively in side metadata (see metadata.lisp).
 
 ;;; --- Header Encoding ---
 
@@ -31,10 +36,10 @@
   (ldb (byte +header-type-bits+ +header-type-shift+) header))
 
 (defun %header-flags (header)
-  (ldb (byte 32 +header-flags-shift+) header))
+  (ldb (byte 16 +header-flags-shift+) header))
 
 (defun %header-flag-set-p (header flag)
-  (logtest (ldb (byte 32 +header-flags-shift+) header) flag))
+  (logtest (ldb (byte 16 +header-flags-shift+) header) flag))
 
 ;;; --- Object Access (direct, no VM) ---
 

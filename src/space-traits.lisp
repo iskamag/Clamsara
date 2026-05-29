@@ -108,7 +108,7 @@
     (free-list-allocator-clear alloc)
     (loop for page-idx from start-page below (+ start-page n-pages)
           for page-addr = (* page-idx +page-size-words+)
-          for cursor = page-addr
+          for cursor = page-addr then cursor
           while (< cursor (+ page-addr +page-size-words+))
           do (if (and (vm-object-start-p vm (make-address cursor))
                       (vm-object-is-marked-p vm (make-address cursor)))
@@ -122,6 +122,49 @@
                          do (incf cursor) (incf free-size))
                    (when (>= free-size 4)
                      (free alloc (make-address free-start) free-size)))))
+    (vm-clear-all-mark-bits vm)))
+
+(defmethod space-sweep-young ((space marksweep-space-trait) vm)
+  "Sweep dead young objects. Mature dead objects are deferred to major GC."
+  (let* ((start-page (space-start-page space))
+         (n-pages (space-page-count space))
+         (alloc (space-allocator space)))
+    (free-list-allocator-clear alloc)
+    (loop for page-idx from start-page below (+ start-page n-pages)
+          for page-addr = (* page-idx +page-size-words+)
+          for cursor = page-addr then cursor
+          while (< cursor (+ page-addr +page-size-words+))
+          do (let ((addr (make-address cursor)))
+               (cond
+                 ((and (vm-object-start-p vm addr)
+                       (vm-object-is-marked-p vm addr))
+                  (if (vm-object-is-logged-p vm addr)
+                      (let ((obj-size (vm-object-total-words vm addr)))
+                        (incf cursor obj-size)
+                        (incf (plan-live-young-bytes *active-plan*) obj-size))
+                      (let ((obj-size (vm-object-total-words vm addr)))
+                        (incf cursor obj-size))))
+                 ((vm-object-start-p vm addr)
+                  (let ((free-start cursor)
+                        (free-size 0)
+                        (obj-size (vm-object-total-words vm addr)))
+                    (if (vm-object-is-logged-p vm addr)
+                        (progn
+                          (incf cursor obj-size)
+                          (setf free-size obj-size)
+                          (when (>= free-size 4)
+                            (free alloc (make-address free-start) free-size)))
+                        (progn
+                          (incf cursor obj-size)
+                          (incf (plan-dead-mature-bytes *active-plan*) obj-size)))))
+                 (t
+                  (let ((free-start cursor)
+                        (free-size 0))
+                    (loop while (and (< cursor (+ page-addr +page-size-words+))
+                                     (not (vm-object-start-p vm (make-address cursor))))
+                          do (incf cursor) (incf free-size))
+                    (when (>= free-size 4)
+                      (free alloc (make-address free-start) free-size)))))))
     (vm-clear-all-mark-bits vm)))
 
 ;;; --- Mark-Sweep Space (concrete class) ---
@@ -166,6 +209,25 @@
                        when (= (aref (immix-block-line-marks block) line) mark-state)
                          do (setf has-live t))
                  (unless has-live
+                   (setf (immix-block-recycled-p block) t
+                         (immix-block-live-lines block) 0)
+                   (push (cons page block) (immix-space-recycled-blocks space)))))
+             (immix-space-blocks space))
+    (let ((curr (immix-space-current-block space)))
+      (when (and curr (immix-block-recycled-p curr))
+        (setf (immix-space-current-block space) nil)))
+    (vm-clear-all-mark-bits vm)))
+
+(defmethod space-sweep-young ((space immix-space-trait) vm)
+  "Recycle blocks with no live young objects. Mature lines are preserved."
+  (let ((mark-state (immix-space-line-mark-state space)))
+    (maphash (lambda (page block)
+               (declare (ignore page))
+               (let ((has-live-young nil))
+                 (loop for line below +immix-lines-per-block+
+                       when (= (aref (immix-block-line-marks block) line) mark-state)
+                         do (setf has-live-young t))
+                 (unless has-live-young
                    (setf (immix-block-recycled-p block) t
                          (immix-block-live-lines block) 0)
                    (push (cons page block) (immix-space-recycled-blocks space)))))

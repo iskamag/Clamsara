@@ -62,6 +62,13 @@
 (defgeneric space-sweep (space vm)
   (:documentation "Reclaim dead objects in SPACE."))
 
+(defgeneric space-sweep-young (space vm)
+  (:documentation "Sweep dead young objects in SPACE. Mature objects, dead or
+   alive, are untouched. Used by sticky generational nursery GC.")
+  (:method ((space space) vm)
+    (declare (ignore space vm))
+    nil))
+
 (defun space-allocate-pages (space n-pages &key (kind :boxed))
   "Allocate N-PAGES for SPACE via its page resource."
   (let ((pr (space-page-resource space)))

@@ -14,8 +14,9 @@
 
 ;;; --- Plan Protocol Generics ---
 
-(defgeneric plan-collect (plan)
-  (:documentation "Execute a full GC cycle."))
+(defgeneric plan-collect (plan &key cycle-kind)
+  (:documentation "Execute a GC cycle. CYCLE-KIND is :minor, :major, or :full.
+   The default method delegates to a full-heap collection."))
 
 (defgeneric plan-allocate (plan size space-designator)
   (:documentation "Allocate SIZE words from the space designated by SPACE-DESIGNATOR."))
@@ -79,11 +80,30 @@
 ;;; --- Default Plan Methods ---
 
 (defmethod plan-handle-allocation-failure ((plan plan) size space-designator)
-  (plan-request-gc plan)
-  (plan-collect plan)
-  (let* ((space (plan-get-space plan space-designator))
-         (alloc (space-allocator space)))
-    (alloc alloc size)))
+  (flet ((try-alloc ()
+           (let* ((space (plan-get-space plan space-designator))
+                  (alloc (space-allocator space)))
+             (alloc alloc size))))
+    (plan-request-gc plan)
+    (plan-collect plan :cycle-kind :major)
+    (or (try-alloc)
+        (error 'heap-exhausted :plan plan))))
+
+(defgeneric should-minor-gc-p (plan)
+  (:documentation "Return T if the next collection should be nursery-only.
+   Returns NIL if a full-heap (major) collection is warranted.")
+  (:method ((plan plan)) nil))
+
+(defgeneric plan-max-minor-gcs-before-major (plan)
+  (:method ((plan plan)) 32))
+
+(defgeneric nursery-exhausted-p (plan)
+  (:documentation "True when the nursery is near capacity.")
+  (:method ((plan plan)) nil))
+
+(defgeneric mature-dead-ratio-exceeded-p (plan)
+  (:documentation "True when accumulated mature garbage warrants a major GC.")
+  (:method ((plan plan)) nil))
 
 (defmethod plan-prepare ((plan plan) &key cycle-kind)
   (dolist (space (plan-spaces plan))

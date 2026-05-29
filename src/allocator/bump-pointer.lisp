@@ -53,3 +53,18 @@
 (defun bump-allocator-reset (allocator &key (cursor 0) (limit 0))
   (setf (allocator-cursor allocator) cursor
         (allocator-limit allocator) limit))
+
+(defun bump-allocator-occupancy (allocator)
+  "Return the fraction of the allocator region used, or 0 if the region
+is not bounded."
+  (let ((cursor (allocator-cursor allocator))
+        (limit (allocator-limit allocator))
+        (space (allocator-space allocator)))
+    (if (and space (plusp limit))
+        (let ((start (* (space-start-page space) +page-size-words+)))
+          (if (>= limit start)
+              (/ (- cursor start) (max 1 (- limit start)))
+              0))
+        (if (plusp limit)
+            (/ cursor limit)
+            0))))

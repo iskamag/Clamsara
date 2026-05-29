@@ -62,11 +62,23 @@
 (defconstant +type-tag-hash-table+ 4)
 (defconstant +type-tag-struct+ 5)
 
-;;; Header flags
-(defconstant +flag-marked+ #b0001)
-(defconstant +flag-forwarded+ #b0010)
-(defconstant +flag-pinned+ #b0100)
-(defconstant +flag-has-young+ #b1000)
+;;; Header gc-flags (16 bits, bits 32-47 of the header word).
+;;; These are convenience mirrors of side metadata. The side metadata
+;;; bits are authoritative; header flags may be stale. All correctness
+;;; depends on side metadata reads through vm-object-* generics.
+;;;   bit 0 (32): forwarded
+;;;   bit 1 (33): pinned
+;;;   bit 2 (34): has-young-pointers
+;;;   bit 3 (35): logged
+;;;   bits 4-15 (36-47): spare
+;;;
+;;; There is no header mark flag. The mark bit lives exclusively in
+;;; side metadata (see metadata.lisp).
+(defconstant +forwarded-flag-bit+ 0)
+(defconstant +flag-forwarded+ #b0001)
+(defconstant +flag-pinned+ #b0010)
+(defconstant +flag-has-young+ #b0100)
+(defconstant +flag-logged+ #b1000)
 
 ;;; --- Alignment Utilities ---
 

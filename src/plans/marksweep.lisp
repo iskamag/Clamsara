@@ -6,7 +6,8 @@
 (defclass marksweep-plan (plan) ()
   (:documentation "Mark-and-sweep collector."))
 
-(defmethod plan-collect ((plan marksweep-plan))
+(defmethod plan-collect ((plan marksweep-plan) &key cycle-kind)
+  (declare (ignore cycle-kind))
   (let* ((vm (plan-vm plan))
          (tracer nil))
     (vm-stop-mutators vm)

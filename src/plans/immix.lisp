@@ -6,7 +6,8 @@
 (defclass immix-plan (plan) ()
   (:documentation "Immix mark-region collector."))
 
-(defmethod plan-collect ((plan immix-plan))
+(defmethod plan-collect ((plan immix-plan) &key cycle-kind)
+  (declare (ignore cycle-kind))
   (let* ((vm (plan-vm plan))
          (space (plan-get-space plan :default))
          (tracer nil))

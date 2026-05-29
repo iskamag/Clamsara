@@ -7,11 +7,6 @@
   ((ms-mature-space :initform nil :accessor plan-genms-mature-space))
   (:documentation "GenMS: copying nursery, mark-sweep mature."))
 
-(defmethod plan-collect ((plan genms-plan))
-  (if (plan-current-gc-is-nursery-p plan)
-      (gen-minor-collect plan)
-      (gen-major-collect plan)))
-
 (defmethod gen-minor-collect ((plan genms-plan))
   (let* ((vm (plan-vm plan))
          (n-from (plan-nursery-from plan))

@@ -16,11 +16,11 @@
 
 (test make-object-header
   "Object header construction."
-  (let ((h (make-object-header 10 :type-tag +type-tag-object+ :flags +flag-marked+)))
+  (let ((h (make-object-header 10 :type-tag +type-tag-object+ :flags +flag-forwarded+)))
     (is (= 10 (header-size h)))
     (is (= +type-tag-object+ (header-type-tag h)))
-    (is (header-flag-set-p h +flag-marked+))
-    (is (not (header-flag-set-p h +flag-forwarded+)))))
+    (is (header-flag-set-p h +flag-forwarded+))
+    (is (not (header-flag-set-p h +flag-pinned+)))))
 
 (test type-tags-are-constants
   "Type tag constants are defined."
@@ -30,7 +30,7 @@
 
 (test flag-constants
   "Flag constants are defined."
-  (is (= 1 +flag-marked+))
-  (is (= 2 +flag-forwarded+))
-  (is (= 4 +flag-pinned+))
-  (is (= 8 +flag-has-young+)))
+  (is (= 1 +flag-forwarded+))
+  (is (= 2 +flag-pinned+))
+  (is (= 4 +flag-has-young+))
+  (is (= 8 +flag-logged+)))

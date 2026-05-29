@@ -9,8 +9,9 @@
    #:header-flag-set-p
    #:+type-tag-object+ #:+type-tag-cons+ #:+type-tag-array+
    #:+type-tag-struct+ #:+type-tag-function+
-   #:+flag-marked+ #:+flag-forwarded+ #:+flag-pinned+
-   #:+flag-has-young+
+    #:+flag-forwarded+ #:+flag-pinned+
+    #:+flag-has-young+ #:+flag-logged+
+    #:+forwarded-flag-bit+
    #:+page-size-words+ #:+card-size-words+
    #:address<= #:address>= #:address< #:address> #:address-min #:address-max
    ;; Heap

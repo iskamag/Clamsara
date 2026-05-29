@@ -18,7 +18,8 @@
                             (not (copying-from-space-p s))))
            (plan-spaces plan)))
 
-(defmethod plan-collect ((plan semispace-plan))
+(defmethod plan-collect ((plan semispace-plan) &key cycle-kind)
+  (declare (ignore cycle-kind))
   (let* ((vm (plan-vm plan))
          (from (plan-from-space plan))
          (to (plan-to-space plan))

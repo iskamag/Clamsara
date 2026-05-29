@@ -20,6 +20,11 @@
   (:documentation "Abstract VM binding. Plans interact with the VM through
 this interface, never directly with the heap."))
 
+(defgeneric vm-forwarding-placement (vm)
+  (:documentation "Return the metadata spec placement for forwarding.
+   Default: :in-header for STW VMs, :separate-region for concurrent VMs.")
+  (:method ((vm vm-binding)) :separate-region))
+
 ;;; --- Object Model ---
 
 (defgeneric vm-object-header (vm obj-address)

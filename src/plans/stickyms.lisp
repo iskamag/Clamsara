@@ -4,13 +4,25 @@
 ;;; Sticky generational: nursery and mature in one mark-sweep space, log-bit discriminated.
 
 (defclass stickyms-plan (generational-plan-trait plan)
-  ((should-minor-gc :initform t :accessor plan-should-minor-gc))
+  ((live-young-bytes :initform 0 :accessor plan-live-young-bytes :type fixnum)
+   (dead-mature-bytes :initform 0 :accessor plan-dead-mature-bytes :type fixnum))
   (:documentation "StickyMS: mixed-age mark-sweep space."))
 
-(defmethod plan-collect ((plan stickyms-plan))
-  (if (plan-should-minor-gc plan)
-      (sticky-ms-nursery-collect plan)
-      (sticky-ms-major-collect plan)))
+(defmethod plan-collect ((plan stickyms-plan) &key (cycle-kind :minor))
+  (if (eq cycle-kind :major)
+      (sticky-ms-major-collect plan)
+      (if (should-minor-gc-p plan)
+          (sticky-ms-nursery-collect plan)
+          (progn
+            (setf (plan-last-major-gc-minor-count plan)
+                  (plan-minor-gc-count plan))
+            (sticky-ms-major-collect plan)))))
+
+(defmethod mature-dead-ratio-exceeded-p ((plan stickyms-plan))
+  (let* ((young-live (plan-live-young-bytes plan))
+         (mature-dead (plan-dead-mature-bytes plan)))
+    (and (> young-live 0)
+         (> mature-dead (* 2 young-live)))))
 
 (defun sticky-ms-nursery-collect (plan)
   "Nursery GC for sticky MS: promote young survivors, sweep dead young."
@@ -48,8 +60,11 @@
             (let ((result (funcall #'trace-fn ref)))
               (when result (tracer-enqueue tracer result))))))
       (tracer-process-queue tracer))
-    ;; Sweep: reclaim dead young objects
-    (space-sweep space vm)
+    ;; Reset metrics for this sweep
+    (setf (plan-live-young-bytes plan) 0
+          (plan-dead-mature-bytes plan) 0)
+    ;; Sweep: reclaim dead young objects only
+    (space-sweep-young space vm)
     (when barrier (barrier-clear-all barrier))
     (vm-clear-all-mark-bits vm)
     (incf (plan-minor-gc-count plan))
@@ -91,6 +106,20 @@
       (when addr
         (setf (vm-object-is-logged-p (plan-vm plan) addr) t))
       addr)))
+
+(defmethod plan-handle-allocation-failure ((plan stickyms-plan) size space-designator)
+  (flet ((try-alloc ()
+           (let* ((space (plan-get-space plan space-designator))
+                  (alloc (space-allocator space)))
+             (alloc alloc size))))
+    (or (try-alloc)
+        (progn
+          (sticky-ms-nursery-collect plan)
+          (or (try-alloc)
+              (progn
+                (sticky-ms-major-collect plan)
+                (or (try-alloc)
+                    (error 'heap-exhausted :plan plan))))))))
 
 (defun make-stickyms-plan (vm heap-size &rest initargs)
   (declare (ignore initargs))

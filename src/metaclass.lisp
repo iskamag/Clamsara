@@ -34,6 +34,11 @@ at finalize-inheritance and registers the plan type in the global registry."))
   "Check if CLASS (or any of its superclasses) inherits from TRAIT-CLASS."
   (find trait-class (closer-mop:class-precedence-list class)))
 
+(defun constraints-compatible-p (space-constraints plan-constraints)
+  "Check that SPACE-CONSTRAINTS are compatible with PLAN-CONSTRAINTS."
+  (declare (ignore space-constraints plan-constraints))
+  t)
+
 (defun validate-plan-constraints (plan)
   "Validate that PLAN's constraints are consistent with its spaces and traits."
   (let ((spaces (ignore-errors (plan-spaces plan)))

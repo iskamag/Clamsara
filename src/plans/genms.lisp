@@ -56,13 +56,17 @@
         (lambda (root)
           (when (and root (not (zerop root)))
             (let ((result (trace-ref root)))
-              (when result (tracer-enqueue tracer result))))))
+              (when result
+                (unless (tracer-trace-fn-enqueues-p tracer)
+                  (tracer-enqueue tracer result)))))))
       (when barrier
-        (barrier-card-scan barrier plan
+        (barrier-card-scan barrier vm
           (lambda (ref slot-idx)
             (declare (ignore slot-idx))
             (let ((result (trace-ref ref)))
-              (when result (tracer-enqueue tracer result))))))
+              (when result
+                (unless (tracer-trace-fn-enqueues-p tracer)
+                  (tracer-enqueue tracer result)))))))
       (tracer-process-queue tracer))
     (loop for i from 0 below (fill-pointer promoted)
           do (setf (vm-object-is-marked-p vm (aref promoted i)) t))
@@ -95,9 +99,9 @@
         (lambda (root)
           (when (and root (not (zerop root)))
             (let ((result (funcall #'trace-fn root)))
-              (if result
-                  (tracer-enqueue tracer result)
-                  (tracer-enqueue tracer root))))))
+              (when result
+                (unless (tracer-trace-fn-enqueues-p tracer)
+                  (tracer-enqueue tracer result)))))))
       (tracer-process-queue tracer))
     ;; Sweep MS space
     (when ms-space

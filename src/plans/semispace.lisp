@@ -40,7 +40,8 @@
             (when (and root (not (zerop root)))
               (let ((result (funcall #'trace-fn root)))
                 (when result
-                  (tracer-enqueue tracer result))))))
+                  (unless (tracer-trace-fn-enqueues-p tracer)
+                    (tracer-enqueue tracer result)))))))
         (tracer-process-queue tracer)))
     ;; Release: swap from/to
     (space-release from vm)

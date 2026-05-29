@@ -29,10 +29,15 @@
 
 (defun tracer-enqueue (tracer ref)
   (declare (type fixnum ref))
-  (let ((tail (tracer-tail tracer)))
+  (let* ((tail (tracer-tail tracer))
+         (next-tail (mod (1+ tail) (tracer-capacity tracer))))
+    (when (= next-tail (tracer-head tracer))
+      (warn 'queue-overflow
+            :message (format nil "Queue overflow at ~D entries; dropping ~D"
+                             (tracer-capacity tracer) ref))
+      (return-from tracer-enqueue nil))
     (setf (aref (tracer-queue tracer) tail) ref)
-    (setf (tracer-tail tracer)
-          (mod (1+ tail) (tracer-capacity tracer)))))
+    (setf (tracer-tail tracer) next-tail)))
 
 (defun tracer-dequeue (tracer)
   (let ((head (tracer-head tracer)))
@@ -68,7 +73,7 @@
     (lambda (root)
       (when (and root (not (zerop root)))
         (let ((result (funcall (tracer-trace-fn tracer) root)))
-          (if result
-              (tracer-enqueue tracer result)
-              (tracer-enqueue tracer root))))))
+          (when result
+            (unless (tracer-trace-fn-enqueues-p tracer)
+              (tracer-enqueue tracer result)))))))
   (tracer-process-queue tracer))

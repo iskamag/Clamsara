@@ -59,12 +59,17 @@
   (clrhash (rs-thread-roots root-set)))
 
 (defun update-root-set-forwarded (vm root-set)
-  "Replace any forwarded roots in ROOT-SET with their new addresses."
-  (flet ((update-list (roots)
+  "Replace any forwarded roots in ROOT-SET with their final addresses,
+following forwarding chains."
+  (labels ((resolve-forwarded (addr)
+           (loop for current = addr then (vm-object-forwarding-pointer vm current)
+                 while (and current (not (zerop current))
+                            (vm-object-is-forwarded-p vm current))
+                 finally (return current)))
+         (update-list (roots)
            (loop for root in roots
-                 collect (if (and root (not (zerop root))
-                                  (vm-object-is-forwarded-p vm root))
-                             (vm-object-forwarding-pointer vm root)
+                 collect (if (and root (not (zerop root)))
+                             (resolve-forwarded root)
                              root))))
     (setf (rs-static-roots root-set)
           (update-list (rs-static-roots root-set)))

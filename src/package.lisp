@@ -14,16 +14,17 @@
     #:+forwarded-flag-bit+
    #:+page-size-words+ #:+card-size-words+
    #:address<= #:address>= #:address< #:address> #:address-min #:address-max
-   ;; Heap
-   #:heap-ref #:page-table-ref #:page-free-p #:page-allocated-p
-   #:allocate-pages #:free-pages
-   ;; Space
-   #:space #:space-name #:space-kind
-   #:space-start-page #:space-page-count
-   #:space-contains-p #:space-address-range
-   #:space-allocator #:space-vm
-   #:space-reset-to-empty
-   #:make-space
+    ;; Heap
+    #:heap-ref #:page-table-ref #:page-free-p #:page-allocated-p
+    #:allocate-pages #:free-pages #:ensure-heap #:card-index
+    ;; Space
+    #:space #:space-name #:space-kind
+    #:space-start-page #:space-page-count
+    #:space-contains-p #:space-address-range
+    #:space-allocator #:space-vm
+    #:space-reset-to-empty
+    #:make-space
+    #:immix-space-blocks #:immix-space-line-mark-state
    ;; Allocator
    #:bump-allocator #:free-list-allocator #:make-bump-allocator
    #:alloc #:mark-object-start
@@ -48,16 +49,22 @@
    #:barrier-card-table-cards
    #:card-table #:card-table-cards #:ensure-card-table
    #:card-table-card-dirty-p #:barrier-scan-cards
-   ;; Tracer
-   #:tracer #:make-tracer #:tracer-empty-p
-   #:tracer-enqueue #:tracer-dequeue
-   #:tracer-process-queue #:tracer-visit-count
-   ;; Plan
-   #:plan #:plan-vm #:plan-spaces
-   #:plan-get-space #:plan-from-space #:plan-to-space
-   #:plan-barrier #:plan-collect #:plan-allocate
-   #:plan-generational-p #:plan-major-required-p
-   #:make-semispace-plan #:make-marksweep-plan
+    ;; Tracer
+    #:tracer #:make-tracer #:tracer-empty-p
+    #:tracer-enqueue #:tracer-dequeue
+    #:tracer-process-queue #:tracer-visit-count
+    #:tracer-process-roots #:tracer-trace-fn-enqueues-p
+    ;; Plan
+    #:plan #:plan-vm #:plan-spaces
+    #:plan-get-space #:plan-from-space #:plan-to-space
+    #:plan-barrier #:plan-collect #:plan-allocate
+    #:plan-generational-p #:plan-major-required-p
+    #:plan-constraints #:plan-page-resource
+    #:plan-nursery #:plan-nursery-from #:plan-nursery-to
+    #:plan-mature-from #:plan-mature-to
+    #:plan-live-young-bytes #:plan-dead-mature-bytes
+    #:sticky-nursery-collect
+    #:make-semispace-plan #:make-marksweep-plan
    #:make-immix-plan #:make-gencopy-plan #:make-genms-plan
    #:make-genimmix-plan #:make-stickyimmix-plan #:make-stickyms-plan
    ;; Collector state
@@ -107,10 +114,11 @@
    #:compile-to-functions
    #:plan-function-table
    #:plan-initialize-spaces
-   ;; Stats
-   #:plan-stats
-   #:plan-stats-gc-count
-   #:plan-stats-gc-time
+    ;; Stats
+    #:plan-stats
+    #:plan-stats-gc-count
+    #:plan-stats-gc-time
+    #:*gc-count* #:*gc-pause-time*
    ;; Plan classes (for typep in tests)
    #:nogc-plan #:semispace-plan #:marksweep-plan #:immix-plan
    #:gencopy-plan #:genms-plan #:genimmix-plan #:stickyimmix-plan #:stickyms-plan

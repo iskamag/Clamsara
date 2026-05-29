@@ -242,6 +242,9 @@ this interface, never directly with the heap."))
   (> (vm-object-reference-count vm obj-address) 0))
 
 (defmethod vm-object-copy ((vm vm-binding) src-address dst-address)
+  "Copy the object from SRC-ADDRESS to DST-ADDRESS. In the simulator,
+delegates to the global heap-ref functions; a target VM would override
+this with its own memory-access primitives."
   (let ((n-words (vm-object-total-words vm src-address)))
     (loop for i from 0 below n-words
           do (setf (heap-ref (+ (address-index dst-address) i))

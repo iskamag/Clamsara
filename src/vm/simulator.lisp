@@ -68,7 +68,7 @@
   (declare (ignore vm))
   (dolist (frame *simulated-stack*)
     (dolist (slot (stack-frame-slots frame))
-      (when (and slot (not (zerop slot)) (fixnump slot))
+      (when (and slot (not (zerop slot)) (typep slot 'fixnum))
         (register-thread-root root-set *simulated-thread-id* slot)))))
 
 (defmethod vm-update-roots-forwarded ((vm simulator-vm))

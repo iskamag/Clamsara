@@ -58,13 +58,17 @@
         (lambda (root)
           (when (and root (not (zerop root)))
             (let ((result (trace-ref root)))
-              (when result (tracer-enqueue tracer result))))))
+              (when result
+                (unless (tracer-trace-fn-enqueues-p tracer)
+                  (tracer-enqueue tracer result)))))))
       (when barrier
-        (barrier-card-scan barrier plan
+        (barrier-card-scan barrier vm
           (lambda (ref slot-idx)
             (declare (ignore slot-idx))
              (let ((result (funcall #'trace-ref ref)))
-               (when result (tracer-enqueue tracer result))))))
+               (when result
+                 (unless (tracer-trace-fn-enqueues-p tracer)
+                   (tracer-enqueue tracer result)))))))
       (tracer-process-queue tracer))
     (loop for i from 0 below (fill-pointer promoted)
           do (setf (vm-object-is-marked-p vm (aref promoted i)) t))
@@ -90,14 +94,18 @@
     (space-prepare n-to vm :cycle-kind :major)
     (space-prepare immix-space vm :cycle-kind :major)
     (flet ((trace-fn (ref)
-             (space-trace-object immix-space vm ref tracer :cycle-kind :major)))
+             (let ((space (plan-space-for-address plan ref)))
+               (when (and space (typep space 'collectable-space))
+                 (space-trace-object space vm ref tracer :cycle-kind :major)))))
       (setf tracer (make-tracer vm #'trace-fn :queue-size 4096))
       (setf (tracer-trace-fn-enqueues-p tracer) t)
       (vm-scan-roots vm plan
         (lambda (root)
           (when (and root (not (zerop root)))
-            (space-trace-object immix-space vm root tracer :cycle-kind :major)
-            (tracer-enqueue tracer root))))
+            (let ((result (funcall #'trace-fn root)))
+              (when result
+                (unless (tracer-trace-fn-enqueues-p tracer)
+                  (tracer-enqueue tracer result)))))))
       (tracer-process-queue tracer))
     ;; Sweep Immix space
     (space-sweep immix-space vm)

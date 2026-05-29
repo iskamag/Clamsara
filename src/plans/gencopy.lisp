@@ -145,13 +145,17 @@
         (lambda (root)
           (when (and root (not (zerop root)))
             (let ((result (trace-ref root)))
-              (when result (tracer-enqueue tracer result))))))
+              (when result
+                (unless (tracer-trace-fn-enqueues-p tracer)
+                  (tracer-enqueue tracer result)))))))
       (when barrier
-        (barrier-card-scan barrier plan
+        (barrier-card-scan barrier vm
           (lambda (ref slot-idx)
             (declare (ignore slot-idx))
             (let ((result (trace-ref ref)))
-              (when result (tracer-enqueue tracer result))))))
+              (when result
+                (unless (tracer-trace-fn-enqueues-p tracer)
+                  (tracer-enqueue tracer result)))))))
       (tracer-process-queue tracer))
     (rotatef (copying-from-space-p n-from) (copying-from-space-p n-to))
     (setf (plan-nursery-from plan) n-to
@@ -181,16 +185,18 @@
                                      :cycle-kind :major)))))
       (setf tracer (make-tracer vm #'trace-fn :queue-size 4096))
       (setf (tracer-trace-fn-enqueues-p tracer) t)
-      (vm-scan-roots vm plan
-        (lambda (root)
-          (when (and root (not (zerop root)))
-            (let ((result (funcall #'trace-fn root)))
-              (if result
-                  (tracer-enqueue tracer result)
-                  (tracer-enqueue tracer root))))))
-      (tracer-process-queue tracer))
-    ;; Swap nursery
-    (when (and n-from n-to)
+       (vm-scan-roots vm plan
+         (lambda (root)
+           (when (and root (not (zerop root)))
+             (let ((result (funcall #'trace-fn root)))
+               (if result
+                   (unless (tracer-trace-fn-enqueues-p tracer)
+                     (tracer-enqueue tracer result))
+                   (unless (tracer-trace-fn-enqueues-p tracer)
+                     (tracer-enqueue tracer root)))))))
+       (tracer-process-queue tracer))
+     ;; Swap nursery
+     (when (and n-from n-to)
       (rotatef (copying-from-space-p n-from) (copying-from-space-p n-to))
       (setf (plan-nursery-from plan) n-to
             (plan-nursery-to plan) n-from

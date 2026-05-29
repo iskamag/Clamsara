@@ -79,28 +79,19 @@
 
 (defsystem "clamsara/test"
   :description "Test suite for clamsara"
-  :depends-on ("clamsara" "clamsara/vm" "fiveam")
+  :depends-on ("clamsara" "fiveam")
   :serial t
   :components ((:module "test"
                 :serial t
                 :components
                 ((:file "test-package")
                  (:file "test-util")
-                 (:file "test-types")
-                 (:file "test-heap")
-                 (:file "test-object")
-                 (:file "test-metadata")
-                 (:file "test-allocator")
-                 (:file "test-space")
-                 (:file "test-plan")
-                 (:file "test-barrier")
-                 (:file "test-tracer")
-                 (:file "test-collectors")
-                 (:file "test-gen")
+                 (:file "test-core")
+                 (:file "test-plans")
+                 (:file "test-generational")
                  (:file "test-sanity")
-                 (:file "test-maclina")
-                 (:file "test-clamsara")
-                 (:file "test-compile"))))
+                 (:file "test-compile")
+                 (:file "test-benchmark"))))
   :perform (test-op (op c)
               (declare (ignore op c))
               (unless (uiop:symbol-call :clamsara.tests :run-tests)

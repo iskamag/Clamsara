@@ -27,7 +27,8 @@
                     (space-trace-object space vm root tracer)
                     (progn
                       (setf (vm-object-is-marked-p vm root) t)
-                      (tracer-enqueue tracer root)))))))
+                      (unless (tracer-trace-fn-enqueues-p tracer)
+                        (tracer-enqueue tracer root))))))))
         (tracer-process-queue tracer)))
     ;; Sweep phase
     (dolist (space (plan-spaces plan))

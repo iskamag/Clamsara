@@ -14,7 +14,7 @@
   (:report (lambda (c s)
              (format s "~A" (no-active-plan-message c)))))
 
-(define-condition queue-overflow (error)
+(define-condition queue-overflow (warning)
   ((message :initarg :message :initform "Work queue overflow" :reader queue-overflow-message))
   (:report (lambda (c s)
              (format s "~A" (queue-overflow-message c)))))

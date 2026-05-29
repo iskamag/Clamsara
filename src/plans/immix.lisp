@@ -24,7 +24,8 @@
           (lambda (root)
             (when (and root (not (zerop root)))
               (space-trace-object space vm root tracer)
-              (tracer-enqueue tracer root))))
+              (unless (tracer-trace-fn-enqueues-p tracer)
+                (tracer-enqueue tracer root)))))
         (tracer-process-queue tracer)))
     ;; Sweep phase
     (space-sweep space vm)

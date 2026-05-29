@@ -57,7 +57,8 @@
 ;;; --- Plan Helpers ---
 
 (defun initialize-plan-heap (plan word-count)
-  "Initialize or resize heap backing stores for PLAN."
+  "Initialize or resize heap backing stores for PLAN.
+Adds one extra page to account for page 0 being reserved as the null sentinel."
   (let ((actual (+ word-count +page-size-words+)))
     (ensure-heap actual)
     (ensure-page-table actual)

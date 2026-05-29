@@ -125,7 +125,9 @@
     (vm-clear-all-mark-bits vm)))
 
 (defmethod space-sweep-young ((space marksweep-space-trait) vm)
-  "Sweep dead young objects. Mature dead objects are deferred to major GC."
+  "Sweep dead young objects. Mature dead objects are deferred to major GC.
+Live-young-bytes is accumulated during tracing; this sweep counts
+dead-mature-bytes and reclaims dead young objects."
   (let* ((start-page (space-start-page space))
          (n-pages (space-page-count space))
          (alloc (space-allocator space)))
@@ -138,22 +140,14 @@
                (cond
                  ((and (vm-object-start-p vm addr)
                        (vm-object-is-marked-p vm addr))
-                  (if (vm-object-is-logged-p vm addr)
-                      (let ((obj-size (vm-object-total-words vm addr)))
-                        (incf cursor obj-size)
-                        (incf (plan-live-young-bytes *active-plan*) obj-size))
-                      (let ((obj-size (vm-object-total-words vm addr)))
-                        (incf cursor obj-size))))
+                  (incf cursor (vm-object-total-words vm addr)))
                  ((vm-object-start-p vm addr)
-                  (let ((free-start cursor)
-                        (free-size 0)
-                        (obj-size (vm-object-total-words vm addr)))
+                  (let ((obj-size (vm-object-total-words vm addr)))
                     (if (vm-object-is-logged-p vm addr)
-                        (progn
+                        (let ((free-start cursor))
                           (incf cursor obj-size)
-                          (setf free-size obj-size)
-                          (when (>= free-size 4)
-                            (free alloc (make-address free-start) free-size)))
+                          (when (>= obj-size 4)
+                            (free alloc (make-address free-start) obj-size)))
                         (progn
                           (incf cursor obj-size)
                           (incf (plan-dead-mature-bytes *active-plan*) obj-size)))))
@@ -178,6 +172,17 @@
 (defclass immix-space-trait (collectable-space)
   ()
   (:documentation "Immix mark-region: block and line granularity."))
+
+;;; --- Immix Constants ---
+
+(defconstant +immix-lines-per-block+ +cards-per-page+
+  "Number of lines per block (32).")
+
+(defconstant +immix-line-size-words+ +card-size-words+
+  "Words per line (128).")
+
+(defconstant +immix-block-size-words+ +page-size-words+
+  "Words per block (4096 = page size).")
 
 (defmethod space-trace-object ((space immix-space-trait) vm ref tracer
                                &key cycle-kind trace-kind copy-semantics)
@@ -219,18 +224,42 @@
     (vm-clear-all-mark-bits vm)))
 
 (defmethod space-sweep-young ((space immix-space-trait) vm)
-  "Recycle blocks with no live young objects. Mature lines are preserved."
+  "Recycle blocks with no live objects, and count dead mature bytes in
+remaining blocks."
   (let ((mark-state (immix-space-line-mark-state space)))
+    ;; First pass: identify and recycle completely dead blocks
     (maphash (lambda (page block)
                (declare (ignore page))
-               (let ((has-live-young nil))
+               (let ((has-live nil))
                  (loop for line below +immix-lines-per-block+
                        when (= (aref (immix-block-line-marks block) line) mark-state)
-                         do (setf has-live-young t))
-                 (unless has-live-young
+                         do (setf has-live t))
+                 (unless has-live
                    (setf (immix-block-recycled-p block) t
                          (immix-block-live-lines block) 0)
                    (push (cons page block) (immix-space-recycled-blocks space)))))
+             (immix-space-blocks space))
+    ;; Second pass: count dead mature bytes in blocks that were NOT recycled
+    (maphash (lambda (page block)
+               (declare (ignore page))
+               (unless (immix-block-recycled-p block)
+                 (let* ((block-start (* (immix-block-start-page block)
+                                        +immix-block-size-words+))
+                        (block-end (+ block-start +immix-block-size-words+))
+                        (cursor block-start))
+                   (loop while (< cursor block-end)
+                         do (let ((addr (make-address cursor)))
+                              (cond
+                                ((and (vm-object-start-p vm addr)
+                                      (not (vm-object-is-marked-p vm addr))
+                                      (not (vm-object-is-logged-p vm addr)))
+                                 (let ((obj-size (vm-object-total-words vm addr)))
+                                   (incf cursor obj-size)
+                                   (incf (plan-dead-mature-bytes *active-plan*)
+                                         obj-size)))
+                                ((vm-object-start-p vm addr)
+                                 (incf cursor (vm-object-total-words vm addr)))
+                                (t (incf cursor))))))))
              (immix-space-blocks space))
     (let ((curr (immix-space-current-block space)))
       (when (and curr (immix-block-recycled-p curr))
@@ -265,17 +294,6 @@
 (defmethod space-contains-p ((space immix-space) addr)
   (let ((page (floor (address-index addr) +page-size-words+)))
     (nth-value 1 (gethash page (immix-space-blocks space)))))
-
-;;; --- Immix Constants ---
-
-(defconstant +immix-lines-per-block+ +cards-per-page+
-  "Number of lines per block (32).")
-
-(defconstant +immix-line-size-words+ +card-size-words+
-  "Words per line (128).")
-
-(defconstant +immix-block-size-words+ +page-size-words+
-  "Words per block (4096 = page size).")
 
 ;;; --- Immix Allocator ---
 

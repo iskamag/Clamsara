@@ -31,6 +31,9 @@
          (barrier (plan-barrier plan))
          (tracer nil))
     (vm-stop-mutators vm)
+    ;; Reset metrics for this cycle
+    (setf (plan-live-young-bytes plan) 0
+          (plan-dead-mature-bytes plan) 0)
     (flet ((trace-fn (ref)
              (cond
                ;; Object in nursery (logged): promote survivor
@@ -40,11 +43,15 @@
                   (setf (vm-object-is-marked-p vm ref) t)
                   (immix-mark-object-lines vm space ref
                                            (immix-space-line-mark-state space))
+                  (incf (plan-live-young-bytes plan)
+                        (vm-object-total-words vm ref))
                   (tracer-enqueue tracer ref))
                 ref)
                ;; Already mature: just mark if not marked
                ((not (vm-object-is-marked-p vm ref))
                 (setf (vm-object-is-marked-p vm ref) t)
+                (immix-mark-object-lines vm space ref
+                                         (immix-space-line-mark-state space))
                 (tracer-enqueue tracer ref)
                 ref)
                (t nil))))
@@ -55,18 +62,19 @@
         (lambda (root)
           (when (and root (not (zerop root)))
             (let ((result (funcall #'trace-fn root)))
-              (when result (tracer-enqueue tracer result))))))
+              (when result
+                (unless (tracer-trace-fn-enqueues-p tracer)
+                  (tracer-enqueue tracer result)))))))
       ;; Card scanning for old-to-young pointers
       (when barrier
-        (barrier-card-scan barrier plan
+        (barrier-card-scan barrier vm
           (lambda (ref slot-idx)
             (declare (ignore slot-idx))
             (let ((result (funcall #'trace-fn ref)))
-              (when result (tracer-enqueue tracer result))))))
+              (when result
+                (unless (tracer-trace-fn-enqueues-p tracer)
+                  (tracer-enqueue tracer result)))))))
       (tracer-process-queue tracer))
-    ;; Reset metrics for this sweep
-    (setf (plan-live-young-bytes plan) 0
-          (plan-dead-mature-bytes plan) 0)
     ;; Sweep: reclaim dead young objects only
     (space-sweep-young space vm)
     (when barrier (barrier-clear-all barrier))
@@ -90,7 +98,8 @@
         (lambda (root)
           (when (and root (not (zerop root)))
             (space-trace-object space vm root tracer :cycle-kind :major)
-            (tracer-enqueue tracer root))))
+            (unless (tracer-trace-fn-enqueues-p tracer)
+              (tracer-enqueue tracer root)))))
       (tracer-process-queue tracer))
     (space-sweep space vm)
     (vm-clear-all-log-bits vm)

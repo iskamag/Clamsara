@@ -108,10 +108,4 @@
 ;;; In a full implementation this would be a proper CLOS metaclass.
 ;;; For the simulator, we use simple validation functions.
 
-(defun validate-plan-constraints (plan)
-  "Validate that the plan's constraints are consistent with its spaces."
-  (let ((constraints (plan-constraints plan)))
-    (when (plan-generational-p constraints)
-      (unless (>= (plan-max-gc-threads constraints) 1)
-        (error "Generational plan must have max-gc-threads >= 1")))
-    plan))
+;; validate-plan-constraints is defined in metaclass.lisp

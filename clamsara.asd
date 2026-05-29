@@ -27,6 +27,7 @@
                  (:file "space")
                  (:file "space-traits")
                  (:file "page-resource")
+                 (:file "stats")
                  (:file "plan")
                  (:file "barrier")
                  (:file "mutator")
@@ -35,17 +36,12 @@
                  (:file "copy-config")
                  (:file "reference")
                  (:file "finalization")
-                 (:file "stats")
                  (:file "options")
                  (:file "sanity")
                  (:file "compile")
-                 (:module "vm"
-                  :components
-                  ((:file "simulator")
-                   (:file "maclina-vm")
-                   (:file "maclina-roots")
-                   (:file "maclina-alloc")
-                   (:file "maclina-env")))
+                  (:module "vm"
+                   :components
+                   ((:file "simulator")))
                  (:module "plans"
                   :components
                   ((:file "nogc")

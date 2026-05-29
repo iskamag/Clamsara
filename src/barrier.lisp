@@ -42,11 +42,11 @@
                  :nursery-start nursery-start
                  :nursery-end nursery-end))
 
-(defun card-table-cards (barrier)
+(defun barrier-card-table-cards (barrier)
   (card-table-cards (barrier-card-table barrier)))
 
 (defun card-dirty-p (barrier card-idx)
-  (> (aref (card-table-cards barrier) card-idx) 0))
+  (> (aref (barrier-card-table-cards barrier) card-idx) 0))
 
 (defmethod barrier-note-write ((b object-barrier) source-addr slot-idx new-value)
   (declare (ignore slot-idx))
@@ -55,10 +55,10 @@
              (>= new-value (barrier-nursery-start b))
              (< new-value (barrier-nursery-end b)))
     (let ((idx (card-index source-addr)))
-      (setf (aref (card-table-cards b) idx) 1))))
+      (setf (aref (barrier-card-table-cards b) idx) 1))))
 
 (defmethod barrier-card-scan ((b object-barrier) vm scan-fn)
-  (let ((cards (card-table-cards b))
+  (let ((cards (barrier-card-table-cards b))
         (nursery-start (barrier-nursery-start b))
         (nursery-end (barrier-nursery-end b)))
     (dotimes (i (length cards))
@@ -76,4 +76,4 @@
                       (funcall scan-fn addr val))))))))))))
 
 (defmethod barrier-clear-all ((b object-barrier))
-  (fill (card-table-cards b) 0))
+  (fill (barrier-card-table-cards b) 0))

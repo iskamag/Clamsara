@@ -230,7 +230,10 @@
       (plan-add-space plan m0)
       (plan-add-space plan m1)
       (setf (plan-default-space plan) (plan-nursery-from plan))
-      (let ((barrier (make-object-barrier vm (plan-card-table plan) plan)))
+      (let* ((nursery (plan-nursery plan))
+             (nursery-start (* (space-start-page nursery) +page-size-words+))
+             (nursery-end (+ nursery-start (* (space-page-count nursery) +page-size-words+)))
+             (barrier (make-object-barrier (plan-card-table plan) nursery-start nursery-end)))
         (setf (plan-barrier plan) barrier
               (vm-barrier vm) barrier))
       plan)))

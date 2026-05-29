@@ -15,7 +15,7 @@
         (is (consp entry))
         (is (symbolp (car entry)))
         (is (consp (cdr entry))) ; lambda form
-        (is (eq 'lambda (cadr entry))))))))
+        (is (eq 'lambda (cadr entry)))))))
 
 (test compile-to-functions-non-empty
   "compile-to-functions returns non-empty alist for any plan."

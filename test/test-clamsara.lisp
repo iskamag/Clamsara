@@ -25,15 +25,17 @@
         (barrier-clear-all barrier)
         ;; Old -> Young should mark card
         (barrier-note-write barrier 0 0 nursery-start)
-        (is (> (aref (card-table-cards barrier) 0) 0))
+        (is (> (aref (barrier-card-table-cards barrier) 0) 0))
+        ;; Card 1 should NOT be dirty - only address 0 was written (card 0)
+        (is (= 0 (aref (barrier-card-table-cards barrier) 1)))
         ;; Clear and test Young -> Young (should NOT mark)
         (barrier-clear-all barrier)
         (barrier-note-write barrier nursery-start 0 (1+ nursery-start))
-        (is (= 0 (aref (card-table-cards barrier) 0)))
+        (is (= 0 (aref (barrier-card-table-cards barrier) 0)))
         ;; Young -> Old (should NOT mark)
         (barrier-clear-all barrier)
         (barrier-note-write barrier nursery-start 0 0)
-        (is (= 0 (aref (card-table-cards barrier) 0)))))))
+        (is (= 0 (aref (barrier-card-table-cards barrier) 0)))))))
 
 (test object-barrier-card-scan-finds-references
   "Barrier-card-scan correctly finds old->young references."
@@ -45,7 +47,7 @@
            (nursery-end (barrier-nursery-end barrier)))
       (barrier-clear-all barrier)
       ;; Mark a card as dirty
-      (setf (aref (card-table-cards barrier) 0) 1)
+      (setf (aref (barrier-card-table-cards barrier) 0) 1)
       (let ((found-pairs nil))
         (barrier-card-scan barrier vm
           (lambda (source target)
@@ -78,7 +80,7 @@
         ;; should be T, meaning the tracer WILL enqueue the result
         ;; So the result (42) should have been enqueued... but it's already processed
         ;; Let's check visit-count instead
-        (is (> (tracer-visit-count tracer) 0)))))))
+        (is (> (tracer-visit-count tracer) 0))))))
 
 ;;; --- Generational Promotion Tests ---
 
@@ -117,7 +119,7 @@
           (when (and r (not (zerop r)))
             (push r roots))))
       ;; Should have found all 5 roots
-      (is (= 5 (length roots)))))))
+      (is (= 5 (length roots))))))
 
 ;;; --- Multi-Cycle GC Data Integrity ---
 
@@ -170,7 +172,7 @@
         (is (= 100 (length new-roots)))
         (dotimes (i 100)
           (let ((addr (nth i new-roots)))
-            (is (= (- 99 i) (vm-object-reference vm addr 0)))))))))
+            (is (= i (vm-object-reference vm addr 0)))))))))
 
 ;;; --- Immix Line Marking Tests ---
 

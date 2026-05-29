@@ -94,9 +94,4 @@ at finalize-inheritance and registers the plan type in the global registry."))
   (let ((options (closer-mop:class-direct-default-initargs class)))
     (cdr (assoc option-name options))))
 
-(defun make-plan (type vm heap-size &rest initargs)
-  "Create a plan instance of the registered TYPE."
-  (let ((class (gethash type *registered-plan-types*)))
-    (unless class
-      (error "Unknown plan type: ~A" type))
-    (apply #'make-instance class :vm vm :heap-size heap-size initargs)))
+;; make-plan is defined in api.lisp using *plan-selectors*

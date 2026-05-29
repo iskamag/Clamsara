@@ -84,6 +84,9 @@ this interface, never directly with the heap."))
 (defgeneric (setf vm-object-generation) (generation vm obj-address)
   (:documentation "Set the generation number. Used for in-place promotion."))
 
+(defgeneric vm-object-has-children-p (vm obj-address)
+  (:documentation "Return T if the object has reference slots."))
+
 (defgeneric vm-object-age (vm obj-address)
   (:documentation "Return the survivor count (age within generation)."))
 
@@ -229,6 +232,9 @@ this interface, never directly with the heap."))
 
 (defmethod (setf vm-object-age) (age (vm vm-binding) obj-address)
   (setf (object-age obj-address) age))
+
+(defmethod vm-object-has-children-p ((vm vm-binding) obj-address)
+  (> (vm-object-reference-count vm obj-address) 0))
 
 (defmethod vm-object-copy ((vm vm-binding) src-address dst-address)
   (let ((n-words (vm-object-total-words vm src-address)))

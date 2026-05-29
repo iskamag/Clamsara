@@ -113,7 +113,10 @@
         (free-list-allocator-add-page alloc (+ start-page i)))
       (setf (plan-default-space plan) space)
       (plan-add-space plan space)
-      (let ((barrier (make-object-barrier vm (plan-card-table plan) plan)))
+      (let* ((space (plan-get-space plan :default))
+             (space-start (* (space-start-page space) +page-size-words+))
+             (space-end (+ space-start (* (space-page-count space) +page-size-words+)))
+             (barrier (make-object-barrier (plan-card-table plan) space-start space-end)))
         (setf (plan-barrier plan) barrier
               (vm-barrier vm) barrier))
       plan)))

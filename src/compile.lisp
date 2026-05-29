@@ -8,34 +8,33 @@
 ;;; --- gc-phase Method Combination ---
 ;;; Qualifiers: :around, :prologue, :pre-mark, :mark, :sweep, :epilogue
 
-(define-method-combination gc-phase ()
-  ((around (:around))
-   (prologue (:prologue))
-   (pre-mark (:pre-mark))
-   (mark (:mark))
-   (sweep (:sweep))
-   (epilogue (:epilogue))
-   (default ())))
-  (let ((form (if default
-                  `(progn ,@(mapcar #'(lambda (m) `(call-method ,m)) default))
-                  nil)))
-    ;; Wrap with phase methods in order
-    (dolist (m (reverse epilogue))
-      (setf form `(progn (call-method ,m) ,form)))
-    (dolist (m (reverse sweep))
-      (setf form `(progn (call-method ,m) ,form)))
-    (dolist (m (reverse mark))
-      (setf form `(progn (call-method ,m) ,form)))
-    (dolist (m (reverse pre-mark))
-      (setf form `(progn (call-method ,m) ,form)))
-    (dolist (m (reverse prologue))
-      (setf form `(progn (call-method ,m) ,form)))
-    ;; Wrap with :around methods
-    (if around
-        `(call-method ,(first around)
-                      (,@(rest around)
-                       (make-method ,form)))
-        form)))
+(eval-when (:compile-toplevel :load-toplevel :execute)
+  (define-method-combination gc-phase ()
+    ((around (:around))
+     (prologue (:prologue))
+     (pre-mark (:pre-mark))
+     (mark (:mark))
+     (sweep (:sweep))
+     (epilogue (:epilogue))
+     (default ()))
+    (let ((form (if default
+                    `(progn ,@(mapcar #'(lambda (m) `(call-method ,m)) default))
+                    nil)))
+      (dolist (m (reverse epilogue))
+        (setf form `(progn (call-method ,m) ,form)))
+      (dolist (m (reverse sweep))
+        (setf form `(progn (call-method ,m) ,form)))
+      (dolist (m (reverse mark))
+        (setf form `(progn (call-method ,m) ,form)))
+      (dolist (m (reverse pre-mark))
+        (setf form `(progn (call-method ,m) ,form)))
+      (dolist (m (reverse prologue))
+        (setf form `(progn (call-method ,m) ,form)))
+      (if around
+          `(call-method ,(first around)
+                        (,@(rest around)
+                         (make-method ,form)))
+          form))))
 
 ;;; --- Generic with gc-phase ---
 
@@ -46,7 +45,7 @@ Uses the gc-phase method combination to order collection phases."))
 
 ;;; --- Default phase methods ---
 
-(defmethod plan-collect-phase prologue ((plan plan) (phase t))
+(defmethod plan-collect-phase :prologue ((plan plan) (phase t))
   "Prologue: prepare for collection."
   (declare (ignore phase))
   ;; Clear barrier state
@@ -55,11 +54,11 @@ Uses the gc-phase method combination to order collection phases."))
   ;; Clear mark bits
   (let ((vm (plan-vm plan)))
     (when vm
-      (dotimes (i (length (simulator-vm-heap vm)))
+      (dotimes (i (vm-heap-size vm))
         (when (vm-object-start-p vm i)
           (setf (vm-object-is-marked-p vm i) nil))))))
 
-(defmethod plan-collect-phase mark ((plan plan) (phase t))
+(defmethod plan-collect-phase :mark ((plan plan) (phase t))
   "Mark: trace from roots."
   (declare (ignore phase))
   (let ((vm (plan-vm plan)))
@@ -75,13 +74,13 @@ Uses the gc-phase method combination to order collection phases."))
               (tracer-enqueue tracer r))))
         (tracer-process-queue tracer)))))
 
-(defmethod plan-collect-phase sweep ((plan plan) (phase t))
+(defmethod plan-collect-phase :sweep ((plan plan) (phase t))
   "Sweep: reclaim unreachable objects."
   (declare (ignore phase))
   ;; Default is a no-op; specific plans override this.
   nil)
 
-(defmethod plan-collect-phase epilogue ((plan plan) (phase t))
+(defmethod plan-collect-phase :epilogue ((plan plan) (phase t))
   "Epilogue: cleanup after collection."
   (declare (ignore phase))
   nil)
@@ -93,9 +92,11 @@ Uses the gc-phase method combination to order collection phases."))
   (let ((start (get-internal-real-time)))
     (call-next-method)
     (let ((end (get-internal-real-time)))
-      (incf (plan-stats-gc-count (plan-stats plan)))
-      (incf (plan-stats-gc-time (plan-stats plan))
-            (/ (- end start) internal-time-units-per-second)))))
+      (let ((stats (plan-stats plan)))
+        (when stats
+          (incf (plan-stats-gc-count stats))
+          (incf (plan-stats-gc-time stats)
+                (/ (- end start) internal-time-units-per-second)))))))
 
 ;;; --- Function Table ---
 
@@ -116,7 +117,7 @@ hot-path functions contributed by COMPONENT."))
   "Compile the GC phase sequence."
   (let ((phase-lambda
          `(lambda ()
-            (plan-collect-phase plan ,(if (plan-generational-p plan) :minor :major)))))
+             (plan-collect-phase plan ,(if (plan-generational-p (plan-constraints plan)) :minor :major)))))
     (list (cons 'plan-collect phase-lambda))))
 
 (defmethod compile-to-functions append ((space space))

@@ -38,10 +38,13 @@
    #:vm-object-has-children-p
    ;; Metadata
    #:metadata-words #:metadata-offset
+   #:object-start-p #:mark-object-start
    ;; Barrier
    #:barrier-note-write #:barrier-card-scan #:barrier-clear-all
    #:no-barrier #:make-no-barrier
    #:object-barrier #:make-object-barrier
+   #:barrier-nursery-start #:barrier-nursery-end #:barrier-card-table
+   #:barrier-card-table-cards
    #:card-table #:card-table-cards #:ensure-card-table
    #:card-table-card-dirty-p #:barrier-scan-cards
    ;; Tracer
@@ -60,7 +63,7 @@
    #:collector-state #:collector-state-plan #:collector-state-phase
    #:collector-state-forwarding
    ;; VM
-   #:vm #:root-set #:rs-static-roots
+   #:vm #:root-set #:rs-static-roots #:vm-root-set
    #:vm-scan-roots #:vm-object-reference-store
    ;; Simulator VM
    #:simulator-vm #:make-simulator-vm
@@ -76,6 +79,7 @@
    ;; Convenience
    #:with-clamsara #:clamsara-gc
    #:clamsara-register-root
+   #:*active-plan* #:*active-vm*
    ;; Metaclasses
    #:clamsara-metaclass
    #:plan-metaclass
@@ -100,13 +104,24 @@
    #:plan-collect-phase
    #:boot-gc
    #:compile-to-functions
+   #:plan-function-table
    #:plan-initialize-spaces
    ;; Stats
    #:plan-stats
    #:plan-stats-gc-count
    #:plan-stats-gc-time
+   ;; Plan classes (for typep in tests)
+   #:nogc-plan #:semispace-plan #:marksweep-plan #:immix-plan
+   #:gencopy-plan #:genms-plan #:genimmix-plan #:stickyimmix-plan #:stickyms-plan
+   ;; Conditions
+   #:heap-exhausted #:no-active-plan
+   ;; Sanity (test support)
+   #:compute-live-set #:make-random-object-graph #:random-mutator-step
+   ;; Allocator
+   #:free
    ;; Maclina
    #:clamsara-maclina-client
+   #:*clamsara-maclina-client* #:*clamsara-maclina-env*
    #:setup-clamsara-maclina-environment))
 
 (in-package #:clamsara)

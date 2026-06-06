@@ -8,6 +8,8 @@
 ;;; --- gc-phase Method Combination ---
 ;;; Qualifiers: :around, :prologue, :pre-mark, :mark, :sweep, :compact, :release, :epilogue
 ;;; Order: prologue -> pre-mark -> mark -> sweep -> compact -> release -> epilogue
+;;; Only the most-specific method in each phase runs (standard dispatch semantics).
+;;; Methods without a recognized qualifier fall into the default group and all run.
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (define-method-combination gc-phase ()
@@ -20,28 +22,32 @@
      (release (:release))
      (epilogue (:epilogue))
      (default ()))
-    (let ((form (if default
-                    `(progn ,@(mapcar #'(lambda (m) `(call-method ,m)) default))
-                    nil)))
-      (dolist (m (reverse epilogue))
-        (setf form `(progn (call-method ,m) ,form)))
-      (dolist (m (reverse release))
-        (setf form `(progn (call-method ,m) ,form)))
-      (dolist (m (reverse compact))
-        (setf form `(progn (call-method ,m) ,form)))
-      (dolist (m (reverse sweep))
-        (setf form `(progn (call-method ,m) ,form)))
-      (dolist (m (reverse mark))
-        (setf form `(progn (call-method ,m) ,form)))
-      (dolist (m (reverse pre-mark))
-        (setf form `(progn (call-method ,m) ,form)))
-      (dolist (m (reverse prologue))
-        (setf form `(progn (call-method ,m) ,form)))
-      (if around
-          `(call-method ,(first around)
-                        (,@(rest around)
-                         (make-method ,form)))
-          form))))
+    (flet ((call-primary (method-group)
+             (let ((m (first method-group)))
+               (when m
+                 `(call-method ,m)))))
+      (let ((form (if default
+                      `(progn ,@(mapcar #'(lambda (m) `(call-method ,m)) default))
+                      nil)))
+        (let ((m (call-primary epilogue)))
+          (when m (setf form `(progn ,m ,form))))
+        (let ((m (call-primary release)))
+          (when m (setf form `(progn ,m ,form))))
+        (let ((m (call-primary compact)))
+          (when m (setf form `(progn ,m ,form))))
+        (let ((m (call-primary sweep)))
+          (when m (setf form `(progn ,m ,form))))
+        (let ((m (call-primary mark)))
+          (when m (setf form `(progn ,m ,form))))
+        (let ((m (call-primary pre-mark)))
+          (when m (setf form `(progn ,m ,form))))
+        (let ((m (call-primary prologue)))
+          (when m (setf form `(progn ,m ,form))))
+        (if around
+            `(call-method ,(first around)
+                          (,@(rest around)
+                           (make-method ,form)))
+            form)))))
 
 ;;; --- Generic with gc-phase ---
 

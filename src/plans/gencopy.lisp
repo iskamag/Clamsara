@@ -30,31 +30,24 @@
     (and nursery
          (> (bump-allocator-occupancy (space-allocator nursery)) 3/4))))
 
-(defmethod plan-collect ((plan generational-plan-trait) &key (cycle-kind :minor))
-  "Policy: decide minor vs major, then delegate to plan-collect-phase."
-  (if (eq cycle-kind :major)
-      (plan-collect-phase plan :major)
+(defun %generational-effective-phase (plan requested)
+  "Determine minor/major phase for a generational plan, handling escalation."
+  (if (eq requested :major)
+      :major
       (if (should-minor-gc-p plan)
-          (plan-collect-phase plan :minor)
+          :minor
           (progn
             (setf (plan-last-major-gc-minor-count plan)
                   (plan-minor-gc-count plan))
-            (plan-collect-phase plan :major)))))
+            :major))))
 
-;;; --- Generational compile-to-functions ---
-;;; Duplicates the policy logic so the compiled closure also decides minor/major.
+(defmethod plan-collect ((plan generational-plan-trait) &key (cycle-kind :minor))
+  (plan-collect-phase plan (%generational-effective-phase plan cycle-kind)))
 
 (defmethod compile-to-functions append ((plan generational-plan-trait))
   (list (cons 'plan-collect
               (lambda (&key (cycle-kind :minor))
-                (if (eq cycle-kind :major)
-                    (plan-collect-phase plan :major)
-                    (if (should-minor-gc-p plan)
-                        (plan-collect-phase plan :minor)
-                        (progn
-                          (setf (plan-last-major-gc-minor-count plan)
-                                (plan-minor-gc-count plan))
-                          (plan-collect-phase plan :major))))))))
+                (plan-collect-phase plan (%generational-effective-phase plan cycle-kind))))))
 
 ;;; --- Generational phase suppressors ---
 ;;; Minor/major collection happens entirely in plan-collect-phase :prologue

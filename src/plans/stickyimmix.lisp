@@ -11,27 +11,12 @@
 ;;; --- StickyImmix policy and phase methods ---
 
 (defmethod plan-collect ((plan stickyimmix-plan) &key (cycle-kind :minor))
-  "Policy: decide minor vs major, including should-minor-gc-p escalation."
-  (if (eq cycle-kind :major)
-      (plan-collect-phase plan :major)
-      (if (should-minor-gc-p plan)
-          (plan-collect-phase plan :minor)
-          (progn
-            (setf (plan-last-major-gc-minor-count plan)
-                  (plan-minor-gc-count plan))
-            (plan-collect-phase plan :major)))))
+  (plan-collect-phase plan (%generational-effective-phase plan cycle-kind)))
 
 (defmethod compile-to-functions append ((plan stickyimmix-plan))
   (list (cons 'plan-collect
               (lambda (&key (cycle-kind :minor))
-                (if (eq cycle-kind :major)
-                    (plan-collect-phase plan :major)
-                    (if (should-minor-gc-p plan)
-                        (plan-collect-phase plan :minor)
-                        (progn
-                          (setf (plan-last-major-gc-minor-count plan)
-                                (plan-minor-gc-count plan))
-                          (plan-collect-phase plan :major))))))))
+                (plan-collect-phase plan (%generational-effective-phase plan cycle-kind))))))
 
 (defmethod plan-collect-phase :prologue ((plan stickyimmix-plan) (phase (eql :minor)))
   (sticky-nursery-collect plan))

@@ -91,6 +91,30 @@
     (decf (free-list-total-allocated a) size)
     addr))
 
+(defmethod coalesce ((a free-list-allocator))
+  "Perform a full coalescing pass over all bins, merging adjacent free chunks."
+  (let ((all-chunks nil))
+    (loop for bin from 0 below +free-list-bins+
+          do (loop for chunk in (aref (allocator-bins a) bin)
+                   do (push chunk all-chunks)))
+    (setf all-chunks (sort all-chunks #'< :key #'chunk-start))
+    ;; Clear all bins
+    (loop for bin from 0 below +free-list-bins+
+          do (setf (aref (allocator-bins a) bin) nil))
+    ;; Re-insert coalesced chunks
+    (let ((merged nil)
+          (current (first all-chunks)))
+      (when current
+        (loop for next in (rest all-chunks)
+              do (if (= (chunk-end current) (chunk-start next))
+                     (setf (free-list-chunk-size current)
+                           (+ (free-list-chunk-size current) (chunk-size next)))
+                     (progn (push current merged)
+                            (setf current next))))
+        (push current merged)
+        (dolist (chunk (nreverse merged))
+          (add-chunk-to-bin a chunk))))))
+
 ;;; --- Bin Operations ---
 
 (defun add-chunk-to-bin (allocator chunk)

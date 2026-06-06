@@ -323,6 +323,24 @@ remaining blocks."
         (setf (immix-block-cursor block) new-cursor)
         (make-address cursor)))))
 
+(defmethod mark-line ((a immix-allocator) addr mark-state)
+  "Mark the line containing ADDR with MARK-STATE in the owning block."
+  (let* ((space (allocator-space a))
+         (page-idx (floor (address-index addr) +page-size-words+))
+         (block (gethash page-idx (immix-space-blocks space))))
+    (when block
+      (let* ((line-idx (floor (mod (address-index addr) +page-size-words+)
+                              +immix-line-size-words+))
+             (line-marks (immix-block-line-marks block)))
+        (when (zerop (aref line-marks line-idx))
+          (setf (aref line-marks line-idx) mark-state)
+          (incf (immix-block-live-lines block)))))))
+
+(defmethod block-is-recyclable-p ((a immix-allocator) block)
+  "Return T if BLOCK has no live lines with the current mark state."
+  (declare (ignore a))
+  (zerop (immix-block-live-lines block)))
+
 (defun immix-space-ensure-block (space page-resource)
   (unless (immix-space-current-block space)
     (if (immix-space-recycled-blocks space)

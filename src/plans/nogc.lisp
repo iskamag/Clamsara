@@ -6,7 +6,7 @@
 (defclass nogc-plan (plan) ()
   (:documentation "NoGC plan: allocates, never collects."))
 
-(defmethod plan-collect-phase :prologue ((plan nogc-plan) (phase t))
+(defmethod plan-collect-phase :prologue ((plan nogc-plan) (cycle-kind t))
   (error 'heap-exhausted :plan plan :message "NoGC plan cannot collect"))
 
 (defmethod plan-get-space ((plan nogc-plan) (designator (eql :default)))
@@ -26,7 +26,7 @@
                    :constraints (make-instance 'plan-constraints
                                   :moves-objects nil :generational nil
                                   :nursery-kind nil :num-generations 1
-                                  :needs-log-bit nil :barrier :none
+                                  :needs-log-bit nil :barrier-type :none
                                   :needs-forwarding nil))))
     (initialize-plan-heap plan heap-size)
     (let* ((pr (plan-page-resource plan))

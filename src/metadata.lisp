@@ -45,8 +45,9 @@ mark, log, pin, age, generation, and object-start.")
    (bit-offset :initarg :bit-offset :reader metadata-spec-bit-offset)))
 
 (defvar *forwarding-placement* :separate-region
-  "Default forwarding placement. :in-header for STW VMs, :separate-region
-for concurrent VMs. Override with vm-forwarding-placement generic.")
+  "Default forwarding placement. :separate-region uses a side table for
+forwarding information, keeping object headers intact. :in-header overwrites
+the dead object's first word (requires header restoration during release).")
 
 (defvar *forwarding-pointers* nil
   "Simple-vector of fixnums holding forwarding addresses. Indexed by source
@@ -160,7 +161,7 @@ address. Only used when *forwarding-placement* is :separate-region.")
   (declare (type fixnum addr))
   (ecase *forwarding-placement*
     (:in-header
-     (object-flag-set-p addr +flag-forwarded+))
+     (logbitp 0 (object-header addr)))
     (:separate-region
      (when (and *forwarding-pointers* (< addr (length *forwarding-pointers*)))
        (not (zerop (aref *forwarding-pointers* addr)))))))
@@ -170,7 +171,7 @@ address. Only used when *forwarding-placement* is :separate-region.")
   (declare (type fixnum addr))
   (ecase *forwarding-placement*
      (:in-header
-      (when (object-flag-set-p addr +flag-forwarded+)
+      (when (logbitp 0 (object-header addr))
         (ash (object-header addr) -1)))
     (:separate-region
      (when (and *forwarding-pointers* (< addr (length *forwarding-pointers*)))
@@ -180,12 +181,12 @@ address. Only used when *forwarding-placement* is :separate-region.")
 (defun set-object-forwarding (src-addr dst-addr)
   "Set the forwarding pointer from SRC-ADDR to DST-ADDR.
 For :in-header mode, stores the forwarding address as a tagged 63-bit value
-by shifting the address left 1 bit and setting the low bit as a tag."
+by shifting the address left 1 bit and setting the low bit as a tag.
+The tag bit (bit 0) is the sole forwarded indicator in :in-header mode."
   (declare (type fixnum src-addr dst-addr))
   (ecase *forwarding-placement*
     (:in-header
-     (setf (object-header src-addr) (logior (ash dst-addr 1) 1))
-     (set-object-flag src-addr +flag-forwarded+))
+     (setf (object-header src-addr) (logior (ash dst-addr 1) 1)))
     (:separate-region
      (setf (aref *forwarding-pointers* src-addr) dst-addr)
      (set-object-flag src-addr +flag-forwarded+)))
@@ -195,7 +196,8 @@ by shifting the address left 1 bit and setting the low bit as a tag."
   (declare (type fixnum addr))
   (ecase *forwarding-placement*
     (:in-header
-     (clear-object-flag addr +flag-forwarded+))
+     (when (logbitp 0 (object-header addr))
+       (setf (object-header addr) (logandc2 (object-header addr) 1))))
     (:separate-region
      (when *forwarding-pointers*
        (setf (aref *forwarding-pointers* addr) 0)

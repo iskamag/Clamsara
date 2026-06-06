@@ -80,15 +80,5 @@ following forwarding chains."
              (rs-thread-roots root-set))))
 
 ;;; --- GC Map Construction ---
-
-(defun make-gc-map (pc-offsets)
-  (create-gc-map
-   :pc-offsets pc-offsets
-   :ref-slots (remove-duplicates
-               (loop for (pc . n-slots) in pc-offsets
-                     append (loop for i from 0 below n-slots collect i)))))
-
-(defun gc-map-ref-slots-at-pc (gc-map pc)
-  (let ((entry (assoc pc (gc-map-pc-offsets gc-map) :test #'=)))
-    (when entry
-      (loop for i from 0 below (cdr entry) collect i))))
+;;; GC maps track which stack slots hold live references at each PC offset.
+;;; Defined for future use by VM backends that support stack-map-based root scanning.

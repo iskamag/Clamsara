@@ -54,6 +54,7 @@
            (let* ((space (plan-get-space plan space-designator))
                   (alloc (space-allocator space)))
              (alloc alloc size))))
+    (plan-request-gc plan)
     (or (try-alloc)
         (progn
           (plan-collect plan :cycle-kind :minor)
@@ -120,10 +121,10 @@
 (defclass gencopy-plan (generational-plan-trait plan) ()
   (:documentation "Generational copying collector."))
 
-(defmethod plan-collect-phase :prologue ((plan gencopy-plan) (phase (eql :minor)))
+(defmethod plan-collect-phase :prologue ((plan gencopy-plan) (cycle-kind (eql :minor)))
   (gen-minor-collect plan))
 
-(defmethod plan-collect-phase :prologue ((plan gencopy-plan) (phase (eql :major)))
+(defmethod plan-collect-phase :prologue ((plan gencopy-plan) (cycle-kind (eql :major)))
   (gen-major-collect plan))
 
 (defmethod gen-minor-collect ((plan gencopy-plan))
@@ -145,8 +146,8 @@
                               (dst (alloc nursery-alloc n-words)))
                          (when (null dst)
                            (error 'heap-exhausted :plan plan))
-                         (vm-object-copy vm ref dst)
-                         (setf (vm-object-age vm dst) (1+ age))
+                          (vm-object-copy vm ref dst)
+                          (setf (vm-object-age vm dst) (min 15 (1+ age)))
                          dst)))))
              (trace-ref (ref)
                (let ((already-fwd (vm-object-is-forwarded-p vm ref)))
@@ -266,7 +267,7 @@
                    :constraints (make-instance 'plan-constraints
                                   :moves-objects t :generational t
                                   :nursery-kind :copying :num-generations 2
-                                  :needs-log-bit t :barrier :object
+                                  :needs-log-bit t :barrier-type :object
                                   :needs-forwarding t))))
     (initialize-plan-heap plan heap-size)
     (let* ((pr (plan-page-resource plan))

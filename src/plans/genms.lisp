@@ -7,10 +7,10 @@
   ((ms-mature-space :initform nil :accessor plan-genms-mature-space))
   (:documentation "GenMS: copying nursery, mark-sweep mature."))
 
-(defmethod plan-collect-phase :prologue ((plan genms-plan) (phase (eql :minor)))
+(defmethod plan-collect-phase :prologue ((plan genms-plan) (cycle-kind (eql :minor)))
   (gen-minor-collect plan))
 
-(defmethod plan-collect-phase :prologue ((plan genms-plan) (phase (eql :major)))
+(defmethod plan-collect-phase :prologue ((plan genms-plan) (cycle-kind (eql :major)))
   (gen-major-collect plan))
 
 (defmethod gen-minor-collect ((plan genms-plan))
@@ -28,23 +28,24 @@
                           (not (vm-object-is-forwarded-p vm ref)))
                  (let ((age (vm-object-age vm ref)))
                    (if (>= age (plan-survivor-threshold plan))
-                       (let* ((alloc (space-allocator ms-space))
-                              (n-words (vm-object-total-words vm ref))
-                              (dst (alloc alloc n-words)))
-                         (when (null dst)
-                           (error 'heap-exhausted :plan plan))
-                         (vm-object-copy vm ref dst)
-                         (setf (vm-object-age vm dst) age)
-                         (setf (vm-object-is-marked-p vm dst) t)
-                         (vector-push-extend dst promoted)
-                         dst)
+                        (let* ((alloc (space-allocator ms-space))
+                               (n-words (vm-object-total-words vm ref))
+                               (dst (alloc alloc n-words)))
+                          (when (null dst)
+                            (error 'heap-exhausted :plan plan))
+                          (vm-object-copy vm ref dst)
+                          (setf (vm-object-generation vm dst) 1
+                                (vm-object-age vm dst) 0)
+                          (setf (vm-object-is-marked-p vm dst) t)
+                          (vector-push-extend dst promoted)
+                          dst)
                        (let* ((n-words (vm-object-total-words vm ref))
                               (nursery-alloc (space-allocator n-to))
                               (dst (alloc nursery-alloc n-words)))
                          (when (null dst)
                            (error 'heap-exhausted :plan plan))
-                         (vm-object-copy vm ref dst)
-                         (setf (vm-object-age vm dst) (1+ age))
+                          (vm-object-copy vm ref dst)
+                          (setf (vm-object-age vm dst) (min 15 (1+ age)))
                          dst)))))
              (trace-ref (ref)
                (let ((already-fwd (vm-object-is-forwarded-p vm ref)))
@@ -156,7 +157,7 @@
                    :constraints (make-instance 'plan-constraints
                                   :moves-objects t :generational t
                                   :nursery-kind :copying :num-generations 2
-                                  :needs-log-bit t :barrier :object
+                                  :needs-log-bit t :barrier-type :object
                                   :needs-forwarding t))))
     (initialize-plan-heap plan heap-size)
     (let* ((pr (plan-page-resource plan))

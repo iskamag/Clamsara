@@ -18,10 +18,10 @@
               (lambda (&key (cycle-kind :minor))
                 (plan-collect-phase plan (%generational-effective-phase plan cycle-kind))))))
 
-(defmethod plan-collect-phase :prologue ((plan stickyimmix-plan) (phase (eql :minor)))
+(defmethod plan-collect-phase :prologue ((plan stickyimmix-plan) (cycle-kind (eql :minor)))
   (sticky-nursery-collect plan))
 
-(defmethod plan-collect-phase :prologue ((plan stickyimmix-plan) (phase (eql :major)))
+(defmethod plan-collect-phase :prologue ((plan stickyimmix-plan) (cycle-kind (eql :major)))
   (sticky-major-collect plan))
 
 (defmethod mature-dead-ratio-exceeded-p ((plan stickyimmix-plan))
@@ -45,7 +45,7 @@
                ;; Object in nursery (logged): promote survivor
                ((vm-object-is-logged-p vm ref)
                 (setf (vm-object-is-logged-p vm ref) nil)
-                (setf (vm-object-age vm ref) (1+ (vm-object-age vm ref)))
+                (setf (vm-object-age vm ref) (min 15 (1+ (vm-object-age vm ref))))
                 (unless (vm-object-is-marked-p vm ref)
                   (setf (vm-object-is-marked-p vm ref) t)
                   (immix-mark-object-lines vm space ref
@@ -134,6 +134,7 @@
            (let* ((space (plan-get-space plan space-designator))
                   (alloc (space-allocator space)))
              (alloc alloc size))))
+    (plan-request-gc plan)
     (or (try-alloc)
         (progn
           (sticky-nursery-collect plan)
@@ -150,7 +151,7 @@
                    :constraints (make-instance 'plan-constraints
                                   :moves-objects nil :generational t
                                   :nursery-kind :sticky :num-generations 2
-                                  :needs-log-bit t :barrier :object
+                                  :needs-log-bit t :barrier-type :object
                                   :needs-forwarding nil))))
     (initialize-plan-heap plan heap-size)
     (let* ((pr (plan-page-resource plan))

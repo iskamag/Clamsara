@@ -15,7 +15,6 @@
   (define-method-combination gc-phase ()
     ((around (:around))
      (prologue (:prologue))
-     (pre-mark (:pre-mark))
      (mark (:mark))
      (sweep (:sweep))
      (compact (:compact))
@@ -23,9 +22,9 @@
      (epilogue (:epilogue))
      (default ()))
     (flet ((call-primary (method-group)
-             (let ((m (first method-group)))
-               (when m
-                 `(call-method ,m)))))
+              (let ((m (first method-group)))
+                (when m
+                  `(call-method ,m)))))
       (let ((form (if default
                       `(progn ,@(mapcar #'(lambda (m) `(call-method ,m)) default))
                       nil)))
@@ -39,8 +38,6 @@
           (when m (setf form `(progn ,m ,form))))
         (let ((m (call-primary mark)))
           (when m (setf form `(progn ,m ,form))))
-        (let ((m (call-primary pre-mark)))
-          (when m (setf form `(progn ,m ,form))))
         (let ((m (call-primary prologue)))
           (when m (setf form `(progn ,m ,form))))
         (if around
@@ -51,9 +48,9 @@
 
 ;;; --- Generic with gc-phase ---
 
-(defgeneric plan-collect-phase (plan phase)
+(defgeneric plan-collect-phase (plan cycle-kind)
   (:method-combination gc-phase)
-  (:documentation "Collect garbage for PLAN in PHASE (:minor or :major).
+  (:documentation "Collect garbage for PLAN in CYCLE-KIND (:minor or :major).
 Uses the gc-phase method combination to order collection phases."))
 
 ;;; --- Default phase methods ---
@@ -63,41 +60,41 @@ Uses the gc-phase method combination to order collection phases."))
 ;;; methods in the gc-phase combination (which calls all applicable
 ;;; methods in a phase, not just the most-specific).
 
-(defmethod plan-collect-phase :prologue ((plan plan) (phase t))
+(defmethod plan-collect-phase :prologue ((plan plan) (cycle-kind t))
   "Prologue: clear barrier state."
-  (declare (ignore phase))
+       (declare (ignore cycle-kind))
   (when (plan-barrier plan)
     (barrier-clear-all (plan-barrier plan))))
 
-(defmethod plan-collect-phase :mark ((plan plan) (phase t))
+(defmethod plan-collect-phase :mark ((plan plan) (cycle-kind t))
   "Mark: no-op default. Concrete plans override this."
-  (declare (ignore phase))
+       (declare (ignore cycle-kind))
   nil)
 
-(defmethod plan-collect-phase :sweep ((plan plan) (phase t))
+(defmethod plan-collect-phase :sweep ((plan plan) (cycle-kind t))
   "Sweep: no-op default."
-  (declare (ignore phase))
+       (declare (ignore cycle-kind))
   nil)
 
-(defmethod plan-collect-phase :compact ((plan plan) (phase t))
+(defmethod plan-collect-phase :compact ((plan plan) (cycle-kind t))
   "Compact: no-op default."
-  (declare (ignore phase))
+       (declare (ignore cycle-kind))
   nil)
 
-(defmethod plan-collect-phase :release ((plan plan) (phase t))
+(defmethod plan-collect-phase :release ((plan plan) (cycle-kind t))
   "Release: no-op default."
-  (declare (ignore phase))
+       (declare (ignore cycle-kind))
   nil)
 
-(defmethod plan-collect-phase :epilogue ((plan plan) (phase t))
+(defmethod plan-collect-phase :epilogue ((plan plan) (cycle-kind t))
   "Epilogue: no-op default."
-  (declare (ignore phase))
+       (declare (ignore cycle-kind))
   nil)
 
 ;;; Finalization hook: runs during gc-phase :epilogue to move dead objects
 ;;; from known-finalizers to pending-finalizers after mark/sweep.
-(defmethod plan-collect-phase :epilogue ((plan finalization-trait) (phase t))
-  (declare (ignore phase))
+(defmethod plan-collect-phase :epilogue ((plan finalization-trait) (cycle-kind t))
+       (declare (ignore cycle-kind))
   (let ((vm (plan-vm plan))
         (keep-count 0))
     (loop with known = (plan-known-finalizers plan)
@@ -117,15 +114,15 @@ Uses the gc-phase method combination to order collection phases."))
 
 ;;; --- :around method for timing ---
 
-(defmethod plan-collect-phase :around ((plan plan) (phase t))
+(defmethod plan-collect-phase :around ((plan plan) (cycle-kind t))
   ":around method for timing and statistics."
-  (let ((start (get-internal-real-time)))
+  (let ((start (get-internal-run-time)))
     (call-next-method)
-    (let ((end (get-internal-real-time)))
-      (let ((stats (plan-stats plan)))
-        (incf (plan-stats-gc-count stats))
-        (incf (plan-stats-gc-time stats)
-              (/ (- end start) internal-time-units-per-second))))))
+    (let ((end (get-internal-run-time))
+          (stats (plan-stats plan)))
+      (incf (plan-stats-gc-count stats))
+      (incf (plan-stats-gc-time stats)
+            (/ (- end start) internal-time-units-per-second)))))
 
 ;;; --- Function Table ---
 
@@ -162,8 +159,9 @@ its lexical environment so boot-gc can store them directly."))
 (defmethod compile-to-functions append ((barrier object-barrier))
   "Barrier functions."
   (list (cons 'barrier-note-write
-              (lambda (source-addr slot-idx new-value)
-                (barrier-note-write barrier source-addr slot-idx new-value)))
+              (lambda (source-addr slot-idx new-value &key old-value)
+                (barrier-note-write barrier source-addr slot-idx new-value
+                                    :old-value old-value)))
         (cons 'barrier-card-scan
               (lambda (vm scan-fn)
                 (barrier-card-scan barrier vm scan-fn)))

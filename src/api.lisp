@@ -26,8 +26,10 @@ Calls plan-build-sft after construction. Call boot-gc separately to compile hot-
   (let* ((plan *active-plan*)
          (start (get-internal-run-time)))
     (plan-collect plan)
-    (incf *gc-pause-time* (- (get-internal-run-time) start))
-    (incf *gc-count*)))
+    (let* ((stats (plan-stats plan))
+           (elapsed (- (get-internal-run-time) start)))
+      (incf (plan-stats-gc-time stats) elapsed))
+    plan))
 
 (defun clamsara-register-root (addr)
   "Register ADDR as a GC root in the active plan."

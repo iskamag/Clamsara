@@ -150,13 +150,16 @@ object graph as it existed at the start of GC."))
           do (funcall trace-fn ref)))
 
 (defmethod barrier-note-write ((b satb-barrier) source-addr slot-idx new-value &key old-value)
-  (declare (ignore slot-idx new-value))
+  (declare (ignore new-value))
   ;; Capture the old value before it gets overwritten
-  (let ((vm (barrier-vm b)))
+  (let ((vm (barrier-vm b))
+        (prev (or old-value
+                  (when (and vm (>= slot-idx 0))
+                    (vm-object-reference vm source-addr slot-idx)))))
     (when vm
-      (when (and old-value (not (zerop old-value))
-                 (vm-valid-reference-p vm old-value))
-        (satb-enqueue b old-value))
+      (when (and prev (not (zerop prev))
+                 (vm-valid-reference-p vm prev))
+        (satb-enqueue b prev))
       ;; Set log bit so concurrent marker doesn't miss this object
       (setf (vm-object-is-logged-p vm source-addr) t))))
 

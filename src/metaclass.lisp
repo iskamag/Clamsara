@@ -120,16 +120,10 @@ protocol methods are present."))
 
 ;;; --- Trait Base Classes ---
 ;;; These are mixins that plans/spaces/barriers can include.
-
-(defclass space-trait () ())
-(defclass allocator-trait () ())
-(defclass barrier-trait () ())
-(defclass generational-trait () ())
-(defclass concurrent-marking-trait () ())
-(defclass concurrent-collector-trait () ())
-(defclass line-marking-trait () ())
-(defclass weak-reference-trait () ())
-(defclass finalization-trait () ())
+;;; Those that are redefined with content in later files serve as
+;;; forward declarations: weak-reference-trait (reference.lisp),
+;;; finalization-trait (finalization.lisp), concurrent-marking-trait
+;;; and concurrent-collector-trait (scheduler.lisp).
 
 ;;; --- Helper Functions ---
 

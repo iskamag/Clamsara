@@ -57,7 +57,8 @@ without a header word, using address alignment to distinguish them.")
 
 (defgeneric vm-forwarding-placement (vm)
   (:documentation "Return the metadata spec placement for forwarding.
-   Default: :in-header for STW VMs, :separate-region for concurrent VMs.")
+   Default: :separate-region (separate forwarding table). For VMs that
+   implement header restoration during release, override to :in-header.")
   (:method ((vm vm-binding)) :separate-region))
 
 ;;; --- Object Model ---
@@ -180,8 +181,8 @@ without a header word, using address alignment to distinguish them.")
 (defgeneric vm-resume-mutators (vm)
   (:documentation "Resume all mutator threads after collection."))
 
-(defgeneric vm-block-for-gc (vm)
-  (:documentation "Block the current mutator thread for GC."))
+(defgeneric vm-block-for-gc (vm mutator)
+  (:documentation "Block MUTATOR thread for GC. MUTATOR is a mutator-context instance."))
 
 ;;; --- Collection Lifecycle ---
 
@@ -377,15 +378,12 @@ this with its own memory-access primitives."
   (space-contains-p space addr))
 
 (defmethod vm-address-generation ((vm vm-binding) addr)
-  (declare (ignore vm))
   (vm-object-generation vm addr))
 
 (defmethod vm-address-young-p ((vm vm-binding) addr)
-  (declare (ignore vm))
   (zerop (vm-object-generation vm addr)))
 
 (defmethod vm-address-old-p ((vm vm-binding) addr)
-  (declare (ignore vm))
   (not (zerop (vm-object-generation vm addr))))
 
 (defmethod vm-find-space-for-address ((vm vm-binding) addr)
@@ -416,7 +414,8 @@ this with its own memory-access primitives."
 (defmethod vm-resume-mutators ((vm vm-binding))
   nil)
 
-(defmethod vm-block-for-gc ((vm vm-binding))
+(defmethod vm-block-for-gc ((vm vm-binding) mutator)
+  (declare (ignore mutator))
   nil)
 
 (defmethod vm-post-gc-cleanup ((vm vm-binding))

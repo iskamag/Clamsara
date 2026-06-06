@@ -127,15 +127,10 @@
     #:make-plan
     #:defvm-feature #:define-trait-optimized-function
     ;; Traits
-    #:space-trait
-    #:allocator-trait
-    #:barrier-trait
-    #:generational-trait
-    #:concurrent-marking-trait
-    #:concurrent-collector-trait
-    #:line-marking-trait
     #:weak-reference-trait
     #:finalization-trait
+    #:concurrent-marking-trait
+    #:concurrent-collector-trait
     #:cons-space-trait #:cons-space
     #:large-object-space-trait #:large-object-space
     #:nogc-space
@@ -155,7 +150,7 @@
     #:plan-stats
     #:plan-stats-gc-count
     #:plan-stats-gc-time
-    #:*gc-count* #:*gc-pause-time*
+    #:gc-stats #:reset-gc-stats
     ;; Scheduler
     #:gc-work-scheduler #:make-gc-work-scheduler
     #:scheduler-add-work #:scheduler-run-all

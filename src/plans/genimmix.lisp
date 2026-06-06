@@ -7,10 +7,10 @@
   ((immix-mature-space :initform nil :accessor plan-immix-mature-space))
   (:documentation "GenImmix: copying nursery, Immix mature."))
 
-(defmethod plan-collect-phase :prologue ((plan genimmix-plan) (phase (eql :minor)))
+(defmethod plan-collect-phase :prologue ((plan genimmix-plan) (cycle-kind (eql :minor)))
   (gen-minor-collect plan))
 
-(defmethod plan-collect-phase :prologue ((plan genimmix-plan) (phase (eql :major)))
+(defmethod plan-collect-phase :prologue ((plan genimmix-plan) (cycle-kind (eql :major)))
   (gen-major-collect plan))
 
 (defmethod gen-minor-collect ((plan genimmix-plan))
@@ -33,9 +33,10 @@
                               (dst (alloc alloc n-words)))
                          (when (null dst)
                            (error 'heap-exhausted :plan plan))
-                         (vm-object-copy vm ref dst)
-                         (setf (vm-object-age vm dst) age)
-                         (setf (vm-object-is-marked-p vm dst) t)
+                          (vm-object-copy vm ref dst)
+                          (setf (vm-object-generation vm dst) 1
+                                (vm-object-age vm dst) 0)
+                          (setf (vm-object-is-marked-p vm dst) t)
                          (immix-mark-object-lines vm immix-space dst
                                                   (immix-space-line-mark-state immix-space))
                          (vector-push-extend dst promoted)
@@ -45,8 +46,8 @@
                               (dst (alloc nursery-alloc n-words)))
                          (when (null dst)
                            (error 'heap-exhausted :plan plan))
-                         (vm-object-copy vm ref dst)
-                         (setf (vm-object-age vm dst) (1+ age))
+                          (vm-object-copy vm ref dst)
+                          (setf (vm-object-age vm dst) (min 15 (1+ age)))
                          dst)))))
              (trace-ref (ref)
                (let ((already-fwd (vm-object-is-forwarded-p vm ref)))
@@ -159,7 +160,7 @@
                    :constraints (make-instance 'plan-constraints
                                   :moves-objects t :generational t
                                   :nursery-kind :copying :num-generations 2
-                                  :needs-log-bit t :barrier :object
+                                  :needs-log-bit t :barrier-type :object
                                   :needs-forwarding t))))
     (initialize-plan-heap plan heap-size)
     (let* ((pr (plan-page-resource plan))

@@ -20,11 +20,11 @@
 
 ;;; --- SemiSpace plan-collect-phase methods ---
 
-(defmethod plan-collect-phase :prologue ((plan semispace-plan) (phase t))
+(defmethod plan-collect-phase :prologue ((plan semispace-plan) (cycle-kind t))
   (vm-stop-mutators (plan-vm plan))
   (space-prepare (plan-to-space plan) (plan-vm plan)))
 
-(defmethod plan-collect-phase :mark ((plan semispace-plan) (phase t))
+(defmethod plan-collect-phase :mark ((plan semispace-plan) (cycle-kind t))
   (let* ((vm (plan-vm plan))
          (tracer nil))
     (flet ((trace-fn (ref)
@@ -43,7 +43,7 @@
                     (tracer-enqueue tracer result)))))))
         (tracer-process-queue tracer)))))
 
-(defmethod plan-collect-phase :release ((plan semispace-plan) (phase t))
+(defmethod plan-collect-phase :release ((plan semispace-plan) (cycle-kind t))
   (let ((vm (plan-vm plan)))
     (space-release (plan-from-space plan) vm)
     (vm-update-roots-forwarded vm)
@@ -68,7 +68,7 @@
                    :constraints (make-instance 'plan-constraints
                                   :moves-objects t :generational nil
                                   :nursery-kind nil :num-generations 1
-                                  :needs-log-bit nil :barrier :none
+                                  :needs-log-bit nil :barrier-type :none
                                   :needs-forwarding t))))
     (initialize-plan-heap plan heap-size)
     (let* ((pr (plan-page-resource plan))

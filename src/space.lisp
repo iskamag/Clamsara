@@ -98,10 +98,29 @@ Default: delegates to the allocator's occupancy measurement.")
     :space space :page-resource page-resource))
 
 (defmethod alloc ((a immortal-allocator) size &key)
-  "Allocate from immortal space. Never triggers GC.
-Delegates to the plan's page resource for contiguous page allocation."
-  (declare (ignore size))
-  (error "immortal-allocator allocation not implemented: use compute-immortal-space"))
+  "Allocate from immortal space. Bumps cursor through immortal region;
+acquires new pages via page-resource when needed."
+  (let* ((align (allocator-alignment a))
+         (cursor (allocator-cursor a))
+         (aligned-cursor (if (= align 1) cursor
+                             (* (ceiling cursor align) align)))
+         (new-cursor (+ aligned-cursor size)))
+    (when (or (zerop (allocator-limit a))
+              (> new-cursor (allocator-limit a)))
+      (let ((page-resource (allocator-page-resource a)))
+        (unless page-resource
+          (error 'heap-exhausted :message "Immortal space exhausted"))
+        (let ((page (page-resource-get page-resource 1 :kind :immortal)))
+          (unless page
+            (error 'heap-exhausted :message "No pages for immortal space"))
+          (let ((page-start (* page +page-size-words+)))
+            (setf (allocator-cursor a) page-start
+                  (allocator-limit a) (+ page-start +page-size-words+)
+                  cursor page-start
+                  aligned-cursor page-start
+                  new-cursor (+ page-start size))))))
+    (setf (allocator-cursor a) new-cursor)
+    (make-address aligned-cursor)))
 
 (defun compute-immortal-space (plan)
   "Find or create the immortal space for PLAN. Returns the immortal space,

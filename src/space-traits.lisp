@@ -150,7 +150,8 @@ dead-mature-bytes and reclaims dead young objects."
                             (free alloc (make-address free-start) obj-size)))
                         (progn
                           (incf cursor obj-size)
-                          (incf (plan-dead-mature-bytes *active-plan*) obj-size)))))
+                          (when (typep *active-plan* 'sticky-space-metrics)
+                            (incf (plan-dead-mature-bytes *active-plan*) obj-size))))))
                  (t
                   (let ((free-start cursor)
                         (free-size 0))
@@ -262,9 +263,10 @@ remaining blocks."
                                       (not (vm-object-is-marked-p vm addr))
                                       (not (vm-object-is-logged-p vm addr)))
                                  (let ((obj-size (vm-object-total-words vm addr)))
-                                   (incf cursor obj-size)
-                                   (incf (plan-dead-mature-bytes *active-plan*)
-                                         obj-size)))
+                                    (incf cursor obj-size)
+                                    (when (typep *active-plan* 'sticky-space-metrics)
+                                      (incf (plan-dead-mature-bytes *active-plan*)
+                                            obj-size))))
                                 ((vm-object-start-p vm addr)
                                  (incf cursor (vm-object-total-words vm addr)))
                                 (t (incf cursor))))))))
@@ -466,14 +468,20 @@ whole pages and are managed by large-object-allocator."))
   "Sweep dead large objects: iterate LOS entries, free pages for unmarked objects."
   (let ((alloc (space-allocator space)))
     (when (typep alloc 'large-object-allocator)
-      (let ((kept nil))
-        (dolist (entry (los-entries alloc))
-          (let ((addr (car entry))
-                (size (cdr entry)))
-            (if (vm-object-is-marked-p vm addr)
-                (push entry kept)
-                (free alloc addr size))))
-        (setf (los-entries alloc) (nreverse kept))))))
+      (let* ((vec (los-entries alloc))
+             (cnt (los-entry-count alloc))
+             (keep-vec (make-array cnt :element-type 'fixnum :initial-element 0))
+             (keep-cnt 0))
+        (loop for i from 0 below cnt by 2
+              for addr = (aref vec i)
+              for size = (aref vec (1+ i))
+              do (if (vm-object-is-marked-p vm addr)
+                     (setf (aref keep-vec keep-cnt) addr
+                           (aref keep-vec (1+ keep-cnt)) size
+                           keep-cnt (+ keep-cnt 2))
+                     (free alloc addr size)))
+        (setf (los-entries alloc) keep-vec
+              (los-entry-count alloc) keep-cnt)))))
 
 (defmethod space-sweep-young ((space large-object-space-trait) vm)
   (declare (ignore space vm))

@@ -8,11 +8,11 @@
 
 ;;; --- Immix plan-collect-phase methods ---
 
-(defmethod plan-collect-phase :prologue ((plan immix-plan) (phase t))
+(defmethod plan-collect-phase :prologue ((plan immix-plan) (cycle-kind t))
   (vm-stop-mutators (plan-vm plan))
   (space-prepare (plan-get-space plan :default) (plan-vm plan)))
 
-(defmethod plan-collect-phase :mark ((plan immix-plan) (phase t))
+(defmethod plan-collect-phase :mark ((plan immix-plan) (cycle-kind t))
   (let* ((vm (plan-vm plan))
          (space (plan-get-space plan :default))
          (tracer nil))
@@ -29,10 +29,10 @@
                 (tracer-enqueue tracer root)))))
         (tracer-process-queue tracer)))))
 
-(defmethod plan-collect-phase :sweep ((plan immix-plan) (phase t))
+(defmethod plan-collect-phase :sweep ((plan immix-plan) (cycle-kind t))
   (space-sweep (plan-get-space plan :default) (plan-vm plan)))
 
-(defmethod plan-collect-phase :release ((plan immix-plan) (phase t))
+(defmethod plan-collect-phase :release ((plan immix-plan) (cycle-kind t))
   (let ((vm (plan-vm plan)))
     (vm-clear-all-mark-bits vm)
     (vm-post-gc-cleanup vm)
@@ -55,7 +55,7 @@
                    :constraints (make-instance 'plan-constraints
                                   :moves-objects nil :generational nil
                                   :nursery-kind nil :num-generations 1
-                                  :needs-log-bit nil :barrier :none
+                                  :needs-log-bit nil :barrier-type :none
                                   :needs-forwarding nil))))
     (initialize-plan-heap plan heap-size)
     (let* ((pr (plan-page-resource plan))

@@ -10,7 +10,7 @@
    (num-generations :initarg :num-generations :reader plan-num-generations
     :type fixnum :initform 1)
    (needs-log-bit :initarg :needs-log-bit :reader plan-needs-log-bit-p :initform nil)
-   (barrier :initarg :barrier :reader plan-barrier-type :type (member :none :object :satb)
+    (barrier-type :initarg :barrier-type :reader plan-barrier-type :type (member :none :object :satb)
     :initform :none)
    (needs-forwarding :initarg :needs-forwarding :reader plan-needs-forwarding-p :initform nil)
    (max-non-los-alloc-bytes :initarg :max-non-los-alloc-bytes
@@ -63,6 +63,16 @@
      :documentation "Space Function Table: simple-vector mapping page-index -> space for O(1) lookup."))
   (:metaclass plan-metaclass)
   (:documentation "A GC plan composed of spaces, barriers, and allocators."))
+
+;;; --- Collector State ---
+
+(defclass collector-state ()
+  ((plan :initarg :plan :reader collector-state-plan)
+   (phase :initarg :phase :reader collector-state-phase
+    :type (member :prologue :mark :sweep :compact :release :epilogue))
+   (forwarding :initform nil :accessor collector-state-forwarding
+    :documentation "Alist of (src-addr . dst-addr) for forwarded objects in this cycle."))
+  (:documentation "Per-collection-cycle state tracker."))
 
 ;;; --- Plan Helpers ---
 
@@ -127,6 +137,13 @@ Used by mature-dead-ratio-exceeded-p for escalation decisions."))
 
 (defmethod plan-card-size-words ((plan plan))
   +card-size-words+)
+
+(defun plan-major-required-p (plan)
+  "Return T if a major GC is required for PLAN.
+True when the plan has been explicitly requested for GC or when
+the nursery is exhausted (copying generational plans)."
+  (or (plan-gc-requested plan)
+      (nursery-exhausted-p plan)))
 
 (defmethod plan-prepare ((plan plan) &key cycle-kind)
   (dolist (space (plan-spaces plan))

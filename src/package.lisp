@@ -118,9 +118,10 @@
    #:space-metaclass
    #:allocator-metaclass
    #:barrier-metaclass
-   #:vm-metaclass
-   #:validate-plan-constraints
-   #:make-plan
+    #:vm-metaclass
+    #:validate-plan-constraints
+    #:make-plan
+    #:defvm-feature #:define-trait-optimized-function
    ;; Traits
    #:space-trait
    #:allocator-trait

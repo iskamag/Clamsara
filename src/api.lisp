@@ -84,6 +84,22 @@
 
 ;;; --- WITH-CLAMSARA Macro ---
 
+(defmacro with-active-plan ((plan) &body body)
+  "Execute BODY with PLAN bound to *ACTIVE-PLAN*."
+  `(let ((*active-plan* ,plan))
+     ,@body))
+
+(defmacro with-active-vm ((vm) &body body)
+  "Execute BODY with VM bound to *ACTIVE-VM*."
+  `(let ((*active-vm* ,vm))
+     ,@body))
+
+(defmacro with-active-gc ((vm plan) &body body)
+  "Execute BODY with both VM and PLAN as active context."
+  `(let ((*active-vm* ,vm)
+         (*active-plan* ,plan))
+     ,@body))
+
 (defmacro with-clamsara ((&key (plan-type :semispace) (heap-size 65536)) &body body)
   "Execute BODY with an active Clamsara plan."
   (let ((vm-var (gensym "VM"))

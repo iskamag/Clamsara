@@ -51,3 +51,9 @@
                  (t
                   (setf (vm-object-reference vm wp 0) 0)))))
     (setf (fill-pointer (plan-weak-pointers plan)) live-count)))
+
+(defmethod plan-collect :around ((plan weak-reference-trait) &key cycle-kind)
+  "Update weak pointer referents before collection and clear dead ones after."
+  (update-weak-pointer-referents plan)
+  (call-next-method)
+  (process-weak-references plan))

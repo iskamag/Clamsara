@@ -96,10 +96,11 @@
    #:make-weak-pointer
    ;; Sanity
    #:sanity-check-after-gc
-   ;; Convenience
-   #:with-clamsara #:clamsara-gc
-   #:clamsara-register-root
-   #:*active-plan* #:*active-vm*
+    ;; Convenience
+    #:with-clamsara #:clamsara-gc
+    #:clamsara-register-root
+    #:*active-plan* #:*active-vm*
+    #:with-active-plan #:with-active-vm #:with-active-gc
    ;; Metaclasses
    #:clamsara-metaclass
    #:plan-metaclass

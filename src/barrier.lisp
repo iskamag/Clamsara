@@ -2,8 +2,15 @@
 
 ;;;; Barrier protocol
 
+(defvar *barrier-selectors* '(:none :object :satb)
+  "Valid barrier type specifiers.")
+
 (defgeneric barrier-note-write (barrier source-addr slot-idx new-value)
   (:documentation "Notify the BARRIER that a write has occurred."))
+
+(defgeneric barrier-note-read (barrier addr)
+  (:documentation "Notify the BARRIER that a read of ADDR has occurred.
+Returns the value to use (for read barriers that may remap or log)."))
 
 (defgeneric barrier-card-scan (barrier vm scan-fn)
   (:documentation "Scan remembered cards / old-to-young references."))
@@ -20,6 +27,9 @@
 (defmethod barrier-note-write ((b no-barrier) source-addr slot-idx new-value)
   (declare (ignore source-addr slot-idx new-value))
   nil)
+
+(defmethod barrier-note-read ((b no-barrier) addr)
+  addr)
 
 (defmethod barrier-card-scan ((b no-barrier) vm scan-fn)
   (declare (ignore vm scan-fn))
@@ -56,6 +66,9 @@
              (< new-value (barrier-nursery-end b)))
     (let ((idx (card-index source-addr)))
       (setf (aref (barrier-card-table-cards b) idx) 1))))
+
+(defmethod barrier-note-read ((b object-barrier) addr)
+  addr)
 
 (defmethod barrier-card-scan ((b object-barrier) vm scan-fn)
   (let ((cards (barrier-card-table-cards b))

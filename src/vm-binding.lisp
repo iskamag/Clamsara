@@ -16,6 +16,12 @@
     :initform nil)
    (barrier :initarg :barrier :initform nil
     :accessor vm-barrier)
+   (metadata-region :initform nil :accessor vm-metadata-region
+    :documentation "Side metadata array backing store.")
+   (mutators :initarg :mutators :accessor vm-mutators :initform nil
+    :documentation "Vector of mutator-context instances for this VM.")
+   (forwarding-table :initform nil :accessor vm-forwarding-table
+    :documentation "Separate forwarding table used when forwarding-placement is :separate-region.")
    (stat-gc-count :initform 0 :accessor vm-stat-gc-count :type fixnum))
   (:documentation "Abstract VM binding. Plans interact with the VM through
 this interface, never directly with the heap."))
@@ -77,6 +83,9 @@ this interface, never directly with the heap."))
 (defgeneric vm-object-is-pinned-p (vm obj-address)
   (:documentation "Return T if the object is pinned (non-movable)."))
 
+(defgeneric (setf vm-object-is-pinned-p) (new-val vm obj-address)
+  (:documentation "Set or clear the pin flag on the object."))
+
 (defgeneric vm-object-is-logged-p (vm obj-address)
   (:documentation "Return T if the object is logged (has young referents)."))
 
@@ -130,6 +139,12 @@ this interface, never directly with the heap."))
 
 ;;; --- Thread Control Protocol ---
 
+(defgeneric vm-stop-mutator (vm mutator)
+  (:documentation "Stop a single mutator thread before collection."))
+
+(defgeneric vm-resume-mutator (vm mutator)
+  (:documentation "Resume a single mutator thread after collection."))
+
 (defgeneric vm-stop-mutators (vm)
   (:documentation "Stop all mutator threads before collection."))
 
@@ -158,8 +173,33 @@ this interface, never directly with the heap."))
 (defgeneric vm-heap-usage (vm)
   (:documentation "Return a plist of heap statistics."))
 
+(defgeneric vm-space-usage (vm space)
+  (:documentation "Return a plist of space-specific statistics for SPACE."))
+
+(defgeneric vm-gc-stats (vm)
+  (:documentation "Return a plist of GC statistics across all cycles."))
+
 (defgeneric vm-valid-reference-p (vm addr)
   (:documentation "Return T if ADDR looks like a valid reference to a heap object."))
+
+;;; --- VM Feature & Configuration Protocol ---
+
+(defgeneric vm-has-feature-p (vm feature)
+  (:documentation "Return T if VM supports FEATURE (a keyword like :cas, :headerless-cons)."))
+
+(defgeneric vm-page-size-words (vm)
+  (:documentation "Return the page size in words for this VM."))
+
+(defgeneric vm-cards-per-page (vm)
+  (:documentation "Return the number of cards per page for this VM."))
+
+(defgeneric vm-card-object-start-offset (vm cursor)
+  (:documentation "Return the object-start address nearest to CURSOR (used by card scanner).
+The default steps backward from CURSOR to find the nearest object-start mark."))
+
+(defgeneric immediatep (vm value)
+  (:documentation "Return T if VALUE is an immediate (non-heap-reference) value.
+E.g., fixnums, characters, nil. Default returns NIL (conservative)."))
 
 ;;; --- Object Reference Store (with barrier) ---
 
@@ -214,6 +254,10 @@ this interface, never directly with the heap."))
 
 (defmethod vm-object-is-pinned-p ((vm vm-binding) obj-address)
   (object-pinned-p obj-address))
+
+(defmethod (setf vm-object-is-pinned-p) (new-val (vm vm-binding) obj-address)
+  (if new-val (pin-object obj-address) (unpin-object obj-address))
+  new-val)
 
 (defmethod vm-object-is-logged-p ((vm vm-binding) obj-address)
   (object-logged-p obj-address))
@@ -289,6 +333,14 @@ this with its own memory-access primitives."
           when (vm-valid-reference-p vm ref)
             do (funcall visitor-fn ref i))))
 
+(defmethod vm-stop-mutator ((vm vm-binding) mutator)
+  (declare (ignore mutator))
+  nil)
+
+(defmethod vm-resume-mutator ((vm vm-binding) mutator)
+  (declare (ignore mutator))
+  nil)
+
 (defmethod vm-stop-mutators ((vm vm-binding))
   (incf (vm-stat-gc-count vm))
   nil)
@@ -322,6 +374,44 @@ this with its own memory-access primitives."
             when (object-start-p i)
               do (incf live)))
     (list :total-words *heap-size* :live-objects live)))
+
+(defmethod vm-space-usage ((vm vm-binding) space)
+  (let ((used-pages 0) (total-pages (space-page-count space)))
+    (when (slot-boundp space 'start-page)
+      (loop for p from (space-start-page space)
+            below (+ (space-start-page space) (space-page-count space))
+            when (and *page-table*
+                      (not (page-free-p (aref *page-table* p))))
+              do (incf used-pages)))
+    (list :space-name (space-name space)
+          :total-pages total-pages
+          :used-pages used-pages)))
+
+(defmethod vm-gc-stats ((vm vm-binding))
+  (list :gc-count (vm-stat-gc-count vm)
+        :heap-size *heap-size*))
+
+(defmethod vm-has-feature-p ((vm vm-binding) feature)
+  (declare (ignore feature))
+  nil)
+
+(defmethod vm-page-size-words ((vm vm-binding))
+  (declare (ignore vm))
+  +page-size-words+)
+
+(defmethod vm-cards-per-page ((vm vm-binding))
+  (declare (ignore vm))
+  +cards-per-page+)
+
+(defmethod vm-card-object-start-offset ((vm vm-binding) cursor)
+  (loop for offset from cursor downto 0
+        when (vm-object-start-p vm offset)
+          return offset
+        finally (return 0)))
+
+(defmethod immediatep ((vm vm-binding) value)
+  (declare (ignore value))
+  nil)
 
 (defmethod vm-valid-reference-p ((vm vm-binding) addr)
   (and (integerp addr)

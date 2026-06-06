@@ -32,8 +32,9 @@
    #:vm-object-start-p #:vm-object-type-tag
    #:vm-object-header #:vm-object-reference-count
    #:vm-object-reference #:vm-valid-reference-p
-   #:vm-object-is-marked-p #:vm-object-is-forwarded-p
-   #:vm-object-is-logged-p #:vm-object-generation #:vm-object-age
+    #:vm-object-is-marked-p #:vm-object-is-forwarded-p
+    #:vm-object-is-logged-p #:vm-object-is-pinned-p
+    #:vm-object-generation #:vm-object-age
    #:vm-object-forwarding-pointer
    #:vm-object-header-flags #:vm-object-header-size
    #:vm-object-copy #:vm-object-total-words
@@ -41,9 +42,11 @@
    ;; Metadata
    #:metadata-words #:metadata-offset
    #:object-start-p #:mark-object-start
-   ;; Barrier
-   #:barrier-note-write #:barrier-card-scan #:barrier-clear-all
-   #:no-barrier #:make-no-barrier
+    ;; Barrier
+    #:barrier-note-write #:barrier-note-read
+    #:barrier-card-scan #:barrier-clear-all
+    #:*barrier-selectors*
+    #:no-barrier #:make-no-barrier
    #:object-barrier #:make-object-barrier
    #:barrier-nursery-start #:barrier-nursery-end #:barrier-card-table
    #:barrier-card-table-cards
@@ -59,6 +62,7 @@
     #:plan-get-space #:plan-from-space #:plan-to-space
     #:plan-barrier #:plan-collect #:plan-allocate
     #:plan-generational-p #:plan-major-required-p
+    #:plan-card-size-words
     #:plan-nursery-kind #:plan-num-generations
     #:plan-constraints #:plan-page-resource
     #:plan-nursery #:plan-nursery-from #:plan-nursery-to
@@ -71,9 +75,14 @@
    ;; Collector state
    #:collector-state #:collector-state-plan #:collector-state-phase
    #:collector-state-forwarding
-   ;; VM
-   #:vm #:root-set #:rs-static-roots #:vm-root-set
-   #:vm-scan-roots #:vm-object-reference-store
+    ;; VM
+    #:vm #:root-set #:rs-static-roots #:vm-root-set
+    #:vm-scan-roots #:vm-object-reference-store
+    #:vm-stop-mutator #:vm-resume-mutator
+    #:vm-space-usage #:vm-gc-stats
+    #:vm-metadata-region #:vm-forwarding-table #:vm-mutators
+    #:vm-has-feature-p #:vm-page-size-words #:vm-cards-per-page
+    #:vm-card-object-start-offset #:immediatep
    ;; Simulator VM
    #:simulator-vm #:make-simulator-vm
    #:simulator-vm-heap

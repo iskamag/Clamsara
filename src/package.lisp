@@ -94,6 +94,8 @@
     #:vm-metadata-region #:vm-forwarding-table #:vm-mutators
     #:vm-has-feature-p #:vm-page-size-words #:vm-cards-per-page
     #:vm-card-object-start-offset #:immediatep
+    #:ref-u64 #:ref-word #:cas #:cas128 #:atomic-incf
+    #:memory-fence #:atomic-swap
    ;; Simulator VM
    #:simulator-vm #:make-simulator-vm
    #:simulator-vm-heap

@@ -194,12 +194,42 @@ this interface, never directly with the heap."))
   (:documentation "Return the number of cards per page for this VM."))
 
 (defgeneric vm-card-object-start-offset (vm cursor)
-  (:documentation "Return the object-start address nearest to CURSOR (used by card scanner).
-The default steps backward from CURSOR to find the nearest object-start mark."))
+  (:documentation "Return the object-start address nearest to CURSOR (used by card scanner)."))
 
 (defgeneric immediatep (vm value)
-  (:documentation "Return T if VALUE is an immediate (non-heap-reference) value.
-E.g., fixnums, characters, nil. Default returns NIL (conservative)."))
+  (:documentation "Return T if VALUE is an immediate (non-heap-reference) value."))
+
+;;; --- Memory Access Protocol ---
+
+(defgeneric ref-u64 (vm address)
+  (:documentation "Read a 64-bit word at ADDRESS in VM's heap."))
+
+(defgeneric (setf ref-u64) (value vm address)
+  (:documentation "Write a 64-bit word at ADDRESS in VM's heap."))
+
+(defgeneric ref-word (vm address)
+  (:documentation "Read a word (64-bit) at ADDRESS in VM's heap."))
+
+(defgeneric (setf ref-word) (value vm address)
+  (:documentation "Write a word (64-bit) at ADDRESS in VM's heap."))
+
+;;; --- Atomic Operations Protocol ---
+
+(defgeneric cas (vm place expected new-value)
+  (:documentation "Compare-and-swap: if PLACE equals EXPECTED, store NEW-VALUE and return T.
+PLACE is a (VM . ADDRESS) cons or similar descriptor."))
+
+(defgeneric cas128 (vm place expected-low expected-high new-low new-high)
+  (:documentation "128-bit compare-and-swap. Used for atomic forwarding pointer updates."))
+
+(defgeneric atomic-incf (vm place delta)
+  (:documentation "Atomically increment PLACE by DELTA. Returns the new value."))
+
+(defgeneric memory-fence (vm)
+  (:documentation "Issue a full memory fence. Ensures ordering of memory operations."))
+
+(defgeneric atomic-swap (vm place new-value)
+  (:documentation "Atomically swap PLACE with NEW-VALUE. Returns the old value."))
 
 ;;; --- Object Reference Store (with barrier) ---
 
@@ -412,6 +442,53 @@ this with its own memory-access primitives."
 (defmethod immediatep ((vm vm-binding) value)
   (declare (ignore value))
   nil)
+
+;;; --- Default Memory Access Methods ---
+
+(defmethod ref-u64 ((vm vm-binding) address)
+  (declare (ignore vm))
+  (heap-ref address))
+
+(defmethod (setf ref-u64) (value (vm vm-binding) address)
+  (declare (ignore vm))
+  (setf (heap-ref address) value))
+
+(defmethod ref-word ((vm vm-binding) address)
+  (ref-u64 vm address))
+
+(defmethod (setf ref-word) (value (vm vm-binding) address)
+  (setf (ref-u64 vm address) value))
+
+;;; --- Default Atomic Operation Methods ---
+
+(defmethod cas ((vm vm-binding) place expected new-value)
+  (declare (ignore vm))
+  (when (= place expected)
+    (setf place new-value)
+    t))
+
+(defmethod cas128 ((vm vm-binding) place expected-low expected-high new-low new-high)
+  "Simulator 128-bit CAS: checks both words. For real concurrent VMs this would
+use hardware CAS128 (e.g. CMPXCHG16B on x86-64)."
+  (declare (ignore vm))
+  (when (and (= (aref place 0) expected-low)
+             (= (aref place 1) expected-high))
+    (setf (aref place 0) new-low
+          (aref place 1) new-high)
+    t))
+
+(defmethod atomic-incf ((vm vm-binding) place delta)
+  (declare (ignore vm))
+  (incf place delta)
+  place)
+
+(defmethod memory-fence ((vm vm-binding))
+  (declare (ignore vm))
+  nil)
+
+(defmethod atomic-swap ((vm vm-binding) place new-value)
+  (declare (ignore vm))
+  (prog1 place (setf place new-value)))
 
 (defmethod vm-valid-reference-p ((vm vm-binding) addr)
   (and (integerp addr)

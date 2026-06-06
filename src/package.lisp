@@ -23,6 +23,7 @@
     #:space-contains-p #:space-address-range
     #:space-allocator #:space-vm
     #:space-reset-to-empty
+    #:space-occupancy
     #:make-space
     #:immix-space-blocks #:immix-space-line-mark-state
    ;; Allocator
@@ -59,6 +60,10 @@
     #:tracer-enqueue #:tracer-dequeue
     #:tracer-process-queue #:tracer-visit-count
     #:tracer-process-roots #:tracer-trace-fn-enqueues-p
+    #:tracer-cycle-kind #:tracer-trace-kind
+    ;; Mutator
+    #:mutator-context #:make-mutator #:mutator-alloc
+    #:tlab-alloc #:tlab-refill #:mutator-tlab-occupancy
     ;; Plan
     #:plan #:plan-vm #:plan-spaces
     #:plan-get-space #:plan-from-space #:plan-to-space
@@ -70,6 +75,8 @@
     #:plan-nursery #:plan-nursery-from #:plan-nursery-to
     #:plan-mature-from #:plan-mature-to
     #:plan-live-young-bytes #:plan-dead-mature-bytes
+    #:plan-sft #:plan-build-sft
+    #:should-promote-p
     #:sticky-nursery-collect
     #:make-semispace-plan #:make-marksweep-plan
    #:make-immix-plan #:make-gencopy-plan #:make-genms-plan

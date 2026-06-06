@@ -69,6 +69,18 @@
     (declare (ignore space vm))
     nil))
 
+(defgeneric space-occupancy (space)
+  (:documentation "Return the fraction of SPACE that is occupied, as a float between 0 and 1.
+Default: delegates to the allocator's occupancy measurement.")
+  (:method ((space space))
+    (let ((alloc (space-allocator space)))
+      (cond
+        ((typep alloc 'bump-allocator)
+         (bump-allocator-occupancy alloc))
+        ((typep alloc 'free-list-allocator)
+         (free-list-allocator-occupancy alloc))
+        (t 0.0)))))
+
 (defun space-allocate-pages (space n-pages &key (kind :boxed))
   "Allocate N-PAGES for SPACE via its page resource."
   (let ((pr (space-page-resource space)))

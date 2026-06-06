@@ -185,10 +185,18 @@ dead-mature-bytes and reclaims dead young objects."
   "Words per block (4096 = page size).")
 
 (defmethod space-trace-object ((space immix-space-trait) vm ref tracer
-                               &key cycle-kind trace-kind copy-semantics)
-  (declare (ignore cycle-kind trace-kind copy-semantics))
+                                &key cycle-kind trace-kind copy-semantics)
+  (declare (ignore cycle-kind copy-semantics))
   (unless (vm-object-is-marked-p vm ref)
     (setf (vm-object-is-marked-p vm ref) t)
+    (when (eq trace-kind :defrag)
+      (let* ((n-words (vm-object-total-words vm ref))
+             (alloc (space-allocator space))
+             (new-addr (alloc alloc n-words)))
+        (when new-addr
+          (vm-object-copy vm ref new-addr)
+          (setf (vm-object-forwarding-pointer vm ref) new-addr)
+          (setf ref new-addr))))
     (immix-mark-object-lines vm space ref (immix-space-line-mark-state space))
     (when tracer
       (tracer-enqueue tracer ref))

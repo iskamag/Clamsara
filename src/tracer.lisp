@@ -14,6 +14,10 @@
    (visit-count :initform 0 :accessor tracer-visit-count :type fixnum)
    (plan :initform nil :accessor tracer-plan)
    (major-gc-p :initform nil :accessor tracer-major-gc-p)
+   (cycle-kind :initform :major :accessor tracer-cycle-kind
+    :documentation "GC cycle kind: :minor, :major, or :full.")
+   (trace-kind :initform :fast :accessor tracer-trace-kind
+    :documentation "Trace kind: :fast or :defrag.")
    (trace-fn-enqueues-p :initform nil :accessor tracer-trace-fn-enqueues-p))
   (:documentation "Manages transitive closure during GC tracing."))
 

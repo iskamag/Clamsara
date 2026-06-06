@@ -59,8 +59,10 @@
    (function-table :initform (make-hash-table :test #'eq :size 64)
     :reader plan-function-table)
    (gc-requested :initform nil :accessor plan-gc-requested :type boolean)
-   (tracer :initform nil :accessor plan-tracer)
-   (default-space :initform nil :accessor plan-default-space))
+    (tracer :initform nil :accessor plan-tracer)
+    (default-space :initform nil :accessor plan-default-space)
+    (sft :initform nil :accessor plan-sft
+     :documentation "Space Function Table: simple-vector mapping page-index -> space for O(1) lookup."))
   (:documentation "A GC plan composed of spaces, barriers, and allocators."))
 
 ;;; --- Plan Helpers ---
@@ -130,9 +132,27 @@ Adds one extra page to account for page 0 being reserved as the null sentinel."
 
 ;;; --- Space-for-address helper ---
 
+(defun plan-build-sft (plan)
+  "Build the Space Function Table for O(1) space lookup by address."
+  (let ((n-pages (pr-total-pages (plan-page-resource plan))))
+    (unless n-pages
+      (setf n-pages (ceiling (vm-heap-size (plan-vm plan)) +page-size-words+)))
+    (let ((sft (make-array n-pages :initial-element nil)))
+      (dolist (space (plan-spaces plan))
+        (loop for p from (space-start-page space)
+              below (+ (space-start-page space) (space-page-count space))
+              do (setf (aref sft p) space)))
+      (setf (plan-sft plan) sft))))
+
 (defun plan-space-for-address (plan addr)
-  (find-if (lambda (s) (space-contains-p s addr))
-           (plan-spaces plan)))
+  "Return the space containing ADDR using SFT if available, linear search otherwise."
+  (let ((sft (plan-sft plan)))
+    (if sft
+        (let ((page (floor (address-index addr) +page-size-words+)))
+          (when (< page (length sft))
+            (aref sft page)))
+        (find-if (lambda (s) (space-contains-p s addr))
+                 (plan-spaces plan)))))
 
 ;;; --- Plan Metaclass (stub - validates at finalization) ---
 ;;; In a full implementation this would be a proper CLOS metaclass.

@@ -60,7 +60,9 @@
 (defgeneric gen-major-collect (plan)
   (:documentation "Execute a major (full heap) GC cycle."))
 
-(defun gen-plan-init-nursery (plan heap-size)
+(defun should-promote-p (plan vm ref)
+  "Return T if REF should be promoted to mature space based on its survivor count."
+  (>= (vm-object-age vm ref) (plan-survivor-threshold plan)))
   "Initialize two semispaces for the nursery."
   (let* ((nursery-size (floor heap-size 8))
          (pr (plan-page-resource plan))

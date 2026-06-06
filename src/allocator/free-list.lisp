@@ -157,3 +157,15 @@
   (loop for bin below +free-list-bins+
         do (setf (aref (allocator-bins allocator) bin) nil))
   (setf (free-list-total-allocated allocator) 0))
+
+(defun free-list-allocator-occupancy (allocator)
+  "Return the estimated occupancy of the free-list allocator as a float."
+  (let ((total-allocated (free-list-total-allocated allocator))
+        (total-capacity 0))
+    (loop for bin below +free-list-bins+
+          do (dolist (chunk (aref (allocator-bins allocator) bin))
+               (incf total-capacity (chunk-size chunk))))
+    (let ((total (+ total-allocated total-capacity)))
+      (if (zerop total)
+          0.0
+          (/ (float total-allocated) (float total))))))

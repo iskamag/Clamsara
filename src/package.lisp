@@ -4,7 +4,7 @@
   (:shadow #:space)
   (:export
    ;; Types & constants
-   #:address #:address= #:address+ #:address- #:address-index
+    #:address #:address= #:address-equal #:address+ #:address- #:address-index
    #:make-object-header #:header-size #:header-type-tag
    #:header-flag-set-p
    #:+type-tag-object+ #:+type-tag-cons+ #:+type-tag-array+
@@ -25,6 +25,8 @@
     #:space-reset-to-empty
     #:space-occupancy
     #:make-space
+    #:immortal-allocator #:make-immortal-allocator
+    #:compute-immortal-space
     #:immix-space-blocks #:immix-space-line-mark-state
    ;; Allocator
    #:bump-allocator #:free-list-allocator #:make-bump-allocator

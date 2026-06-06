@@ -86,3 +86,35 @@ Default: delegates to the allocator's occupancy measurement.")
   (let ((pr (space-page-resource space)))
     (when pr
       (page-resource-get pr n-pages :space space :kind kind))))
+
+;;; --- Immortal Allocator ---
+
+(defclass immortal-allocator (bump-allocator)
+  ()
+  (:documentation "Bump-pointer allocator for immortal (never-collected) space."))
+
+(defun make-immortal-allocator (space page-resource)
+  (make-instance 'immortal-allocator
+    :space space :page-resource page-resource))
+
+(defmethod alloc ((a immortal-allocator) size &key)
+  "Allocate from immortal space. Never triggers GC."
+  (call-next-method))
+
+(defun compute-immortal-space (plan)
+  "Find or create the immortal space for PLAN. Returns the immortal space."
+  (or (find :immortal (plan-spaces plan) :key #'space-name)
+      (let* ((pr (plan-page-resource plan))
+             (n-pages 4)
+             (start-page (page-resource-get pr n-pages :kind :immortal))
+             (alloc (make-immortal-allocator nil pr))
+             (space (make-space :immortal :immortal start-page n-pages alloc
+                      :page-resource pr
+                      :constraints (make-instance 'space-constraints
+                                     :moves-objects nil :accepts-copies t
+                                     :mixed-age nil :immortal t))))
+        (bump-allocator-reset alloc
+                              :cursor (* start-page +page-size-words+)
+                              :limit (* (+ start-page n-pages) +page-size-words+))
+        (plan-add-space plan space)
+        space)))

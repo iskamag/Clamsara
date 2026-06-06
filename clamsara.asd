@@ -5,7 +5,8 @@
   :version "0.1.0"
   :depends-on ("alexandria"
                "serapeum"
-               "bordeaux-threads")
+               "bordeaux-threads"
+               "closer-mop")
   :serial t
   :components ((:module "src"
                 :serial t

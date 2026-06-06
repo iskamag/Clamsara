@@ -133,6 +133,8 @@
     #:weak-reference-trait
     #:finalization-trait
     #:cons-space-trait #:cons-space
+    #:large-object-space-trait #:large-object-space
+    #:nogc-space
     ;; Compile framework
     #:gc-phase
     #:plan-collect-phase

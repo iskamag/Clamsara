@@ -440,3 +440,59 @@ remaining blocks."
 (defclass cons-space (cons-space-trait space)
   ()
   (:documentation "Concrete space for headerless cons cells."))
+
+;;; --- Large-Object Space Trait ---
+;;; Treadmill-style collector for large objects (> max-non-los-alloc-bytes).
+;;; Each large object occupies whole pages; marking is tracked in the LOS entry.
+
+(defclass large-object-space-trait (collectable-space)
+  ()
+  (:documentation "Treadmill trait for large-object spaces. Large objects span
+whole pages and are managed by large-object-allocator."))
+
+(defmethod space-trace-object ((space large-object-space-trait) vm ref tracer
+                                &key cycle-kind trace-kind copy-semantics)
+  (declare (ignore cycle-kind trace-kind copy-semantics))
+  (unless (vm-object-is-marked-p vm ref)
+    (setf (vm-object-is-marked-p vm ref) t)
+    (when tracer
+      (tracer-enqueue tracer ref))
+    ref))
+
+(defmethod space-prepare ((space large-object-space-trait) vm &key cycle-kind)
+  (declare (ignore space vm cycle-kind))
+  nil)
+
+(defmethod space-release ((space large-object-space-trait) vm &key cycle-kind)
+  (declare (ignore space vm cycle-kind))
+  nil)
+
+(defmethod space-sweep ((space large-object-space-trait) vm)
+  "Sweep dead large objects: iterate LOS entries, free pages for unmarked objects."
+  (let ((alloc (space-allocator space)))
+    (when (typep alloc 'large-object-allocator)
+      (let ((kept nil))
+        (dolist (entry (los-entries alloc))
+          (let ((addr (car entry))
+                (size (cdr entry)))
+            (if (vm-object-is-marked-p vm addr)
+                (push entry kept)
+                (free alloc addr size))))
+        (setf (los-entries alloc) (nreverse kept))))))
+
+(defmethod space-sweep-young ((space large-object-space-trait) vm)
+  (declare (ignore space vm))
+  nil)
+
+;;; --- NoGC Space ---
+;;; A space that never participates in collection. Used by the NoGC plan.
+
+(defclass nogc-space (space)
+  ()
+  (:documentation "Non-collected space. Objects allocated here are never traced or swept."))
+
+;;; --- Large-Object Space (concrete) ---
+
+(defclass large-object-space (large-object-space-trait space)
+  ()
+  (:documentation "Concrete space for large objects using the treadmill collector."))

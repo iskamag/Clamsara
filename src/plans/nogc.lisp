@@ -34,11 +34,13 @@
            (n-pages (ceiling heap-size +page-size-words+))
            (start-page (page-resource-get pr n-pages :kind :boxed))
            (alloc (make-bump-allocator nil pr :alignment 1))
-           (space (make-space :nogc :nogc start-page n-pages alloc
-                    :page-resource pr
-                    :constraints (make-instance 'space-constraints
-                                   :moves-objects nil :accepts-copies nil
-                                   :mixed-age nil :immortal nil))))
+            (space (make-instance 'nogc-space
+                     :name :nogc :kind :nogc
+                     :start-page start-page :page-count n-pages
+                     :allocator alloc :page-resource pr
+                     :constraints (make-instance 'space-constraints
+                                    :moves-objects nil :accepts-copies nil
+                                    :mixed-age nil :immortal nil))))
       (bump-allocator-reset alloc
                             :cursor (* start-page +page-size-words+)
                             :limit (* (+ start-page n-pages) +page-size-words+))

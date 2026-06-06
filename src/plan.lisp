@@ -89,7 +89,16 @@ Adds one extra page to account for page 0 being reserved as the null sentinel."
 (defun plan-request-gc (plan)
   (setf (plan-gc-requested plan) t))
 
-;;; --- Default Plan Methods ---
+;;; --- Sticky Space Metrics ---
+;;; Shared metrics for sticky generational plans (StickyImmix, StickyMS).
+
+(defclass sticky-space-metrics ()
+  ((live-young-bytes :initform 0 :accessor space-live-young-bytes :type fixnum
+    :documentation "Bytes of live young objects found during the current nursery GC.")
+   (dead-mature-bytes :initform 0 :accessor space-dead-mature-bytes :type fixnum
+    :documentation "Bytes of dead mature objects found during the current nursery GC."))
+  (:documentation "Metrics tracked during sticky generational nursery collection.
+Used by mature-dead-ratio-exceeded-p for escalation decisions."))
 
 (defmethod plan-handle-allocation-failure ((plan plan) size space-designator)
   (flet ((try-alloc ()

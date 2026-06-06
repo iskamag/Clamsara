@@ -3,7 +3,7 @@
 ;;; --- StickyMS Plan ---
 ;;; Sticky generational: nursery and mature in one mark-sweep space, log-bit discriminated.
 
-(defclass stickyms-plan (generational-plan-trait plan)
+(defclass stickyms-plan (generational-plan-trait sticky-space-metrics plan)
   ((live-young-bytes :initform 0 :accessor plan-live-young-bytes :type fixnum)
    (dead-mature-bytes :initform 0 :accessor plan-dead-mature-bytes :type fixnum))
   (:documentation "StickyMS: mixed-age mark-sweep space."))

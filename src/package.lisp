@@ -77,6 +77,8 @@
     #:plan-nursery #:plan-nursery-from #:plan-nursery-to
     #:plan-mature-from #:plan-mature-to
     #:plan-live-young-bytes #:plan-dead-mature-bytes
+    #:space-live-young-bytes #:space-dead-mature-bytes
+    #:sticky-space-metrics
     #:plan-sft #:plan-build-sft
     #:should-promote-p
     #:sticky-nursery-collect

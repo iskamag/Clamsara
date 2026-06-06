@@ -3,7 +3,7 @@
 ;;; --- StickyImmix Plan ---
 ;;; Sticky generational: nursery and mature in one Immix space, log-bit discriminated.
 
-(defclass stickyimmix-plan (generational-plan-trait plan)
+(defclass stickyimmix-plan (generational-plan-trait sticky-space-metrics plan)
   ((live-young-bytes :initform 0 :accessor plan-live-young-bytes :type fixnum)
    (dead-mature-bytes :initform 0 :accessor plan-dead-mature-bytes :type fixnum))
   (:documentation "StickyImmix: mixed-age Immix space."))

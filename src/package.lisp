@@ -47,8 +47,10 @@
     #:barrier-card-scan #:barrier-clear-all
     #:*barrier-selectors*
     #:no-barrier #:make-no-barrier
-   #:object-barrier #:make-object-barrier
-   #:barrier-nursery-start #:barrier-nursery-end #:barrier-card-table
+    #:object-barrier #:make-object-barrier
+    #:satb-barrier #:make-satb-barrier
+    #:satb-enqueue #:satb-drain
+    #:barrier-nursery-start #:barrier-nursery-end #:barrier-card-table
    #:barrier-card-table-cards
    #:card-table #:card-table-cards #:ensure-card-table
    #:card-table-card-dirty-p #:barrier-scan-cards

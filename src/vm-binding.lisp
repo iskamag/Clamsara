@@ -421,9 +421,10 @@ this with its own memory-access primitives."
        (vm-object-start-p vm addr)))
 
 (defmethod vm-object-reference-store ((vm vm-binding) source-addr slot new-value &key (barrier-p t))
-  (setf (vm-object-reference vm source-addr slot) new-value)
-  (when barrier-p
-    (let ((barrier (vm-barrier vm)))
-      (when barrier
-        (barrier-note-write barrier source-addr slot new-value))))
-  new-value)
+  (let ((old-value (vm-object-reference vm source-addr slot)))
+    (setf (vm-object-reference vm source-addr slot) new-value)
+    (when barrier-p
+      (let ((barrier (vm-barrier vm)))
+        (when barrier
+          (barrier-note-write barrier source-addr slot new-value :old-value old-value))))
+    new-value))

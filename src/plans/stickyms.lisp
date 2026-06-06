@@ -39,6 +39,7 @@
                ((vm-object-is-logged-p vm ref)
                 ;; Young object: promote
                 (setf (vm-object-is-logged-p vm ref) nil)
+                (setf (vm-object-age vm ref) (1+ (vm-object-age vm ref)))
                 (unless (vm-object-is-marked-p vm ref)
                   (setf (vm-object-is-marked-p vm ref) t)
                   (incf (plan-live-young-bytes plan)

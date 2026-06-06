@@ -39,6 +39,7 @@
                ;; Object in nursery (logged): promote survivor
                ((vm-object-is-logged-p vm ref)
                 (setf (vm-object-is-logged-p vm ref) nil)
+                (setf (vm-object-age vm ref) (1+ (vm-object-age vm ref)))
                 (unless (vm-object-is-marked-p vm ref)
                   (setf (vm-object-is-marked-p vm ref) t)
                   (immix-mark-object-lines vm space ref

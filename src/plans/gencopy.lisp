@@ -95,7 +95,8 @@
     (when (null dst)
       (error 'heap-exhausted :plan plan :message "Mature space exhausted"))
     (vm-object-copy vm src-addr dst)
-    (setf (vm-object-generation vm dst) 1)
+    (setf (vm-object-generation vm dst) 1
+          (vm-object-age vm dst) 0)
     dst))
 
 (defun gen-promote-to-mature (plan vm src-addr)

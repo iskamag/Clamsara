@@ -4,7 +4,6 @@
 
 (defun scan-maclina-stack-roots (vm visitor-fn)
   "Scan the Maclina *vm* stack for roots."
-  (declare (ignore vm))
   (let* ((maclina-vm maclina.vm-cross::*vm*)
          (stack (when maclina-vm (maclina.vm-cross::vm-stack maclina-vm))))
     (when stack
@@ -25,11 +24,14 @@
   "Scan a single dynamic environment entry for references."
   (when entry
     (typecase entry
-      ;; handle cons-based dynenv entries
       (cons
-       (let ((tag (car entry)))
+       (let ((tag (car entry))
+             (data (cdr entry)))
          (when (vm-valid-reference-p vm tag)
-           (funcall visitor-fn tag))))
+           (funcall visitor-fn tag))
+         ;; CDR of cons-based dynenv entries may hold heap references
+         (when (and (consp data) (vm-valid-reference-p vm (car data)))
+           (funcall visitor-fn (car data)))))
       (t nil))))
 
 (defun scan-maclina-closure-roots (vm visitor-fn)
@@ -48,3 +50,18 @@
                            for env-val = (aref env j)
                            when (vm-valid-reference-p vm env-val)
                              do (funcall visitor-fn env-val))))))))
+
+(defun update-maclina-stack-forwarded (vm)
+  "Update Maclina interpreter stack entries that hold forwarded addresses.
+Walks the Maclina VM stack and replaces any forwarded object references
+with their new addresses, following forwarding chains."
+  (let* ((maclina-vm maclina.vm-cross::*vm*)
+         (stack (when maclina-vm (maclina.vm-cross::vm-stack maclina-vm))))
+    (when stack
+      (loop for i from 0 below (length stack)
+            for val = (aref stack i)
+            when (and val (not (zerop val))
+                      (vm-valid-reference-p vm val)
+                      (vm-object-is-forwarded-p vm val))
+              do (setf (aref stack i)
+                       (vm-object-forwarding-pointer vm val))))))

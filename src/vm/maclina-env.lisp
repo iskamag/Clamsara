@@ -128,20 +128,29 @@
     (eclector.reader:read-from-string string)))
 
 (defmacro with-clamsara-maclina ((&key (plan-type :marksweep) (heap-size 65536)
-                                       (stack-size 65536))
+                                        (stack-size 65536))
                                  &body body)
-  "Execute BODY with an active Clamsara-Maclina environment."
+  "Execute BODY with an active Clamsara-Maclina environment.
+Creates a maclina-vm and plan, sets up the Clostrum environment,
+and restores previous state on exit."
   (let ((prev-client (gensym "PREV-CLIENT"))
         (prev-cc (gensym "PREV-CC"))
-        (prev-ce (gensym "PREV-CE")))
+        (prev-ce (gensym "PREV-CE"))
+        (vm-var (gensym "VM"))
+        (plan-var (gensym "PLAN")))
     `(let ((,prev-client (when (boundp 'maclina.machine:*client*)
                            maclina.machine:*client*))
            (,prev-cc *clamsara-maclina-client*)
            (,prev-ce *clamsara-maclina-env*))
-       (with-clamsara (:plan-type ,plan-type :heap-size ,heap-size)
+       (let* ((,vm-var (make-maclina-vm :heap-size ,heap-size))
+              (,plan-var (make-plan ,plan-type ,vm-var ,heap-size))
+              (*active-plan* ,plan-var)
+              (*active-vm* ,vm-var))
          (setup-clamsara-maclina-environment *active-plan* :stack-size ,stack-size)
          (unwind-protect
               (progn ,@body)
            (setf maclina.machine:*client* ,prev-client
                  *clamsara-maclina-client* ,prev-cc
-                 *clamsara-maclina-env* ,prev-ce))))))
+                 *clamsara-maclina-env* ,prev-ce
+                 *active-plan* nil
+                 *active-vm* nil))))))

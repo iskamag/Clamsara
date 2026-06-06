@@ -9,8 +9,11 @@
   "The currently active VM binding instance.")
 
 (defun make-plan (type vm heap-size &rest initargs)
-  "Create a plan of the given TYPE using the registered selectors."
-  (apply #'plan-selector type vm heap-size initargs))
+  "Create a plan of the given TYPE using the registered selectors.
+Calls boot-gc after construction to populate the compiled function table."
+  (let ((plan (apply #'plan-selector type vm heap-size initargs)))
+    (boot-gc plan)
+    plan))
 
 (defun select-plan (plan-type vm heap-size)
   "Create a plan using the global selector registry."

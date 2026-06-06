@@ -61,6 +61,7 @@
     (default-space :initform nil :accessor plan-default-space)
     (sft :initform nil :accessor plan-sft
      :documentation "Space Function Table: simple-vector mapping page-index -> space for O(1) lookup."))
+  (:metaclass plan-metaclass)
   (:documentation "A GC plan composed of spaces, barriers, and allocators."))
 
 ;;; --- Plan Helpers ---

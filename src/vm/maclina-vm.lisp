@@ -2,34 +2,27 @@
 
 ;;; --- Maclina VM Binding ---
 ;;; Bridges Clamsara plans to Maclina's interpreter.
-;;;
-;;; NOTE: The maclina-vm class is an integration stub. The current
-;;; with-clamsara-maclina entry point creates a simulator-vm instead,
-;;; so maclina-vm is not yet exercised. To activate, the maclina-env
-;;; setup must use make-maclina-vm in place of make-simulator-vm, and
-;;; the root scanning, stack updating, and allocation paths must be
-;;; validated against Maclina's internal VM structures.
+;;; Like simulator-vm, uses the global *HEAP*, *METADATA-WORDS*, and
+;;; *PAGE-TABLE* for storage. Root scanning is Maclina-specific.
 
 (defclass maclina-vm (vm-binding)
-  ((plan :initarg :plan :accessor maclina-vm-plan)
-   (client :initarg :client :accessor maclina-vm-client)
-   (heap :initarg :heap :accessor vm-heap))
-  (:documentation "Maclina VM binding for Clamsara."))
+  ()
+  (:documentation "Maclina VM binding. Shares the global heap with simulator-vm
+but provides Maclina-specific root scanning (stack, dynenv, closures)."))
 
-(defun make-maclina-vm (&key plan client heap-size)
+(defun make-maclina-vm (&key (heap-size 65536))
   "Create a maclina-vm with a heap of HEAP-SIZE words."
-  (let* ((size (or heap-size 65536))
-         (vm (make-instance 'maclina-vm
-                            :plan plan
-                            :client client
-                            :heap *heap*)))
-    (setf (slot-value vm 'heap-size) size)
-    (setf (vm-card-table vm) (ensure-card-table size))
-    (setf (vm-root-set vm) (make-root-set))
+  (let* ((vm (make-instance 'maclina-vm)))
+    (ensure-heap heap-size)
+    (ensure-page-table heap-size)
+    (ensure-metadata heap-size)
+    (setf (vm-card-table vm) (ensure-card-table heap-size)
+          (vm-root-set vm) (make-root-set))
+    (setf (slot-value vm 'heap-size) heap-size)
     vm))
 
 (defmethod vm-scan-roots ((vm maclina-vm) collector-state visitor-fn)
-  "Scan Maclina VM roots."
+  "Scan all Maclina roots: static, stack, dynamic environment, and closures."
   (declare (ignore collector-state))
   ;; Static roots
   (let ((rs (vm-root-set vm)))
@@ -44,4 +37,6 @@
   (scan-maclina-closure-roots vm visitor-fn))
 
 (defmethod vm-update-roots-forwarded ((vm maclina-vm))
-  (update-root-set-forwarded vm (vm-root-set vm)))
+  (update-root-set-forwarded vm (vm-root-set vm))
+  ;; Update Maclina stack entries that hold forwarded addresses
+  (update-maclina-stack-forwarded vm))

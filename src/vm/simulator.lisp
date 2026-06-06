@@ -65,11 +65,26 @@
   (setf *simulated-stack* nil))
 
 (defun scan-simulated-stack (vm root-set)
+  "Scan all stack frames for reference-type slots and register them as
+thread roots. Clears previous stack roots first to avoid accumulation."
   (declare (ignore vm))
+  ;; Clear previous stack roots to avoid accumulation across GC cycles
+  (remhash *simulated-thread-id* (rs-thread-roots root-set))
   (dolist (frame *simulated-stack*)
     (dolist (slot (stack-frame-slots frame))
       (when (and slot (not (zerop slot)) (typep slot 'fixnum))
         (register-thread-root root-set *simulated-thread-id* slot)))))
 
 (defmethod vm-update-roots-forwarded ((vm simulator-vm))
-  (update-root-set-forwarded vm (vm-root-set vm)))
+  (update-root-set-forwarded vm (vm-root-set vm))
+  ;; Also update stack frame slots so the simulated stack doesn't hold
+  ;; stale pre-move addresses after copying GC
+  (dolist (frame *simulated-stack*)
+    (let ((slots (stack-frame-slots frame)))
+      (setf (stack-frame-slots frame)
+            (loop for slot in slots
+                  collect (if (and slot (not (zerop slot))
+                                   (vm-valid-reference-p vm slot)
+                                   (vm-object-is-forwarded-p vm slot))
+                              (vm-object-forwarding-pointer vm slot)
+                              slot))))))

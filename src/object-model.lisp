@@ -84,7 +84,8 @@
 
 (defun %write-object-header (addr size type-tag &optional flags)
   (setf (%object-header addr) (%make-object-header size :type-tag type-tag :flags (or flags 0)))
-  (mark-object-start addr)
+  (when *metadata-words*
+    (mark-object-start addr))
   addr)
 
 ;;; --- Public Convenience Functions ---

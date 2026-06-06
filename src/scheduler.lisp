@@ -68,13 +68,10 @@
 
 (defmethod scheduler-schedule-collection ((scheduler gc-work-scheduler) plan)
   "Schedule collection phases as work packets. In single-threaded mode,
-executes sequentially."
+executes sequentially via plan-collect (which handles generational scheduling)."
   (scheduler-add-work scheduler
     (lambda ()
-      (let ((vm (plan-vm plan)))
-        (vm-stop-mutators vm)
-        (plan-collect-phase plan :major)
-        (vm-resume-mutators vm))))
+      (plan-collect plan :cycle-kind :major)))
   (scheduler-run-all scheduler))
 
 (defmethod scheduler-steal-work ((scheduler gc-work-scheduler))

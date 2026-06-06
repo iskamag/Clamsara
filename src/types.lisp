@@ -103,6 +103,9 @@
 (defconstant +flag-logged+ #b1000)
 
 ;;; --- Alignment Utilities ---
+;;; NOTE: These operate on word counts, not byte counts.
+;;; word-align: aligns n words to the next 8-word boundary (64 bytes).
+;;; page-align / card-align: align to page/card boundaries.
 
 (declaim (inline word-align page-align card-align))
 

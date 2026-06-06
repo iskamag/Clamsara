@@ -304,15 +304,14 @@ on the object's address."
      (barrier-card-scan ,barrier vm scan-fn)))
 
 (defun compile-bump-alloc-cas (allocator)
-  "Generate a CAS-based bump allocation lambda for multi-threaded use."
-  `(lambda (size)
-     (let* ((cursor (allocator-cursor ,allocator))
-            (new-cursor (+ cursor size)))
-       (if (> new-cursor (allocator-limit ,allocator))
-           nil
-           (if (cas (plan-vm *active-plan*) cursor cursor new-cursor)
-               (make-address cursor)
-               nil)))))
+  "Generate a CAS-based bump allocation lambda for multi-threaded use.
+NOTE: The generated lambda uses the global *active-plan* at allocation time.
+In a true concurrent VM, this would be replaced by a VM-specific CAS on the
+allocator's cursor slot using hardware CAS instructions."
+  (declare (ignore allocator))
+  (warn "compile-bump-alloc-cas is a stub: true CAS bump-allocation requires VM-specific atomics.~%~
+        Use compile-bump-alloc-locked or implement a VM-specific CAS path.")
+  nil)
 
 (defun compile-bump-alloc-locked (allocator)
   "Generate a lock-based bump allocation lambda."

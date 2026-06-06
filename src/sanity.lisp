@@ -9,15 +9,26 @@
 (defun compute-live-set (vm collector-state)
   "Compute the transitive closure of all objects reachable from roots."
   (let ((live (make-hash-table :test 'eql))
+        (queue-size 4096)
         (queue (make-array 4096 :element-type 'fixnum :initial-element 0))
         (head 0) (tail 0))
-    (labels ((enqueue (addr)
-                (setf (aref queue tail) addr)
-                (setf tail (mod (1+ tail) 4096)))
-              (dequeue ()
-                (prog1 (aref queue head)
-                  (setf head (mod (1+ head) 4096))))
-              (empty-p () (= head tail)))
+    (labels ((queue-full-p () (= (mod (1+ tail) queue-size) head))
+             (enqueue (addr)
+               (when (queue-full-p)
+                 ;; Grow the queue if full
+                 (let* ((new-size (* queue-size 2))
+                        (new-queue (make-array new-size :element-type 'fixnum :initial-element 0)))
+                   (loop for i from 0 below (1- queue-size)
+                         for idx = (mod (+ head i) queue-size)
+                         while (/= idx tail)
+                         do (setf (aref new-queue i) (aref queue idx)))
+                   (setf head 0 tail (1- queue-size) queue new-queue queue-size new-size)))
+               (setf (aref queue tail) addr)
+               (setf tail (mod (1+ tail) queue-size)))
+             (dequeue ()
+               (prog1 (aref queue head)
+                 (setf head (mod (1+ head) queue-size))))
+             (empty-p () (= head tail)))
       (vm-scan-roots vm collector-state
         (lambda (root)
           (when (and root (not (zerop root))
@@ -150,9 +161,12 @@
     objects))
 
 (defun run-sanity-stress (plan-type n-iterations
-                           &key (heap-size 524288) (n-objects 40)
-                                (mutations-per-iteration 8) (max-slots 5) (seed 54321))
-  "Run N-ITERATIONS of mutate->GC->verify for PLAN-TYPE."
+                            &key (heap-size 524288) (n-objects 40)
+                                 (mutations-per-iteration 8) (max-slots 5) (seed 54321))
+  "Run N-ITERATIONS of mutate->GC->verify for PLAN-TYPE.
+Note: SEED is accepted for API compatibility but not used; random-state
+is seeded from the current time for full entropy."
+  (declare (ignore seed))
   (let* ((*random-state* (make-random-state t))
          (vm (make-simulator-vm :heap-size heap-size))
          (plan (make-plan plan-type vm heap-size))

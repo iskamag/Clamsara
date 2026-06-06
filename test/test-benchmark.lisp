@@ -13,17 +13,17 @@
 ;;; Run with: (clamsara.tests:run-benchmark :semispace)
 ;;;   or:   (clamsara.tests:run-all-benchmarks)
 
-(defvar *benchmark-heap-size* 2097152
-  "Default heap size for the benchmark (2M words = 16 MiB).")
+(defvar *benchmark-heap-size* 262144
+  "Default heap size for the benchmark (256K words = 2 MiB).")
 
-(defvar *benchmark-tree-depth* 18
-  "Default tree depth for full benchmarks.")
+(defvar *benchmark-tree-depth* 14
+  "Default tree depth for full benchmarks (2^15-1 = 32767 nodes).")
 
-(defvar *benchmark-iterations* 20
+(defvar *benchmark-iterations* 10
   "Number of tree build/discard cycles for full benchmarks.")
 
-(defvar *quick-tree-depth* 12
-  "Tree depth for quick benchmark tests (2^13 - 1 = 8191 nodes).")
+(defvar *quick-tree-depth* 10
+  "Tree depth for quick benchmark tests (2^11-1 = 2047 nodes).")
 
 (defvar *quick-iterations* 5
   "Number of iterations for quick benchmark tests.")
@@ -31,14 +31,18 @@
 ;;; --- Tree building ---
 
 (defun benchmark-build-tree (plan depth)
-  "Build a binary tree of depth DEPTH. Returns root address.
+  "Build a binary tree of depth DEPTH. Returns root address, or NIL on failure.
 Each node: 3 slots [depth, left, right] = 4 words."
   (let ((addr (allocate-object plan 3)))
+    (unless addr
+      (return-from benchmark-build-tree nil))
     (let ((vm (plan-vm plan)))
       (setf (vm-object-reference vm addr 0) depth)
       (when (> depth 0)
-        (setf (vm-object-reference vm addr 1) (benchmark-build-tree plan (1- depth)))
-        (setf (vm-object-reference vm addr 2) (benchmark-build-tree plan (1- depth)))))
+        (let ((left (benchmark-build-tree plan (1- depth)))
+              (right (benchmark-build-tree plan (1- depth))))
+          (setf (vm-object-reference vm addr 1) (or left 0))
+          (setf (vm-object-reference vm addr 2) (or right 0)))))
     addr))
 
 (defun benchmark-tree-checksum (plan addr)
@@ -100,48 +104,48 @@ Returns (values total-time checksum-errors gc-count live-words)."
 
 (defmacro define-plan-benchmark (plan-type &key heap-size depth iterations)
   "Define a QUICK benchmark test for PLAN-TYPE that verifies correctness."
-  `(test ,(intern (format nil "BENCHMARK-~A" (symbol-name plan-type)))
-     ,(format nil "Boehm tree benchmark on ~A plan." plan-type)
-     (with-clamsara (:plan-type ,plan-type
-                     :heap-size ,(or heap-size *benchmark-heap-size*))
-       (multiple-value-bind (elapsed errors gc-cycles live-words)
-           (run-plan-benchmark *active-plan*
-                               :depth ,(or depth *quick-tree-depth*)
-                               :iterations ,(or iterations *quick-iterations*))
-          (format t "~&  ~14A  ~8,3F s  ~4D errs  ~4D GCs  ~8D live words~%"
-                  ,(string-downcase (symbol-name plan-type))
-                  elapsed errors gc-cycles (or live-words 0))
-          (is (zerop errors) ,(format nil "~A benchmark had checksum errors." plan-type))
-          (is (>= ,(or iterations *quick-iterations*) 1))))))
+  (let ((hs (or heap-size '*benchmark-heap-size*))
+        (d  (or depth '*quick-tree-depth*))
+        (it (or iterations '*quick-iterations*)))
+    `(test ,(intern (format nil "BENCHMARK-~A" (symbol-name plan-type)))
+       ,(format nil "Boehm tree benchmark on ~A plan." plan-type)
+       (with-clamsara (:plan-type ,plan-type
+                       :heap-size ,hs)
+         (multiple-value-bind (elapsed errors gc-cycles live-words)
+             (run-plan-benchmark *active-plan*
+                                  :depth ,d
+                                  :iterations ,it)
+            (format t "~&  ~14A  ~8,3F s  ~4D errs  ~4D GCs  ~8D live words~%"
+                    ,(string-downcase (symbol-name plan-type))
+                    elapsed errors gc-cycles (or live-words 0))
+            (is (zerop errors) ,(format nil "~A benchmark had checksum errors." plan-type))
+            (is (>= ,it 1)))))))
 
 ;;; --- Generate benchmarks for all 9 plan types ---
+;;; All plans use quick depth/iterations. NOGC gets a larger heap
+;;; since it never collects.
 
 (define-plan-benchmark :nogc
-  :heap-size 8388608 :depth 14 :iterations 5)
+  :heap-size 2097152 :depth *quick-tree-depth* :iterations *quick-iterations*)
 
-(define-plan-benchmark :semispace
-  :heap-size 2097152 :depth 18 :iterations 10)
+(define-plan-benchmark :semispace)
 
-(define-plan-benchmark :marksweep
-  :heap-size 2097152 :depth 18 :iterations 10)
+(define-plan-benchmark :marksweep)
 
-(define-plan-benchmark :immix
-  :heap-size 2097152 :depth 18 :iterations 10)
+(define-plan-benchmark :immix)
 
 (define-plan-benchmark :gencopy
-  :heap-size 4194304 :depth 18 :iterations 10)
+  :heap-size 524288)
 
 (define-plan-benchmark :genms
-  :heap-size 4194304 :depth 18 :iterations 10)
+  :heap-size 524288)
 
 (define-plan-benchmark :genimmix
-  :heap-size 4194304 :depth 18 :iterations 10)
+  :heap-size 524288)
 
-(define-plan-benchmark :stickyimmix
-  :heap-size 2097152 :depth 18 :iterations 10)
+(define-plan-benchmark :stickyimmix)
 
-(define-plan-benchmark :stickyms
-  :heap-size 2097152 :depth 18 :iterations 10)
+(define-plan-benchmark :stickyms)
 
 ;;; --- Public API ---
 

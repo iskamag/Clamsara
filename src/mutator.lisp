@@ -8,7 +8,7 @@
    (tlab-cursor :accessor mutator-tlab-cursor :type fixnum :initform 0)
    (tlab-limit :accessor mutator-tlab-limit :type fixnum :initform 0)
    (tlab-space :accessor mutator-tlab-space :initform nil)
-   (barrier :accessor mutator-barrier :initform nil)
+   (barrier :initarg :barrier :accessor mutator-barrier :initform nil)
    (plan :initarg :plan :reader mutator-plan :initform nil)
    (allocators :accessor mutator-allocators :initform (make-hash-table :test 'eq)))
   (:documentation "Per-thread mutator state with TLAB fast-path allocation."))

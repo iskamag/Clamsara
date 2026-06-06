@@ -30,8 +30,8 @@
     #:compute-immortal-space
     #:immix-space-blocks #:immix-space-line-mark-state
    ;; Allocator
-   #:bump-allocator #:free-list-allocator #:make-bump-allocator
-   #:alloc #:mark-object-start
+    #:bump-allocator #:free-list-allocator #:make-bump-allocator
+    #:alloc #:coalesce #:mark-line #:block-is-recyclable-p #:mark-object-start
    ;; Object model
    #:vm-object-start-p #:vm-object-type-tag
    #:vm-object-header #:vm-object-reference-count

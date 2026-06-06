@@ -173,7 +173,7 @@
       (is (typep (make-immortal-allocator nil pr) 'immortal-allocator)))))
 
 (test compute-immortal-space
-  (with-clamsara (:plan-type :semispace :heap-size 262144)
+  (with-clamsara (:plan-type :nogc :heap-size 262144)
     (let ((space (compute-immortal-space *active-plan*)))
       (is (typep space 'space))
       (is (eq :immortal (space-name space))))))

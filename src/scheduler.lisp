@@ -6,7 +6,7 @@
 
 (defclass gc-work-scheduler ()
   ((plan :initarg :plan :reader scheduler-plan)
-   (buckets :accessor scheduler-buckets :initform nil
+   (buckets :initarg :buckets :accessor scheduler-buckets :initform nil
     :documentation "Simple-vector of work buckets, one per phase.")
    (work-queue :initform nil :accessor scheduler-work-queue
     :documentation "Ring buffer work queue (simple-vector).")

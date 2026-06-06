@@ -215,6 +215,100 @@ Returns NIL if no compiled function is found (caller should fall back to
 the generic dispatch)."
   (gethash name (plan-function-table plan)))
 
+;;; --- Compilation helpers ---
+;;; These functions generate compiled lambda forms for hot-path operations.
+
+(defun compile-gc-phase-form (plan)
+  "Generate a compiled lambda form for the gc-phase sequence of PLAN.
+Uses compute-effective-method on plan-collect-phase to produce a PROGN
+of phase methods."
+  (declare (ignore plan))
+  ;; In the full implementation this would use MOP compute-effective-method.
+  ;; For now, we directly invoke plan-collect-phase which uses gc-phase
+  ;; method combination to order the phases.
+  `(lambda (cycle-kind)
+     (plan-collect-phase ,plan cycle-kind)))
+
+(defun compile-trace-dispatch (plan)
+  "Generate a CASE form dispatching trace calls to the correct space based
+on the object's address."
+  (let ((spaces (plan-spaces plan)))
+    (if (null spaces)
+        `(lambda (vm obj tracer &key cycle-kind)
+           (declare (ignore vm obj tracer cycle-kind))
+           nil)
+        (let ((clauses
+               (loop for space in (plan-spaces plan)
+                     for sname = (space-name space)
+                     collect `((space-contains-p ,space obj)
+                               (space-trace-object ,space vm obj tracer
+                                                   :cycle-kind cycle-kind)))))
+          `(lambda (vm obj tracer &key cycle-kind)
+             (cond
+               ,@clauses
+               (t nil)))))))
+
+(defun compile-space-trace-object (space)
+  "Generate a compiled lambda form for tracing objects in SPACE."
+  `(lambda (vm obj tracer &key cycle-kind trace-kind copy-semantics)
+     (space-trace-object ,space vm obj tracer
+                         :cycle-kind cycle-kind
+                         :trace-kind trace-kind
+                         :copy-semantics copy-semantics)))
+
+(defun compile-space-prepare (space)
+  "Generate a compiled lambda form for preparing SPACE."
+  `(lambda (vm &key cycle-kind)
+     (space-prepare ,space vm :cycle-kind cycle-kind)))
+
+(defun compile-space-release (space)
+  "Generate a compiled lambda form for releasing SPACE."
+  `(lambda (vm &key cycle-kind)
+     (space-release ,space vm :cycle-kind cycle-kind)))
+
+(defun compile-space-sweep (space)
+  "Generate a compiled lambda form for sweeping SPACE."
+  `(lambda (vm)
+     (space-sweep ,space vm)))
+
+(defun compile-card-barrier-write (barrier)
+  "Generate a compiled lambda form for the card-table write barrier."
+  `(lambda (source-addr slot-idx new-value &key old-value)
+     (barrier-note-write ,barrier source-addr slot-idx new-value :old-value old-value)))
+
+(defun compile-card-barrier-scan (barrier)
+  "Generate a compiled lambda form for the card-table scan."
+  `(lambda (vm scan-fn)
+     (barrier-card-scan ,barrier vm scan-fn)))
+
+(defun compile-bump-alloc-cas (allocator)
+  "Generate a CAS-based bump allocation lambda for multi-threaded use."
+  `(lambda (size)
+     (let* ((cursor (allocator-cursor ,allocator))
+            (new-cursor (+ cursor size)))
+       (if (> new-cursor (allocator-limit ,allocator))
+           nil
+           (if (cas (plan-vm *active-plan*) cursor cursor new-cursor)
+               (make-address cursor)
+               nil)))))
+
+(defun compile-bump-alloc-locked (allocator)
+  "Generate a lock-based bump allocation lambda."
+  `(lambda (size)
+     (alloc ,allocator size)))
+
+(defun compile-cons-trace (plan)
+  "Generate a compiled cons-trace function for PLAN."
+  (declare (ignore plan))
+  `(lambda (vm ref tracer &key cycle-kind trace-kind copy-semantics)
+     (declare (ignore cycle-kind trace-kind copy-semantics))
+     (when (and ref (not (zerop ref)))
+       (unless (vm-object-is-marked-p vm ref)
+         (setf (vm-object-is-marked-p vm ref) t)
+         (when tracer
+           (tracer-enqueue tracer ref)))
+       ref)))
+
 ;;; --- Plan initialization ---
 
 (defgeneric plan-initialize-spaces (plan vm heap-size)

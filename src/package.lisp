@@ -137,6 +137,9 @@
     #:cons-space-trait #:cons-space
     #:large-object-space-trait #:large-object-space
     #:nogc-space
+    #:cm-start-concurrent-mark #:cm-drain-mark-buffers
+    #:cm-is-marking-active-p
+    #:cc-enter-concurrent-mode #:cc-enter-stw-mode
     ;; Compile framework
     #:gc-phase
     #:plan-collect-phase
@@ -145,11 +148,26 @@
     #:lookup-compiled-function
     #:plan-function-table
     #:plan-initialize-spaces
+    #:compile-gc-phase-form
+    #:compile-trace-dispatch
+    #:compile-space-trace-object
+    #:compile-space-prepare
+    #:compile-space-release
+    #:compile-space-sweep
+    #:compile-card-barrier-write
+    #:compile-card-barrier-scan
+    #:compile-bump-alloc-cas
+    #:compile-bump-alloc-locked
+    #:compile-cons-trace
     ;; Stats
     #:plan-stats
     #:plan-stats-gc-count
     #:plan-stats-gc-time
     #:*gc-count* #:*gc-pause-time*
+    ;; Scheduler
+    #:gc-work-scheduler #:make-gc-work-scheduler
+    #:scheduler-add-work #:scheduler-run-all
+    #:scheduler-schedule-collection #:scheduler-steal-work
    ;; Plan classes (for typep in tests)
    #:nogc-plan #:semispace-plan #:marksweep-plan #:immix-plan
    #:gencopy-plan #:genms-plan #:genimmix-plan #:stickyimmix-plan #:stickyms-plan

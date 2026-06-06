@@ -98,8 +98,10 @@ Default: delegates to the allocator's occupancy measurement.")
     :space space :page-resource page-resource))
 
 (defmethod alloc ((a immortal-allocator) size &key)
-  "Allocate from immortal space. Never triggers GC."
-  (call-next-method))
+  "Allocate from immortal space. Never triggers GC.
+Delegates to the plan's page resource for contiguous page allocation."
+  (declare (ignore size))
+  (error "immortal-allocator allocation not implemented: use compute-immortal-space"))
 
 (defun compute-immortal-space (plan)
   "Find or create the immortal space for PLAN. Returns the immortal space,

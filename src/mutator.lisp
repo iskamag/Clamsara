@@ -67,4 +67,8 @@ default space; falls back to plan-allocate for other spaces."
         (limit (mutator-tlab-limit mutator)))
     (if (zerop limit)
         0.0
-        (/ (float cursor) (float limit)))))
+        ;; Compute relative occupancy: cursor-limit range within TLAB
+        (let* ((start (- limit (mod limit +page-size-words+)))
+               (used (max 0 (- cursor start)))
+               (total (max 1 (- limit start))))
+          (/ (float used) (float total))))))

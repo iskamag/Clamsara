@@ -344,11 +344,6 @@ remaining blocks."
           (setf (aref line-marks line-idx) mark-state)
           (incf (immix-block-live-lines block)))))))
 
-(defmethod block-is-recyclable-p ((a immix-allocator) block)
-  "Return T if BLOCK has no live lines with the current mark state."
-  (declare (ignore a))
-  (zerop (immix-block-live-lines block)))
-
 (defun immix-space-ensure-block (space page-resource)
   (unless (immix-space-current-block space)
     (if (immix-space-recycled-blocks space)

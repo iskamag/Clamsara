@@ -4,11 +4,10 @@
 ;;; The primary test backend. Uses *HEAP* for storage and side metadata for GC state.
 
 (defclass simulator-vm (vm-binding)
-  ((stack :accessor simulator-stack
-    :initform (make-array 1024 :initial-element 0))
-   (roots :accessor simulator-roots
-    :initform (make-array 256 :adjustable t :initial-element 0 :fill-pointer 0)))
-  (:documentation "Simulator VM binding."))
+  ()
+  (:documentation "Simulator VM binding.
+Uses *HEAP* global and side metadata. Does not hold per-instance heap state;
+all state lives in global variables for test convenience."))
 
 (defun make-simulator-vm (&key (heap-size 65536))
   "Create a simulator VM with a heap of HEAP-SIZE words."

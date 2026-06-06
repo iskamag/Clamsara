@@ -32,14 +32,27 @@
 (declaim (inline tracer-enqueue tracer-dequeue tracer-empty-p))
 
 (defun tracer-enqueue (tracer ref)
+  "Enqueue REF onto TRACER's work queue. Grows the queue if full."
   (declare (type fixnum ref))
   (let* ((tail (tracer-tail tracer))
-         (next-tail (mod (1+ tail) (tracer-capacity tracer))))
-    (when (= next-tail (tracer-head tracer))
-      (warn 'queue-overflow
-            :message (format nil "Queue overflow at ~D entries; dropping ~D"
-                             (tracer-capacity tracer) ref))
-      (return-from tracer-enqueue nil))
+         (head (tracer-head tracer))
+         (cap (tracer-capacity tracer))
+         (next-tail (mod (1+ tail) cap)))
+    (when (= next-tail head)
+      ;; Grow the queue: double capacity, copy elements
+      (let* ((new-cap (* cap 2))
+             (new-queue (make-array new-cap :element-type 'fixnum :initial-element 0))
+             (old-queue (tracer-queue tracer)))
+        (loop for i from 0
+              for idx = head then (mod (1+ idx) cap)
+              until (= idx tail)
+              do (setf (aref new-queue i) (aref old-queue idx))
+              finally (setf (slot-value tracer 'queue) new-queue
+                            (slot-value tracer 'head) 0
+                            (slot-value tracer 'tail) i
+                            (slot-value tracer 'capacity) new-cap
+                            tail i
+                            next-tail (mod (1+ i) new-cap)))))
     (setf (aref (tracer-queue tracer) tail) ref)
     (setf (tracer-tail tracer) next-tail)))
 

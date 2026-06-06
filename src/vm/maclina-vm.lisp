@@ -2,6 +2,13 @@
 
 ;;; --- Maclina VM Binding ---
 ;;; Bridges Clamsara plans to Maclina's interpreter.
+;;;
+;;; NOTE: The maclina-vm class is an integration stub. The current
+;;; with-clamsara-maclina entry point creates a simulator-vm instead,
+;;; so maclina-vm is not yet exercised. To activate, the maclina-env
+;;; setup must use make-maclina-vm in place of make-simulator-vm, and
+;;; the root scanning, stack updating, and allocation paths must be
+;;; validated against Maclina's internal VM structures.
 
 (defclass maclina-vm (vm-binding)
   ((plan :initarg :plan :accessor maclina-vm-plan)

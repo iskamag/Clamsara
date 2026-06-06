@@ -24,9 +24,6 @@
 (defgeneric mark-line (allocator addr mark-state)
   (:documentation "Mark the line containing ADDR with MARK-STATE. Required for immix-allocator."))
 
-(defgeneric block-is-recyclable-p (allocator block)
-  (:documentation "Return T if BLOCK can be recycled (no live lines). Required for immix-allocator."))
-
 (defmethod alloc ((a bump-allocator) size &key)
   (let* ((align (allocator-alignment a))
          (cursor (allocator-cursor a))

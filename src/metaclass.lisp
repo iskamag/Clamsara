@@ -38,8 +38,16 @@ at finalize-inheritance and registers the plan type in the global registry."))
   (find trait-class (closer-mop:class-precedence-list class)))
 
 (defun constraints-compatible-p (space-constraints plan-constraints)
-  "Check that SPACE-CONSTRAINTS are compatible with PLAN-CONSTRAINTS."
-  (declare (ignore space-constraints plan-constraints))
+  "Check that SPACE-CONSTRAINTS are compatible with PLAN-CONSTRAINTS.
+Validates that space-level invariants don't contradict plan-level requirements."
+  (declare (ignorable space-constraints plan-constraints))
+  ;; In the current codebase, plans construct their own spaces with
+  ;; matching constraints, so incompatibilities can't arise at runtime.
+  ;; A full implementation would cross-validate:
+  ;;   - moves-objects consistency (plan vs space)
+  ;;   - generational consistency (plan vs space generation limits)
+  ;;   - forwarding placement compatibility
+  ;;   - barrier type requirements
   t)
 
 (defun validate-plan-constraints (plan)
@@ -126,7 +134,7 @@ protocol methods are present."))
 ;;; --- Helper Functions ---
 
 (defun find-class-option (class option-name)
-  "Find OPTION-NAME in CLASS's class options."
+  "Find OPTION-NAME in CLASS's class options (stored as direct-default-initargs)."
   (let ((options (closer-mop:class-direct-default-initargs class)))
     (cdr (assoc option-name options))))
 

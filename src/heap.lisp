@@ -85,22 +85,3 @@ Each element is one machine word. An address is an index into this vector.")
 (defun card-index (addr)
   "Return the card index for ADDRESS."
   (floor (address-index addr) +card-size-words+))
-
-(defun heap-card-dirty-p (card-table addr)
-  "Return T if the card containing ADDRESS is dirty."
-  (let ((idx (card-index addr)))
-    (> (aref (card-table-cards card-table) idx) 0)))
-
-(defun mark-card-dirty (card-table addr)
-  "Mark the card containing ADDRESS as dirty."
-  (let ((idx (card-index addr)))
-    (setf (aref (card-table-cards card-table) idx) 1)))
-
-(defun clear-card-dirty (card-table addr)
-  "Mark the card containing ADDRESS as clean."
-  (let ((idx (card-index addr)))
-    (setf (aref (card-table-cards card-table) idx) 0)))
-
-(defun clear-all-cards (card-table)
-  "Reset all cards to clean."
-  (fill (card-table-cards card-table) 0))

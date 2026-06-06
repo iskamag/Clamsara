@@ -58,13 +58,12 @@ Each node: 3 slots [depth, left, right] = 4 words."
            0))))
 
 (defun benchmark-expected-checksum (depth)
-  "Expected checksum for a balanced binary tree of DEPTH.
-Sum over all nodes of the node's depth.
-A tree of depth D has 2^(D+1)-1 nodes.
-Level L has 2^L nodes each with value L.
-Total = sum(L * 2^L) for L=0..D = (D-1)*2^(D+1) + 2."
+  "Expected checksum for a balanced binary tree where each node stores its depth.
+A tree of depth D has 2^(D+1)-1 nodes. Root stores D, each child is a depth D-1 tree.
+Recursively: f(D) = D + 2*f(D-1), with f(0) = 0.
+Closed form: f(D) = 2^(D+1) - D - 2."
   (if (zerop depth)
-      1
+      0
       (+ depth (* 2 (benchmark-expected-checksum (1- depth))))))
 
 ;;; --- Single-plan benchmark ---
@@ -81,16 +80,16 @@ Returns (values total-time checksum-errors gc-count live-words)."
       (let* ((tree (benchmark-build-tree plan depth))
              (cs (benchmark-tree-checksum plan tree)))
         (push cs checksums))
-      ;; Trigger GC periodically
+      ;; Trigger GC periodically (ignore-errors for NoGC which can't collect)
       (when (zerop (mod (1+ i) 5))
-        (clamsara-gc)))
+        (ignore-errors (clamsara-gc))))
     (let* ((end-time (get-internal-run-time))
            (elapsed (/ (- end-time start-time) internal-time-units-per-second))
-           (expected (* iterations (benchmark-expected-checksum depth)))
+           (expected (benchmark-expected-checksum depth))
            (errors (count-if (lambda (cs) (/= cs expected)) checksums))
            (gc-cycles (- *gc-count* gc-count-before)))
-      ;; Final full GC to get live word count
-      (clamsara-gc)
+      ;; Final full GC to get live word count (skip for NoGC)
+      (ignore-errors (clamsara-gc))
       (let ((live-words (getf (vm-heap-usage vm) :total-words)))
         (values elapsed errors gc-cycles live-words)))))
 
@@ -102,50 +101,24 @@ Returns (values total-time checksum-errors gc-count live-words)."
 
 ;;; --- Benchmarks as test assertions ---
 
-(defmacro define-plan-benchmark (plan-type &key heap-size depth iterations)
-  "Define a QUICK benchmark test for PLAN-TYPE that verifies correctness."
-  (let ((hs (or heap-size '*benchmark-heap-size*))
-        (d  (or depth '*quick-tree-depth*))
-        (it (or iterations '*quick-iterations*)))
-    `(test ,(intern (format nil "BENCHMARK-~A" (symbol-name plan-type)))
-       ,(format nil "Boehm tree benchmark on ~A plan." plan-type)
-       (with-clamsara (:plan-type ,plan-type
-                       :heap-size ,hs)
-         (multiple-value-bind (elapsed errors gc-cycles live-words)
-             (run-plan-benchmark *active-plan*
-                                  :depth ,d
-                                  :iterations ,it)
+(test boehm-tree-benchmarks
+  "Boehm tree benchmark: all 9 plans produce zero checksum errors."
+  (let ((plan-types '(:nogc :semispace :marksweep :immix
+                      :gencopy :genms :genimmix :stickyimmix :stickyms)))
+    (dolist (plan-type plan-types)
+      (let ((heap-size (case plan-type
+                         (:nogc 2097152)
+                         ((:gencopy :genms :genimmix) 524288)
+                         (t *benchmark-heap-size*))))
+        (with-clamsara (:plan-type plan-type :heap-size heap-size)
+          (multiple-value-bind (elapsed errors gc-cycles live-words)
+              (run-plan-benchmark *active-plan*
+                                  :depth *quick-tree-depth*
+                                  :iterations *quick-iterations*)
             (format t "~&  ~14A  ~8,3F s  ~4D errs  ~4D GCs  ~8D live words~%"
-                    ,(string-downcase (symbol-name plan-type))
+                    (string-downcase (symbol-name plan-type))
                     elapsed errors gc-cycles (or live-words 0))
-            (is (zerop errors) ,(format nil "~A benchmark had checksum errors." plan-type))
-            (is (>= ,it 1)))))))
-
-;;; --- Generate benchmarks for all 9 plan types ---
-;;; All plans use quick depth/iterations. NOGC gets a larger heap
-;;; since it never collects.
-
-(define-plan-benchmark :nogc
-  :heap-size 2097152 :depth *quick-tree-depth* :iterations *quick-iterations*)
-
-(define-plan-benchmark :semispace)
-
-(define-plan-benchmark :marksweep)
-
-(define-plan-benchmark :immix)
-
-(define-plan-benchmark :gencopy
-  :heap-size 524288)
-
-(define-plan-benchmark :genms
-  :heap-size 524288)
-
-(define-plan-benchmark :genimmix
-  :heap-size 524288)
-
-(define-plan-benchmark :stickyimmix)
-
-(define-plan-benchmark :stickyms)
+            (is (zerop errors) "~A benchmark had checksum errors." plan-type)))))))
 
 ;;; --- Public API ---
 

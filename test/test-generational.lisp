@@ -60,39 +60,24 @@
 
 ;;; --- Sticky log bits ---
 
-(test stickyimmix-log-bit-on-alloc
-  "StickyImmix sets log bit on new allocations."
-  (with-clamsara (:plan-type :stickyimmix :heap-size 65536)
-    (let* ((vm (plan-vm *active-plan*))
-           (addr (allocate-object *active-plan* 3)))
-      (is (vm-object-is-logged-p vm addr)))))
+(test sticky-log-bit-on-alloc
+  "Sticky plans set log bit on new allocations."
+  (dolist (plan-type '(:stickyimmix :stickyms))
+    (with-clamsara (:plan-type plan-type :heap-size 65536)
+      (let* ((vm (plan-vm *active-plan*))
+             (addr (allocate-object *active-plan* 3)))
+        (is (vm-object-is-logged-p vm addr))))))
 
-(test stickyms-log-bit-on-alloc
-  "StickyMS sets log bit on new allocations."
-  (with-clamsara (:plan-type :stickyms :heap-size 65536)
-    (let* ((vm (plan-vm *active-plan*))
-           (addr (allocate-object *active-plan* 3)))
-      (is (vm-object-is-logged-p vm addr)))))
-
-(test stickyimmix-nursery-gc-clears-log
-  "StickyImmix nursery GC clears log bits on survivors."
-  (with-clamsara (:plan-type :stickyimmix :heap-size 131072)
-    (let* ((vm (plan-vm *active-plan*))
-           (addr (allocate-fill *active-plan* 3 42 0 0)))
-      (clamsara-register-root addr)
-      (clamsara-gc)
-      (is (= 42 (vm-object-reference vm addr 0)))
-      (is (not (vm-object-is-logged-p vm addr))))))
-
-(test stickyms-nursery-gc-clears-log
-  "StickyMS nursery GC clears log bits on survivors."
-  (with-clamsara (:plan-type :stickyms :heap-size 131072)
-    (let* ((vm (plan-vm *active-plan*))
-           (addr (allocate-fill *active-plan* 3 42 0 0)))
-      (clamsara-register-root addr)
-      (clamsara-gc)
-      (is (= 42 (vm-object-reference vm addr 0)))
-      (is (not (vm-object-is-logged-p vm addr))))))
+(test sticky-nursery-gc-clears-log
+  "Sticky nursery GC clears log bits on survivors."
+  (dolist (plan-type '(:stickyimmix :stickyms))
+    (with-clamsara (:plan-type plan-type :heap-size 131072)
+      (let* ((vm (plan-vm *active-plan*))
+             (addr (allocate-fill *active-plan* 3 42 0 0)))
+        (clamsara-register-root addr)
+        (clamsara-gc)
+        (is (= 42 (vm-object-reference vm addr 0)))
+        (is (not (vm-object-is-logged-p vm addr)))))))
 
 (test sticky-plans-major-gc
   "Sticky plans can run major GC."
@@ -144,22 +129,9 @@ nursery GC. This is the core generational correctness property."
             (is (= 99 (vm-object-reference vm young-ref 0)))
             (is (= 88 (vm-object-reference vm young-ref 1)))))))))
 
-(test old-to-young-barrier-gencopy
-  "GenCopy: young object reachable only from old object survives nursery GC."
-  (%do-old-to-young-barrier-test :gencopy 262144))
-
-(test old-to-young-barrier-genms
-  "GenMS: young object reachable only from old object survives nursery GC."
-  (%do-old-to-young-barrier-test :genms 262144))
-
-(test old-to-young-barrier-genimmix
-  "GenImmix: young object reachable only from old object survives nursery GC."
-  (%do-old-to-young-barrier-test :genimmix 262144))
-
-(test old-to-young-barrier-stickyimmix
-  "StickyImmix: young object reachable only from old object survives nursery GC."
-  (%do-old-to-young-barrier-test :stickyimmix 131072))
-
-(test old-to-young-barrier-stickyms
-  "StickyMS: young object reachable only from old object survives nursery GC."
-  (%do-old-to-young-barrier-test :stickyms 131072))
+(test old-to-young-barrier
+  "Young object reachable only from old survives nursery GC across all generational plans."
+  (dolist (plan-type '(:gencopy :genms :genimmix :stickyimmix :stickyms))
+    (%do-old-to-young-barrier-test plan-type
+                                   (if (member plan-type '(:gencopy :genms :genimmix))
+                                       262144 131072))))

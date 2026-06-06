@@ -109,12 +109,8 @@
       (is-false (coalesce (space-allocator space))))))
 
 ;;; --- compile ---
-;;; compile-to-functions-returns-alist tested in test-compile.lisp
-
-(test lookup-compiled-function
-  (with-clamsara (:plan-type :marksweep)
-    (boot-gc *active-plan*)
-    (is-true (gethash 'plan-collect (plan-function-table *active-plan*)))))
+;;; compile-to-functions-returns-alist, boot-gc-populates-function-table, etc.
+;;; tested in test-compile.lisp.
 
 ;;; --- macros ---
 

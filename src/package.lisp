@@ -172,6 +172,8 @@
     #:gc-work-scheduler #:make-gc-work-scheduler
     #:scheduler-add-work #:scheduler-run-all
     #:scheduler-schedule-collection #:scheduler-steal-work
+    #:scheduler-plan #:scheduler-buckets
+    #:scheduler-worker-count #:scheduler-queue-capacity
    ;; Plan classes (for typep in tests)
    #:nogc-plan #:semispace-plan #:marksweep-plan #:immix-plan
    #:gencopy-plan #:genms-plan #:genimmix-plan #:stickyimmix-plan #:stickyms-plan

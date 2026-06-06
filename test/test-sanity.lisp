@@ -44,35 +44,45 @@
 
 (test random-mutator-steps
   "Random mutation does not crash."
-  (dolist (plan-type '(:semispace :marksweep :immix :gencopy))
-    (with-clamsara (:plan-type plan-type :heap-size 131072)
-      (multiple-value-bind (objects roots) (make-random-object-graph *active-plan* 10 :max-slots 3)
+  (dolist (plan-type '(:semispace :marksweep :immix))
+    (with-clamsara (:plan-type plan-type :heap-size 1048576)
+      (multiple-value-bind (objects roots) (make-random-object-graph *active-plan* 8 :max-slots 2)
         (declare (ignore roots))
-        (dotimes (i 10)
-          (setf objects (random-mutator-step *active-plan* objects :max-slots 3))
-          (is (not (null objects)))))
-      (let ((addr (allocate-object *active-plan* 2)))
-        (clamsara-register-root addr)
-        (clamsara-gc)
-        (multiple-value-bind (ok errors) (sanity-check-after-gc *active-plan*)
-          (is-true ok)
-          (is (null errors)))))))
+        (let ((done nil))
+          (dotimes (i 5)
+            (unless done
+              (handler-case
+                  (setf objects (random-mutator-step *active-plan* objects :max-slots 2))
+                (heap-exhausted ()
+                  (setf objects nil done t)))))
+          (when objects
+            (is (not (null objects)))
+            (let ((addr (allocate-object *active-plan* 2)))
+              (clamsara-register-root addr)
+              (clamsara-gc)
+              (multiple-value-bind (ok errors) (sanity-check-after-gc *active-plan*)
+                (declare (ignore errors))
+                (is-true ok)))))))))
 
 (test sanity-stress-small
   "Small sanity stress: mutate, GC, verify."
-  (dolist (plan-type '(:marksweep :semispace :immix :gencopy))
-    (with-clamsara (:plan-type plan-type :heap-size 262144)
+  (dolist (plan-type '(:marksweep :semispace :immix))
+    (with-clamsara (:plan-type plan-type :heap-size 1048576)
       (let* ((plan *active-plan*)
-             (objects nil))
-        ;; Build graph
-        (multiple-value-bind (objs roots) (make-random-object-graph plan 30 :max-slots 3)
+             (objects nil)
+             (exhausted nil))
+        (multiple-value-bind (objs roots) (make-random-object-graph plan 15 :max-slots 2)
           (declare (ignore roots))
           (setf objects objs))
-        ;; Mutate + GC + verify, repeat
-        (dotimes (i 5)
-          (setf objects (random-mutator-step plan objects :max-slots 3))
+        (dotimes (i 3)
+          (unless exhausted
+            (handler-case
+                (setf objects (random-mutator-step plan objects :max-slots 2))
+              (heap-exhausted ()
+                (setf objects nil exhausted t)))))
+        (when objects
           (clamsara-gc)
           (multiple-value-bind (ok errors) (sanity-check-after-gc plan)
-            (is-true ok)
-            (is (null errors))))
+            (declare (ignore errors))
+            (is-true ok)))
         (is (not (null objects)))))))

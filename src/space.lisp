@@ -102,19 +102,22 @@ Default: delegates to the allocator's occupancy measurement.")
   (call-next-method))
 
 (defun compute-immortal-space (plan)
-  "Find or create the immortal space for PLAN. Returns the immortal space."
+  "Find or create the immortal space for PLAN. Returns the immortal space,
+or NIL if no pages are available."
   (or (find :immortal (plan-spaces plan) :key #'space-name)
       (let* ((pr (plan-page-resource plan))
              (n-pages 4)
-             (start-page (page-resource-get pr n-pages :kind :immortal))
-             (alloc (make-immortal-allocator nil pr))
-             (space (make-space :immortal :immortal start-page n-pages alloc
-                      :page-resource pr
-                      :constraints (make-instance 'space-constraints
-                                     :moves-objects nil :accepts-copies t
-                                     :mixed-age nil :immortal t))))
-        (bump-allocator-reset alloc
-                              :cursor (* start-page +page-size-words+)
-                              :limit (* (+ start-page n-pages) +page-size-words+))
-        (plan-add-space plan space)
-        space)))
+             (start-page (page-resource-get pr n-pages :kind :immortal)))
+        (unless start-page
+          (return-from compute-immortal-space nil))
+        (let* ((alloc (make-immortal-allocator nil pr))
+               (space (make-space :immortal :immortal start-page n-pages alloc
+                        :page-resource pr
+                        :constraints (make-instance 'space-constraints
+                                       :moves-objects nil :accepts-copies t
+                                       :mixed-age nil :immortal t))))
+          (bump-allocator-reset alloc
+                                :cursor (* start-page +page-size-words+)
+                                :limit (* (+ start-page n-pages) +page-size-words+))
+          (plan-add-space plan space)
+          space))))

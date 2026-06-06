@@ -167,13 +167,11 @@
    #:gencopy-plan #:genms-plan #:genimmix-plan #:stickyimmix-plan #:stickyms-plan
    ;; Conditions
    #:heap-exhausted #:no-active-plan
-   ;; Sanity (test support)
-   #:compute-live-set #:make-random-object-graph #:random-mutator-step
-   ;; Allocator
-   #:free
-   ;; Maclina
-   #:clamsara-maclina-client
-   #:*clamsara-maclina-client* #:*clamsara-maclina-env*
-   #:setup-clamsara-maclina-environment))
+    ;; Sanity (test support)
+    #:compute-live-set #:make-random-object-graph #:random-mutator-step
+    ;; Allocator
+    #:free))
+;; Maclina symbols live in the clamsara-vm package, defined in src/vm/package.lisp
+;; and loaded by the clamsara/vm secondary system.
 
 (in-package #:clamsara)

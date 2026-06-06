@@ -8,19 +8,36 @@
    (dead-mature-bytes :initform 0 :accessor plan-dead-mature-bytes :type fixnum))
   (:documentation "StickyImmix: mixed-age Immix space."))
 
-(defun %stickyimmix-collect (plan cycle-kind)
-  "Core sticky-immix collection dispatch."
+;;; --- StickyImmix policy and phase methods ---
+
+(defmethod plan-collect ((plan stickyimmix-plan) &key (cycle-kind :minor))
+  "Policy: decide minor vs major, including should-minor-gc-p escalation."
   (if (eq cycle-kind :major)
-      (sticky-major-collect plan)
+      (plan-collect-phase plan :major)
       (if (should-minor-gc-p plan)
-          (sticky-nursery-collect plan)
+          (plan-collect-phase plan :minor)
           (progn
             (setf (plan-last-major-gc-minor-count plan)
                   (plan-minor-gc-count plan))
-            (sticky-major-collect plan)))))
+            (plan-collect-phase plan :major)))))
 
-(defmethod plan-collect ((plan stickyimmix-plan) &key (cycle-kind :minor))
-  (%stickyimmix-collect plan cycle-kind))
+(defmethod compile-to-functions append ((plan stickyimmix-plan))
+  (list (cons 'plan-collect
+              (lambda (&key (cycle-kind :minor))
+                (if (eq cycle-kind :major)
+                    (plan-collect-phase plan :major)
+                    (if (should-minor-gc-p plan)
+                        (plan-collect-phase plan :minor)
+                        (progn
+                          (setf (plan-last-major-gc-minor-count plan)
+                                (plan-minor-gc-count plan))
+                          (plan-collect-phase plan :major))))))))
+
+(defmethod plan-collect-phase :prologue ((plan stickyimmix-plan) (phase (eql :minor)))
+  (sticky-nursery-collect plan))
+
+(defmethod plan-collect-phase :prologue ((plan stickyimmix-plan) (phase (eql :major)))
+  (sticky-major-collect plan))
 
 (defmethod mature-dead-ratio-exceeded-p ((plan stickyimmix-plan))
   (let* ((young-live (plan-live-young-bytes plan))
@@ -166,8 +183,3 @@
       plan)))
 
 (register-plan-selector :stickyimmix #'make-stickyimmix-plan)
-
-(defmethod compile-to-functions append ((plan stickyimmix-plan))
-  (list (cons 'plan-collect
-              (lambda (&key (cycle-kind :minor))
-                (%stickyimmix-collect plan cycle-kind)))))

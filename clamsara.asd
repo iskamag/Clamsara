@@ -9,18 +9,18 @@
                "closer-mop")
   :serial t
   :components ((:module "src"
-                :serial t
-                :components
-                ((:file "package")
-                 (:file "metaclass")
-                 (:file "types")
-                 (:file "conditions")
-                 (:file "heap")
-                 (:file "object-model")
-                 (:file "metadata")
-                 (:file "vm-binding")
-                 (:file "roots")
-                 (:module "allocator"
+                 :serial t
+                 :components
+                 ((:file "package")
+                  (:file "metaclass")
+                  (:file "types")
+                  (:file "conditions")
+                  (:file "heap")
+                  (:file "object-model")
+                  (:file "metadata")
+                  (:file "vm-binding")
+                  (:file "roots")
+                  (:module "allocator"
                   :components
                   ((:file "bump-pointer")
                    (:file "free-list")
@@ -70,12 +70,13 @@
                "eclector")
   :serial t
   :components ((:module "src/vm"
-                :serial t
-                :components
-                ((:file "maclina-vm")
-                 (:file "maclina-roots")
-                 (:file "maclina-alloc")
-                 (:file "maclina-env")))))
+                 :serial t
+                 :components
+                 ((:file "package")
+                  (:file "maclina-vm")
+                  (:file "maclina-roots")
+                  (:file "maclina-alloc")
+                  (:file "maclina-env")))))
 
 (defsystem "clamsara/test"
   :description "Test suite for clamsara"

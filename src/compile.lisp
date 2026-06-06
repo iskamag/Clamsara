@@ -51,56 +51,40 @@
 Uses the gc-phase method combination to order collection phases."))
 
 ;;; --- Default phase methods ---
+;;; These are fallbacks for plans that don't provide their own.
+;;; All 9 concrete plans override the relevant phases, so these
+;;; methods only apply to bare plan instances or as secondary
+;;; methods in the gc-phase combination (which calls all applicable
+;;; methods in a phase, not just the most-specific).
 
 (defmethod plan-collect-phase :prologue ((plan plan) (phase t))
-  "Prologue: prepare for collection."
+  "Prologue: clear barrier state."
   (declare (ignore phase))
-  ;; Clear barrier state
   (when (plan-barrier plan)
-    (barrier-clear-all (plan-barrier plan)))
-  ;; Clear mark bits
-  (let ((vm (plan-vm plan)))
-    (when vm
-      (dotimes (i (vm-heap-size vm))
-        (when (vm-object-start-p vm i)
-          (setf (vm-object-is-marked-p vm i) nil))))))
+    (barrier-clear-all (plan-barrier plan))))
 
 (defmethod plan-collect-phase :mark ((plan plan) (phase t))
-  "Mark: trace from roots."
+  "Mark: no-op default. Concrete plans override this."
   (declare (ignore phase))
-  (let ((vm (plan-vm plan)))
-    (when vm
-      (let ((tracer (make-tracer vm
-                      (lambda (obj)
-                        (unless (vm-object-is-marked-p vm obj)
-                          (setf (vm-object-is-marked-p vm obj) t))
-                        obj))))
-        (vm-scan-roots vm plan
-          (lambda (r)
-            (when (and r (not (zerop r)))
-              (tracer-enqueue tracer r))))
-        (tracer-process-queue tracer)))))
+  nil)
 
 (defmethod plan-collect-phase :sweep ((plan plan) (phase t))
-  "Sweep: reclaim unreachable objects."
+  "Sweep: no-op default."
   (declare (ignore phase))
   nil)
 
 (defmethod plan-collect-phase :compact ((plan plan) (phase t))
-  "Compact: defragment heap (plan-specific). Default no-op."
+  "Compact: no-op default."
   (declare (ignore phase))
   nil)
 
 (defmethod plan-collect-phase :release ((plan plan) (phase t))
-  "Release: release temporary resources, swap spaces, reset mutator contexts."
+  "Release: no-op default."
   (declare (ignore phase))
-  (let ((vm (plan-vm plan)))
-    (when vm
-      (vm-clear-all-forwarding vm)
-      (vm-clear-all-log-bits vm))))
+  nil)
 
 (defmethod plan-collect-phase :epilogue ((plan plan) (phase t))
-  "Epilogue: cleanup after collection."
+  "Epilogue: no-op default."
   (declare (ignore phase))
   nil)
 
@@ -123,8 +107,7 @@ Uses the gc-phase method combination to order collection phases."))
                      (progn
                        (vector-push-extend entry
                                            (plan-pending-finalizers plan)))))))
-    (setf (fill-pointer (plan-known-finalizers plan)) keep-count))
-  (call-next-method))
+    (setf (fill-pointer (plan-known-finalizers plan)) keep-count)))
 
 ;;; --- :around method for timing ---
 
@@ -155,12 +138,11 @@ hot-path functions contributed by COMPONENT. Each closure captures
 its lexical environment so boot-gc can store them directly."))
 
 (defmethod compile-to-functions append ((plan plan))
-  "Fallback: compile plan-collect-phase via gc-phase method combination."
-  (let ((phase (if (plan-generational-p (plan-constraints plan)) :minor :major)))
+  "Compiled plan-collect closure: calls plan-collect-phase with cycle-kind dispatch."
+  (let ((default-phase (if (plan-generational-p (plan-constraints plan)) :minor :major)))
     (list (cons 'plan-collect
-                (lambda (&key cycle-kind)
-                  (declare (ignore cycle-kind))
-                  (plan-collect-phase plan phase))))))
+                (lambda (&key (cycle-kind default-phase))
+                  (plan-collect-phase plan cycle-kind))))))
 
 (defmethod compile-to-functions append ((space space))
   "Space trace functions."

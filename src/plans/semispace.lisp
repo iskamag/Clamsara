@@ -18,18 +18,15 @@
                             (not (copying-from-space-p s))))
            (plan-spaces plan)))
 
-;;; --- SemiSpace collection ---
+;;; --- SemiSpace plan-collect-phase methods ---
 
-(defun %semispace-collect (plan)
-  "Core semispace collection logic."
+(defmethod plan-collect-phase :prologue ((plan semispace-plan) (phase t))
+  (vm-stop-mutators (plan-vm plan))
+  (space-prepare (plan-to-space plan) (plan-vm plan)))
+
+(defmethod plan-collect-phase :mark ((plan semispace-plan) (phase t))
   (let* ((vm (plan-vm plan))
-         (from (plan-from-space plan))
-         (to (plan-to-space plan))
          (tracer nil))
-    (vm-stop-mutators vm)
-    ;; Prepare to-space
-    (space-prepare to vm)
-    ;; Trace
     (flet ((trace-fn (ref)
              (let ((space (plan-space-for-address plan ref)))
                (when (and space (typep space 'collectable-space))
@@ -44,17 +41,15 @@
                 (when result
                   (unless (tracer-trace-fn-enqueues-p tracer)
                     (tracer-enqueue tracer result)))))))
-        (tracer-process-queue tracer)))
-    ;; Release: swap from/to
-    (space-release from vm)
+        (tracer-process-queue tracer)))))
+
+(defmethod plan-collect-phase :release ((plan semispace-plan) (phase t))
+  (let ((vm (plan-vm plan)))
+    (space-release (plan-from-space plan) vm)
     (vm-update-roots-forwarded vm)
     (vm-clear-all-forwarding vm)
     (setf (plan-default-space plan) (plan-from-space plan))
     (vm-resume-mutators vm)))
-
-(defmethod plan-collect ((plan semispace-plan) &key cycle-kind)
-  (declare (ignore cycle-kind))
-  (%semispace-collect plan))
 
 (defmethod plan-get-space ((plan semispace-plan) (designator (eql :default)))
   (or (plan-default-space plan)
@@ -92,9 +87,3 @@
       plan)))
 
 (register-plan-selector :semispace #'make-semispace-plan)
-
-(defmethod compile-to-functions append ((plan semispace-plan))
-  (list (cons 'plan-collect
-              (lambda (&key cycle-kind)
-                (declare (ignore cycle-kind))
-                (%semispace-collect plan)))))

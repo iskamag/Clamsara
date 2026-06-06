@@ -6,17 +6,16 @@
 (defclass immix-plan (plan) ()
   (:documentation "Immix mark-region collector."))
 
-;;; --- Immix collection ---
+;;; --- Immix plan-collect-phase methods ---
 
-(defun %immix-collect (plan)
-  "Core Immix collection logic."
+(defmethod plan-collect-phase :prologue ((plan immix-plan) (phase t))
+  (vm-stop-mutators (plan-vm plan))
+  (space-prepare (plan-get-space plan :default) (plan-vm plan)))
+
+(defmethod plan-collect-phase :mark ((plan immix-plan) (phase t))
   (let* ((vm (plan-vm plan))
          (space (plan-get-space plan :default))
          (tracer nil))
-    (vm-stop-mutators vm)
-    ;; Prepare: toggle line mark state
-    (space-prepare space vm)
-    ;; Mark phase
     (flet ((trace-fn (ref)
              (space-trace-object space vm ref tracer)))
       (setf tracer (make-tracer vm #'trace-fn :queue-size 4096))
@@ -28,17 +27,16 @@
               (space-trace-object space vm root tracer)
               (unless (tracer-trace-fn-enqueues-p tracer)
                 (tracer-enqueue tracer root)))))
-        (tracer-process-queue tracer)))
-    ;; Sweep phase
-    (space-sweep space vm)
-    ;; Cleanup
+        (tracer-process-queue tracer)))))
+
+(defmethod plan-collect-phase :sweep ((plan immix-plan) (phase t))
+  (space-sweep (plan-get-space plan :default) (plan-vm plan)))
+
+(defmethod plan-collect-phase :release ((plan immix-plan) (phase t))
+  (let ((vm (plan-vm plan)))
     (vm-clear-all-mark-bits vm)
     (vm-post-gc-cleanup vm)
     (vm-resume-mutators vm)))
-
-(defmethod plan-collect ((plan immix-plan) &key cycle-kind)
-  (declare (ignore cycle-kind))
-  (%immix-collect plan))
 
 (defmethod plan-get-space ((plan immix-plan) (designator (eql :default)))
   (or (plan-default-space plan)
@@ -70,9 +68,3 @@
       plan)))
 
 (register-plan-selector :immix #'make-immix-plan)
-
-(defmethod compile-to-functions append ((plan immix-plan))
-  (list (cons 'plan-collect
-              (lambda (&key cycle-kind)
-                (declare (ignore cycle-kind))
-                (%immix-collect plan)))))

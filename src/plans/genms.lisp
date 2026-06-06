@@ -7,6 +7,12 @@
   ((ms-mature-space :initform nil :accessor plan-genms-mature-space))
   (:documentation "GenMS: copying nursery, mark-sweep mature."))
 
+(defmethod plan-collect-phase :prologue ((plan genms-plan) (phase (eql :minor)))
+  (gen-minor-collect plan))
+
+(defmethod plan-collect-phase :prologue ((plan genms-plan) (phase (eql :major)))
+  (gen-major-collect plan))
+
 (defmethod gen-minor-collect ((plan genms-plan))
   (let* ((vm (plan-vm plan))
          (n-from (plan-nursery-from plan))

@@ -6,8 +6,7 @@
 (defclass nogc-plan (plan) ()
   (:documentation "NoGC plan: allocates, never collects."))
 
-(defmethod plan-collect ((plan nogc-plan) &key cycle-kind)
-  (declare (ignore cycle-kind))
+(defmethod plan-collect-phase :prologue ((plan nogc-plan) (phase t))
   (error 'heap-exhausted :plan plan :message "NoGC plan cannot collect"))
 
 (defmethod plan-get-space ((plan nogc-plan) (designator (eql :default)))
@@ -50,9 +49,3 @@
       plan)))
 
 (register-plan-selector :nogc #'make-nogc-plan)
-
-(defmethod compile-to-functions append ((plan nogc-plan))
-  (list (cons 'plan-collect
-              (lambda (&key cycle-kind)
-                (declare (ignore cycle-kind))
-                (error 'heap-exhausted :plan plan :message "NoGC plan cannot collect")))))

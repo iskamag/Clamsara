@@ -1,9 +1,10 @@
-(in-package #:clamsara)
+(in-package #:clamsara-vm)
 
 ;;; --- Maclina VM Binding ---
 ;;; Bridges Clamsara plans to Maclina's interpreter.
-;;; Like simulator-vm, uses the global *HEAP*, *METADATA-WORDS*, and
-;;; *PAGE-TABLE* for storage. Root scanning is Maclina-specific.
+;;; Inherits from vm-binding which provides simulator-coupled defaults
+;;; using the global *HEAP*, *METADATA-WORDS*, and *PAGE-TABLE*.
+;;; Root scanning is Maclina-specific.
 
 (defclass maclina-vm (vm-binding)
   ()

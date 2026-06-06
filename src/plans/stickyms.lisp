@@ -8,19 +8,36 @@
    (dead-mature-bytes :initform 0 :accessor plan-dead-mature-bytes :type fixnum))
   (:documentation "StickyMS: mixed-age mark-sweep space."))
 
-(defun %stickyms-collect (plan cycle-kind)
-  "Core sticky-ms collection dispatch."
+;;; --- StickyMS policy and phase methods ---
+
+(defmethod plan-collect ((plan stickyms-plan) &key (cycle-kind :minor))
+  "Policy: decide minor vs major, including should-minor-gc-p escalation."
   (if (eq cycle-kind :major)
-      (sticky-ms-major-collect plan)
+      (plan-collect-phase plan :major)
       (if (should-minor-gc-p plan)
-          (sticky-ms-nursery-collect plan)
+          (plan-collect-phase plan :minor)
           (progn
             (setf (plan-last-major-gc-minor-count plan)
                   (plan-minor-gc-count plan))
-            (sticky-ms-major-collect plan)))))
+            (plan-collect-phase plan :major)))))
 
-(defmethod plan-collect ((plan stickyms-plan) &key (cycle-kind :minor))
-  (%stickyms-collect plan cycle-kind))
+(defmethod compile-to-functions append ((plan stickyms-plan))
+  (list (cons 'plan-collect
+              (lambda (&key (cycle-kind :minor))
+                (if (eq cycle-kind :major)
+                    (plan-collect-phase plan :major)
+                    (if (should-minor-gc-p plan)
+                        (plan-collect-phase plan :minor)
+                        (progn
+                          (setf (plan-last-major-gc-minor-count plan)
+                                (plan-minor-gc-count plan))
+                          (plan-collect-phase plan :major))))))))
+
+(defmethod plan-collect-phase :prologue ((plan stickyms-plan) (phase (eql :minor)))
+  (sticky-ms-nursery-collect plan))
+
+(defmethod plan-collect-phase :prologue ((plan stickyms-plan) (phase (eql :major)))
+  (sticky-ms-major-collect plan))
 
 (defmethod mature-dead-ratio-exceeded-p ((plan stickyms-plan))
   (let* ((young-live (plan-live-young-bytes plan))
@@ -164,8 +181,3 @@
       plan)))
 
 (register-plan-selector :stickyms #'make-stickyms-plan)
-
-(defmethod compile-to-functions append ((plan stickyms-plan))
-  (list (cons 'plan-collect
-              (lambda (&key (cycle-kind :minor))
-                (%stickyms-collect plan cycle-kind)))))

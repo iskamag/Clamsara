@@ -1,4 +1,4 @@
-(in-package #:clamsara)
+(in-package #:clamsara-vm)
 
 ;;; --- Maclina Environment ---
 ;;; Creates a Clostrum environment backed by maclina-vm.

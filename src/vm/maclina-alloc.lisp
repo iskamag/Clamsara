@@ -1,4 +1,4 @@
-(in-package #:clamsara)
+(in-package #:clamsara-vm)
 
 ;;; --- Maclina Allocation Redirect ---
 ;;; Redirects Maclina's cell allocation to the Clamsara heap.

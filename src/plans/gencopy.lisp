@@ -30,26 +30,40 @@
     (and nursery
          (> (bump-allocator-occupancy (space-allocator nursery)) 3/4))))
 
-(defun %generational-collect (plan cycle-kind)
-  "Core generational collection dispatch: minor or major."
+(defmethod plan-collect ((plan generational-plan-trait) &key (cycle-kind :minor))
+  "Policy: decide minor vs major, then delegate to plan-collect-phase."
   (if (eq cycle-kind :major)
-      (gen-major-collect plan)
+      (plan-collect-phase plan :major)
       (if (should-minor-gc-p plan)
-          (gen-minor-collect plan)
+          (plan-collect-phase plan :minor)
           (progn
             (setf (plan-last-major-gc-minor-count plan)
                   (plan-minor-gc-count plan))
-            (gen-major-collect plan)))))
-
-(defmethod plan-collect ((plan generational-plan-trait) &key (cycle-kind :minor))
-  (%generational-collect plan cycle-kind))
+            (plan-collect-phase plan :major)))))
 
 ;;; --- Generational compile-to-functions ---
+;;; Duplicates the policy logic so the compiled closure also decides minor/major.
 
 (defmethod compile-to-functions append ((plan generational-plan-trait))
   (list (cons 'plan-collect
               (lambda (&key (cycle-kind :minor))
-                (%generational-collect plan cycle-kind)))))
+                (if (eq cycle-kind :major)
+                    (plan-collect-phase plan :major)
+                    (if (should-minor-gc-p plan)
+                        (plan-collect-phase plan :minor)
+                        (progn
+                          (setf (plan-last-major-gc-minor-count plan)
+                                (plan-minor-gc-count plan))
+                          (plan-collect-phase plan :major))))))))
+
+;;; --- Generational phase suppressors ---
+;;; Minor/major collection happens entirely in plan-collect-phase :prologue
+;;; methods. Suppress the base :mark tracer to avoid double-tracing.
+
+(defmethod plan-collect-phase :mark ((plan generational-plan-trait) (phase (eql :minor))) nil)
+(defmethod plan-collect-phase :sweep ((plan generational-plan-trait) (phase (eql :minor))) nil)
+(defmethod plan-collect-phase :mark ((plan generational-plan-trait) (phase (eql :major))) nil)
+(defmethod plan-collect-phase :sweep ((plan generational-plan-trait) (phase (eql :major))) nil)
 
 (defmethod plan-handle-allocation-failure ((plan generational-plan-trait) size space-designator)
   (flet ((try-alloc ()
@@ -121,6 +135,12 @@
 
 (defclass gencopy-plan (generational-plan-trait plan) ()
   (:documentation "Generational copying collector."))
+
+(defmethod plan-collect-phase :prologue ((plan gencopy-plan) (phase (eql :minor)))
+  (gen-minor-collect plan))
+
+(defmethod plan-collect-phase :prologue ((plan gencopy-plan) (phase (eql :major)))
+  (gen-major-collect plan))
 
 (defmethod gen-minor-collect ((plan gencopy-plan))
   (let* ((vm (plan-vm plan))

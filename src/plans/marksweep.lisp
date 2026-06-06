@@ -6,15 +6,14 @@
 (defclass marksweep-plan (plan) ()
   (:documentation "Mark-and-sweep collector."))
 
-;;; --- MarkSweep collection ---
+;;; --- MarkSweep plan-collect-phase methods ---
 
-(defun %marksweep-collect (plan)
-  "Core mark-sweep collection logic. Extracted so both plan-collect and
-compile-to-functions can share the same implementation."
+(defmethod plan-collect-phase :prologue ((plan marksweep-plan) (phase t))
+  (vm-stop-mutators (plan-vm plan)))
+
+(defmethod plan-collect-phase :mark ((plan marksweep-plan) (phase t))
   (let* ((vm (plan-vm plan))
          (tracer nil))
-    (vm-stop-mutators vm)
-    ;; Mark phase: trace from roots
     (flet ((trace-fn (ref)
              (let ((space (plan-space-for-address plan ref)))
                (when (and space (typep space 'collectable-space))
@@ -32,19 +31,18 @@ compile-to-functions can share the same implementation."
                       (setf (vm-object-is-marked-p vm root) t)
                       (unless (tracer-trace-fn-enqueues-p tracer)
                         (tracer-enqueue tracer root))))))))
-        (tracer-process-queue tracer)))
-    ;; Sweep phase
-    (dolist (space (plan-spaces plan))
-      (when (typep space 'marksweep-space-trait)
-        (space-sweep space vm)))
-    ;; Cleanup
+        (tracer-process-queue tracer)))))
+
+(defmethod plan-collect-phase :sweep ((plan marksweep-plan) (phase t))
+  (dolist (space (plan-spaces plan))
+    (when (typep space 'marksweep-space-trait)
+      (space-sweep space (plan-vm plan)))))
+
+(defmethod plan-collect-phase :release ((plan marksweep-plan) (phase t))
+  (let ((vm (plan-vm plan)))
     (vm-clear-all-mark-bits vm)
     (vm-post-gc-cleanup vm)
     (vm-resume-mutators vm)))
-
-(defmethod plan-collect ((plan marksweep-plan) &key cycle-kind)
-  (declare (ignore cycle-kind))
-  (%marksweep-collect plan))
 
 (defmethod plan-get-space ((plan marksweep-plan) (designator (eql :default)))
   (or (plan-default-space plan)
@@ -82,10 +80,3 @@ compile-to-functions can share the same implementation."
       plan)))
 
 (register-plan-selector :marksweep #'make-marksweep-plan)
-
-(defmethod compile-to-functions append ((plan marksweep-plan))
-  "Compiled marksweep collection: a closure over %marksweep-collect."
-  (list (cons 'plan-collect
-              (lambda (&key cycle-kind)
-                (declare (ignore cycle-kind))
-                (%marksweep-collect plan)))))

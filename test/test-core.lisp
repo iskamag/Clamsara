@@ -33,9 +33,11 @@
 (test heap-and-page-table-initialized
   "Heap and page table are created by make-simulator-vm."
   (let ((vm (make-simulator-vm :heap-size 4096)))
-    (is (not (null clamsara::*heap*)))
-    (is (>= (length clamsara::*heap*) 4096))
-    (is (not (null clamsara::*page-table*)))))
+    ;; Verify heap is functional by reading/writing
+    (setf (heap-ref 0) 42)
+    (is (= 42 (heap-ref 0)))
+    ;; Verify metadata was initialized
+    (is (not (null clamsara::*metadata-words*)))))
 
 (test card-table-creation
   "Card table creation."

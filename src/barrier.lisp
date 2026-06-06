@@ -44,14 +44,17 @@ Returns the value to use (for read barriers that may remap or log)."))
 (defclass object-barrier ()
   ((card-table :initarg :card-table :accessor barrier-card-table)
    (nursery-start :initarg :nursery-start :accessor barrier-nursery-start)
-   (nursery-end :initarg :nursery-end :accessor barrier-nursery-end))
+   (nursery-end :initarg :nursery-end :accessor barrier-nursery-end)
+   (vm :initarg :vm :initform nil :accessor barrier-vm
+    :documentation "VM binding for log-bit-based age discrimination (sticky plans)."))
   (:metaclass barrier-metaclass))
 
-(defun make-object-barrier (card-table nursery-start nursery-end)
+(defun make-object-barrier (card-table nursery-start nursery-end &key vm)
   (make-instance 'object-barrier
                  :card-table card-table
                  :nursery-start nursery-start
-                 :nursery-end nursery-end))
+                 :nursery-end nursery-end
+                 :vm vm))
 
 (defun barrier-card-table-cards (barrier)
   (card-table-cards (barrier-card-table barrier)))
@@ -61,12 +64,20 @@ Returns the value to use (for read barriers that may remap or log)."))
 
 (defmethod barrier-note-write ((b object-barrier) source-addr slot-idx new-value &key old-value)
   (declare (ignore slot-idx old-value))
-  ;; Only mark the card if SOURCE is OLD and NEW-VALUE is YOUNG.
-  (when (and (< source-addr (barrier-nursery-start b))
-             (>= new-value (barrier-nursery-start b))
-             (< new-value (barrier-nursery-end b)))
-    (let ((idx (card-index source-addr)))
-      (setf (aref (barrier-card-table-cards b) idx) 1))))
+  ;; Mark the card if SOURCE is OLD and NEW-VALUE is YOUNG.
+  ;; For sticky plans (log-bit discrimination), check log bits.
+  ;; For separate-space plans, check address ranges.
+  (let* ((vm (and (slot-boundp b 'vm) (slot-value b 'vm)))
+         (log-source-old (and vm (not (vm-object-is-logged-p vm source-addr))))
+         (log-target-young (and vm (vm-object-is-logged-p vm new-value)))
+         (range-source-old (< source-addr (barrier-nursery-start b)))
+         (range-target-young (and (>= new-value (barrier-nursery-start b))
+                                  (< new-value (barrier-nursery-end b)))))
+    (when (or (and log-source-old log-target-young)
+              (and range-source-old range-target-young
+                   (not log-source-old) (not log-target-young)))
+      (let ((idx (card-index source-addr)))
+        (setf (aref (barrier-card-table-cards b) idx) 1)))))
 
 (defmethod barrier-note-read ((b object-barrier) addr)
   addr)
@@ -87,7 +98,7 @@ Returns the value to use (for read barriers that may remap or log)."))
                   (let ((val (vm-object-reference vm addr slot)))
                     (when (and (>= val nursery-start)
                                (< val nursery-end))
-                      (funcall scan-fn addr val))))))))))))
+                      (funcall scan-fn val addr))))))))))))
 
 (defmethod barrier-clear-all ((b object-barrier))
   (fill (barrier-card-table-cards b) 0))

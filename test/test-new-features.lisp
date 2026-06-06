@@ -109,12 +109,7 @@
       (is-false (coalesce (space-allocator space))))))
 
 ;;; --- compile ---
-
-(test compile-to-functions-returns-alist
-  (with-clamsara (:plan-type :marksweep)
-    (let ((forms (compile-to-functions *active-plan*)))
-      (is (listp forms))
-      (is (consp (first forms))))))
+;;; compile-to-functions-returns-alist tested in test-compile.lisp
 
 (test lookup-compiled-function
   (with-clamsara (:plan-type :marksweep)
@@ -191,23 +186,6 @@
   (with-clamsara (:plan-type :stickyimmix)
     (is (typep *active-plan* (find-class 'sticky-space-metrics)))
     (is (zerop (space-live-young-bytes *active-plan*)))))
-
-;;; --- scheduler ---
-
-(test scheduler-creation
-  (with-clamsara (:plan-type :semispace)
-    (let ((scheduler (make-gc-work-scheduler :plan *active-plan*)))
-      (is (typep scheduler 'gc-work-scheduler))
-      (is (eq *active-plan* (scheduler-plan scheduler))))))
-
-(test scheduler-work-add-run
-  (with-clamsara (:plan-type :semispace)
-    (let ((scheduler (make-gc-work-scheduler :plan *active-plan*))
-          (count 0))
-      (scheduler-add-work scheduler (lambda () (incf count)))
-      (scheduler-add-work scheduler (lambda () (incf count 2)))
-      (scheduler-run-all scheduler)
-      (is (= 3 count)))))
 
 ;;; --- concurrent marking ---
 

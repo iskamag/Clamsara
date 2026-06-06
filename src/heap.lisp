@@ -86,7 +86,7 @@ Each element is one machine word. An address is an index into this vector.")
   "Return the card index for ADDRESS."
   (floor (address-index addr) +card-size-words+))
 
-(defun card-dirty-p (card-table addr)
+(defun heap-card-dirty-p (card-table addr)
   "Return T if the card containing ADDRESS is dirty."
   (let ((idx (card-index addr)))
     (> (aref (card-table-cards card-table) idx) 0)))

@@ -169,20 +169,22 @@ address. Only used when *forwarding-placement* is :separate-region.")
   "Return the forwarding address, or NIL if not forwarded."
   (declare (type fixnum addr))
   (ecase *forwarding-placement*
-    (:in-header
-     (when (object-flag-set-p addr +flag-forwarded+)
-       (ldb (byte 63 0) (object-header addr))))
+     (:in-header
+      (when (object-flag-set-p addr +flag-forwarded+)
+        (ash (object-header addr) -1)))
     (:separate-region
      (when (and *forwarding-pointers* (< addr (length *forwarding-pointers*)))
        (let ((fwd (aref *forwarding-pointers* addr)))
          (if (zerop fwd) nil fwd))))))
 
 (defun set-object-forwarding (src-addr dst-addr)
-  "Set the forwarding pointer from SRC-ADDR to DST-ADDR."
+  "Set the forwarding pointer from SRC-ADDR to DST-ADDR.
+For :in-header mode, stores the forwarding address as a tagged 63-bit value
+by shifting the address left 1 bit and setting the low bit as a tag."
   (declare (type fixnum src-addr dst-addr))
   (ecase *forwarding-placement*
     (:in-header
-     (setf (object-header src-addr) (logior dst-addr (ash 1 +forwarded-flag-bit+)))
+     (setf (object-header src-addr) (logior (ash dst-addr 1) 1))
      (set-object-flag src-addr +flag-forwarded+))
     (:separate-region
      (setf (aref *forwarding-pointers* src-addr) dst-addr)

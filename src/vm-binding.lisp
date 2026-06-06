@@ -339,6 +339,15 @@ this with its own memory-access primitives."
           do (setf (heap-ref (+ (address-index dst-address) i))
                    (heap-ref (+ (address-index src-address) i))))
     (mark-object-start dst-address)
+    ;; Preserve side metadata across copy
+    (when (vm-object-is-marked-p vm src-address)
+      (setf (vm-object-is-marked-p vm dst-address) t))
+    (when (vm-object-is-pinned-p vm src-address)
+      (setf (vm-object-is-pinned-p vm dst-address) t))
+    (when (vm-object-is-logged-p vm src-address)
+      (setf (vm-object-is-logged-p vm dst-address) t))
+    (setf (vm-object-age vm dst-address) (vm-object-age vm src-address))
+    (setf (vm-object-generation vm dst-address) (vm-object-generation vm src-address))
     dst-address))
 
 (defmethod vm-compute-header ((vm vm-binding) size type-tag &rest flags)

@@ -58,7 +58,7 @@
     #:barrier-nursery-start #:barrier-nursery-end #:barrier-card-table
    #:barrier-card-table-cards
    #:card-table #:card-table-cards #:ensure-card-table
-   #:card-table-card-dirty-p #:barrier-scan-cards
+
     ;; Tracer
     #:tracer #:make-tracer #:tracer-empty-p
     #:tracer-enqueue #:tracer-dequeue
@@ -103,10 +103,6 @@
     #:memory-fence #:atomic-swap
    ;; Simulator VM
    #:simulator-vm #:make-simulator-vm
-   #:simulator-vm-heap
-   #:simulator-vm-metadata-words
-   #:simulator-vm-forwarding-pointers
-   #:simulator-vm-page-table
    ;; Weak / Finalization
    #:weak-pointer #:weak-pointer-referent
    #:make-weak-pointer
@@ -116,8 +112,10 @@
     #:with-clamsara #:clamsara-gc
     #:clamsara-register-root
     #:clamsara-allocate-object #:clamsara-allocate
-    #:*active-plan* #:*active-vm*
-    #:with-active-plan #:with-active-vm #:with-active-gc
+     #:*active-plan* #:*active-vm*
+     #:clamsara-cons #:clamsara-car #:clamsara-cdr
+     #:clamsara-heap-usage
+     #:with-active-plan #:with-active-vm #:with-active-gc
    ;; Metaclasses
    #:clamsara-metaclass
    #:plan-metaclass

@@ -153,7 +153,7 @@
       (let* ((space (plan-get-space plan :default))
              (space-start (* (space-start-page space) +page-size-words+))
              (space-end (+ space-start (* (space-page-count space) +page-size-words+)))
-             (barrier (make-object-barrier (plan-card-table plan) space-start space-end)))
+              (barrier (make-object-barrier (plan-card-table plan) space-start space-end :vm vm)))
         (setf (plan-barrier plan) barrier
               (vm-barrier vm) barrier))
       plan)))

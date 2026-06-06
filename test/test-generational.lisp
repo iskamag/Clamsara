@@ -114,3 +114,52 @@
       (is (>= (plan-live-young-bytes plan) 0))
       (sticky-nursery-collect plan)
       (is (> (plan-live-young-bytes plan) 0)))))
+
+;;; --- Generational correctness: old->young barrier ---
+
+(defun %do-old-to-young-barrier-test (plan-type heap-size)
+  "Verify that a young object reachable only through an old object survives
+nursery GC. This is the core generational correctness property."
+  (with-clamsara (:plan-type plan-type :heap-size heap-size)
+    (let* ((vm (plan-vm *active-plan*))
+           ;; Create root object (will become old after a GC)
+           (root (allocate-fill *active-plan* 2 0 0)))
+      (clamsara-register-root root)
+      ;; Run a GC to promote root (or evacuate it for copying plans)
+      (clamsara-gc)
+      ;; Get the survivor address (may have moved for copying plans)
+      (let ((old-root (get-root-addr *active-plan*)))
+        (is (not (null old-root)))
+        ;; Create a new young object
+        (let ((young (allocate-fill *active-plan* 2 99 88)))
+          ;; old-root now points to the young object
+          (vm-object-reference-store vm old-root 0 young :barrier-p t)
+          ;; young is NOT directly reachable from roots
+          ;; Trigger nursery GC - young must survive via card barrier
+          (clamsara-gc)
+          (let* ((survivor (get-root-addr *active-plan*))
+                 (young-ref (vm-object-reference vm survivor 0)))
+            (is (not (null young-ref)))
+            (is (not (zerop young-ref)))
+            (is (= 99 (vm-object-reference vm young-ref 0)))
+            (is (= 88 (vm-object-reference vm young-ref 1)))))))))
+
+(test old-to-young-barrier-gencopy
+  "GenCopy: young object reachable only from old object survives nursery GC."
+  (%do-old-to-young-barrier-test :gencopy 262144))
+
+(test old-to-young-barrier-genms
+  "GenMS: young object reachable only from old object survives nursery GC."
+  (%do-old-to-young-barrier-test :genms 262144))
+
+(test old-to-young-barrier-genimmix
+  "GenImmix: young object reachable only from old object survives nursery GC."
+  (%do-old-to-young-barrier-test :genimmix 262144))
+
+(test old-to-young-barrier-stickyimmix
+  "StickyImmix: young object reachable only from old object survives nursery GC."
+  (%do-old-to-young-barrier-test :stickyimmix 131072))
+
+(test old-to-young-barrier-stickyms
+  "StickyMS: young object reachable only from old object survives nursery GC."
+  (%do-old-to-young-barrier-test :stickyms 131072))

@@ -33,6 +33,24 @@
   "Spec-name alias for address=."
   (= a b))
 
+(defun address< (a b)
+  (< a b))
+
+(defun address<= (a b)
+  (<= a b))
+
+(defun address> (a b)
+  (> a b))
+
+(defun address>= (a b)
+  (>= a b))
+
+(defun address-min (a b)
+  (min a b))
+
+(defun address-max (a b)
+  (max a b))
+
 (defun address+ (addr offset)
   (declare (type address addr) (type fixnum offset))
   (+ addr offset))

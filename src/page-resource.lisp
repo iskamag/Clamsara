@@ -96,6 +96,25 @@
   ((free-list :initform nil :accessor flpr-free-list :type list))
   (:documentation "Releasable page allocation with free-list coalescing."))
 
+(defmethod page-resource-get ((pr free-list-pr) n-pages &key space kind)
+  (declare (ignore space kind))
+  ;; Try the free list first
+  (let ((found (find-contiguous-in-free-list (flpr-free-list pr) n-pages)))
+    (when found
+      (let ((start (car found)))
+        (setf (flpr-free-list pr)
+              (remove found (flpr-free-list pr) :test #'equal))
+        (dotimes (i n-pages)
+          (mark-page-allocated pr (+ start i)))
+        (return-from page-resource-get start))))
+  ;; Fall back to bitmap scan
+  (call-next-method))
+
+(defun find-contiguous-in-free-list (free-list n-pages)
+  (dolist (entry free-list)
+    (when (>= (cdr entry) n-pages)
+      (return entry))))
+
 (defmethod page-resource-release ((pr free-list-pr) start-page n-pages)
   (dotimes (i n-pages)
     (mark-page-free pr (+ start-page i)))

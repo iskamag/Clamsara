@@ -39,8 +39,7 @@
   (:documentation "Handle allocation failure by triggering GC and retrying."))
 
 (defgeneric plan-card-size-words (plan)
-  (:documentation "Return the card size in words for this plan.")
-  (:method ((plan plan)) +card-size-words+))
+  (:documentation "Return the card size in words for this plan."))
 
 ;;; --- Plan Class ---
 

@@ -26,23 +26,5 @@
                  (funcall (cdr entry) (car entry))))
       (setf (fill-pointer pending) 0))))
 
-(defmethod plan-collect-phase :epilogue ((plan finalization-trait) (phase t))
-  "Move dead objects from known-finalizers to pending-finalizers after mark/sweep."
-  (declare (ignore phase))
-  (let ((vm (plan-vm plan))
-        (keep-count 0))
-    (loop with known = (plan-known-finalizers plan)
-          for i from 0 below (fill-pointer known)
-          for entry = (aref known i)
-          do (when (consp entry)
-               (let ((obj-addr (car entry)))
-                 (if (and (not (zerop obj-addr))
-                          (vm-object-is-marked-p vm obj-addr))
-                     (progn
-                       (setf (aref known keep-count) entry)
-                       (incf keep-count))
-                     (progn
-                       (vector-push-extend entry
-                                           (plan-pending-finalizers plan)))))))
-    (setf (fill-pointer (plan-known-finalizers plan)) keep-count))
-  (call-next-method))
+;;; The plan-collect-phase :epilogue method for finalization-trait is
+;;; defined in compile.lisp (after the gc-phase method combination).

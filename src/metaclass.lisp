@@ -77,17 +77,17 @@ compatibility at finalize-inheritance."))
     (when (find (find-class 'copying-space-trait) cpd)
       (unless (find 'partner-space
                     (mapcar #'closer-mop:slot-definition-name
-                            (closer-mop:class-slots class)))
+                            (closer-mop:class-direct-slots class)))
         (warn "Space class ~A inherits copying-space-trait but has no partner-space slot."
-              (closer-mop:class-name class))))
+              (class-name class))))
     (when (find (find-class 'marksweep-space-trait) cpd)
       (unless (or (find 'allocator
                         (mapcar #'closer-mop:slot-definition-name
-                                (closer-mop:class-slots class)))
-                  (member (closer-mop:class-name class)
+                                (closer-mop:class-direct-slots class)))
+                  (member (class-name class)
                           '(mark-sweep-space)))
         (warn "Space class ~A inherits marksweep-space-trait but has no allocator slot."
-              (closer-mop:class-name class))))))
+              (class-name class))))))
 
 (defclass allocator-metaclass (clamsara-metaclass)
   ()
@@ -96,13 +96,10 @@ protocol methods are present."))
 
 (defmethod finalize-inheritance :after ((class allocator-metaclass))
   "Validate allocator class protocol conformance."
-  (let* ((name (closer-mop:class-name class))
+  (let* ((name (class-name class))
          (cpd (closer-mop:class-precedence-list class)))
     (when (find (find-class 'free-list-allocator) cpd)
       (unless (eq name 'free-list-allocator)
-        ;; free-list-allocator subclasses must have alloc and free methods;
-        ;; checking at finalize-inheritance is best-effort: warn if these
-        ;; are likely missing later.
         nil))))
 
 (defclass barrier-metaclass (clamsara-metaclass)
@@ -159,9 +156,9 @@ Generates a mixin class named NAME-MIXIN and registers NAME in *VM-FEATURES*."
 
 (defmacro define-trait-optimized-function (name (component &rest args) &body trait-cases)
   "Define NAME as a function that dispatches based on which traits COMPONENT has.
-Each clause in TRAIT-CASES is (trait-class &body body). The function tries each
+Each clause in TRAIT-CASES is (trait-class-name &body body). The function tries each
 clause in order and executes the first matching body. A final default clause
-can use T as the trait-class."
+can use T as the trait-class-name."
   (let ((c (gensym "COMPONENT")))
     `(defun ,name (,c ,@args)
        (cond

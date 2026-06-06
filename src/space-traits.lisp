@@ -394,6 +394,49 @@ remaining blocks."
           when block do
             (let* ((block-start-addr (* page-idx +page-size-words+))
                    (line-idx (floor (- line-addr block-start-addr) +immix-line-size-words+)))
-              (when (zerop (aref (immix-block-line-marks block) line-idx))
+               (when (zerop (aref (immix-block-line-marks block) line-idx))
                 (setf (aref (immix-block-line-marks block) line-idx) mark-state)
                 (incf (immix-block-live-lines block)))))))
+
+;;; --- Cons-Space Trait ---
+;;; For headerless cons cells. In the simulator, cons cells in cons-space
+;;; have no mark bit; they are reachable if any reference points to them.
+;;; Tracing enqueues CAR and CDR for transitive closure.
+
+(defclass cons-space-trait (collectable-space)
+  ()
+  (:documentation "Trait for headerless cons cell spaces. Cons cells have no header word."))
+
+(defmethod space-trace-object ((space cons-space-trait) vm ref tracer
+                                &key cycle-kind trace-kind copy-semantics)
+  (declare (ignore cycle-kind trace-kind copy-semantics))
+  (when tracer
+    (let ((car-ref (vm-object-reference vm ref 0))
+          (cdr-ref (vm-object-reference vm ref 1)))
+      (when (and car-ref (not (zerop car-ref)) (vm-valid-reference-p vm car-ref))
+        (tracer-enqueue tracer car-ref))
+      (when (and cdr-ref (not (zerop cdr-ref)) (vm-valid-reference-p vm cdr-ref))
+        (tracer-enqueue tracer cdr-ref))))
+  ref)
+
+(defmethod space-prepare ((space cons-space-trait) vm &key cycle-kind)
+  (declare (ignore space vm cycle-kind))
+  nil)
+
+(defmethod space-release ((space cons-space-trait) vm &key cycle-kind)
+  (declare (ignore space vm cycle-kind))
+  nil)
+
+(defmethod space-sweep ((space cons-space-trait) vm)
+  (declare (ignore space vm))
+  nil)
+
+(defmethod space-sweep-young ((space cons-space-trait) vm)
+  (declare (ignore space vm))
+  nil)
+
+;;; --- Cons-Space (concrete) ---
+
+(defclass cons-space (cons-space-trait space)
+  ()
+  (:documentation "Concrete space for headerless cons cells."))

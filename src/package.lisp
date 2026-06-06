@@ -122,16 +122,17 @@
     #:validate-plan-constraints
     #:make-plan
     #:defvm-feature #:define-trait-optimized-function
-   ;; Traits
-   #:space-trait
-   #:allocator-trait
-   #:barrier-trait
-   #:generational-trait
-   #:concurrent-marking-trait
-   #:concurrent-collector-trait
-   #:line-marking-trait
-   #:weak-reference-trait
-   #:finalization-trait
+    ;; Traits
+    #:space-trait
+    #:allocator-trait
+    #:barrier-trait
+    #:generational-trait
+    #:concurrent-marking-trait
+    #:concurrent-collector-trait
+    #:line-marking-trait
+    #:weak-reference-trait
+    #:finalization-trait
+    #:cons-space-trait #:cons-space
     ;; Compile framework
     #:gc-phase
     #:plan-collect-phase

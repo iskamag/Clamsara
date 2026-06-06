@@ -6,7 +6,8 @@
 ;;; compiles hot-path functions into a function table.
 
 ;;; --- gc-phase Method Combination ---
-;;; Qualifiers: :around, :prologue, :pre-mark, :mark, :sweep, :epilogue
+;;; Qualifiers: :around, :prologue, :pre-mark, :mark, :sweep, :compact, :release, :epilogue
+;;; Order: prologue -> pre-mark -> mark -> sweep -> compact -> release -> epilogue
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   (define-method-combination gc-phase ()
@@ -15,12 +16,18 @@
      (pre-mark (:pre-mark))
      (mark (:mark))
      (sweep (:sweep))
+     (compact (:compact))
+     (release (:release))
      (epilogue (:epilogue))
      (default ()))
     (let ((form (if default
                     `(progn ,@(mapcar #'(lambda (m) `(call-method ,m)) default))
                     nil)))
       (dolist (m (reverse epilogue))
+        (setf form `(progn (call-method ,m) ,form)))
+      (dolist (m (reverse release))
+        (setf form `(progn (call-method ,m) ,form)))
+      (dolist (m (reverse compact))
         (setf form `(progn (call-method ,m) ,form)))
       (dolist (m (reverse sweep))
         (setf form `(progn (call-method ,m) ,form)))
@@ -77,8 +84,20 @@ Uses the gc-phase method combination to order collection phases."))
 (defmethod plan-collect-phase :sweep ((plan plan) (phase t))
   "Sweep: reclaim unreachable objects."
   (declare (ignore phase))
-  ;; Default is a no-op; specific plans override this.
   nil)
+
+(defmethod plan-collect-phase :compact ((plan plan) (phase t))
+  "Compact: defragment heap (plan-specific). Default no-op."
+  (declare (ignore phase))
+  nil)
+
+(defmethod plan-collect-phase :release ((plan plan) (phase t))
+  "Release: release temporary resources, swap spaces, reset mutator contexts."
+  (declare (ignore phase))
+  (let ((vm (plan-vm plan)))
+    (when vm
+      (vm-clear-all-forwarding vm)
+      (vm-clear-all-log-bits vm))))
 
 (defmethod plan-collect-phase :epilogue ((plan plan) (phase t))
   "Epilogue: cleanup after collection."
@@ -142,6 +161,39 @@ hot-path functions contributed by COMPONENT."))
               `(lambda ()
                  (barrier-clear-all barrier)))))
 
+(defmethod compile-to-functions append ((space copying-space-trait))
+  "Copying space contributes trace-object, prepare, and release."
+  (list (cons (intern (format nil "SPACE-TRACE-OBJECT-~A" (space-name space)) 'keyword)
+              `(lambda (vm ref tracer &key cycle-kind trace-kind copy-semantics)
+                 (space-trace-object ,space vm ref tracer
+                                     :cycle-kind cycle-kind
+                                     :trace-kind trace-kind
+                                     :copy-semantics copy-semantics)))
+        (cons (intern (format nil "SPACE-PREPARE-~A" (space-name space)) 'keyword)
+              `(lambda (vm &key cycle-kind)
+                 (space-prepare ,space vm :cycle-kind cycle-kind)))
+        (cons (intern (format nil "SPACE-RELEASE-~A" (space-name space)) 'keyword)
+              `(lambda (vm &key cycle-kind)
+                 (space-release ,space vm :cycle-kind cycle-kind)))))
+
+(defmethod compile-to-functions append ((space marksweep-space-trait))
+  "Mark-sweep space contributes trace-object and sweep."
+  (list (cons (intern (format nil "SPACE-TRACE-OBJECT-~A" (space-name space)) 'keyword)
+              `(lambda (vm ref tracer &key cycle-kind trace-kind copy-semantics)
+                 (space-trace-object ,space vm ref tracer
+                                     :cycle-kind cycle-kind
+                                     :trace-kind trace-kind
+                                     :copy-semantics copy-semantics)))
+        (cons (intern (format nil "SPACE-SWEEP-~A" (space-name space)) 'keyword)
+              `(lambda (vm)
+                 (space-sweep ,space vm)))))
+
+(defmethod compile-to-functions append ((a bump-allocator))
+  "Bump-pointer allocator contributes a compiled alloc function."
+  (list (cons 'bump-alloc
+              `(lambda (size)
+                 (alloc ,a size)))))
+
 ;;; --- boot-gc ---
 
 (defun boot-gc (plan)
@@ -154,8 +206,14 @@ Idempotent: skips if function-table already populated."
       (let ((forms (compile-to-functions plan)))
         (loop for (name . lambda-form) in forms
               do (let ((fn (compile nil lambda-form)))
-                   (setf (gethash name table) fn)))))
-    plan))
+                   (setf (gethash name table) fn))))))
+  plan)
+
+(defun lookup-compiled-function (plan name)
+  "Look up the compiled function named NAME in PLAN's function table.
+Returns NIL if no compiled function is found (caller should fall back to
+the generic dispatch)."
+  (gethash name (plan-function-table plan)))
 
 ;;; --- Plan initialization ---
 

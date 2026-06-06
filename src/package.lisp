@@ -119,13 +119,14 @@
    #:line-marking-trait
    #:weak-reference-trait
    #:finalization-trait
-   ;; Compile framework
-   #:gc-phase
-   #:plan-collect-phase
-   #:boot-gc
-   #:compile-to-functions
-   #:plan-function-table
-   #:plan-initialize-spaces
+    ;; Compile framework
+    #:gc-phase
+    #:plan-collect-phase
+    #:boot-gc
+    #:compile-to-functions
+    #:lookup-compiled-function
+    #:plan-function-table
+    #:plan-initialize-spaces
     ;; Stats
     #:plan-stats
     #:plan-stats-gc-count

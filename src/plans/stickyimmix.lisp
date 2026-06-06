@@ -8,7 +8,8 @@
    (dead-mature-bytes :initform 0 :accessor plan-dead-mature-bytes :type fixnum))
   (:documentation "StickyImmix: mixed-age Immix space."))
 
-(defmethod plan-collect ((plan stickyimmix-plan) &key (cycle-kind :minor))
+(defun %stickyimmix-collect (plan cycle-kind)
+  "Core sticky-immix collection dispatch."
   (if (eq cycle-kind :major)
       (sticky-major-collect plan)
       (if (should-minor-gc-p plan)
@@ -17,6 +18,9 @@
             (setf (plan-last-major-gc-minor-count plan)
                   (plan-minor-gc-count plan))
             (sticky-major-collect plan)))))
+
+(defmethod plan-collect ((plan stickyimmix-plan) &key (cycle-kind :minor))
+  (%stickyimmix-collect plan cycle-kind))
 
 (defmethod mature-dead-ratio-exceeded-p ((plan stickyimmix-plan))
   (let* ((young-live (plan-live-young-bytes plan))
@@ -162,3 +166,8 @@
       plan)))
 
 (register-plan-selector :stickyimmix #'make-stickyimmix-plan)
+
+(defmethod compile-to-functions append ((plan stickyimmix-plan))
+  (list (cons 'plan-collect
+              (lambda (&key (cycle-kind :minor))
+                (%stickyimmix-collect plan cycle-kind)))))

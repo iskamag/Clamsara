@@ -95,7 +95,7 @@
     #:vm #:root-set #:rs-static-roots #:vm-root-set
     #:vm-scan-roots #:vm-object-reference-store
     #:vm-stop-mutator #:vm-resume-mutator
-    #:vm-space-usage #:vm-gc-stats
+    #:vm-heap-usage #:vm-space-usage #:vm-gc-stats
     #:vm-metadata-region #:vm-forwarding-table #:vm-mutators
     #:vm-has-feature-p #:vm-page-size-words #:vm-cards-per-page
     #:vm-card-object-start-offset #:immediatep

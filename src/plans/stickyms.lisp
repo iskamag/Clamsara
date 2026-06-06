@@ -8,7 +8,8 @@
    (dead-mature-bytes :initform 0 :accessor plan-dead-mature-bytes :type fixnum))
   (:documentation "StickyMS: mixed-age mark-sweep space."))
 
-(defmethod plan-collect ((plan stickyms-plan) &key (cycle-kind :minor))
+(defun %stickyms-collect (plan cycle-kind)
+  "Core sticky-ms collection dispatch."
   (if (eq cycle-kind :major)
       (sticky-ms-major-collect plan)
       (if (should-minor-gc-p plan)
@@ -17,6 +18,9 @@
             (setf (plan-last-major-gc-minor-count plan)
                   (plan-minor-gc-count plan))
             (sticky-ms-major-collect plan)))))
+
+(defmethod plan-collect ((plan stickyms-plan) &key (cycle-kind :minor))
+  (%stickyms-collect plan cycle-kind))
 
 (defmethod mature-dead-ratio-exceeded-p ((plan stickyms-plan))
   (let* ((young-live (plan-live-young-bytes plan))
@@ -160,3 +164,8 @@
       plan)))
 
 (register-plan-selector :stickyms #'make-stickyms-plan)
+
+(defmethod compile-to-functions append ((plan stickyms-plan))
+  (list (cons 'plan-collect
+              (lambda (&key (cycle-kind :minor))
+                (%stickyms-collect plan cycle-kind)))))

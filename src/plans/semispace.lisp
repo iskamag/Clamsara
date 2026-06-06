@@ -18,8 +18,10 @@
                             (not (copying-from-space-p s))))
            (plan-spaces plan)))
 
-(defmethod plan-collect ((plan semispace-plan) &key cycle-kind)
-  (declare (ignore cycle-kind))
+;;; --- SemiSpace collection ---
+
+(defun %semispace-collect (plan)
+  "Core semispace collection logic."
   (let* ((vm (plan-vm plan))
          (from (plan-from-space plan))
          (to (plan-to-space plan))
@@ -49,6 +51,10 @@
     (vm-clear-all-forwarding vm)
     (setf (plan-default-space plan) (plan-from-space plan))
     (vm-resume-mutators vm)))
+
+(defmethod plan-collect ((plan semispace-plan) &key cycle-kind)
+  (declare (ignore cycle-kind))
+  (%semispace-collect plan))
 
 (defmethod plan-get-space ((plan semispace-plan) (designator (eql :default)))
   (or (plan-default-space plan)
@@ -86,3 +92,9 @@
       plan)))
 
 (register-plan-selector :semispace #'make-semispace-plan)
+
+(defmethod compile-to-functions append ((plan semispace-plan))
+  (list (cons 'plan-collect
+              (lambda (&key cycle-kind)
+                (declare (ignore cycle-kind))
+                (%semispace-collect plan)))))

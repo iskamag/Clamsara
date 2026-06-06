@@ -10,10 +10,9 @@
 
 (defun make-plan (type vm heap-size &rest initargs)
   "Create a plan of the given TYPE using the registered selectors.
-Calls plan-build-sft and boot-gc after construction."
+Calls plan-build-sft after construction. Call boot-gc separately to compile hot-path functions."
   (let ((plan (apply #'plan-selector type vm heap-size initargs)))
     (plan-build-sft plan)
-    (boot-gc plan)
     plan))
 
 (defun select-plan (plan-type vm heap-size)

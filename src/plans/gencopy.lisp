@@ -30,7 +30,8 @@
     (and nursery
          (> (bump-allocator-occupancy (space-allocator nursery)) 3/4))))
 
-(defmethod plan-collect ((plan generational-plan-trait) &key (cycle-kind :minor))
+(defun %generational-collect (plan cycle-kind)
+  "Core generational collection dispatch: minor or major."
   (if (eq cycle-kind :major)
       (gen-major-collect plan)
       (if (should-minor-gc-p plan)
@@ -39,6 +40,16 @@
             (setf (plan-last-major-gc-minor-count plan)
                   (plan-minor-gc-count plan))
             (gen-major-collect plan)))))
+
+(defmethod plan-collect ((plan generational-plan-trait) &key (cycle-kind :minor))
+  (%generational-collect plan cycle-kind))
+
+;;; --- Generational compile-to-functions ---
+
+(defmethod compile-to-functions append ((plan generational-plan-trait))
+  (list (cons 'plan-collect
+              (lambda (&key (cycle-kind :minor))
+                (%generational-collect plan cycle-kind)))))
 
 (defmethod plan-handle-allocation-failure ((plan generational-plan-trait) size space-designator)
   (flet ((try-alloc ()

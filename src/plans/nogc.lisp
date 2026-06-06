@@ -50,3 +50,9 @@
       plan)))
 
 (register-plan-selector :nogc #'make-nogc-plan)
+
+(defmethod compile-to-functions append ((plan nogc-plan))
+  (list (cons 'plan-collect
+              (lambda (&key cycle-kind)
+                (declare (ignore cycle-kind))
+                (error 'heap-exhausted :plan plan :message "NoGC plan cannot collect")))))

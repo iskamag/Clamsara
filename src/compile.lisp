@@ -150,84 +150,84 @@ Uses the gc-phase method combination to order collection phases."))
 
 (defgeneric compile-to-functions (component)
   (:method-combination append)
-  (:documentation "Return an alist of (function-name . lambda-form) for all
-hot-path functions contributed by COMPONENT."))
+  (:documentation "Return an alist of (function-name . closure) for all
+hot-path functions contributed by COMPONENT. Each closure captures
+its lexical environment so boot-gc can store them directly."))
 
 (defmethod compile-to-functions append ((plan plan))
-  "Compile the GC phase sequence."
-  (let ((phase-lambda
-         `(lambda ()
-             (plan-collect-phase plan ,(if (plan-generational-p (plan-constraints plan)) :minor :major)))))
-    (list (cons 'plan-collect phase-lambda))))
+  "Fallback: compile plan-collect-phase via gc-phase method combination."
+  (let ((phase (if (plan-generational-p (plan-constraints plan)) :minor :major)))
+    (list (cons 'plan-collect
+                (lambda (&key cycle-kind)
+                  (declare (ignore cycle-kind))
+                  (plan-collect-phase plan phase))))))
 
 (defmethod compile-to-functions append ((space space))
   "Space trace functions."
   (list (cons 'space-trace-object
-              `(lambda (vm obj)
-                 (declare (ignorable vm obj))
-                 ;; Default trace: mark and enqueue children
-                 (unless (vm-object-is-marked-p vm obj)
-                   (setf (vm-object-is-marked-p vm obj) t))
-                 obj))))
+              (lambda (vm obj)
+                (declare (ignorable vm obj))
+                (unless (vm-object-is-marked-p vm obj)
+                  (setf (vm-object-is-marked-p vm obj) t))
+                obj))))
 
 (defmethod compile-to-functions append ((barrier object-barrier))
   "Barrier functions."
   (list (cons 'barrier-note-write
-              `(lambda (source-addr slot-idx new-value)
-                 (barrier-note-write barrier source-addr slot-idx new-value)))
+              (lambda (source-addr slot-idx new-value)
+                (barrier-note-write barrier source-addr slot-idx new-value)))
         (cons 'barrier-card-scan
-              `(lambda (vm scan-fn)
-                 (barrier-card-scan barrier vm scan-fn)))
+              (lambda (vm scan-fn)
+                (barrier-card-scan barrier vm scan-fn)))
         (cons 'barrier-clear-all
-              `(lambda ()
-                 (barrier-clear-all barrier)))))
+              (lambda ()
+                (barrier-clear-all barrier)))))
 
 (defmethod compile-to-functions append ((space copying-space-trait))
   "Copying space contributes trace-object, prepare, and release."
   (list (cons (intern (format nil "SPACE-TRACE-OBJECT-~A" (space-name space)) 'keyword)
-              `(lambda (vm ref tracer &key cycle-kind trace-kind copy-semantics)
-                 (space-trace-object ,space vm ref tracer
-                                     :cycle-kind cycle-kind
-                                     :trace-kind trace-kind
-                                     :copy-semantics copy-semantics)))
+              (lambda (vm ref tracer &key cycle-kind trace-kind copy-semantics)
+                (space-trace-object space vm ref tracer
+                                    :cycle-kind cycle-kind
+                                    :trace-kind trace-kind
+                                    :copy-semantics copy-semantics)))
         (cons (intern (format nil "SPACE-PREPARE-~A" (space-name space)) 'keyword)
-              `(lambda (vm &key cycle-kind)
-                 (space-prepare ,space vm :cycle-kind cycle-kind)))
+              (lambda (vm &key cycle-kind)
+                (space-prepare space vm :cycle-kind cycle-kind)))
         (cons (intern (format nil "SPACE-RELEASE-~A" (space-name space)) 'keyword)
-              `(lambda (vm &key cycle-kind)
-                 (space-release ,space vm :cycle-kind cycle-kind)))))
+              (lambda (vm &key cycle-kind)
+                (space-release space vm :cycle-kind cycle-kind)))))
 
 (defmethod compile-to-functions append ((space marksweep-space-trait))
   "Mark-sweep space contributes trace-object and sweep."
   (list (cons (intern (format nil "SPACE-TRACE-OBJECT-~A" (space-name space)) 'keyword)
-              `(lambda (vm ref tracer &key cycle-kind trace-kind copy-semantics)
-                 (space-trace-object ,space vm ref tracer
-                                     :cycle-kind cycle-kind
-                                     :trace-kind trace-kind
-                                     :copy-semantics copy-semantics)))
+              (lambda (vm ref tracer &key cycle-kind trace-kind copy-semantics)
+                (space-trace-object space vm ref tracer
+                                    :cycle-kind cycle-kind
+                                    :trace-kind trace-kind
+                                    :copy-semantics copy-semantics)))
         (cons (intern (format nil "SPACE-SWEEP-~A" (space-name space)) 'keyword)
-              `(lambda (vm)
-                 (space-sweep ,space vm)))))
+              (lambda (vm)
+                (space-sweep space vm)))))
 
 (defmethod compile-to-functions append ((a bump-allocator))
   "Bump-pointer allocator contributes a compiled alloc function."
   (list (cons 'bump-alloc
-              `(lambda (size)
-                 (alloc ,a size)))))
+              (lambda (size)
+                (alloc a size)))))
 
 ;;; --- boot-gc ---
 
 (defun boot-gc (plan)
   "Compile all hot-path functions for PLAN and link them into the VM binding.
-After this call, PLAN is ready for collection on the target runtime,
-and no CLOS dispatch occurs on the hot path.
+Processes forms in reverse so most-specific plan-type entries override
+less-specific base-class entries for duplicate keys.
 Idempotent: skips if function-table already populated."
   (let ((table (plan-function-table plan)))
     (unless (plusp (hash-table-count table))
       (let ((forms (compile-to-functions plan)))
-        (loop for (name . lambda-form) in forms
-              do (let ((fn (compile nil lambda-form)))
-                   (setf (gethash name table) fn))))))
+        (loop for (name . fn) in (reverse forms)
+              do (setf (gethash name table) fn)))))
   plan)
 
 (defun lookup-compiled-function (plan name)
@@ -235,6 +235,23 @@ Idempotent: skips if function-table already populated."
 Returns NIL if no compiled function is found (caller should fall back to
 the generic dispatch)."
   (gethash name (plan-function-table plan)))
+
+;;; --- plan-collect dispatch ---
+
+(defmethod plan-collect :around ((plan plan) &key cycle-kind)
+  ":around method that tries the compiled function table first.
+When boot-gc has populated the table, this avoids CLOS dispatch entirely."
+  (let ((fn (lookup-compiled-function plan 'plan-collect)))
+    (if fn
+        (if cycle-kind
+            (funcall fn :cycle-kind cycle-kind)
+            (funcall fn))
+        (call-next-method))))
+
+(defmethod plan-collect ((plan plan) &key (cycle-kind :major))
+  "Default plan-collect: delegates to plan-collect-phase via gc-phase method combination.
+Used when no compiled function exists and no plan-specific primary method applies."
+  (plan-collect-phase plan cycle-kind))
 
 ;;; --- Plan initialization ---
 

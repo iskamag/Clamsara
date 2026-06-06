@@ -6,8 +6,11 @@
 (defclass marksweep-plan (plan) ()
   (:documentation "Mark-and-sweep collector."))
 
-(defmethod plan-collect ((plan marksweep-plan) &key cycle-kind)
-  (declare (ignore cycle-kind))
+;;; --- MarkSweep collection ---
+
+(defun %marksweep-collect (plan)
+  "Core mark-sweep collection logic. Extracted so both plan-collect and
+compile-to-functions can share the same implementation."
   (let* ((vm (plan-vm plan))
          (tracer nil))
     (vm-stop-mutators vm)
@@ -38,6 +41,10 @@
     (vm-clear-all-mark-bits vm)
     (vm-post-gc-cleanup vm)
     (vm-resume-mutators vm)))
+
+(defmethod plan-collect ((plan marksweep-plan) &key cycle-kind)
+  (declare (ignore cycle-kind))
+  (%marksweep-collect plan))
 
 (defmethod plan-get-space ((plan marksweep-plan) (designator (eql :default)))
   (or (plan-default-space plan)
@@ -75,3 +82,10 @@
       plan)))
 
 (register-plan-selector :marksweep #'make-marksweep-plan)
+
+(defmethod compile-to-functions append ((plan marksweep-plan))
+  "Compiled marksweep collection: a closure over %marksweep-collect."
+  (list (cons 'plan-collect
+              (lambda (&key cycle-kind)
+                (declare (ignore cycle-kind))
+                (%marksweep-collect plan)))))

@@ -6,8 +6,10 @@
 (defclass immix-plan (plan) ()
   (:documentation "Immix mark-region collector."))
 
-(defmethod plan-collect ((plan immix-plan) &key cycle-kind)
-  (declare (ignore cycle-kind))
+;;; --- Immix collection ---
+
+(defun %immix-collect (plan)
+  "Core Immix collection logic."
   (let* ((vm (plan-vm plan))
          (space (plan-get-space plan :default))
          (tracer nil))
@@ -33,6 +35,10 @@
     (vm-clear-all-mark-bits vm)
     (vm-post-gc-cleanup vm)
     (vm-resume-mutators vm)))
+
+(defmethod plan-collect ((plan immix-plan) &key cycle-kind)
+  (declare (ignore cycle-kind))
+  (%immix-collect plan))
 
 (defmethod plan-get-space ((plan immix-plan) (designator (eql :default)))
   (or (plan-default-space plan)
@@ -64,3 +70,9 @@
       plan)))
 
 (register-plan-selector :immix #'make-immix-plan)
+
+(defmethod compile-to-functions append ((plan immix-plan))
+  (list (cons 'plan-collect
+              (lambda (&key cycle-kind)
+                (declare (ignore cycle-kind))
+                (%immix-collect plan)))))

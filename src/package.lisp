@@ -12,7 +12,8 @@
     #:+flag-forwarded+ #:+flag-pinned+
     #:+flag-has-young+ #:+flag-logged+
     #:+forwarded-flag-bit+
-   #:+page-size-words+ #:+card-size-words+
+    #:+page-size-words+ #:+card-size-words+
+    #:+cards-per-page+
    #:address<= #:address>= #:address< #:address> #:address-min #:address-max
     ;; Heap
     #:heap-ref #:page-table-ref #:page-free-p #:page-allocated-p
@@ -53,6 +54,7 @@
     #:object-barrier #:make-object-barrier
     #:satb-barrier #:make-satb-barrier
     #:satb-enqueue #:satb-drain
+    #:satb-queue #:satb-queue-head #:satb-queue-tail #:satb-queue-capacity
     #:barrier-nursery-start #:barrier-nursery-end #:barrier-card-table
    #:barrier-card-table-cards
    #:card-table #:card-table-cards #:ensure-card-table
@@ -73,6 +75,7 @@
     #:plan-generational-p #:plan-major-required-p
     #:plan-card-size-words
     #:plan-nursery-kind #:plan-num-generations
+    #:plan-max-non-los-alloc-bytes
     #:plan-constraints #:plan-page-resource
     #:plan-nursery #:plan-nursery-from #:plan-nursery-to
     #:plan-mature-from #:plan-mature-to
@@ -112,6 +115,7 @@
     ;; Convenience
     #:with-clamsara #:clamsara-gc
     #:clamsara-register-root
+    #:clamsara-allocate-object #:clamsara-allocate
     #:*active-plan* #:*active-vm*
     #:with-active-plan #:with-active-vm #:with-active-gc
    ;; Metaclasses

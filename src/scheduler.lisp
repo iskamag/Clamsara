@@ -106,7 +106,8 @@ In single-threaded simulator mode, marking happens during STW pauses."))
   (:documentation "Drain SATB queues and finish marking. Called at STW points."))
 
 (defgeneric cm-is-marking-active-p (plan)
-  (:documentation "Return T if concurrent marking is in progress."))
+  (:documentation "Return T if concurrent marking is in progress.")
+  (:method ((plan t)) nil))
 
 (defmethod cm-start-concurrent-mark ((plan concurrent-marking-trait))
   (setf (cm-mark-phase plan) :marking)

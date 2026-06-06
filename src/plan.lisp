@@ -125,6 +125,9 @@ Used by mature-dead-ratio-exceeded-p for escalation decisions."))
   (:documentation "True when accumulated mature garbage warrants a major GC.")
   (:method ((plan plan)) nil))
 
+(defmethod plan-card-size-words ((plan plan))
+  +card-size-words+)
+
 (defmethod plan-prepare ((plan plan) &key cycle-kind)
   (dolist (space (plan-spaces plan))
     (when (typep space 'collectable-space)

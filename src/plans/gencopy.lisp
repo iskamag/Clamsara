@@ -49,15 +49,6 @@
               (lambda (&key (cycle-kind :minor))
                 (plan-collect-phase plan (%generational-effective-phase plan cycle-kind))))))
 
-;;; --- Generational phase suppressors ---
-;;; Minor/major collection happens entirely in plan-collect-phase :prologue
-;;; methods. Suppress the base :mark tracer to avoid double-tracing.
-
-(defmethod plan-collect-phase :mark ((plan generational-plan-trait) (phase (eql :minor))) nil)
-(defmethod plan-collect-phase :sweep ((plan generational-plan-trait) (phase (eql :minor))) nil)
-(defmethod plan-collect-phase :mark ((plan generational-plan-trait) (phase (eql :major))) nil)
-(defmethod plan-collect-phase :sweep ((plan generational-plan-trait) (phase (eql :major))) nil)
-
 (defmethod plan-handle-allocation-failure ((plan generational-plan-trait) size space-designator)
   (flet ((try-alloc ()
            (let* ((space (plan-get-space plan space-designator))

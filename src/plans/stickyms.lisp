@@ -132,10 +132,11 @@
   (declare (ignore initargs))
   (let* ((plan (make-instance 'stickyms-plan
                   :name "StickyMS" :vm vm
-                  :constraints (make-instance 'plan-constraints
-                                 :moves-objects nil :generational t
-                                 :needs-log-bit t :barrier :object
-                                 :needs-forwarding nil))))
+                   :constraints (make-instance 'plan-constraints
+                                  :moves-objects nil :generational t
+                                  :nursery-kind :sticky :num-generations 2
+                                  :needs-log-bit t :barrier :object
+                                  :needs-forwarding nil))))
     (initialize-plan-heap plan heap-size)
     (let* ((pr (plan-page-resource plan))
            (n-pages (ceiling heap-size +page-size-words+))

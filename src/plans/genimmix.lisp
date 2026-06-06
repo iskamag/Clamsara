@@ -150,10 +150,11 @@
   (declare (ignore initargs))
   (let* ((plan (make-instance 'genimmix-plan
                   :name "GenImmix" :vm vm
-                  :constraints (make-instance 'plan-constraints
-                                 :moves-objects t :generational t
-                                 :needs-log-bit t :barrier :object
-                                 :needs-forwarding t))))
+                   :constraints (make-instance 'plan-constraints
+                                  :moves-objects t :generational t
+                                  :nursery-kind :copying :num-generations 2
+                                  :needs-log-bit t :barrier :object
+                                  :needs-forwarding t))))
     (initialize-plan-heap plan heap-size)
     (let* ((pr (plan-page-resource plan))
            (immix-space (make-immix-space plan pr :name :immix-mature :size 0))

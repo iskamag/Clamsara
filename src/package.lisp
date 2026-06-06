@@ -59,6 +59,7 @@
     #:plan-get-space #:plan-from-space #:plan-to-space
     #:plan-barrier #:plan-collect #:plan-allocate
     #:plan-generational-p #:plan-major-required-p
+    #:plan-nursery-kind #:plan-num-generations
     #:plan-constraints #:plan-page-resource
     #:plan-nursery #:plan-nursery-from #:plan-nursery-to
     #:plan-mature-from #:plan-mature-to

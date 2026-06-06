@@ -24,10 +24,11 @@
   (declare (ignore initargs))
   (let* ((plan (make-instance 'nogc-plan
                   :name "NoGC" :vm vm
-                  :constraints (make-instance 'plan-constraints
-                                 :moves-objects nil :generational nil
-                                 :needs-log-bit nil :barrier :none
-                                 :needs-forwarding nil))))
+                   :constraints (make-instance 'plan-constraints
+                                  :moves-objects nil :generational nil
+                                  :nursery-kind nil :num-generations 1
+                                  :needs-log-bit nil :barrier :none
+                                  :needs-forwarding nil))))
     (initialize-plan-heap plan heap-size)
     (let* ((pr (plan-page-resource plan))
            (n-pages (ceiling heap-size +page-size-words+))

@@ -64,10 +64,11 @@
   (declare (ignore initargs))
   (let* ((plan (make-instance 'semispace-plan
                   :name "SemiSpace" :vm vm
-                  :constraints (make-instance 'plan-constraints
-                                 :moves-objects t :generational nil
-                                 :needs-log-bit nil :barrier :none
-                                 :needs-forwarding t))))
+                   :constraints (make-instance 'plan-constraints
+                                  :moves-objects t :generational nil
+                                  :nursery-kind nil :num-generations 1
+                                  :needs-log-bit nil :barrier :none
+                                  :needs-forwarding t))))
     (initialize-plan-heap plan heap-size)
     (let* ((pr (plan-page-resource plan))
            (half-size (floor heap-size 2))

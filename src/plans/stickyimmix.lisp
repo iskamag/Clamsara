@@ -140,10 +140,11 @@
   (declare (ignore initargs))
   (let* ((plan (make-instance 'stickyimmix-plan
                   :name "StickyImmix" :vm vm
-                  :constraints (make-instance 'plan-constraints
-                                 :moves-objects nil :generational t
-                                 :needs-log-bit t :barrier :object
-                                 :needs-forwarding nil))))
+                   :constraints (make-instance 'plan-constraints
+                                  :moves-objects nil :generational t
+                                  :nursery-kind :sticky :num-generations 2
+                                  :needs-log-bit t :barrier :object
+                                  :needs-forwarding nil))))
     (initialize-plan-heap plan heap-size)
     (let* ((pr (plan-page-resource plan))
            (space (make-immix-space plan pr :name :immix-heap :size 0))

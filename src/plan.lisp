@@ -5,11 +5,16 @@
 (defclass plan-constraints ()
   ((moves-objects :initarg :moves-objects :reader plan-moves-objects-p :initform nil)
    (generational :initarg :generational :reader plan-generational-p :initform nil)
+   (nursery-kind :initarg :nursery-kind :reader plan-nursery-kind
+    :type (member :copying :sticky nil) :initform nil)
+   (num-generations :initarg :num-generations :reader plan-num-generations
+    :type fixnum :initform 1)
    (needs-log-bit :initarg :needs-log-bit :reader plan-needs-log-bit-p :initform nil)
    (barrier :initarg :barrier :reader plan-barrier-type :type (member :none :object :satb)
     :initform :none)
    (needs-forwarding :initarg :needs-forwarding :reader plan-needs-forwarding-p :initform nil)
-   (max-gc-threads :initarg :max-gc-threads :reader plan-max-gc-threads :initform 1))
+   (max-non-los-alloc-bytes :initarg :max-non-los-alloc-bytes
+    :reader plan-max-non-los-alloc-bytes :type fixnum :initform 8192))
   (:documentation "Plan-level constraints describing the collection strategy."))
 
 ;;; --- Plan Protocol Generics ---

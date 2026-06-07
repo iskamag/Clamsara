@@ -194,33 +194,35 @@ method-function of the most-specific :around method, or NIL."
 
 (defun compile-gc-phase-form (plan)
   "Return a lambda form that runs the gc-phase effective method for PLAN.
-Finds all applicable methods at boot time, extracts their method-functions,
-and embeds them in a plain lambda.  The :around method's call-next-method
-is handled by passing the phase sequence as a continuation function."
-  (flet ((build-for (cycle-kind)
+At boot time we find all applicable methods, extract their method-functions,
+pre-build args lists and continuation closures, and embed them as constants.
+The resulting compiled lambda does zero allocation at runtime."
+  (flet ((build (cycle-kind)
            (let* ((pairs (phase-method-fns #'plan-collect-phase plan cycle-kind))
                   (around-fn (cdr (assoc :around pairs)))
-                  (phase-calls
+                  ;; Pre-build the arguments list -- one allocation at boot time.
+                  (args (list plan cycle-kind))
+                  ;; Phase call forms that reference the pre-built args list.
+                  (phase-forms
                     (loop for (phase . fn) in pairs
                           unless (eq phase :around)
-                          collect `(funcall ,fn (list plan ,cycle-kind) ()))))
+                          collect `(funcall ,fn ',args ()))))
              (if around-fn
-                 ;; :around wraps the phase sequence via call-next-method.
-                 ;; next-methods is a list where each entry is a function.
-                 ;; call-next-method calls (first next-methods) directly.
-                 `(funcall ,around-fn
-                           (list plan ,cycle-kind)
-                           (list (lambda (args next)
+                 ;; Pre-build continuation closure and next-methods list.
+                 (let* ((cont (compile nil
+                                `(lambda (args next)
                                    (declare (ignore args next))
-                                   ,@phase-calls)))
-                 `(progn ,@phase-calls)))))
-    (let ((major-form (build-for :major))
-          (minor-form (build-for :minor)))
+                                   ,@phase-forms)))
+                        (next (list cont)))
+                   `(funcall ,around-fn ',args ',next))
+                 `(progn ,@phase-forms)))))
+    (let ((major-body (build :major))
+          (minor-body (build :minor)))
       `(lambda (plan cycle-kind)
-         (declare (optimize speed))
+         (declare (optimize speed) (ignorable plan cycle-kind))
          (ecase cycle-kind
-           (:major ,major-form)
-           (:minor ,minor-form))))))
+           (:major ,major-body)
+           (:minor ,minor-body))))))
 
 ;;; --- compile-trace-dispatch ---
 ;;; Produces a case form over space names with inlined space-trace-object

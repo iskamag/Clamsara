@@ -275,17 +275,29 @@ functions contributed by COMPONENT.  Each lambda-form is a list
 (defmethod compile-to-functions append ((space space))
   nil)
 
-(defmethod compile-to-functions append ((b no-barrier))
-  nil)
-
 (defmethod compile-to-functions append ((a free-list-allocator))
-  nil)
+  (let ((alloc-fn (method-fn-for #'alloc (list a 0))))
+    (when alloc-fn
+      (list (cons 'bump-alloc
+                  `(lambda (size)
+                     (declare (optimize speed) (type fixnum size))
+                     (funcall ,alloc-fn (list ,a size) ())))))))
 
 (defmethod compile-to-functions append ((a immix-allocator))
-  nil)
+  (let ((alloc-fn (method-fn-for #'alloc (list a 0))))
+    (when alloc-fn
+      (list (cons 'bump-alloc
+                  `(lambda (size)
+                     (declare (optimize speed) (type fixnum size))
+                     (funcall ,alloc-fn (list ,a size) ())))))))
 
 (defmethod compile-to-functions append ((a large-object-allocator))
-  nil)
+  (let ((alloc-fn (method-fn-for #'alloc (list a 0))))
+    (when alloc-fn
+      (list (cons 'bump-alloc
+                  `(lambda (size)
+                     (declare (optimize speed) (type fixnum size))
+                     (funcall ,alloc-fn (list ,a size) ())))))))
 
 (defmethod compile-to-functions append ((plan plan))
   "Plan contributes the compiled gc-phase form and trace dispatch,
@@ -374,6 +386,9 @@ barrier, and allocators."
 
 ;;; --- Barrier contributions ---
 
+(defmethod compile-to-functions append ((barrier barrier))
+  nil)
+
 (defmethod compile-to-functions append ((barrier object-barrier))
   (let* ((write-fn (method-fn-for #'barrier-note-write
                                   (list barrier 0 0 0)))
@@ -408,11 +423,16 @@ barrier, and allocators."
 ;;; --- Allocator contributions ---
 
 (defmethod compile-to-functions append ((a bump-allocator))
-  (let ((alloc-fn (method-fn-for #'alloc (list a 0))))
+  (let* ((vm (or (allocator-space a) *active-vm*))
+         (use-cas (and vm
+                       (ignore-errors (vm-has-feature-p vm :cas))))
+         (alloc-fn (method-fn-for #'alloc (list a 0))))
     (when alloc-fn
       (list (cons 'bump-alloc
                   `(lambda (size)
-                     (declare (optimize speed) (type fixnum size))
+                     (declare (optimize speed) (type fixnum size)
+                              ,@(when use-cas
+                                  '((optimize (safety 0)))))
                      (funcall ,alloc-fn (list ,a size) ())))))))
 
 ;;; --- boot-gc ---

@@ -19,9 +19,16 @@ Returns the value to use (for read barriers that may remap or log)."))
 (defgeneric barrier-clear-all (barrier)
   (:documentation "Reset all barrier state for a new GC cycle."))
 
+;;; --- Barrier base class ---
+
+(defclass barrier ()
+  ()
+  (:metaclass barrier-metaclass)
+  (:documentation "Base class for GC barriers."))
+
 ;;; --- No barrier ---
 
-(defclass no-barrier () ())
+(defclass no-barrier (barrier) ())
 
 (defun make-no-barrier () (make-instance 'no-barrier))
 
@@ -41,7 +48,7 @@ Returns the value to use (for read barriers that may remap or log)."))
 
 ;;; --- Object barrier (generational card table) ---
 
-(defclass object-barrier ()
+(defclass object-barrier (barrier)
   ((card-table :initarg :card-table :accessor barrier-card-table)
    (nursery-start :initarg :nursery-start :accessor barrier-nursery-start)
    (nursery-end :initarg :nursery-end :accessor barrier-nursery-end)
@@ -105,7 +112,7 @@ Returns the value to use (for read barriers that may remap or log)."))
 
 ;;; --- SATB barrier (Snapshot-At-The-Beginning) ---
 
-(defclass satb-barrier ()
+(defclass satb-barrier (barrier)
   ((queue :initarg :queue :accessor satb-queue
     :documentation "Ring buffer simple-vector for captured references.")
    (queue-head :initform 0 :accessor satb-queue-head :type fixnum)

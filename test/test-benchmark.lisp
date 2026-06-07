@@ -103,13 +103,15 @@ Returns (values total-time checksum-errors gc-count live-objects)."
 ;;; --- Benchmarks as test assertions ---
 
 (test boehm-tree-benchmarks
-  "Boehm tree benchmark: all 9 plans produce zero checksum errors."
+  "Boehm tree benchmark: all 9 plans produce zero checksum errors,
+including after GC cycles."
   (let ((plan-types '(:nogc :semispace :marksweep :immix
                       :gencopy :genms :genimmix :stickyimmix :stickyms)))
     (dolist (plan-type plan-types)
       (let ((heap-size (case plan-type
                          (:nogc 2097152)
                          ((:gencopy :genms :genimmix) 524288)
+                         ((:stickyms :stickyimmix) 524288)
                          (t *benchmark-heap-size*))))
         (with-clamsara (:plan-type plan-type :heap-size heap-size)
           (multiple-value-bind (elapsed errors gc-cycles live-objects)
@@ -119,7 +121,16 @@ Returns (values total-time checksum-errors gc-count live-objects)."
             (format t "~&  ~14A  ~8,3F s  ~4D errs  ~4D GCs  ~8D live objs~%"
                     (string-downcase (symbol-name plan-type))
                     elapsed errors gc-cycles (or live-objects 0))
-            (is (zerop errors) "~A benchmark had checksum errors." plan-type)))))))
+            (is (zerop errors) "~A benchmark had checksum errors." plan-type))
+          ;; Post-GC verification inside the same with-clamsara instance
+          (when (member plan-type '(:marksweep :immix :stickyms :stickyimmix))
+            (ignore-errors (clamsara-gc))
+            (let* ((tree (benchmark-build-tree *active-plan* *quick-tree-depth*))
+                   (cs (benchmark-tree-checksum *active-plan* tree))
+                   (expect (benchmark-expected-checksum *quick-tree-depth*)))
+              (is (= cs expect)
+                  "~A post-GC tree had checksum ~D (expected ~D)."
+                  plan-type cs expect))))))))
 
 ;;; --- Public API ---
 

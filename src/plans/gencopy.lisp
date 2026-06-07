@@ -45,9 +45,18 @@
   (plan-collect-phase plan (%generational-effective-phase plan cycle-kind)))
 
 (defmethod compile-to-functions append ((plan generational-plan-trait))
+  "Contribute a compiled plan-collect entry that wraps the generational
+decision policy, then delegates to the compiled plan-collect-phase.
+The append method combination automatically concatenates this with
+the base plan's entries."
   (list (cons 'plan-collect
-              (lambda (&key (cycle-kind :minor))
-                (plan-collect-phase plan (%generational-effective-phase plan cycle-kind))))))
+              `(lambda (plan &key (cycle-kind :minor))
+                 (declare (optimize speed))
+                 (funcall (gethash 'plan-collect-phase
+                                   (plan-function-table plan))
+                          plan
+                          (clamsara::%generational-effective-phase
+                           plan cycle-kind))))))
 
 (defmethod plan-handle-allocation-failure ((plan generational-plan-trait) size space-designator)
   (flet ((try-alloc ()

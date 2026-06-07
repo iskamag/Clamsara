@@ -15,8 +15,13 @@
 
 (defmethod compile-to-functions append ((plan stickyms-plan))
   (list (cons 'plan-collect
-              (lambda (&key (cycle-kind :minor))
-                (plan-collect-phase plan (%generational-effective-phase plan cycle-kind))))))
+              `(lambda (plan &key (cycle-kind :minor))
+                 (declare (optimize speed))
+                 (funcall (gethash 'plan-collect-phase
+                                   (plan-function-table plan))
+                          plan
+                          (clamsara::%generational-effective-phase
+                           plan cycle-kind))))))
 
 (defmethod plan-collect-phase :prologue ((plan stickyms-plan) (cycle-kind (eql :minor)))
   (sticky-ms-nursery-collect plan))

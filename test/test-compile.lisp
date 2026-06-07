@@ -6,7 +6,7 @@
 (in-suite test-compile)
 
 (test compile-to-functions-returns-alist
-  "compile-to-functions returns (name . function) alist of closures."
+  "compile-to-functions returns (name . lambda-form) alist of unevaluated forms."
   (with-clamsara (:plan-type :marksweep :heap-size 65536)
     (let ((forms (compile-to-functions *active-plan*)))
       (is (listp forms))
@@ -14,7 +14,9 @@
       (dolist (entry forms)
         (is (consp entry))
         (is (symbolp (car entry)))
-        (is (functionp (cdr entry)) "~A should be a function" (car entry))))))
+        (is (listp (cdr entry)) "~A should be a lambda form" (car entry))
+        (is (eq 'lambda (first (cdr entry)))
+            "~A should be a lambda form" (car entry))))))
 
 (test boot-gc-populates-function-table
   "boot-gc populates the function table with compiled functions."

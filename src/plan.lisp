@@ -138,6 +138,10 @@ Used by mature-dead-ratio-exceeded-p for escalation decisions."))
 (defmethod plan-card-size-words ((plan plan))
   +card-size-words+)
 
+(defmethod plan-minor-gc-count ((plan plan))
+  "Return 0 for non-generational plans."
+  0)
+
 (defun plan-major-required-p (plan)
   "Return T if a major GC is required for PLAN.
 True when the plan has been explicitly requested for GC or when

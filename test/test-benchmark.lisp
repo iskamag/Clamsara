@@ -71,7 +71,7 @@ Closed form: f(D) = 2^(D+1) - D - 2."
 (defun run-plan-benchmark (plan &key (depth *benchmark-tree-depth*)
                                     (iterations *benchmark-iterations*))
   "Run the Boehm tree benchmark on a single plan.
-Returns (values total-time checksum-errors gc-count live-words)."
+Returns (values total-time checksum-errors gc-count live-objects)."
   (let* ((vm (plan-vm plan))
          (start-time (get-internal-run-time))
          (checksums nil)
@@ -91,14 +91,14 @@ Returns (values total-time checksum-errors gc-count live-words)."
            (gc-cycles (- (plan-stats-gc-count (plan-stats plan)) gc-count-before)))
       ;; Final full GC to get live word count (skip for NoGC)
       (ignore-errors (clamsara-gc))
-      (let ((live-words (getf (vm-heap-usage vm) :total-words)))
-        (values elapsed errors gc-cycles live-words)))))
+      (let ((live-objects (getf (vm-heap-usage vm) :live-objects)))
+        (values elapsed errors gc-cycles live-objects)))))
 
-(defun report-benchmark (plan-type elapsed errors gc-cycles live-words)
+(defun report-benchmark (plan-type elapsed errors gc-cycles live-objects)
   "Print benchmark results for a single plan type."
-  (format t "~&  ~14A  ~8,3F s  ~4D errs  ~4D GCs  ~8D live words~%"
+  (format t "~&  ~14A  ~8,3F s  ~4D errs  ~4D GCs  ~8D live objs~%"
           (string-downcase (symbol-name plan-type))
-          elapsed errors gc-cycles (or live-words 0)))
+          elapsed errors gc-cycles (or live-objects 0)))
 
 ;;; --- Benchmarks as test assertions ---
 
@@ -112,13 +112,13 @@ Returns (values total-time checksum-errors gc-count live-words)."
                          ((:gencopy :genms :genimmix) 524288)
                          (t *benchmark-heap-size*))))
         (with-clamsara (:plan-type plan-type :heap-size heap-size)
-          (multiple-value-bind (elapsed errors gc-cycles live-words)
+          (multiple-value-bind (elapsed errors gc-cycles live-objects)
               (run-plan-benchmark *active-plan*
                                   :depth *quick-tree-depth*
                                   :iterations *quick-iterations*)
-            (format t "~&  ~14A  ~8,3F s  ~4D errs  ~4D GCs  ~8D live words~%"
+            (format t "~&  ~14A  ~8,3F s  ~4D errs  ~4D GCs  ~8D live objs~%"
                     (string-downcase (symbol-name plan-type))
-                    elapsed errors gc-cycles (or live-words 0))
+                    elapsed errors gc-cycles (or live-objects 0))
             (is (zerop errors) "~A benchmark had checksum errors." plan-type)))))))
 
 ;;; --- Public API ---
@@ -134,7 +134,7 @@ Prints a summary table and returns results as a list of plists."
     (format t "~&  Depth: ~D  Iterations: ~D  Nodes/tree: ~D~%"
             depth iterations (1- (ash 1 (1+ depth))))
     (format t "~&  ~14A  ~8A  ~6A  ~6A  ~10A~%"
-            "Plan" "Time" "Errs" "GCs" "Live words")
+            "Plan" "Time" "Errs" "GCs" "Live objs")
     (format t "~&  ~14A  ~8A  ~6A  ~6A  ~10A~%"
             "--------------" "--------" "------" "------" "----------")
     (dolist (plan-type plan-types)
@@ -144,11 +144,11 @@ Prints a summary table and returns results as a list of plists."
                              ((:gencopy :genms :genimmix) 4194304)
                              (t 2097152))))
             (with-clamsara (:plan-type plan-type :heap-size heap-size)
-              (multiple-value-bind (elapsed errors gc-cycles live-words)
+              (multiple-value-bind (elapsed errors gc-cycles live-objects)
                   (run-plan-benchmark *active-plan* :depth depth :iterations iterations)
-                (report-benchmark plan-type elapsed errors gc-cycles live-words)
+                (report-benchmark plan-type elapsed errors gc-cycles live-objects)
                 (push (list :plan plan-type :time elapsed :errors errors
-                            :gcs gc-cycles :live live-words)
+                            :gcs gc-cycles :live live-objects)
                       results))))
         (error (e)
           (format t "~&  ~14A  FAILED: ~A~%" (string-downcase (symbol-name plan-type)) e))))
@@ -166,10 +166,10 @@ PLAN-TYPE is a keyword like :semispace."
                   ((:gencopy :genms :genimmix) 4194304)
                   (t 2097152)))))
     (with-clamsara (:plan-type plan-type :heap-size hs)
-      (multiple-value-bind (elapsed errors gc-cycles live-words)
+      (multiple-value-bind (elapsed errors gc-cycles live-objects)
           (run-plan-benchmark *active-plan* :depth depth :iterations iterations)
         (format t "~&=== Benchmark: ~A ===~%" plan-type)
         (format t "~&  Depth: ~D  Iterations: ~D~%" depth iterations)
-        (format t "~&  Time: ~,3F s  Errors: ~D  GC cycles: ~D  Live words: ~D~%"
-                elapsed errors gc-cycles (or live-words 0))
-        (values elapsed errors gc-cycles live-words)))))
+        (format t "~&  Time: ~,3F s  Errors: ~D  GC cycles: ~D  Live objects: ~D~%"
+                elapsed errors gc-cycles (or live-objects 0))
+        (values elapsed errors gc-cycles live-objects)))))

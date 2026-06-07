@@ -422,33 +422,29 @@ barrier, and allocators."
 
 (defun boot-gc (plan)
   "Compile all hot-path functions for PLAN into the function table.
-After boot, plan-collect reads from the table via an :around method,
-avoiding a global fdefinition shadow that would break multi-plan use."
+Replaces (FDEFINITION 'PLAN-COLLECT) with a compiled shim that reads
+from the per-plan function table at call time, eliminating CLOS dispatch."
   (let ((table (plan-function-table plan)))
     (unless (plusp (hash-table-count table))
       (let ((forms (compile-to-functions plan)))
-        ;; Process in reverse so most-specific entries (plan type) override
-        ;; less-specific ones (base classes) for duplicate keys.
         (loop for (name . lambda-form) in (reverse forms)
               do (let ((fn (compile nil lambda-form)))
-                   (setf (gethash name table) fn))))))
-  plan)
-
-;;; --- plan-collect :around lookup ---
-;;; Checks the function table for a compiled plan-collect entry,
-;;; falling back to plan-collect-phase for non-generational plans.
-
-(defmethod plan-collect :around ((plan plan) &key (cycle-kind :major))
-  ":around method that tries the compiled function table first.
-When boot-gc has populated the table, this avoids CLOS dispatch entirely
-for the collection entry point while staying compatible with multi-plan use."
-  (let ((collect-fn (lookup-compiled-function plan 'plan-collect)))
-    (if collect-fn
-        (funcall collect-fn plan :cycle-kind cycle-kind)
-        (let ((phase-fn (lookup-compiled-function plan 'plan-collect-phase)))
-          (if phase-fn
-              (funcall phase-fn plan cycle-kind)
-              (call-next-method))))))
+                   (setf (gethash name table) fn)))))
+    ;; Replace the generic entry point.  The shim looks up the compiled
+    ;; function from the plan argument's own table at call time, so
+    ;; multiple plans can coexist without cross-talk.
+    (setf (fdefinition 'plan-collect)
+          (lambda (plan &key (cycle-kind :major))
+            (let* ((table (plan-function-table plan))
+                   (collect-fn (gethash 'plan-collect table)))
+              (if collect-fn
+                  (funcall collect-fn plan :cycle-kind cycle-kind)
+                  (let ((phase-fn (gethash 'plan-collect-phase table)))
+                    (if phase-fn
+                        (funcall phase-fn plan cycle-kind)
+                        ;; Fallback for plans without boot-gc
+                        (plan-collect-phase plan cycle-kind)))))))
+    plan))
 
 ;;; --- plan-collect fallback ---
 ;;; Used when boot-gc hasn't been called (interactive / no compiled table).

@@ -87,7 +87,6 @@
                       (addr (allocate-fill plan 3 42 99 777)))
                  (clamsara-register-root addr)
                  (when use-compiled-p (boot-gc plan))
-                 ;; Force major so both paths do the same thing
                  (plan-collect plan :cycle-kind :major)
                  (let ((survivor (get-root-addr plan)))
                    (unless survivor (return-from gc-round nil))
@@ -121,37 +120,42 @@
 ;;; The compiled-gc-matches-clos-gc test already covers 8 plans.
 ;;; NoGC cannot collect, so it's excluded.
 
-(test boot-gc-fdefinition-intact
-  "boot-gc does not replace (fdefinition 'plan-collect)."
+(test boot-gc-shadows-plan-collect
+  "boot-gc replaces (fdefinition 'plan-collect) with a compiled function."
   (with-clamsara (:plan-type :marksweep :heap-size 65536)
-    (let ((original-fdef (fdefinition 'plan-collect)))
-      (boot-gc *active-plan*)
-      (is (typep (fdefinition 'plan-collect) 'generic-function)
-          "plan-collect should remain a generic function after boot-gc"))))
+    (let* ((plan *active-plan*)
+           (saved-fdef (fdefinition 'plan-collect)))
+      (boot-gc plan)
+      (let ((fdef (fdefinition 'plan-collect)))
+        (is (functionp fdef)
+            "plan-collect should be a function after boot-gc")
+        (is (not (typep fdef 'generic-function))
+            "plan-collect should no longer be a generic after boot-gc"))
+      ;; Restore the original so subsequent tests are not affected
+      (setf (fdefinition 'plan-collect) saved-fdef))))
 
 (test compiled-gc-matches-clos-gc
   "Compiled and CLOS-dispatch GC produce identical results for the same graph."
   (labels ((gc-round (plan-type use-compiled-p)
-             "Build a graph, GC via CLOS or compiled path, return surviving state."
-             (with-clamsara (:plan-type plan-type :heap-size 131072)
-               (let* ((plan *active-plan*)
-                      (vm (plan-vm plan))
-                      (addr (allocate-fill plan 5 10 20 30 40 50)))
-                 (clamsara-register-root addr)
-                 ;; Link a chain of cons cells into slot 1
-                 (let ((list-head (build-linked-list plan 10)))
-                   (setf (vm-object-reference vm addr 1) (or list-head 0)))
-                 (when use-compiled-p (boot-gc plan))
-                 (plan-collect plan)
-                 (let ((survivor (get-root-addr plan)))
-                   (unless survivor (return-from gc-round nil))
-                   (list :slot0 (vm-object-reference vm survivor 0)
-                         :slot1 (vm-object-reference vm survivor 1)
-                         :slot2 (vm-object-reference vm survivor 2)
-                         :slot3 (vm-object-reference vm survivor 3)
-                         :slot4 (vm-object-reference vm survivor 4)
-                         :list-len (linked-list-length plan
-                                       (vm-object-reference vm survivor 1))))))))
+              "Build a graph, GC via CLOS or compiled path, return surviving state."
+              (with-clamsara (:plan-type plan-type :heap-size 131072)
+                (let* ((plan *active-plan*)
+                       (vm (plan-vm plan))
+                       (addr (allocate-fill plan 5 10 20 30 40 50)))
+                  (clamsara-register-root addr)
+                  (let ((list-head (build-linked-list plan 10)))
+                    (setf (vm-object-reference vm addr 1) (or list-head 0)))
+                  (when use-compiled-p (boot-gc plan))
+                  (plan-collect plan)
+                  (let ((survivor (get-root-addr plan)))
+                    (unless survivor (return-from gc-round nil))
+                    (list :slot0 (vm-object-reference vm survivor 0)
+                          :slot1 (vm-object-reference vm survivor 1)
+                          :slot2 (vm-object-reference vm survivor 2)
+                          :slot3 (vm-object-reference vm survivor 3)
+                          :slot4 (vm-object-reference vm survivor 4)
+                          :list-len (linked-list-length plan
+                                        (vm-object-reference vm survivor 1))))))))
     (dolist (plan-type '(:marksweep :semispace :immix
                          :gencopy :genms :genimmix :stickyimmix :stickyms))
       (let ((clos-result (gc-round plan-type nil))

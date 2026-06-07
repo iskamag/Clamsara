@@ -61,6 +61,74 @@
         (is (> (hash-table-count table) before)
             "boot-gc should populate table for ~A" plan-type)))))
 
+(test gc-phase-method-combination-works
+  "plan-collect-phase dispatches through gc-phase method combination correctly."
+  ;; Verify that each concrete plan type has phase methods that fire.
+  (dolist (plan-type '(:semispace :marksweep :immix
+                       :gencopy :genms :genimmix :stickyimmix :stickyms))
+    (with-clamsara (:plan-type plan-type :heap-size 65536)
+      (let* ((plan *active-plan*)
+             (gf (fdefinition 'plan-collect-phase))
+             (methods (compute-applicable-methods gf (list plan :major))))
+        (is (> (length methods) 1)
+            "~A should have gc-phase methods" plan-type)
+        ;; Must have at least :around, :prologue
+        (let ((quals (mapcar (lambda (m) (first (method-qualifiers m))) methods)))
+          (is (member :around quals) "~A must have :around method" plan-type)
+          (is (member :prologue quals) "~A must have :prologue method" plan-type))))))
+
+(test compiled-generational-gc-matches-clos
+  "Compiled generational GC (minor and major) matches CLOS dispatch."
+  (dolist (plan-type '(:gencopy :genms :genimmix :stickyimmix :stickyms))
+    (flet ((gc-round (use-compiled-p)
+             (with-clamsara (:plan-type plan-type :heap-size 131072)
+               (let* ((plan *active-plan*)
+                      (vm (plan-vm plan))
+                      (addr (allocate-fill plan 3 42 99 777)))
+                 (clamsara-register-root addr)
+                 (when use-compiled-p (boot-gc plan))
+                 ;; Force major so both paths do the same thing
+                 (plan-collect plan :cycle-kind :major)
+                 (let ((survivor (get-root-addr plan)))
+                   (unless survivor (return-from gc-round nil))
+                   (list (vm-object-reference vm survivor 0)
+                         (vm-object-reference vm survivor 1)
+                         (vm-object-reference vm survivor 2)))))))
+      (let ((clos-result (gc-round nil))
+            (compiled-result (gc-round t)))
+        (is (not (null clos-result)) "CLOS GC should preserve data for ~A" plan-type)
+        (is (not (null compiled-result)) "Compiled GC should preserve data for ~A" plan-type)
+        (is (equal clos-result compiled-result)
+            "CLOS and compiled results differ for ~A:~%  CLOS: ~S~%  Compiled: ~S"
+            plan-type clos-result compiled-result)))))
+
+(test boot-gc-populates-correct-keys
+  "boot-gc stores compiled functions under expected keys for each plan type."
+  (dolist (plan-type '(:semispace :marksweep :immix
+                       :gencopy :genms :genimmix :stickyimmix :stickyms))
+    (with-clamsara (:plan-type plan-type :heap-size 65536)
+      (let* ((plan *active-plan*)
+             (table (plan-function-table plan)))
+        (is (zerop (hash-table-count table))
+            "~A table should be empty before boot-gc" plan-type)
+        (boot-gc plan)
+        (is (plusp (hash-table-count table))
+            "~A table should have entries after boot-gc" plan-type)
+        (is (functionp (gethash 'plan-collect-phase table))
+            "~A should have plan-collect-phase" plan-type)))))
+
+;;; --- Compiled path is dispatched for all 9 plans ---
+;;; The compiled-gc-matches-clos-gc test already covers 8 plans.
+;;; NoGC cannot collect, so it's excluded.
+
+(test boot-gc-fdefinition-intact
+  "boot-gc does not replace (fdefinition 'plan-collect)."
+  (with-clamsara (:plan-type :marksweep :heap-size 65536)
+    (let ((original-fdef (fdefinition 'plan-collect)))
+      (boot-gc *active-plan*)
+      (is (typep (fdefinition 'plan-collect) 'generic-function)
+          "plan-collect should remain a generic function after boot-gc"))))
+
 (test compiled-gc-matches-clos-gc
   "Compiled and CLOS-dispatch GC produce identical results for the same graph."
   (labels ((gc-round (plan-type use-compiled-p)

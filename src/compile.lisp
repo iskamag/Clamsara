@@ -152,9 +152,10 @@ applicable to ARGS, or NIL."
       (method-function m))))
 
 (defun phase-method-fns (gf plan cycle-kind)
-  "Return an alist of (phase . method-function) for all gc-phase methods
-of GF applicable to (PLAN CYCLE-KIND).  The :around entry holds the
-method-function of the most-specific :around method, or NIL."
+  "Return an alist of (phase . method-function) for the most-specific
+method of each gc-phase qualifier applicable to (PLAN CYCLE-KIND).
+The :around entry holds the method-function of the most-specific
+:around method, or NIL."
   (let* ((args (list plan cycle-kind))
          (methods (compute-applicable-methods gf args))
          (around nil)
@@ -167,8 +168,11 @@ method-function of the most-specific :around method, or NIL."
            (unless around
              (setf around (method-function m))))
           ((member key '(:prologue :mark :sweep :compact :release :epilogue))
-           (push (cons key (method-function m)) phase-fns)))))
-    ;; Sort phase-fns by phase order
+           ;; Only keep the most-specific (first) method per phase.
+           ;; compute-applicable-methods returns most-specific-first.
+           (unless (assoc key phase-fns)
+             (push (cons key (method-function m)) phase-fns))))))
+    ;; Sort by phase order
     (let ((phase-order '(:prologue :mark :sweep :compact :release :epilogue)))
       (append (list (cons :around around))
               (loop for phase in phase-order

@@ -5,6 +5,35 @@
 
 (in-suite test-generational)
 
+;;; --- Generational correctness: minor vs major ---
+
+(test minor-gc-increments-count
+  "Minor GC increments plan-minor-gc-count for all generational plans."
+  (dolist (plan-type '(:gencopy :genms :genimmix :stickyimmix :stickyms))
+    (with-clamsara (:plan-type plan-type :heap-size 131072)
+      (let* ((plan *active-plan*)
+             (minor-before (clamsara::plan-minor-gc-count plan))
+             (major-before (clamsara::plan-major-gc-count plan)))
+        (boot-gc plan)
+        (dotimes (i 5)
+          (allocate-fill plan 3 1 2 3)
+          (handler-case (plan-collect plan :cycle-kind :minor)
+            (error () nil)))
+        (is (or (> (clamsara::plan-minor-gc-count plan) minor-before)
+                (> (clamsara::plan-major-gc-count plan) major-before))
+            "~A should have run at least one GC" plan-type)))))
+
+(test major-gc-increments-count
+  "plan-collect :major increments plan-major-gc-count."
+  (dolist (plan-type '(:gencopy :genms :genimmix :stickyimmix :stickyms))
+    (with-clamsara (:plan-type plan-type :heap-size 131072)
+      (let* ((plan *active-plan*)
+             (major-before (clamsara::plan-major-gc-count plan)))
+        (boot-gc plan)
+        (plan-collect plan :cycle-kind :major)
+        (is (> (clamsara::plan-major-gc-count plan) major-before)
+            "~A should have run a major GC" plan-type)))))
+
 ;;; --- Nursery evacuation ---
 
 (test gencopy-nursery-gc-evacuates

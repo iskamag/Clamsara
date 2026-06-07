@@ -193,14 +193,34 @@ method-function of the most-specific :around method, or NIL."
 ;;; of plan-collect-phase, skipping all CLOS dispatch.
 
 (defun compile-gc-phase-form (plan)
-  "Return a lambda form that wraps plan-collect-phase dispatch.
-Since the :around timing method uses call-next-method via CLOS internals,
-we delegate to plan-collect-phase (one CLOS dispatch per GC cycle)
-and compile the per-object paths (trace, barrier, allocator) through
-method functions only."
-  `(lambda (plan cycle-kind)
-     (declare (optimize speed))
-     (plan-collect-phase plan cycle-kind)))
+  "Return a lambda form that runs the gc-phase effective method for PLAN.
+Finds all applicable methods at boot time, extracts their method-functions,
+and embeds them in a plain lambda.  The :around method's call-next-method
+is handled by passing the phase sequence as a continuation function."
+  (flet ((build-for (cycle-kind)
+           (let* ((pairs (phase-method-fns #'plan-collect-phase plan cycle-kind))
+                  (around-fn (cdr (assoc :around pairs)))
+                  (phase-calls
+                    (loop for (phase . fn) in pairs
+                          unless (eq phase :around)
+                          collect `(funcall ,fn (list plan ,cycle-kind) ()))))
+             (if around-fn
+                 ;; :around wraps the phase sequence via call-next-method.
+                 ;; next-methods is a list where each entry is a function.
+                 ;; call-next-method calls (first next-methods) directly.
+                 `(funcall ,around-fn
+                           (list plan ,cycle-kind)
+                           (list (lambda (args next)
+                                   (declare (ignore args next))
+                                   ,@phase-calls)))
+                 `(progn ,@phase-calls)))))
+    (let ((major-form (build-for :major))
+          (minor-form (build-for :minor)))
+      `(lambda (plan cycle-kind)
+         (declare (optimize speed))
+         (ecase cycle-kind
+           (:major ,major-form)
+           (:minor ,minor-form))))))
 
 ;;; --- compile-trace-dispatch ---
 ;;; Produces a case form over space names with inlined space-trace-object

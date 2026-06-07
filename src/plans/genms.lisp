@@ -81,6 +81,7 @@
     (setf (plan-nursery-from plan) n-to
           (plan-nursery-to plan) n-from
           (plan-nursery plan) n-to)
+    (plan-update-barrier-nursery-range plan)
     (vm-update-roots-forwarded vm)
     (when barrier (barrier-clear-all barrier))
     (vm-clear-all-forwarding vm)
@@ -119,6 +120,7 @@
       (setf (plan-nursery-from plan) n-to
             (plan-nursery-to plan) n-from
             (plan-nursery plan) n-to))
+    (plan-update-barrier-nursery-range plan)
     (vm-update-roots-forwarded vm)
     (let ((barrier (plan-barrier plan)))
       (when barrier (barrier-clear-all barrier)))

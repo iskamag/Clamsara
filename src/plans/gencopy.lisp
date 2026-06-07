@@ -191,6 +191,7 @@ the base plan's entries."
     (setf (plan-nursery-from plan) n-to
           (plan-nursery-to plan) n-from
           (plan-nursery plan) n-to)
+    (plan-update-barrier-nursery-range plan)
     (vm-update-roots-forwarded vm)
     (when barrier (barrier-clear-all barrier))
     (vm-clear-all-forwarding vm)
@@ -231,6 +232,7 @@ the base plan's entries."
       (setf (plan-nursery-from plan) n-to
             (plan-nursery-to plan) n-from
             (plan-nursery plan) n-to))
+    (plan-update-barrier-nursery-range plan)
     ;; Swap mature copy spaces
     (when (and m-from m-to)
       (rotatef (copying-from-space-p m-from) (copying-from-space-p m-to))

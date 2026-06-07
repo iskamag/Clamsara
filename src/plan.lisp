@@ -149,6 +149,20 @@ the nursery is exhausted (copying generational plans)."
   (or (plan-gc-requested plan)
       (nursery-exhausted-p plan)))
 
+(defun plan-update-barrier-nursery-range (plan)
+  "Update the barrier's cached nursery start/end to match the current
+nursery from-space. Must be called after every nursery swap in copying
+generational plans."
+  (let ((barrier (plan-barrier plan)))
+    (when (and barrier (typep barrier 'object-barrier))
+      (let ((nursery (plan-nursery-from plan)))
+        (when nursery
+          (let ((start (* (space-start-page nursery) +page-size-words+))
+                (end (* (+ (space-start-page nursery) (space-page-count nursery))
+                        +page-size-words+)))
+            (setf (barrier-nursery-start barrier) start
+                  (barrier-nursery-end barrier) end)))))))
+
 (defmethod plan-prepare ((plan plan) &key cycle-kind)
   (dolist (space (plan-spaces plan))
     (when (typep space 'collectable-space)

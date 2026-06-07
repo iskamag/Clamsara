@@ -97,6 +97,7 @@
          (n-from (plan-nursery-from plan))
          (n-to (plan-nursery-to plan))
          (immix-space (plan-immix-mature-space plan))
+         (cs (plan-copy-semantics plan))
          (tracer nil))
     (vm-stop-mutators vm)
     (space-prepare n-to vm :cycle-kind :major)
@@ -104,7 +105,8 @@
     (flet ((trace-fn (ref)
              (let ((space (plan-space-for-address plan ref)))
                (when (and space (typep space 'collectable-space))
-                 (space-trace-object space vm ref tracer :cycle-kind :major)))))
+                 (space-trace-object space vm ref tracer :cycle-kind :major
+                                     :copy-semantics cs)))))
       (setf tracer (make-tracer vm #'trace-fn :queue-size 4096))
       (setf (tracer-trace-fn-enqueues-p tracer) t)
       (vm-scan-roots vm plan

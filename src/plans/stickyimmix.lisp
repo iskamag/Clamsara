@@ -42,9 +42,8 @@
          (barrier (plan-barrier plan))
          (tracer nil))
     (vm-stop-mutators vm)
-    ;; Reset metrics for this cycle
-    (setf (plan-live-young-bytes plan) 0
-          (plan-dead-mature-bytes plan) 0)
+    ;; Reset per-cycle metrics (dead-mature accumulates across cycles)
+    (setf (plan-live-young-bytes plan) 0)
     (flet ((trace-fn (ref)
              (cond
                ;; Object in nursery (logged): promote survivor
@@ -91,31 +90,35 @@
     (space-sweep-young space vm)
     (when barrier (barrier-clear-all barrier))
     (vm-clear-all-mark-bits vm)
+    (vm-clear-all-forwarding vm)
     (incf (plan-minor-gc-count plan))
-    (vm-post-gc-cleanup vm)
     (vm-resume-mutators vm)))
 
 (defun sticky-major-collect (plan)
   "Major GC for sticky Immix: full mark-sweep."
   (let* ((vm (plan-vm plan))
          (space (plan-get-space plan :default))
+         (cs (plan-copy-semantics plan))
          (tracer nil))
     (vm-stop-mutators vm)
     (space-prepare space vm :cycle-kind :major)
     (flet ((trace-fn (ref)
-             (space-trace-object space vm ref tracer :cycle-kind :major)))
+             (space-trace-object space vm ref tracer :cycle-kind :major
+                                 :copy-semantics cs)))
       (setf tracer (make-tracer vm #'trace-fn :queue-size 4096))
       (setf (tracer-trace-fn-enqueues-p tracer) t)
       (vm-scan-roots vm plan
         (lambda (root)
           (when (and root (not (zerop root)))
-            (space-trace-object space vm root tracer :cycle-kind :major)
+            (space-trace-object space vm root tracer :cycle-kind :major
+                                :copy-semantics cs)
             (unless (tracer-trace-fn-enqueues-p tracer)
               (tracer-enqueue tracer root)))))
       (tracer-process-queue tracer))
     (space-sweep space vm)
     (vm-clear-all-log-bits vm)
     (vm-clear-all-mark-bits vm)
+    (setf (plan-dead-mature-bytes plan) 0)
     (incf (plan-major-gc-count plan))
     (vm-post-gc-cleanup vm)
     (vm-resume-mutators vm)))

@@ -205,6 +205,7 @@ the base plan's entries."
          (n-to (plan-nursery-to plan))
          (m-from (plan-mature-from plan))
          (m-to (plan-mature-to plan))
+         (cs (plan-copy-semantics plan))
          (tracer nil))
     (vm-stop-mutators vm)
     (space-prepare n-to vm :cycle-kind :major)
@@ -213,7 +214,8 @@ the base plan's entries."
              (let ((space (plan-space-for-address plan ref)))
                (when (and space (typep space 'collectable-space))
                  (space-trace-object space vm ref tracer
-                                     :cycle-kind :major)))))
+                                     :cycle-kind :major
+                                     :copy-semantics cs)))))
       (setf tracer (make-tracer vm #'trace-fn :queue-size 4096))
       (setf (tracer-trace-fn-enqueues-p tracer) t)
        (vm-scan-roots vm plan

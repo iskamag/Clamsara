@@ -15,16 +15,19 @@
 (defmethod plan-collect-phase :mark ((plan immix-plan) (cycle-kind t))
   (let* ((vm (plan-vm plan))
          (space (plan-get-space plan :default))
+         (cs (plan-copy-semantics plan))
          (tracer nil))
     (flet ((trace-fn (ref)
-             (space-trace-object space vm ref tracer)))
+             (space-trace-object space vm ref tracer
+                                 :copy-semantics cs)))
       (setf tracer (make-tracer vm #'trace-fn :queue-size 4096))
       (setf (tracer-trace-fn-enqueues-p tracer) t)
       (let ((tracer tracer))
         (vm-scan-roots vm plan
           (lambda (root)
             (when (and root (not (zerop root)))
-              (space-trace-object space vm root tracer)
+              (space-trace-object space vm root tracer
+                                  :copy-semantics cs)
               (unless (tracer-trace-fn-enqueues-p tracer)
                 (tracer-enqueue tracer root)))))
         (tracer-process-queue tracer)))))

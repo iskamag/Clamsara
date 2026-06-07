@@ -53,7 +53,12 @@ Returns the value to use (for read barriers that may remap or log)."))
    (nursery-start :initarg :nursery-start :accessor barrier-nursery-start)
    (nursery-end :initarg :nursery-end :accessor barrier-nursery-end)
    (vm :initarg :vm :initform nil :accessor barrier-vm
-    :documentation "VM binding for log-bit-based age discrimination (sticky plans)."))
+    :documentation "VM binding for log-bit-based age discrimination (sticky plans).")
+   (dirty-cards :initform (make-array 64 :element-type 'fixnum
+                                      :initial-element 0
+                                      :adjustable t :fill-pointer 0)
+    :accessor barrier-dirty-cards
+    :documentation "Adjustable vector of dirty card indices for O(n_dirty) scan."))
   (:metaclass barrier-metaclass))
 
 (defun make-object-barrier (card-table nursery-start nursery-end &key vm)
@@ -79,36 +84,43 @@ Returns the value to use (for read barriers that may remap or log)."))
          (log-target-young (and vm (vm-object-is-logged-p vm new-value)))
          (range-source-old (< source-addr (barrier-nursery-start b)))
          (range-target-young (and (>= new-value (barrier-nursery-start b))
-                                  (< new-value (barrier-nursery-end b)))))
+                                   (< new-value (barrier-nursery-end b)))))
     (when (or (and log-source-old log-target-young)
               (and range-source-old range-target-young
                    (not log-source-old) (not log-target-young)))
-      (let ((idx (card-index source-addr)))
-        (setf (aref (barrier-card-table-cards b) idx) 1)))))
+      (let* ((idx (card-index source-addr))
+             (cards (barrier-card-table-cards b)))
+        (when (zerop (aref cards idx))
+          (vector-push-extend idx (barrier-dirty-cards b)))
+        (setf (aref cards idx) 1)))))
 
 (defmethod barrier-note-read ((b object-barrier) addr)
   addr)
 
 (defmethod barrier-card-scan ((b object-barrier) vm scan-fn)
-  (let ((cards (barrier-card-table-cards b))
-        (nursery-start (barrier-nursery-start b))
-        (nursery-end (barrier-nursery-end b)))
-    (dotimes (i (length cards))
-      (when (> (aref cards i) 0)
-        ;; Card is dirty — scan objects in this card for old->young references
-        (let ((card-addr (* i +card-size-words+)))
-          (dotimes (offset +card-size-words+)
-            (let ((addr (+ card-addr offset)))
-              (when (and (vm-object-start-p vm addr)
-                         (vm-object-has-children-p vm addr))
-                (dotimes (slot (vm-object-reference-count vm addr))
-                  (let ((val (vm-object-reference vm addr slot)))
-                    (when (and (>= val nursery-start)
-                               (< val nursery-end))
-                      (funcall scan-fn val addr))))))))))))
+  (let ((nursery-start (barrier-nursery-start b))
+        (nursery-end (barrier-nursery-end b))
+        (dirty (barrier-dirty-cards b)))
+    (loop for i across dirty
+          for card-addr = (* i +card-size-words+)
+          for card-end = (+ card-addr +card-size-words+)
+          for cursor = card-addr then cursor
+          do (loop while (< cursor card-end)
+                   for addr = (make-address cursor)
+                   do (if (vm-object-start-p vm addr)
+                          (let ((obj-size (vm-object-total-words vm addr)))
+                            (when (vm-object-has-children-p vm addr)
+                              (dotimes (slot (vm-object-reference-count vm addr))
+                                (let ((val (vm-object-reference vm addr slot)))
+                                  (when (and (>= val nursery-start)
+                                             (< val nursery-end))
+                                    (funcall scan-fn val addr)))))
+                            (incf cursor obj-size))
+                          (incf cursor))))))
 
 (defmethod barrier-clear-all ((b object-barrier))
-  (fill (barrier-card-table-cards b) 0))
+  (fill (barrier-card-table-cards b) 0)
+  (setf (fill-pointer (barrier-dirty-cards b)) 0))
 
 ;;; --- SATB barrier (Snapshot-At-The-Beginning) ---
 

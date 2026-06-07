@@ -17,8 +17,8 @@
   (:documentation "Semispace copying: evacuate live objects to partner."))
 
 (defmethod space-trace-object ((space copying-space-trait) vm ref tracer
-                               &key cycle-kind trace-kind copy-semantics)
-  (declare (ignore cycle-kind trace-kind copy-semantics))
+                                &key cycle-kind trace-kind copy-semantics)
+  (declare (ignore cycle-kind trace-kind))
   (when (and (copying-from-space-p space)
              (vm-address-in-space-p vm ref space))
     (let ((to (copying-partner-space space)))
@@ -33,7 +33,8 @@
               (vm-object-copy vm ref dst)
               (setf (vm-object-forwarding-pointer vm ref) dst)))
           (let ((result (or (vm-object-forwarding-pointer vm ref) ref)))
-            (when (and tracer (not forwarded-p))
+            (when (and tracer (not forwarded-p)
+                       (not (eq copy-semantics :shallow)))
               (tracer-enqueue tracer result))
             result))))))
 
@@ -119,7 +120,14 @@
                    (loop while (and (< cursor (+ page-addr +page-size-words+))
                                     (not (and (vm-object-start-p vm (make-address cursor))
                                               (vm-object-is-marked-p vm (make-address cursor)))))
-                         do (incf cursor) (incf free-size))
+                         do (if (vm-object-start-p vm (make-address cursor))
+                                (progn
+                                  (unmark-object-start (make-address cursor))
+                                  (incf cursor)
+                                  (incf free-size))
+                                (progn
+                                  (incf cursor)
+                                  (incf free-size))))
                    (when (>= free-size 4)
                      (free alloc (make-address free-start) free-size)))))
     (vm-clear-all-mark-bits vm)))
@@ -146,6 +154,7 @@ dead-mature-bytes and reclaims dead young objects."
                     (if (vm-object-is-logged-p vm addr)
                         (let ((free-start cursor))
                           (incf cursor obj-size)
+                          (unmark-object-start addr)
                           (when (>= obj-size 4)
                             (free alloc (make-address free-start) obj-size)))
                         (progn
@@ -316,6 +325,8 @@ remaining blocks."
   (make-instance 'immix-allocator :space space :page-resource page-resource))
 
 (defmethod alloc ((a immix-allocator) size &key)
+  (when (> size +immix-block-size-words+)
+    (return-from alloc nil))
   (let* ((space (allocator-space a))
          (pr (allocator-page-resource a)))
     (immix-space-ensure-block space pr)
@@ -342,7 +353,7 @@ remaining blocks."
       (let* ((line-idx (floor (mod (address-index addr) +page-size-words+)
                               +immix-line-size-words+))
              (line-marks (immix-block-line-marks block)))
-        (when (zerop (aref line-marks line-idx))
+        (when (not (= (aref line-marks line-idx) mark-state))
           (setf (aref line-marks line-idx) mark-state)
           (incf (immix-block-live-lines block)))))))
 
@@ -391,7 +402,7 @@ remaining blocks."
           when block do
             (let* ((block-start-addr (* page-idx +page-size-words+))
                    (line-idx (floor (- line-addr block-start-addr) +immix-line-size-words+)))
-               (when (zerop (aref (immix-block-line-marks block) line-idx))
+               (when (not (= (aref (immix-block-line-marks block) line-idx) mark-state))
                 (setf (aref (immix-block-line-marks block) line-idx) mark-state)
                 (incf (immix-block-live-lines block)))))))
 

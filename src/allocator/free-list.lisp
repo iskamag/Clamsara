@@ -47,7 +47,7 @@
                       (chunk-words (chunk-size found)))
                   (remove-chunk-from-bin a bin found)
                   (let ((excess (- chunk-words size)))
-                    (when (>= excess 4)
+                    (when (>= excess 1)
                        (let ((remainder (make-free-list-chunk :start (+ addr size) :size excess)))
                          (add-chunk-to-bin a remainder))))
                   (incf (free-list-total-allocated a) size)
@@ -70,8 +70,11 @@
   (:documentation "Free SIZE words at ADDRESS."))
 
 (defmethod free ((a free-list-allocator) addr size &key)
+  "Free SIZE words at ADDRESS. Clears object-start metadata at addr
+so vm-heap-usage does not double-count freed objects."
   (let* ((start (address-index addr))
          (chunk (make-free-list-chunk :start start :size size)))
+    (unmark-object-start addr)
     ;; Coalesce with preceding chunk
     (when (> start 0)
       (let ((prev (find-chunk-ending-at a start)))

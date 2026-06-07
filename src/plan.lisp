@@ -16,7 +16,6 @@
    (max-non-los-alloc-bytes :initarg :max-non-los-alloc-bytes
     :reader plan-max-non-los-alloc-bytes :type fixnum :initform 8192))
   (:documentation "Plan-level constraints describing the collection strategy."))
-
 ;;; --- Plan Protocol Generics ---
 
 (defgeneric plan-collect (plan &key cycle-kind)
@@ -60,7 +59,9 @@
     (tracer :initform nil :accessor plan-tracer)
     (default-space :initform nil :accessor plan-default-space)
     (sft :initform nil :accessor plan-sft
-     :documentation "Space Function Table: simple-vector mapping page-index -> space for O(1) lookup."))
+     :documentation "Space Function Table: simple-vector mapping page-index -> space for O(1) lookup.")
+    (copy-config :initarg :copy-config :accessor plan-copy-config :initform :default
+     :documentation "Per-plan copy semantics keyword (:default or :shallow)."))
   (:metaclass plan-metaclass)
   (:documentation "A GC plan composed of spaces, barriers, and allocators."))
 
@@ -137,6 +138,15 @@ Used by mature-dead-ratio-exceeded-p for escalation decisions."))
 
 (defmethod plan-card-size-words ((plan plan))
   +card-size-words+)
+
+(defgeneric plan-copy-semantics (plan &key source-type-tag)
+  (:documentation "Return the copy semantics keyword for PLAN.
+SOURCE-TYPE-TAG is the type-tag of the object being copied.
+Returns :default for standard deep copy, :shallow for no transitive tracing.
+Each plan can override this to provide per-type copy behavior.")
+  (:method ((plan plan) &key source-type-tag)
+    (declare (ignore source-type-tag))
+    (plan-copy-config plan)))
 
 (defmethod plan-minor-gc-count ((plan plan))
   "Return 0 for non-generational plans."

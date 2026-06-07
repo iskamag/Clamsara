@@ -61,16 +61,16 @@
         (allocator-limit allocator) limit))
 
 (defun bump-allocator-occupancy (allocator)
-  "Return the fraction of the allocator region used, or 0 if the region
-is not bounded."
-  (let ((cursor (allocator-cursor allocator))
-        (limit (allocator-limit allocator))
-        (space (allocator-space allocator)))
-    (if (and space (plusp limit))
-        (let ((start (* (space-start-page space) +page-size-words+)))
-          (if (>= limit start)
-              (/ (- cursor start) (max 1 (- limit start)))
-              0))
-        (if (plusp limit)
-            (/ cursor limit)
-            0))))
+  "Return the fraction of the allocator's total space that is occupied.
+Measures against the total number of pages acquired by the space (via
+space-page-count), not just the currently committed page range, so that
+generations plans correctly detect nursery exhaustion."
+  (let* ((cursor (allocator-cursor allocator))
+         (space (allocator-space allocator)))
+    (if (and space (plusp (space-page-count space)))
+        (let* ((start (* (space-start-page space) +page-size-words+))
+               (total-capacity (* (space-page-count space) +page-size-words+)))
+          (/ (max 0 (float (- cursor start))) (float total-capacity)))
+        (if (plusp (allocator-limit allocator))
+            (/ (float cursor) (float (allocator-limit allocator)))
+            0.0))))

@@ -10,6 +10,10 @@
    (public  :accessor iso-public  :initform nil))
   (:metaclass plan-metaclass))
 
+(defmethod boot-cycle-kinds ((p iso-plan))
+  (declare (ignore p))
+  '(:minor :major))
+
 (defmethod plan-install-strata ((p iso-plan) vm)
   (vm-set-location vm :mark :side)
   (vm-set-location vm :forwarding :in-header)
@@ -37,16 +41,11 @@
                             (when os (s-set-bit os a2))) a2)
                    (error 'heap-exhausted :requested-size size :space :private)))))))
 
-(defmethod plan-collect ((p iso-plan) &key cycle-kind)
-  (let ((fn (gethash 'plan-collect (plan-function-table p))))
-    (if fn (funcall fn p (or cycle-kind :minor))
-        (plan-collect-phase p (or cycle-kind :minor)))))
-
 (defmethod phase-prologue ((p iso-plan) k)
   (vm-stop-mutators (plan-vm p))
   (if (eq k :minor)
       (space-prepare (iso-private p) (plan-vm p))
-      (map-spaces p (lambda (s ck) (space-prepare s (plan-vm p) :cycle-kind ck)) k)))
+      (prepare-spaces p k)))
 
 (defmethod phase-mark ((p iso-plan) k)
   (if (eq k :minor) (iso-minor-mark p) (mark-roots p (plan-tracer p))))
@@ -54,7 +53,7 @@
 (defmethod phase-reclaim ((p iso-plan) k)
   (if (eq k :minor)
       (space-reclaim (iso-private p) (plan-vm p) :cycle-kind k)
-      (map-spaces p (lambda (s ck) (space-reclaim s (plan-vm p) :cycle-kind ck)))))
+      (reclaim-spaces p k)))
 
 (defmethod phase-release ((p iso-plan) k)
   (declare (ignore k))
@@ -65,33 +64,44 @@
 ;; every object already published (public bit) -- those are reachable from
 ;; outside, so they must survive.  Under DLG no public object references a
 ;; private one, so tracing never escapes the private space.
+(defun iso-minor-root-reference (plan ref)
+  (let* ((vm (plan-vm plan))
+         (private (iso-private plan))
+         (addr (ref-strip-or-self vm ref)))
+    (if (and (vm-reference-p vm ref)
+             (space-contains-p private addr))
+        (space-trace-object private vm ref (plan-tracer plan))
+        ref)))
+
+(defun iso-minor-grey-reference (plan ref)
+  (let* ((vm (plan-vm plan))
+         (tracer (plan-tracer plan))
+         (private (iso-private plan))
+         (addr (ref-strip-or-self vm ref)))
+    (dotimes (k (vm-object-reference-count vm addr))
+      (let ((child (vm-object-reference vm addr k)))
+        (when (and (vm-reference-p vm child)
+                   (space-contains-p
+                    private (ref-strip-or-self vm child)))
+          (space-trace-object private vm child tracer))))))
+
 (defun iso-minor-mark (plan)
   (let* ((vm (plan-vm plan))
          (tr (plan-tracer plan))
          (priv (iso-private plan)))
+    (tracer-reset tr)
     ;; seed roots in the private space
-    (let ((roots (vm-root-vector vm)))
-      (dotimes (i (length roots))
-        (let* ((ref (aref roots i)) (addr (ref-strip-or-self vm ref)))
-          (when (and (vm-reference-p vm ref) (space-contains-p priv addr))
-            (space-trace-object priv vm ref tr)))))
+    (vm-scan-roots vm plan #'iso-minor-root-reference)
     ;; seed published objects (external roots) within the private space
     (let ((pub (vm-stratum vm :public)) (os (vm-object-start vm)))
       (when (and pub os)
-        (s-for-set-cells pub (cons (space-base-address priv) (space-end-address priv))
-          (lambda (addr)
-            (when (vm-object-start-p vm addr)
-              (space-trace-object priv vm addr tr))))))
+        (loop for address from (space-base-address priv)
+              below (space-end-address priv)
+              when (and (s-test-bit pub address)
+                        (s-test-bit os address))
+                do (space-trace-object priv vm address tr))))
     ;; drain private only; public-space children are external
-    (tracer-drain tr
-      (lambda (ref)
-        (let ((addr (ref-strip-or-self vm ref)))
-          (dotimes (k (vm-object-reference-count vm addr))
-            (let ((child (vm-object-reference vm addr k)))
-              (when (vm-reference-p vm child)
-                (let ((caddr (ref-strip-or-self vm child)))
-                  (when (space-contains-p priv caddr)
-                    (space-trace-object priv vm child tr)))))))))))
+    (tracer-drain tr #'iso-minor-grey-reference plan)))
 
 (defun make-iso-plan (vm heap-size)
   (declare (ignore heap-size))

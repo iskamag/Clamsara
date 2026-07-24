@@ -51,6 +51,9 @@
    (function-table :initform (make-hash-table :test 'eq) :reader plan-function-table)
    (sft :accessor plan-sft :initform nil)
    (tracer :accessor plan-tracer :initform nil)
+   ;; Mutable state for allocation-free root/drain callbacks. A concurrent
+   ;; backend replaces this per-plan slot with per-worker collector state.
+   (active-trace-kind :accessor plan-active-trace-kind :initform nil)
    (booted-p :accessor plan-booted-p :initform nil)
    (sticky-p :initarg :sticky :initform nil :reader plan-sticky-p))
   (:metaclass plan-metaclass)
@@ -65,23 +68,37 @@
 (defun map-spaces (plan fn &optional (cycle-kind :full))
   (dolist (s (plan-spaces plan)) (funcall fn s cycle-kind)))
 
+(defun prepare-spaces (plan cycle-kind)
+  (let ((vm (plan-vm plan)))
+    (dolist (space (plan-spaces plan))
+      (space-prepare space vm :cycle-kind cycle-kind))))
+
+(defun reclaim-spaces (plan cycle-kind)
+  (let ((vm (plan-vm plan)))
+    (dolist (space (plan-spaces plan))
+      (space-reclaim space vm :cycle-kind cycle-kind))))
+
+(defun release-spaces (plan cycle-kind)
+  (let ((vm (plan-vm plan)))
+    (dolist (space (plan-spaces plan))
+      (space-release space vm :cycle-kind cycle-kind))))
+
 (defmethod phase-prologue ((p plan) k)
   (vm-stop-mutators (plan-vm p))
-  (map-spaces p (lambda (s ck) (space-prepare s (plan-vm p) :cycle-kind ck))))
+  (prepare-spaces p k))
 
 (defmethod phase-mark ((p plan) k)
   (declare (ignore k))
   (mark-roots p (plan-tracer p)))
 
 (defmethod phase-reclaim ((p plan) k)
-  (map-spaces p (lambda (s ck) (space-reclaim s (plan-vm p) :cycle-kind ck))))
+  (reclaim-spaces p k))
 
 (defmethod phase-compact ((p plan) k) (declare (ignore p k)) nil)
 (defmethod phase-checkpoint ((p plan) k) (declare (ignore p k)) nil)
 
 (defmethod phase-release ((p plan) k)
-  (declare (ignore k))
-  (map-spaces p (lambda (s ck) (declare (ignore ck)) (space-release s (plan-vm p))))
+  (release-spaces p k)
   (when (plan-stats p) (stats-event (plan-stats p) :gc-cycles 1)))
 
 (defmethod phase-epilogue ((p plan) k)
@@ -105,11 +122,22 @@
 
 ;; ---- plan-collect (compiled function table, else phase machine) ---------
 
-(defmethod plan-collect ((p plan) &key cycle-kind)
-  (let ((fn (gethash 'plan-collect (plan-function-table p))))
-    (if fn
-        (funcall fn p (or cycle-kind :full))
-        (plan-collect-phase p (or cycle-kind :full)))))
+(defun plan-default-cycle-kind (plan)
+  (case (slot-value plan 'name)
+    ((:gencopy :genms :genimmix :stickyimmix :stickyms :iso :claimore)
+     :minor)
+    (otherwise :full)))
+
+(defun plan-collect (plan &key cycle-kind)
+  "Enter the boot-compiled collector without CLOS dispatch at the entry point."
+  (when (eq (slot-value plan 'name) :nogc)
+    (error 'heap-exhausted :requested-size 0 :space :nogc))
+  (let* ((kind (or cycle-kind (plan-default-cycle-kind plan)))
+         (function
+           (gethash 'plan-collect (slot-value plan 'function-table))))
+    (if function
+        (funcall function plan kind)
+        (plan-collect-phase plan kind))))
 
 ;; ---- space accessors ----------------------------------------------------
 
@@ -121,10 +149,13 @@
 (defun plan-get-space (plan designator)
   (find designator (plan-spaces plan) :key #'space-name))
 
-(defun plan-nursery (plan)
+(defgeneric plan-nursery (plan)
+  (:documentation "Return the currently allocating nursery, if PLAN has one."))
+
+(defmethod plan-nursery ((plan plan))
   (or (find :nursery (plan-spaces plan) :key #'space-name)
       (find-if (lambda (s) (member (scope (space-constraints s)) '(:thread :request)))
-              (plan-spaces plan))))
+               (plan-spaces plan))))
 
 (defun plan-cons-space (plan)
   (find :cons (plan-spaces plan) :key #'space-name))
@@ -192,7 +223,11 @@
       (plan-build-sft plan)
       (setf (plan-tracer plan) (make-tracer vm)
             (plan-stats plan) (or (plan-stats plan) (make-stats)))
-      (when (plan-barrier plan) (barrier-check (plan-barrier plan) plan))
+      (when (plan-barrier plan)
+        (initialize-barrier-buffers (plan-barrier plan) vm)
+        (barrier-check (plan-barrier plan) plan))
+      (when (plan-publication plan)
+        (initialize-publication-work (plan-publication plan) vm))
       (component-validate plan)
       (setf (plan-booted-p plan) t)))
   plan)

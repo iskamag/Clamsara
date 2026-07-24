@@ -68,3 +68,33 @@
                  (:file "test-collectors")
                  (:file "test-advanced")
                  (:file "test-sanity")))))
+
+;;; Optional Maclina workload driver. EXTRINSICL must be loaded before its
+;;; maclina adapter (the upstream subsystem omits that dependency), hence the
+;;; explicit order here.
+(asdf:defsystem :clamsara/maclina
+  :version "8.0.0"
+  :description "Maclina-driven Common Lisp workloads over the Clamsara VM."
+  :depends-on (:clamsara :extrinsicl :extrinsicl/maclina
+               :clostrum-basic :trucler-native)
+  :serial t
+  :components
+  ((:module "src/maclina"
+    :serial t
+    :components ((:file "package")
+                 (:file "adapter")))))
+
+;;; Compatibility name used by the v7 tree.
+(asdf:defsystem :clamsara/vm
+  :version "8.0.0"
+  :depends-on (:clamsara/maclina))
+
+(asdf:defsystem :clamsara/maclina/test
+  :version "8.0.0"
+  :description "Smoke and moving-GC tests for the optional Maclina adapter."
+  :depends-on (:clamsara/maclina)
+  :serial t
+  :components ((:file "test/test-maclina"))
+  :perform (asdf:test-op (operation component)
+             (declare (ignore operation component))
+             (uiop:symbol-call :clamsara-maclina :run-maclina-tests)))

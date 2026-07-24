@@ -38,7 +38,9 @@
     (rotatef (sp-from p) (sp-to p))
     (setf (space-default-p (sp-from p)) t
           (space-default-p (sp-to p)) nil)
-    (allocator-reset (space-allocator (sp-to p)))))
+    (allocator-reset (space-allocator (sp-to p)))
+    (when (plan-stats p)
+      (stats-event (plan-stats p) :gc-cycles 1))))
 
 (defun make-semispace-plan (vm heap-size)
   (declare (ignore heap-size))

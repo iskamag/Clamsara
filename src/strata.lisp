@@ -4,8 +4,9 @@
 ;;;;   stratum := (name, granularity, cell-type, default, storage)
 ;;;; cell-index(addr) = floor(addr / granularity).  Granularity is a power of
 ;;;; two in WORDS.  Storage policy is invisible to consumers: s-get/s-set
-;;;; dispatch on it.  Per the spec, :bit strata are packed 64 bits/word so the
-;;;; "load a word, skip if zero, tzcnt" iteration (s-for-set-cells) is direct.
+;;;; dispatch on it. The simulator uses host bit-vectors. Besides matching
+;;;; paper-v8 chapter 6, this avoids boxing a host bignum whenever bit 63 of an
+;;;; (unsigned-byte 64) packed word is set.
 
 (in-package #:clamsara)
 
@@ -60,19 +61,26 @@
        (setf (stratum-cells s) (%make-flat ct cells)
              (stratum-active s)
              (if (eq storage :contiguous-with-active-set)
-                 (make-array 0 :adjustable t :fill-pointer 0)
+                 (make-array cells :element-type 'fixnum
+                             :initial-element 0 :fill-pointer 0)
                  nil)))
       (:two-level
-       (setf (stratum-dir s) (make-array (ceiling cells (stratum-chunk-cells s))
-                                         :initial-element nil)))
+       ;; A target faults chunks in from immortal pages. The host simulator has
+       ;; no immortal array allocator, so allocate its chunks at boot rather
+       ;; than lazily calling MAKE-ARRAY during collection.
+       (let* ((chunks (ceiling cells (stratum-chunk-cells s)))
+              (dir (make-array chunks :initial-element nil)))
+         (dotimes (chunk chunks)
+           (setf (aref dir chunk)
+                 (%make-flat ct (stratum-chunk-cells s))))
+         (setf (stratum-dir s) dir)))
       (t (error 'clamsara-error
                 :message (format nil "unknown storage ~a" storage))))
     s))
 
 (defun %make-flat (cell-type cells)
   (ecase cell-type
-    (:bit  (make-array (ceiling cells 64) :element-type '(unsigned-byte 64)
-                       :initial-element 0))
+    (:bit  (make-array cells :element-type 'bit :initial-element 0))
     (:u4   (make-array (ceiling cells 2) :element-type '(unsigned-byte 8)
                        :initial-element 0))
     (:u8   (make-array cells :element-type '(unsigned-byte 8) :initial-element 0))
@@ -94,8 +102,7 @@
 (declaim (inline %flat-get %flat-set))
 (defun %flat-get (s idx)
   (ecase (stratum-cell-type s)
-    (:bit  (let ((w (ash idx -6)) (b (logand idx 63)))
-             (if (logbitp b (aref (stratum-cells s) w)) 1 0)))
+    (:bit  (sbit (stratum-cells s) idx))
     (:u4   (let ((by (ash idx -1)) (ni (logand idx 1)))
              (ldb (byte 4 (* ni 4)) (aref (stratum-cells s) by))))
     (:u8   (aref (stratum-cells s) idx))
@@ -103,11 +110,7 @@
     (:ref  (aref (stratum-cells s) idx))))
 (defun %flat-set (s idx v)
   (ecase (stratum-cell-type s)
-    (:bit  (let ((w (ash idx -6)) (b (logand idx 63)) (vec (stratum-cells s)))
-             (setf (aref vec w)
-                   (if (oddp v)
-                       (logior (aref vec w) (ash 1 b))
-                       (logand (aref vec w) (lognot (ash 1 b)))))))
+    (:bit  (setf (sbit (stratum-cells s) idx) (if (oddp v) 1 0)))
     (:u4   (let ((by (ash idx -1)) (ni (logand idx 1)) (vec (stratum-cells s)))
              (setf (aref vec by)
                    (dpb (ldb (byte 4 0) v) (byte 4 (* ni 4)) (aref vec by)))))
@@ -118,8 +121,8 @@
 (declaim (inline %chunk-get %chunk-ensure))
 (defun %chunk-ensure (s chunk)
   (or (aref (stratum-dir s) chunk)
-      (setf (aref (stratum-dir s) chunk)
-            (%make-flat (stratum-cell-type s) (stratum-chunk-cells s)))))
+      (error 'clamsara-error
+             :message "unallocated two-level stratum chunk")))
 (defun %chunk-get (s idx)
   (let* ((cs (stratum-chunk-cells s))
          (chunk (floor idx cs))
@@ -127,8 +130,7 @@
          (arr (aref (stratum-dir s) chunk)))
     (if arr
         (ecase (stratum-cell-type s)
-          (:bit  (let ((w (ash off -6)) (b (logand off 63)))
-                   (if (logbitp b (aref arr w)) 1 0)))
+          (:bit  (sbit arr off))
           (:u4   (ldb (byte 4 (* (logand off 1) 4)) (aref arr (ash off -1))))
           (:u8   (aref arr off))
           (:u16  (aref arr off))
@@ -153,16 +155,16 @@
          (%flat-set s idx v)
          (when (and (stratum-active s) (eql prev (stratum-default s))
                     (not (eql v (stratum-default s))))
-           (vector-push-extend idx (stratum-active s)))))
+           ;; The active set is only a hint. If duplicate clear/set traffic
+           ;; fills it, disable the hint and use the dense backing.
+           (unless (vector-push idx (stratum-active s))
+             (setf (stratum-active s) nil)))))
       (:two-level
        (let* ((cs (stratum-chunk-cells s))
               (chunk (floor idx cs)) (off (logand idx (1- cs)))
               (arr (%chunk-ensure s chunk)))
          (ecase (stratum-cell-type s)
-           (:bit  (let ((w (ash off -6)) (b (logand off 63)))
-                     (setf (aref arr w)
-                           (if (oddp v) (logior (aref arr w) (ash 1 b))
-                                        (logand (aref arr w) (lognot (ash 1 b)))))))
+           (:bit  (setf (sbit arr off) (if (oddp v) 1 0)))
            (:u4   (setf (aref arr (ash off -1))
                         (dpb (ldb (byte 4 0) v) (byte 4 (* (logand off 1) 4))
                              (aref arr (ash off -1)))))
@@ -172,12 +174,7 @@
 
 (defun s-test-bit (s addr)
   (declare (optimize (speed 3) (safety 0)))
-  (let ((idx (%cell-index s addr)))
-    (ecase (stratum-cell-type s)
-      (:bit (let ((w (ash idx -6)) (b (logand idx 63)))
-              (declare (fixnum w b))
-              (not (zerop (logand (aref (stratum-cells s) w) (ash 1 b))))))
-      (t (not (eql (s-get s addr) (stratum-default s)))))))
+  (not (eql (s-get s addr) (stratum-default s))))
 
 (defun s-set-bit (s addr) (s-set s addr 1))
 (defun s-clear-bit (s addr) (s-set s addr 0))
@@ -196,6 +193,14 @@
       (values (%cell-index s (car range)) (%cell-index s (cdr range)))
       (values 0 (%cell-count s))))
 
+(defun s-clear-range (s start-addr end-addr)
+  "Reset cells covering [START-ADDR, END-ADDR) without allocating a range cons."
+  (let ((def (stratum-default s)))
+    (loop for idx from (%cell-index s start-addr)
+          below (%cell-index s end-addr)
+          do (s-set s (ash idx (%log2-gran s)) def)))
+  s)
+
 (defun s-clear (s &optional range)
   (let ((def (stratum-default s)))
     (cond
@@ -209,10 +214,11 @@
        (when (stratum-active s)
          (setf (fill-pointer (stratum-active s)) 0)))
       (t
-       (multiple-value-bind (start end) (%range-bounds s range)
-         (loop for idx from start below end do (s-set s (ash idx (%log2-gran s)) def))
-         (when (stratum-active s)
-           (setf (fill-pointer (stratum-active s)) 0)))))))
+       (if range
+           (s-clear-range s (car range) (cdr range))
+           (s-clear-range s 0 (stratum-heap-words s)))
+       (when (stratum-active s)
+         (setf (fill-pointer (stratum-active s)) 0))))))
 
 (defun s-fold (s range fn acc)
   "Reduce FN over cells in RANGE; FN takes (value acc) -> new acc."
@@ -224,7 +230,7 @@
       acc)))
 
 (defun s-popcount (s &optional range)
-  "Number of non-default cells in RANGE.  Fast path for :bit via logcount;
+  "Number of non-default cells in RANGE. Fast path for a host bit-vector;
   a bounded RANGE counts only the cells in [start,end)."
   (cond
     ((and (eq (stratum-cell-type s) :bit)
@@ -232,10 +238,10 @@
      (let ((vec (stratum-cells s)) (sum 0))
        (declare (fixnum sum))
        (if (null range)
-           (loop for w across vec do (incf sum (logcount w)))
+           (setf sum (count 1 vec))
            (multiple-value-bind (start end) (%range-bounds s range)
              (loop for c from start below end
-                   when (logbitp (logand c 63) (aref vec (ash c -6)))
+                   when (eql 1 (sbit vec c))
                    do (incf sum))))
        sum))
     (t
@@ -243,23 +249,17 @@
 
 (defun s-for-set-cells (s range fn)
   "Call FN on each address whose cell is non-default (set), in RANGE.
-  For :bit, uses word-load + bit extraction (the SIMD-style loop)."
+  The simulator scans its host bit-vector; raw-memory backends splice a
+  word-at-a-time bit scan at boot."
   (multiple-value-bind (start end) (%range-bounds s range)
     (let ((shift (%log2-gran s)))
       (cond
         ((and (eq (stratum-cell-type s) :bit)
               (member (stratum-storage s) '(:contiguous :contiguous-with-active-set)))
          (let ((vec (stratum-cells s)))
-           (loop for word-idx from (ash start -6) below (ceiling end 64)
-                 for bits = (aref vec word-idx)
-                 unless (zerop bits) do
-                 (let ((base (ash word-idx 6)))
-                   (do ((b bits (logand b (1- b))))
-                       ((zerop b))
-                     (let ((tz (log2-int (logand b (- b)))))
-                       (let ((idx (+ base tz)))
-                         (when (and (>= idx start) (< idx end))
-                           (funcall fn (ash idx shift))))))))))
+           (loop for idx from start below end
+                 when (eql 1 (sbit vec idx))
+                 do (funcall fn (ash idx shift)))))
         ((stratum-active s)
          (loop for idx across (stratum-active s)
                when (and (>= idx start) (< idx end)
@@ -313,7 +313,7 @@
   ((granularity :initarg :granularity :reader matrix-granularity)
    (direction   :initarg :direction :reader matrix-direction) ; :points-to :pointed-by
    (regions     :initarg :regions :reader matrix-regions)
-   (bits        :accessor matrix-bits)           ; ub64 packed, regions*regions bits
+   (bits        :accessor matrix-bits)           ; host bit-vector
    (words-per-row :reader matrix-words-per-row))
   (:default-initargs :direction :points-to))
 
@@ -322,11 +322,11 @@
   (unless (slot-boundp m 'words-per-row)
     (let* ((r (matrix-regions m))
            (bits-per-row r)
-           (wpr (ceiling bits-per-row 64)))
+           (wpr bits-per-row))
       (setf (slot-value m 'words-per-row) wpr)
       (unless (slot-boundp m 'bits)
         (setf (matrix-bits m) (make-array (* wpr r)
-                                          :element-type '(unsigned-byte 64)
+                                          :element-type 'bit
                                           :initial-element 0))
         ;; diagonal must be zero (a self-reference is not a cross-region edge)
         (loop for i below r do (matrix-clear m i i))))))
@@ -339,26 +339,22 @@
 
 (declaim (inline %m-bit-index))
 (defun %m-bit-index (m i j)
-  (values (+ (* i (matrix-words-per-row m)) (ash j -6))
-          (logand j 63)))
+  (+ (* i (matrix-words-per-row m)) j))
 
 (defun matrix-ref (m i j)
-  (multiple-value-bind (w b) (%m-bit-index m i j)
-    (if (logbitp b (aref (matrix-bits m) w)) 1 0)))
+  (sbit (matrix-bits m) (%m-bit-index m i j)))
 (defun matrix-set (m i j)
-  (multiple-value-bind (w b) (%m-bit-index m i j)
-    (setf (aref (matrix-bits m) w) (logior (aref (matrix-bits m) w) (ash 1 b)))))
+  (setf (sbit (matrix-bits m) (%m-bit-index m i j)) 1))
 (defun matrix-clear (m i j)
-  (multiple-value-bind (w b) (%m-bit-index m i j)
-    (setf (aref (matrix-bits m) w) (logand (aref (matrix-bits m) w)
-                                            (lognot (ash 1 b))))))
+  (setf (sbit (matrix-bits m) (%m-bit-index m i j)) 0))
 
 (defun matrix-row (m i)
-  "Return a fresh ub64 vector of the row bits (words-per-row long)."
-  (let ((wpr (matrix-words-per-row m)) (base (* i (matrix-words-per-row m))))
-    (make-array wpr :element-type '(unsigned-byte 64)
-                :initial-contents (loop for k below wpr collect
-                                        (aref (matrix-bits m) (+ base k))))))
+  "Return a fresh bit-vector containing row I."
+  (let* ((wpr (matrix-words-per-row m))
+         (base (* i wpr))
+         (row (make-array wpr :element-type 'bit :initial-element 0)))
+    (replace row (matrix-bits m) :start2 base :end2 (+ base wpr))
+    row))
 
 (defun matrix-column (m j)
   "Return a fresh bit-vector (length regions) of column j."
@@ -383,17 +379,11 @@
       (let ((changed nil))
         (dotimes (i r)
           (when (eql 1 (sbit live i))
-            (let ((wpr (matrix-words-per-row m))
-                  (base (* i (matrix-words-per-row m))))
-              (dotimes (w wpr)
-                (let ((word (aref (matrix-bits m) (+ base w))))
-                  (unless (zerop word)
-                     (do ((b word (logand b (1- b)))) ((zerop b))
-                       (let* ((tz (log2-int (logand b (- b))))
-                              (idx (+ (ash w 6) tz)))
-                        (when (< idx r)
-                          (when (zerop (sbit live idx))
-                            (setf (sbit live idx) 1 changed t)))))))))))
+            (let ((base (* i (matrix-words-per-row m))))
+              (dotimes (j r)
+                (when (and (eql 1 (sbit (matrix-bits m) (+ base j)))
+                           (zerop (sbit live j)))
+                  (setf (sbit live j) 1 changed t))))))
         (incf passes)
         (unless changed (return))))
     live))

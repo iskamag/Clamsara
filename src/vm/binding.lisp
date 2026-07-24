@@ -13,11 +13,14 @@
 (defclass vm-binding ()
   ((heap        :initarg :heap :reader vm-heap)
    (heap-size   :initarg :heap-size :reader vm-heap-size :initform 0)
-   (roots       :accessor vm-root-vector :initform (make-array 0 :adjustable t :fill-pointer 0))
+   (roots       :initarg :roots :accessor vm-root-vector
+                :initform (make-array 0 :fill-pointer 0))
    (strata      :accessor vm-strata-table :initform (make-hash-table :test 'eq))
    (locations   :accessor vm-locations :initform (make-hash-table :test 'eq))
-   (fwd-table   :accessor vm-fwd-table :initform (make-hash-table :test 'eql))
-   (rc-table    :accessor vm-rc-table :initform (make-hash-table :test 'eql))
+   ;; Dense simulator tables are the off-heap address-keyed tables of paper-v8.
+   ;; They are allocated at boot and never grow through the host allocator.
+   (fwd-table   :initarg :fwd-table :accessor vm-fwd-table :initform nil)
+   (rc-table    :initarg :rc-table :accessor vm-rc-table :initform nil)
    (object-start :accessor vm-object-start :initform nil)
    (stats       :accessor vm-stats :initform nil)
    (plan        :initarg :plan :accessor vm-plan :initform nil)))
@@ -79,10 +82,10 @@
 (defun (setf ref-word) (new vm address) (setf (ref-u64 vm address) new))
 
 (defgeneric cas (vm place expected new)
-  (:documentation "Compare-and-swap PLACE. PLACE is a cons (heap . addr).")
+  (:documentation "Compare-and-swap PLACE. PLACE is an address or (heap . addr).")
   (:method ((vm vm-binding) place expected new)
-    (let ((addr (cdr place)))
-      #+sbcl (eq new (sb-ext:cas (aref (vm-heap vm) addr) expected new))
+    (let ((addr (if (consp place) (cdr place) place)))
+      #+sbcl (eql expected (sb-ext:cas (aref (vm-heap vm) addr) expected new))
       #-sbcl (when (eql (aref (vm-heap vm) addr) expected)
                (setf (aref (vm-heap vm) addr) new) t))))
 
@@ -93,7 +96,7 @@
 
 (defgeneric atomic-incf (vm place delta)
   (:method ((vm vm-binding) place delta)
-    (let ((addr (cdr place)))
+    (let ((addr (if (consp place) (cdr place) place)))
       #+sbcl (sb-ext:atomic-incf (aref (vm-heap vm) addr) delta)
       #-sbcl (prog1 (aref (vm-heap vm) addr)
                (incf (aref (vm-heap vm) addr) delta)))))
@@ -120,10 +123,35 @@
 (defun vm-location (vm name)
   (or (gethash name (vm-locations vm)) :side))
 
+;; ---- dense off-heap tables ----------------------------------------------
+
+(declaim (inline fwd-get fwd-present-p fwd-set rc-get rc-set))
+(defun fwd-get (vm address)
+  (aref (vm-fwd-table vm) address))
+(defun fwd-present-p (vm address)
+  (not (zerop (fwd-get vm address))))
+(defun fwd-set (vm address destination)
+  (setf (aref (vm-fwd-table vm) address) destination))
+(defun fwd-clear (vm)
+  (fill (vm-fwd-table vm) 0)
+  vm)
+(defun fwd-count (vm)
+  (count-if-not #'zerop (vm-fwd-table vm)))
+
+(defun rc-get (vm address)
+  (aref (vm-rc-table vm) address))
+(defun rc-set (vm address value)
+  (setf (aref (vm-rc-table vm) address) value))
+(defun rc-clear (vm)
+  (fill (vm-rc-table vm) 0)
+  vm)
+
 ;; ---- roots ---------------------------------------------------------------
 
 (defun vm-add-root (vm address)
-  (vector-push-extend address (vm-root-vector vm)))
+  (unless (vector-push address (vm-root-vector vm))
+    (error 'heap-exhausted :requested-size 1 :space :root-table))
+  address)
 (defun vm-remove-root (vm address)
   ;; roots may repeat; remove one occurrence
   (let ((v (vm-root-vector vm)))
@@ -136,9 +164,16 @@
   (setf (fill-pointer (vm-root-vector vm)) 0))
 (defun vm-root-set (vm) (vm-root-vector vm))
 
-(defgeneric vm-scan-roots (vm fn)
-  (:method ((vm vm-binding) fn)
-    (map nil fn (vm-root-vector vm))))
+(defgeneric vm-scan-roots (vm collector-state fn)
+  (:documentation "Invoke FN as (FN COLLECTOR-STATE REF) on each root and
+replace the root with its returned reference. VM backends extend this method
+for stacks and registers. Passing state explicitly avoids allocating a
+capturing closure during collection.")
+  (:method ((vm vm-binding) collector-state fn)
+    (let ((roots (vm-root-vector vm)))
+      (dotimes (i (length roots))
+        (setf (aref roots i)
+              (funcall fn collector-state (aref roots i)))))))
 
 ;; ---- coordination (no-ops on the single-threaded simulator) -------------
 

@@ -1,12 +1,10 @@
 ;;;; compile.lisp -- compile-to-functions and boot (paper-v8 ch. compilation).
 ;;;;
 ;;;; The compiler turns the MOP-composed collector into plain functions at
-;;;; boot so the hot path has no generic dispatch.  Each component implements
-;;;; compile-to-functions returning an alist of (name . lambda-form); the
-;;;; append combination aggregates the inheritance chain.  Axis resolution
-;;;; (metadata location, barrier fusion, moving model) is emitted once here.
-;;;; In the simulator the resolved code is the per-plan phase methods plus the
-;;;; cached closure below; the seam exists for future per-fragment splicing.
+;;;; boot. On SBCL the outer phase methods are resolved to method-functions;
+;;;; component operations inside those methods still use the VM/space generic
+;;;; protocols. Completely splicing those inner fragments remains a paper-v8
+;;;; requirement.
 
 (in-package #:clamsara)
 
@@ -21,19 +19,156 @@
     (let ((table (plan-function-table p)))
       (loop for (name . form) in (compile-to-functions p)
             do (setf (gethash name table) (compile nil form))))
+    ;; SBCL (and other CLOS implementations) may lazily construct effective
+    ;; method functions on first dispatch.  That is boot work, not collection
+    ;; work. Exercise every cycle shape over a tiny live graph before the
+    ;; mutator can allocate, then collect that graph and retain only the
+    ;; resolved code/cache state.
+    (let ((cycle-kinds (boot-cycle-kinds p)))
+      (when cycle-kinds
+        (let ((parent (allocate-object p 1))
+              (child (allocate-object p 0)))
+          (vm-set-reference (plan-vm p) parent 0 child)
+          (vm-add-root (plan-vm p) parent)
+          (dolist (cycle-kind cycle-kinds)
+            (plan-collect p :cycle-kind cycle-kind))
+          (vm-clear-roots (plan-vm p))
+          (plan-collect p :cycle-kind
+                        (if (member :major cycle-kinds) :major
+                            (car (last cycle-kinds))))
+          ;; End boot on a live traversal, so every object-model and trace
+          ;; dispatch needed by the first mutator-triggered collection is hot.
+          ;; BOOT-RESET-STATE discards these simulated objects without running
+          ;; another empty collection that would leave a misleading cache state.
+          (let ((parent (allocate-object p 1))
+                (child (allocate-object p 0)))
+            (vm-set-reference (plan-vm p) parent 0 child)
+            (vm-add-root (plan-vm p) parent)
+            (dolist (cycle-kind cycle-kinds)
+              (plan-collect p :cycle-kind cycle-kind))
+            (vm-clear-roots (plan-vm p))))))
+    (boot-reset-state p)
+    (boot-warm-runtime-dispatch p)
     p))
 
-(defmethod compile-to-functions append ((p plan))
-  "Emit the compiled plan-collect: one closure, no per-cycle gethash."
-  (list
-   (cons 'plan-collect
-         `(lambda (plan cycle-kind)
-            (let ((ck (or cycle-kind (cycle-decision plan))))
-              (plan-collect-phase plan ck))))))
+(defgeneric boot-cycle-kinds (plan)
+  (:documentation "Cycle shapes to resolve while the simulator is booting.")
+  (:method ((p plan)) (declare (ignore p)) '(:full)))
 
-(defun cycle-decision (plan)
-  "Default cycle kind.  Generational plans override via :around on plan-collect."
-  :full)
+(defgeneric boot-reset-state (plan)
+  (:documentation "Remove observable bookkeeping produced by boot warm-up.")
+  (:method ((p plan))
+    (let ((vm (plan-vm p)))
+      (s-clear (vm-object-start vm))
+      (maphash (lambda (name stratum)
+                 (declare (ignore name))
+                 (s-clear stratum))
+               (vm-strata-table vm))
+      (fwd-clear vm)
+      (rc-clear vm)
+      (dolist (space (plan-spaces p))
+        (boot-reset-allocator-state (space-allocator space)))
+      (when (plan-barrier p)
+        (setf (fill-pointer (barrier-satb-buffer (plan-barrier p))) 0
+              (fill-pointer (barrier-rc-buffer (plan-barrier p))) 0))
+      (when (plan-publication p)
+        (setf (fill-pointer (publication-work (plan-publication p))) 0)))
+    ;; Keep the hash entries established by warm-up so the first real event
+    ;; increment cannot grow the table on the collection path.
+    (when (plan-stats p)
+      (maphash (lambda (name value)
+                 (declare (ignore value))
+                 (setf (gethash name (stats-events (plan-stats p))) 0))
+               (stats-events (plan-stats p))))
+    p))
+
+(defun boot-warm-runtime-dispatch (plan)
+  "Resolve dispatch that SBCL can evict while BOOT-RESET-STATE clears the heap.
+This is boot work, not a substitute for compiling the remaining inner VM
+protocol. In particular, a fresh SBCL otherwise allocates an effective method
+on the first live VM-OBJECT-REFERENCE after boot."
+  (let* ((vm (plan-vm plan))
+         (space (default-space plan))
+         (address (and space (space-base-address space))))
+    (when (and address (< (1+ address) (vm-heap-size vm)))
+      (vm-object-reference vm address 0)))
+  plan)
+
+(defun boot-reset-allocator-state (allocator)
+  "Restore an allocator to empty using only storage allocated at boot."
+  (typecase allocator
+    (bump-allocator
+     (setf (slot-value allocator 'cursor)
+           (slot-value allocator 'start)))
+    (free-list-allocator
+     (let ((start (slot-value allocator 'start))
+           (limit (slot-value allocator 'limit)))
+       (setf (slot-value allocator 'run-count) 1
+             (aref (slot-value allocator 'run-starts) 0) start
+             (aref (slot-value allocator 'run-lengths) 0)
+             (- limit start))))
+    (immix-allocator
+     (let ((blocks (slot-value allocator 'blocks)))
+       (dotimes (index (length blocks))
+         (let ((block (aref blocks index)))
+           (setf (immix-block-cursor block) (immix-block-base block)
+                 (immix-block-live block) 0))))
+     (setf (slot-value allocator 'block-count) 0
+           (slot-value allocator 'current) nil
+           (slot-value allocator 'next-base)
+           (slot-value allocator 'start)))
+    (hierarchical-allocator
+     (setf (slot-value allocator 'cursor)
+           (slot-value allocator 'start))))
+  allocator)
+
+#+sbcl
+(defun selected-primary-method-function (generic-function arguments)
+  "Resolve one phase method at boot. The returned function uses SBCL's
+(arguments next-methods) MOP calling convention."
+  (let ((method
+          (find-if
+           (lambda (candidate)
+             (null (sb-mop:method-qualifiers candidate)))
+           (compute-applicable-methods generic-function arguments))))
+    (unless method
+      (error "No primary method for ~S with ~S"
+             generic-function arguments))
+    (sb-mop:method-function method)))
+
+#+sbcl
+(defun direct-phase-forms (plan cycle-kind)
+  "Resolve the ordered phase generics and prebuild their argument lists."
+  (loop for name in '(phase-prologue phase-mark phase-reclaim phase-compact
+                      phase-checkpoint phase-release phase-epilogue)
+        for arguments = (list plan cycle-kind)
+        for method-function =
+          (selected-primary-method-function (fdefinition name) arguments)
+        collect `(funcall ,method-function ',arguments nil)))
+
+(defun compiled-plan-collect-form (plan)
+  #+sbcl
+  (let ((minor (direct-phase-forms plan :minor))
+        (major (direct-phase-forms plan :major))
+        (full (direct-phase-forms plan :full)))
+    `(lambda (ignored-plan cycle-kind)
+       (declare (ignore ignored-plan))
+       (let ((started (get-internal-run-time)))
+         (ecase cycle-kind
+           (:minor ,@minor)
+           (:major ,@major)
+           (:full ,@full))
+         (let ((statistics (slot-value ',plan 'stats)))
+           (when statistics
+             (incf (gethash :gc-time (slot-value statistics 'events) 0)
+                   (- (get-internal-run-time) started)))))))
+  #-sbcl
+  `(lambda (runtime-plan cycle-kind)
+     (plan-collect-phase runtime-plan cycle-kind)))
+
+(defmethod compile-to-functions append ((p plan))
+  "Emit a plan-specific collector with phase selection resolved at boot."
+  (list (cons 'plan-collect (compiled-plan-collect-form p))))
 
 ;; ---- construction -------------------------------------------------------
 

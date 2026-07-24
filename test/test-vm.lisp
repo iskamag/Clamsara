@@ -28,7 +28,7 @@
     (let ((in-header-ok (and (vm-object-is-forwarded-p vm 512)
                              (= (vm-object-forwarding-pointer vm 512) 768))))
       (vm-set-location vm :forwarding :off-heap)
-      (clrhash (vm-fwd-table vm))
+      (fwd-clear vm)
       (setf (vm-object-forwarding-pointer vm 512) 1024)
       (let ((off-heap-ok (and (vm-object-is-forwarded-p vm 512)
                               (= (vm-object-forwarding-pointer vm 512) 1024))))

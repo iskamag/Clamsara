@@ -85,15 +85,17 @@
   (:method ((vm virtual-memory-mixin) phys-page virt-page count)
     (mmu-ensure vm)
     (loop for k below count
-          do (setf (aref (mmu-vpt vm) (+ virt-page k))
-                   (cons (+ phys-page k) :read-write)))
+          for entry = (aref (mmu-vpt vm) (+ virt-page k))
+          do (setf (car entry) (+ phys-page k)
+                   (cdr entry) :read-write))
     virt-page))
 
 (defgeneric vm-unmap (vm virt-page count)
   (:method ((vm virtual-memory-mixin) virt-page count)
     (mmu-ensure vm)
     (loop for k below count
-          do (setf (aref (mmu-vpt vm) (+ virt-page k)) (cons 0 :none)))))
+          for entry = (aref (mmu-vpt vm) (+ virt-page k))
+          do (setf (car entry) 0 (cdr entry) :none))))
 
 (defgeneric vm-page-dirty-p (vm page-index)
   (:method ((vm virtual-memory-mixin) page-index)

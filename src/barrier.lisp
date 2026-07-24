@@ -15,14 +15,28 @@
 (defclass barrier ()
   ((rules :initarg :rules :accessor barrier-rules :initform nil)
    (plan :initarg :plan :accessor barrier-plan :initform nil)
-   (satb-buffer :accessor barrier-satb-buffer :initform (make-array 0 :adjustable t :fill-pointer 0))
-   (rc-buffer :accessor barrier-rc-buffer :initform (make-array 0 :adjustable t :fill-pointer 0)))
+   (satb-buffer :accessor barrier-satb-buffer
+                :initform (make-array 0 :fill-pointer 0))
+   ;; Interleaved REF, DELTA fixnums; no cons cells on the mutator path.
+   (rc-buffer :accessor barrier-rc-buffer
+              :initform (make-array 0 :fill-pointer 0)))
   (:metaclass barrier-metaclass))
 
 (defun make-barrier (&rest rules) (make-instance 'barrier :rules rules))
 (defun no-barrier () (make-barrier))
 
 (defmethod component-validate ((b barrier)) b)
+
+(defun initialize-barrier-buffers (barrier vm)
+  "Allocate bounded simulator buffers at boot, standing in for immortal pages."
+  (let ((n (vm-heap-size vm)))
+    (setf (barrier-satb-buffer barrier)
+          (make-array n :element-type 'fixnum :initial-element 0
+                      :fill-pointer 0)
+          (barrier-rc-buffer barrier)
+          (make-array (* 2 n) :element-type 'fixnum :initial-element 0
+                      :fill-pointer 0)))
+  barrier)
 
 ;; ---- fused note-write / note-read ---------------------------------------
 
@@ -48,11 +62,19 @@
         reference)))
 
 (defun satb-enqueue (barrier ref)
-  (vector-push-extend ref (barrier-satb-buffer barrier)))
+  (unless (vector-push ref (barrier-satb-buffer barrier))
+    (error 'heap-exhausted :requested-size 1 :space :satb-buffer))
+  ref)
 (defun rc-log-decrement (barrier ref)
-  (vector-push-extend (cons ref -1) (barrier-rc-buffer barrier)))
+  (let ((buf (barrier-rc-buffer barrier)))
+    (unless (and (vector-push ref buf) (vector-push -1 buf))
+      (error 'heap-exhausted :requested-size 2 :space :rc-buffer)))
+  ref)
 (defun rc-log-increment (barrier ref)
-  (vector-push-extend (cons ref +1) (barrier-rc-buffer barrier)))
+  (let ((buf (barrier-rc-buffer barrier)))
+    (unless (and (vector-push ref buf) (vector-push +1 buf))
+      (error 'heap-exhausted :requested-size 2 :space :rc-buffer)))
+  ref)
 
 ;; ---- rule constructors --------------------------------------------------
 
@@ -65,6 +87,17 @@
                           (vm-object-young-p vm new))
                  (let ((card (vm-stratum vm :card)))
                    (when card (s-set-bit card src)))))))
+
+(defun sticky-dirty-barrier-rule (&optional (name :sticky-dirty))
+  "Log a mutated marked object so a sticky minor rescans its outgoing edges."
+  (make-barrier-rule
+   :name name :trigger :ref-write
+   :transfer (lambda (vm barrier src slot new)
+               (declare (ignore barrier slot new))
+               (when (and (vm-reference-p vm src)
+                          (vm-object-is-marked-p vm src))
+                 (let ((log (vm-stratum vm :log)))
+                   (when log (s-set-bit log src)))))))
 
 (defun satb-barrier-rule (&optional (name :satb))
   (make-barrier-rule
@@ -79,7 +112,6 @@
   (make-barrier-rule
    :name name :trigger :ref-write
    :transfer (lambda (vm barrier src slot new)
-               (declare (ignore src))
                (let ((old (vm-object-reference vm src slot)))
                  (when (vm-reference-p vm old) (rc-log-decrement barrier old))
                  (when (vm-reference-p vm new) (rc-log-increment barrier new))))))
@@ -111,8 +143,8 @@
 (defun heal-reference (vm reference)
   "Follow the off-heap forwarding table and recolour to good.  Idempotent."
   (let* ((addr (ref-strip vm reference))
-         (dst (gethash addr (vm-fwd-table vm))))
-    (if dst
+         (dst (fwd-get vm addr)))
+    (if (plusp dst)
         (if (typep vm 'coloured-pointer-mixin)
             (ref-set-colour vm dst (vm-good-colour vm))
             dst)

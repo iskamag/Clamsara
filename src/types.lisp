@@ -51,12 +51,13 @@
 (defconstant +tag-struct+     5)
 
 ;; ---- coloured pointers (Axis 2: in-pointer metadata) ---------------------
-;; Two colour bits live at positions 62-63 of a reference word. The low 62
-;; bits are the bare address. Colour 0 = remapped ("good"); a freshly minted
-;; plain address is therefore already good, which is convenient.
+;; The simulator keeps references as host fixnums. Reserve the top two
+;; *fixnum* bits for colour so manipulating a coloured reference never creates
+;; a host bignum during collection. A target VM may use bits 62--63 of its raw
+;; 64-bit pointer; these constants describe the simulator's logical encoding.
 (defconstant +colour-bits+ 2)
-(defconstant +colour-pos+ 62)
-(defconstant +colour-mask+ #.(ash 3 62))  ; bits 62..63 set (the colour field)
+(defconstant +colour-pos+ 60)
+(defconstant +colour-mask+ #.(ash 3 60))  ; bits 60..61 on a 64-bit host
 
 (defconstant +colour-remapped+    0) ; good / not-relocating
 (defconstant +colour-marked0+     1)
@@ -72,9 +73,9 @@
 (defun colour-finalizable() +colour-finalizable+)
 
 ;; ---- in-header STW forwarding tag (Axis 2: in-header) ---------------------
-;; Bit 63 of the header word marks a dead, forwarded object; the low 48 bits
-;; hold the destination address. Live headers keep bit 63 clear.
-(defconstant +fwd-tag-bit+ 63)
+;; Keep the simulator forwarding tag inside the positive-fixnum range as well.
+;; This is a logical header encoding; a raw-memory VM may use bit 63.
+(defconstant +fwd-tag-bit+ 61)
 (defconstant +fwd-addr-bits+ 48)
 
 (declaim (inline header-forwarded-p make-forwarding-header forwarding-address))

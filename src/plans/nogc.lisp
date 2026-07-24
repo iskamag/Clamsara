@@ -6,9 +6,9 @@
 (defclass nogc-plan (plan) ()
   (:metaclass plan-metaclass))
 
-(defmethod plan-collect ((p nogc-plan) &key cycle-kind)
-  (declare (ignore cycle-kind))
-  (error 'heap-exhausted :requested-size 0 :space :nogc))
+(defmethod boot-cycle-kinds ((p nogc-plan))
+  (declare (ignore p))
+  nil)
 
 (defmethod plan-install-strata ((p nogc-plan) vm)
   (vm-set-location vm :forwarding :in-header)

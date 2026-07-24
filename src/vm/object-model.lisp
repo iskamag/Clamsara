@@ -8,7 +8,8 @@
 (in-package #:clamsara)
 
 ;; ---- header packing (simulator: one 64-bit word) -------------------------
-;; size(24) | type-tag(8) | gc-flags(16) | spare(16).  bit 63 = STW fwd tag.
+;; size(24) | type-tag(8) | gc-flags(16) | spare(16). The simulator reserves
+;; fixnum bit 61 as the STW forwarding tag (see types.lisp).
 
 (declaim (inline pack-header header-size header-tag header-gc-flags header-spare))
 (defun pack-header (size tag &optional (gc-flags 0) (spare 0))
@@ -106,7 +107,9 @@
          (vm-object-start-p vm addr))))
 (declaim (inline ref-strip-or-self))
 (defun ref-strip-or-self (vm r)
-  (if (typep vm 'coloured-pointer-mixin) (ref-strip vm r) r))
+  (if (and (integerp r) (typep vm 'coloured-pointer-mixin))
+      (ref-strip vm r)
+      r))
 
 ;; ---- logical metadata accessors (Axis 2: location dispatch) --------------
 ;; Each datum resolves to its location; the marking code is unchanged by it.
@@ -136,7 +139,9 @@
     (:side      (let ((s (vm-stratum vm :mark)))
                  (if new (s-set-bit s (ref-strip-or-self vm reference))
                          (s-clear-bit s (ref-strip-or-self vm reference)))))
-    (:in-pointer (setf (ref-colour vm reference) (if new (vm-mark-colour vm) (vm-good-colour vm))))
+    (:in-pointer (ref-set-colour vm reference
+                                 (if new (vm-mark-colour vm)
+                                     (vm-good-colour vm))))
     (:in-header  (let ((h (vm-object-header vm reference)))
                   (setf (vm-object-header vm reference)
                         (dpb (if new 1 0) (byte 1 0) (header-gc-flags h)))))))
@@ -157,23 +162,23 @@
 
 ;; reference count (off-heap table) ---
 (defmethod vm-object-rc ((vm vm-binding) address)
-  (gethash address (vm-rc-table vm) 0))
+  (rc-get vm address))
 (defmethod (setf vm-object-rc) (n (vm vm-binding) address)
-  (setf (gethash address (vm-rc-table vm)) n))
+  (rc-set vm address n))
 
 ;; forwarding (in-header STW, or off-heap concurrent) ---
 (defmethod vm-object-is-forwarded-p ((vm vm-binding) address)
   (ecase (vm-location vm :forwarding)
     (:in-header (header-forwarded-p (vm-object-header vm address)))
-    (:off-heap  (nth-value 1 (gethash address (vm-fwd-table vm))))))
+    (:off-heap  (fwd-present-p vm address))))
 (defmethod vm-object-forwarding-pointer ((vm vm-binding) address)
   (ecase (vm-location vm :forwarding)
     (:in-header (forwarding-address (vm-object-header vm address)))
-    (:off-heap  (gethash address (vm-fwd-table vm)))))
+    (:off-heap  (fwd-get vm address))))
 (defmethod (setf vm-object-forwarding-pointer) (dst (vm vm-binding) address)
   (ecase (vm-location vm :forwarding)
     (:in-header (setf (vm-object-header vm address) (make-forwarding-header dst)))
-    (:off-heap  (setf (gethash address (vm-fwd-table vm)) dst))))
+    (:off-heap  (fwd-set vm address dst))))
 
 ;; ---- generational discrimination ---------------------------------------
 
@@ -201,3 +206,29 @@
   (let ((os (vm-object-start vm)))
     (when os (s-set-bit os address)))
   address)
+
+(defun vm-forget-object (vm address)
+  "Clear object identity and per-object metadata before an address is reused."
+  (let ((os (vm-object-start vm)))
+    (when os (s-clear-bit os address)))
+  (dolist (name '(:mark :log :public :age))
+    (let ((s (vm-stratum vm name)))
+      (when s (s-set s address (stratum-default s)))))
+  (when (and (vm-fwd-table vm) (< address (length (vm-fwd-table vm))))
+    (setf (aref (vm-fwd-table vm) address) 0))
+  (when (and (vm-rc-table vm) (< address (length (vm-rc-table vm))))
+    (setf (aref (vm-rc-table vm) address) 0))
+  address)
+
+(defun vm-clear-metadata-range (vm start end)
+  "Forget every object and per-object datum in [START, END)."
+  (let ((os (vm-object-start vm)))
+    (when os (s-clear-range os start end)))
+  (dolist (name '(:mark :log :public :age))
+    (let ((s (vm-stratum vm name)))
+      (when s (s-clear-range s start end))))
+  (when (vm-fwd-table vm)
+    (fill (vm-fwd-table vm) 0 :start start :end end))
+  (when (vm-rc-table vm)
+    (fill (vm-rc-table vm) 0 :start start :end end))
+  vm)

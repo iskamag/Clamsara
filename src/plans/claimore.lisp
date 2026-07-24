@@ -17,6 +17,10 @@
    (mature :accessor cl-mature :initform nil))
   (:metaclass plan-metaclass))
 
+(defmethod boot-cycle-kinds ((p claimore-plan))
+  (declare (ignore p))
+  '(:minor :major))
+
 (defmethod plan-install-strata ((p claimore-plan) vm)
   (vm-set-location vm :mark :side)
   (vm-set-location vm :forwarding :off-heap)      ; block compaction uses off-heap fwd
@@ -47,16 +51,11 @@
                             (when os (s-set-bit os a2))) a2)
                    (error 'heap-exhausted :requested-size size :space :nursery)))))))
 
-(defmethod plan-collect ((p claimore-plan) &key cycle-kind)
-  (let ((fn (gethash 'plan-collect (plan-function-table p))))
-    (if fn (funcall fn p (or cycle-kind :minor))
-        (plan-collect-phase p (or cycle-kind :minor)))))
-
 (defmethod phase-prologue ((p claimore-plan) k)
   (vm-stop-mutators (plan-vm p))
   (if (eq k :minor)
       (space-prepare (cl-nursery p) (plan-vm p))
-      (map-spaces p (lambda (s ck) (space-prepare s (plan-vm p) :cycle-kind ck)) k)))
+      (prepare-spaces p k)))
 
 (defmethod phase-mark ((p claimore-plan) k)
   (if (eq k :minor) (claimore-minor-mark p) (mark-roots p (plan-tracer p))))
@@ -69,7 +68,7 @@
           ;; apply the coalesced RC log (increments/decrements) to the table
           (claimore-apply-rc-log p)
           ;; backup trace reclaims cycles: mark from roots, sweep unmarked
-          (map-spaces p (lambda (s ck) (space-reclaim s vm :cycle-kind ck)))))))
+          (reclaim-spaces p k)))))
 
 (defmethod phase-checkpoint ((p claimore-plan) k)
   (declare (ignore k))
@@ -77,45 +76,57 @@
   (when (plan-stats p) (stats-event (plan-stats p) :checkpoints 1)))
 
 (defmethod phase-release ((p claimore-plan) k)
-  (declare (ignore k))
   (let ((vm (plan-vm p)))
     (let ((mark (vm-stratum vm :mark))) (when (and mark (eq k :major)) (s-clear mark)))
     (let ((card (vm-stratum vm :card))) (when card (s-clear card))))
   (when (plan-stats p) (stats-event (plan-stats p) :gc-cycles 1)))
 
+(defun claimore-minor-root-reference (plan ref)
+  (let* ((vm (plan-vm plan))
+         (nursery (cl-nursery plan))
+         (addr (ref-strip-or-self vm ref)))
+    (if (and (vm-reference-p vm ref)
+             (space-contains-p nursery addr))
+        (space-trace-object nursery vm ref (plan-tracer plan))
+        ref)))
+
+(defun claimore-minor-grey-reference (plan ref)
+  (let* ((vm (plan-vm plan))
+         (tracer (plan-tracer plan))
+         (nursery (cl-nursery plan))
+         (addr (ref-strip-or-self vm ref)))
+    (dotimes (k (vm-object-reference-count vm addr))
+      (let ((child (vm-object-reference vm addr k)))
+        (when (and (vm-reference-p vm child)
+                   (space-contains-p
+                    nursery (ref-strip-or-self vm child)))
+          (space-trace-object nursery vm child tracer))))))
+
 (defun claimore-minor-mark (plan)
   "Private nursery collection: trace the request's roots + published objects
   within the nursery; public (mature) children are external."
   (let* ((vm (plan-vm plan)) (tr (plan-tracer plan)) (nursery (cl-nursery plan)))
-    (let ((roots (vm-root-vector vm)))
-      (dotimes (i (length roots))
-        (let* ((ref (aref roots i)) (addr (ref-strip-or-self vm ref)))
-          (when (and (vm-reference-p vm ref) (space-contains-p nursery addr))
-            (space-trace-object nursery vm ref tr)))))
+    (tracer-reset tr)
+    (vm-scan-roots vm plan #'claimore-minor-root-reference)
     (let ((pub (vm-stratum vm :public)) (os (vm-object-start vm)))
       (when (and pub os)
-        (s-for-set-cells pub (cons (space-base-address nursery) (space-end-address nursery))
-          (lambda (addr)
-            (when (vm-object-start-p vm addr)
-              (space-trace-object nursery vm addr tr))))))
-    (tracer-drain tr
-      (lambda (ref)
-        (let ((addr (ref-strip-or-self vm ref)))
-          (dotimes (k (vm-object-reference-count vm addr))
-            (let ((child (vm-object-reference vm addr k)))
-              (when (vm-reference-p vm child)
-                (let ((caddr (ref-strip-or-self vm child)))
-                  (when (space-contains-p nursery caddr)
-                    (space-trace-object nursery vm child tr)))))))))))
+        (loop for address from (space-base-address nursery)
+              below (space-end-address nursery)
+              when (and (s-test-bit pub address)
+                        (s-test-bit os address))
+                do (space-trace-object nursery vm address tr))))
+    (tracer-drain tr #'claimore-minor-grey-reference plan)))
 
 (defun claimore-apply-rc-log (plan)
   "Drain the RC delta buffer into the off-heap reference-count table."
   (let ((buf (barrier-rc-buffer (plan-barrier plan)))
         (table (vm-rc-table (plan-vm plan))))
-    (loop for (ref . delta) across buf
+    (loop for i from 0 below (length buf) by 2
+          for ref = (aref buf i)
+          for delta = (aref buf (1+ i))
           when (plusp ref)
-          do (let ((cur (gethash ref table 0)))
-               (setf (gethash ref table) (max 0 (+ cur delta)))))
+          do (let ((cur (aref table ref)))
+               (setf (aref table ref) (max 0 (+ cur delta)))))
     (setf (fill-pointer buf) 0)))
 
 (defun make-claimore-plan (vm heap-size)

@@ -8,8 +8,8 @@
   (:use #:cl)
   (:shadow #:space #:gc #:alloc #:free #:copy #:mark #:trace)
   ;; constants & types
-  (:export #:*word-bits* #:*word-bytes* #:*log-word-bytes*
-           #:*page-words* #:*log-page-words* #:*log-page-bytes*
+  (:export #:+word-bits+ #:+word-bytes+ #:+log-word-bytes+
+           #:+page-words+ #:+log-page-words+ #:+log-page-bytes+
            #:g-word #:g-line #:g-card #:g-block #:g-metablock #:g-superblock
            #:word-address #:word-address-p #:null-ref #:null-ref-p
            #:type-tag #:object #:cons #:array-object #:function-object
@@ -64,7 +64,8 @@
            #:vm-object-is-public-p #:vm-object-age #:vm-object-rc
            #:vm-object-is-forwarded-p #:vm-object-forwarding-pointer
            #:vm-object-old-p #:vm-object-young-p
-           #:vm-valid-reference-p #:vm-allocate-object #:vm-root-set
+           #:vm-valid-reference-p #:vm-reference-p
+           #:vm-allocate-object #:vm-root-set
            #:vm-add-root #:vm-remove-root #:vm-clear-roots
            #:vm-set-reference)
   ;; heap / spaces / allocators
@@ -96,7 +97,8 @@
            #:publication-strategy #:publish #:publication-read-rule
            #:eager-closure #:lazy-read-barrier #:trap-error-copy-a
            #:trap-error-copy-b
-           #:card-barrier-rule #:satb-barrier-rule #:rc-barrier-rule
+           #:card-barrier-rule #:sticky-dirty-barrier-rule
+           #:satb-barrier-rule #:rc-barrier-rule
            #:publication-barrier-rule)
   ;; plan / metaclass / compile
   (:export #:plan #:plan-p #:plan-name #:plan-vm #:plan-spaces #:plan-barrier

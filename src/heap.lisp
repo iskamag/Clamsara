@@ -94,7 +94,10 @@
         nil)))
 (defmethod free ((a bump-allocator) addr size) (declare (ignore addr size)) nil)
 (defmethod coalesce ((a bump-allocator)) nil)
-(defmethod allocator-reset ((a bump-allocator)) (setf (ba-cursor a) (ba-start a)))
+(defmethod allocator-reset ((a bump-allocator))
+  (when (slot-boundp a 'vm)
+    (vm-clear-metadata-range (ba-vm a) (ba-start a) (ba-limit a)))
+  (setf (ba-cursor a) (ba-start a)))
 
 ;; ---- cons allocator (2-word bump) -----------------------------------------
 
@@ -109,43 +112,98 @@
 (defclass free-list-allocator ()
   ((start :initarg :start :accessor fl-start)
    (limit :initarg :limit :accessor fl-limit)
-   (free :accessor free-runs :initform nil)        ; (addr . len) sorted by addr
+   ;; Parallel boot-allocated arrays. A maximally fragmented word-addressed
+   ;; region cannot need more descriptors than it has words, so FREE never
+   ;; needs the host allocator.
+   (run-starts :accessor fl-run-starts)
+   (run-lengths :accessor fl-run-lengths)
+   (run-count :accessor fl-run-count :initform 0)
    (vm :initarg :vm :accessor fl-vm)
    (space :initarg :space :accessor fl-space)))
 
 (defmethod shared-initialize :after ((a free-list-allocator) slot-names &key)
   (declare (ignore slot-names))
   (when (and (slot-boundp a 'start) (slot-boundp a 'limit))
-    (setf (free-runs a) (list (cons (fl-start a) (- (fl-limit a) (fl-start a)))))))
+    (let ((capacity (max 1 (- (fl-limit a) (fl-start a)))))
+      (setf (fl-run-starts a)
+            (make-array capacity :element-type 'fixnum :initial-element 0)
+            (fl-run-lengths a)
+            (make-array capacity :element-type 'fixnum :initial-element 0)
+            (fl-run-count a) 1
+            (aref (fl-run-starts a) 0) (fl-start a)
+            (aref (fl-run-lengths a) 0) (- (fl-limit a) (fl-start a))))))
+
+(declaim (inline %fl-remove-run))
+(defun %fl-remove-run (a index)
+  (let ((last (1- (fl-run-count a))))
+    (loop for i from index below last
+          do (setf (aref (fl-run-starts a) i)
+                   (aref (fl-run-starts a) (1+ i))
+                   (aref (fl-run-lengths a) i)
+                   (aref (fl-run-lengths a) (1+ i))))
+    (decf (fl-run-count a))))
 
 (defmethod alloc ((a free-list-allocator) size &key &allow-other-keys)
-  (loop for cell on (free-runs a)
-        for run = (car cell)
-        for addr = (car run)
-        for len = (cdr run)
-        when (>= len size)
-        do (if (= len size)
-               (setf (free-runs a) (delete run (free-runs a)))
-               (progn (incf (car run) size)
-                      (decf (cdr run) size)))
-           (return addr)))
+  (dotimes (i (fl-run-count a))
+    (let ((addr (aref (fl-run-starts a) i))
+          (len (aref (fl-run-lengths a) i)))
+      (when (>= len size)
+        (if (= len size)
+            (%fl-remove-run a i)
+            (setf (aref (fl-run-starts a) i) (+ addr size)
+                  (aref (fl-run-lengths a) i) (- len size)))
+        (return-from alloc addr)))))
 
 (defmethod free ((a free-list-allocator) addr size)
-  (let* ((new (cons addr size))
-         (merged (merge 'list (list new) (free-runs a)
-                        (lambda (x y) (< (car x) (car y))))))
-    (setf (free-runs a)
-          (loop with result = nil
-                for (s . l) in merged
-                if (null result) do (push (cons s l) result)
-                else if (= s (+ (car (first result)) (cdr (first result))))
-                do (incf (cdr (first result)) l)
-                else do (push (cons s l) result)
-                finally (return (nreverse result)))))
+  (when (slot-boundp a 'vm)
+    (vm-forget-object (fl-vm a) addr))
+  (let* ((count (fl-run-count a))
+         (starts (fl-run-starts a))
+         (lengths (fl-run-lengths a))
+         (pos (loop for i below count
+                    when (> (aref starts i) addr) return i
+                    finally (return count))))
+    (when (>= count (length starts))
+      (error 'heap-exhausted :requested-size 1
+             :space :free-list-descriptors))
+    (when (and (plusp pos)
+               (> (+ (aref starts (1- pos)) (aref lengths (1- pos))) addr))
+      (error 'clamsara-error :message "overlapping or duplicate free"))
+    (when (and (< pos count)
+               (> (+ addr size) (aref starts pos)))
+      (error 'clamsara-error :message "overlapping or duplicate free"))
+    (loop for i downfrom count above pos
+          do (setf (aref starts i) (aref starts (1- i))
+                   (aref lengths i) (aref lengths (1- i))))
+    (setf (aref starts pos) addr
+          (aref lengths pos) size)
+    (incf (fl-run-count a))
+    ;; Merge predecessor, then successor, without manufacturing descriptors.
+    (when (and (plusp pos)
+               (= (+ (aref starts (1- pos)) (aref lengths (1- pos)))
+                  (aref starts pos)))
+      (incf (aref lengths (1- pos)) (aref lengths pos))
+      (%fl-remove-run a pos)
+      (decf pos))
+    (when (and (< (1+ pos) (fl-run-count a))
+               (= (+ (aref starts pos) (aref lengths pos))
+                  (aref starts (1+ pos))))
+      (incf (aref lengths pos) (aref lengths (1+ pos)))
+      (%fl-remove-run a (1+ pos))))
   nil)
 
 (defmethod coalesce ((a free-list-allocator)) nil) ; free already coalesces
 (defmethod allocator-reset ((a free-list-allocator)) nil)
+
+(defun free-runs (a)
+  "Diagnostic snapshot of A's runs. Not used by collection."
+  (loop for i below (fl-run-count a)
+        collect (cons (aref (fl-run-starts a) i)
+                      (aref (fl-run-lengths a) i))))
+
+(defun fl-free-words (a)
+  (loop for i below (fl-run-count a)
+        sum (aref (fl-run-lengths a) i)))
 
 ;; ---- large-object allocator (whole pages) --------------------------------
 
@@ -181,14 +239,34 @@
    (start :initarg :start :accessor ix-start)
    (limit :initarg :limit :accessor ix-limit)
    (block-words :initarg :block-words :initform +g-block+ :accessor ix-block-words)
-   (blocks :accessor ix-blocks :initform nil)
+   (blocks :accessor ix-blocks)
+   (block-count :accessor ix-block-count :initform 0)
    (current :accessor ix-current :initform nil)
    (next-base :accessor ix-next-base :initform 0)))
 
 (defmethod shared-initialize :after ((a immix-allocator) slot-names &key)
   (declare (ignore slot-names))
   (when (slot-boundp a 'start)
-    (setf (ix-next-base a) (ix-start a))))
+    (let* ((count (floor (- (ix-limit a) (ix-start a))
+                         (ix-block-words a)))
+           (blocks (make-array count)))
+      (dotimes (i count)
+        (let ((base (+ (ix-start a) (* i (ix-block-words a)))))
+          (setf (aref blocks i)
+                (make-immix-block :base base :cursor base :live 0))))
+      (setf (ix-blocks a) blocks
+            (ix-block-count a) 0
+            (ix-next-base a) (ix-start a)))))
+
+(defmacro do-immix-blocks ((block allocator &optional result) &body body)
+  `(loop for %block-index fixnum below (ix-block-count ,allocator)
+         for ,block = (aref (ix-blocks ,allocator) %block-index)
+         do (progn ,@body)
+         finally (return ,result)))
+
+(defun ix-first-block (a)
+  (when (plusp (ix-block-count a))
+    (aref (ix-blocks a) 0)))
 
 (defun ix-block-end (b block-words) (+ (immix-block-base b) block-words))
 
@@ -199,79 +277,147 @@
                (setf (immix-block-cursor b) (+ c size))
                c))))
     (or (and (ix-current a) (try-block (ix-current a)))
-        (loop for b in (ix-blocks a) thereis (try-block b))
+        (loop for i below (ix-block-count a)
+              for b = (aref (ix-blocks a) i)
+              thereis (try-block b))
         (let ((b (ix-new-block a))) (when b (try-block b))))))
 
 (defmethod ix-new-block ((a immix-allocator))
   "Carve the next block from the space's word range."
-  (when (<= (+ (ix-next-base a) (ix-block-words a)) (ix-limit a))
-    (let ((b (make-immix-block :base (ix-next-base a)
-                              :cursor (ix-next-base a) :live 0)))
+  (when (< (ix-block-count a) (length (ix-blocks a)))
+    (let ((b (aref (ix-blocks a) (ix-block-count a))))
+      (setf (immix-block-cursor b) (immix-block-base b)
+            (immix-block-live b) 0)
+      (incf (ix-block-count a))
       (incf (ix-next-base a) (ix-block-words a))
-      (push b (ix-blocks a))
       (setf (ix-current a) b)
       b)))
 
 (defmethod free ((a immix-allocator) addr size) (declare (ignore addr size)) nil)
 (defmethod coalesce ((a immix-allocator)) nil)
 (defmethod allocator-reset ((a immix-allocator))
-  ;; empty the allocator: blocks discarded, carving restarts at the space base.
-  (setf (ix-blocks a) nil (ix-current a) nil (ix-next-base a) (ix-start a)))
+  (vm-clear-metadata-range (ix-vm a) (ix-start a) (ix-limit a))
+  (setf (ix-block-count a) 0
+        (ix-current a) nil
+        (ix-next-base a) (ix-start a)))
 
 (defun immix-block-live-count (a vm b)
-  "Number of marked words in block B (mark stratum popcount over the block)."
+  "Number of marked object starts in block B."
   (let ((mark (vm-stratum vm :mark)))
     (if mark
-        (s-popcount mark (cons (immix-block-base b)
-                               (+ (immix-block-base b) (ix-block-words a))))
+        (loop for address from (immix-block-base b)
+              below (+ (immix-block-base b) (ix-block-words a))
+              count (s-test-bit mark address))
         0)))
 
+(defun immix-forget-dead-objects (a vm b)
+  "Clear object-start and per-object metadata for dead objects in B.
+Line reuse is a separate allocator concern; stale object identity is never
+retained merely because another object keeps the block live."
+  (let ((mark (vm-stratum vm :mark))
+        (os (vm-object-start vm))
+        (start (immix-block-base b))
+        (end (+ (immix-block-base b) (ix-block-words a))))
+    (when (and mark os)
+      (loop for address from start below end
+            when (and (s-test-bit os address)
+                      (not (s-test-bit mark address)))
+              do (vm-forget-object vm address)))))
+
 (defun immix-defrag (s vm)
-  "Opportunistic compaction: copy live objects into fresh compacted blocks,
-  updating references via the off-heap forwarding table, then recycle sources."
+  "Evacuate one fragmented block into one fresh block.
+The old implementation appended a destination block to the same collection it
+was iterating, allocated through the ordinary allocator (which could select a
+source block), and finally reset every block including the destination.  This
+bounded implementation only compacts when an out-of-place block is available."
   (let* ((a (space-allocator s))
          (mark (vm-stratum vm :mark))
          (os (vm-object-start vm))
          (fwd (vm-fwd-table vm)))
-    (when (and mark os (ix-blocks a))
-      (clrhash fwd)
-      (let ((dst-block (ix-new-block a)))
-        (when dst-block
-          (dolist (src (ix-blocks a))
-            (when (plusp (immix-block-live-count a vm src))
-              (s-for-set-cells os
-                (cons (immix-block-base src)
-                      (+ (immix-block-base src) (ix-block-words a)))
-                (lambda (addr)
-                  (when (s-test-bit mark addr)
-                    (let ((n (vm-object-total-words vm addr)))
-                      (let ((dst (alloc a n)))
-                        (when (and dst (not (eql dst addr)))
-                          (vm-object-copy vm addr dst)
-                          (setf (gethash addr fwd) dst))))))))
-            (setf (immix-block-cursor src) (immix-block-base src)))
-          (immix-heal-references s vm fwd)
-          (setf (ix-current a) dst-block))))))
+    (when (and mark os
+               (plusp (ix-block-count a))
+               (< (ix-block-count a) (length (ix-blocks a))))
+      (let ((source nil))
+        ;; A source is fragmented iff its live payload occupies fewer words
+        ;; than its bump extent. Fully-live blocks gain nothing from moving.
+        (loop for i below (ix-block-count a)
+              for block = (aref (ix-blocks a) i)
+              for used = (- (immix-block-cursor block)
+                            (immix-block-base block))
+              when (plusp used)
+              do (let ((live-words 0))
+                   (loop for address from (immix-block-base block)
+                         below (+ (immix-block-base block)
+                                  (ix-block-words a))
+                         when (and (s-test-bit os address)
+                                   (s-test-bit mark address))
+                           do (incf live-words
+                                    (vm-object-total-words vm address)))
+                   (when (and (plusp live-words) (< live-words used))
+                     (setf source block)
+                     (return))))
+        (when source
+          (fill fwd 0)
+          (let* ((destination (ix-new-block a))
+                 (cursor (immix-block-base destination))
+                 (limit (+ cursor (ix-block-words a))))
+            ;; The live words came from one block and therefore fit in one
+            ;; equally-sized destination block.
+            (loop for address from (immix-block-base source)
+                  below (+ (immix-block-base source) (ix-block-words a))
+                  when (and (s-test-bit os address)
+                            (s-test-bit mark address))
+                    do (let ((words (vm-object-total-words vm address)))
+                         (when (> (+ cursor words) limit)
+                           (error 'clamsara-error
+                                  :message
+                                  "Immix defrag live set exceeds one block"))
+                         (let ((destination-address cursor))
+                           (incf cursor words)
+                           (vm-object-copy
+                            vm address destination-address)
+                           (setf (vm-object-is-marked-p
+                                  vm destination-address)
+                                 t
+                                 (aref fwd address)
+                                 destination-address))))
+            (setf (immix-block-cursor destination) cursor)
+            (immix-heal-references s vm fwd)
+            (vm-clear-metadata-range
+             vm (immix-block-base source)
+             (+ (immix-block-base source) (ix-block-words a)))
+            (setf (immix-block-cursor source) (immix-block-base source)
+                  (immix-block-live source) 0
+                  (ix-current a) destination)
+            (fill fwd 0)))))))
 
 (defun immix-heal-references (s vm fwd)
   "Update root + slot references that point at forwarded objects."
-  (when (zerop (hash-table-count fwd)) (return-from immix-heal-references))
-  (labels ((translate (r) (let ((a (ref-strip-or-self vm r)))
-                            (or (gethash a fwd) r))))
-    (let ((roots (vm-root-vector vm)))
-      (dotimes (i (length roots))
-        (let ((r (aref roots i)))
-          (when (vm-reference-p vm r) (setf (aref roots i) (translate r))))))
-    (dolist (b (ix-blocks (space-allocator s)))
-      (s-for-set-cells (vm-object-start vm)
-        (cons (immix-block-base b) (+ (immix-block-base b) (ix-block-words (space-allocator s))))
-        (lambda (addr)
-          (dotimes (k (vm-object-reference-count vm addr))
-            (let ((c (vm-object-reference vm addr k)))
-              (when (vm-reference-p vm c)
-                (let ((nw (translate c)))
-                  (unless (eql nw c)
-                    (setf (vm-object-reference vm addr k) nw)))))))))))
+  (when (notany #'plusp fwd) (return-from immix-heal-references))
+  (vm-scan-roots vm (vm-plan vm) #'heal-forwarded-root)
+  (let ((allocator (space-allocator s))
+        (object-start (vm-object-start vm)))
+    (do-immix-blocks (block allocator)
+      (loop for address from (immix-block-base block)
+            below (+ (immix-block-base block)
+                     (ix-block-words allocator))
+            when (s-test-bit object-start address)
+              do (dotimes (slot (vm-object-reference-count vm address))
+                   (let ((child (vm-object-reference vm address slot)))
+                     (when (vm-reference-p vm child)
+                       (let* ((bare (ref-strip-or-self vm child))
+                              (destination (aref fwd bare)))
+                         (when (plusp destination)
+                           (setf (vm-object-reference vm address slot)
+                                 destination))))))))))
+
+(defun heal-forwarded-root (plan ref)
+  (let ((vm (plan-vm plan)))
+    (if (vm-reference-p vm ref)
+        (let* ((address (ref-strip-or-self vm ref))
+               (destination (aref (vm-fwd-table vm) address)))
+          (if (plusp destination) destination ref))
+        ref)))
 
 ;; ---- concrete spaces -----------------------------------------------------
 
@@ -399,10 +545,10 @@
         (start (space-base-address s))
         (end (space-end-address s)))
     (when (and a os mark)
-      (s-for-set-cells os (cons start end)
-        (lambda (addr)
-          (unless (s-test-bit mark addr)
-            (free a addr (vm-object-total-words vm addr)))))
+      (loop for address from start below end
+            when (and (s-test-bit os address)
+                      (not (s-test-bit mark address)))
+              do (free a address (vm-object-total-words vm address)))
       (s-clear mark))
     s))
 
@@ -410,7 +556,7 @@
   (let ((a (space-allocator s)))
     (if (typep a 'free-list-allocator)
         (- (fl-limit a) (fl-start a)
-           (loop for (nil . l) in (free-runs a) sum l))
+           (fl-free-words a))
         0)))
 
 ;; ---- immix-space ---------------------------------------------------------
@@ -436,14 +582,19 @@
 
 (defmethod space-reclaim ((s immix-space) vm &key cycle-kind)
   (let ((a (space-allocator s)))
-    (when (and (ix-blocks a) (vm-stratum vm :mark))
-      (dolist (b (ix-blocks a))
+    (when (and (plusp (ix-block-count a)) (vm-stratum vm :mark))
+      (do-immix-blocks (b a)
         (let ((live (immix-block-live-count a vm b)))
           (setf (immix-block-live b) live)
+          (immix-forget-dead-objects a vm b)
           (when (zerop live)
             ;; fully dead: recycle the whole block for reuse
+            (vm-clear-metadata-range vm
+                                     (immix-block-base b)
+                                     (+ (immix-block-base b)
+                                        (ix-block-words a)))
             (setf (immix-block-cursor b) (immix-block-base b)))))
-      (setf (ix-current a) (first (ix-blocks a))))
+      (setf (ix-current a) (ix-first-block a)))
     (when (eq cycle-kind :major)
       (immix-defrag s vm))
     (s-clear (vm-stratum vm :mark))
@@ -452,7 +603,9 @@
 (defmethod space-occupancy ((s immix-space))
   (let ((a (space-allocator s)))
     (if (typep a 'immix-allocator)
-        (loop for b in (ix-blocks a) sum (- (immix-block-cursor b) (immix-block-base b)))
+        (loop for i below (ix-block-count a)
+              for b = (aref (ix-blocks a) i)
+              sum (- (immix-block-cursor b) (immix-block-base b)))
         0)))
 
 ;; ---- LOS -----------------------------------------------------------------
@@ -469,11 +622,12 @@
   (declare (ignore cycle-kind))
   (let ((a (space-allocator s)) (os (vm-object-start vm)) (mark (vm-stratum vm :mark)))
     (when (and a os mark)
-      (s-for-set-cells os (cons (space-base-address s) (space-end-address s))
-        (lambda (addr)
-          (unless (s-test-bit mark addr)
-            (free a addr (vm-object-total-words vm addr))))
-      (s-clear mark)))
+      (loop for address from (space-base-address s)
+            below (space-end-address s)
+            when (and (s-test-bit os address)
+                      (not (s-test-bit mark address)))
+              do (free a address (vm-object-total-words vm address)))
+      (s-clear mark))
     s))
 
 ;; ---- immortal-space ------------------------------------------------------

@@ -6,6 +6,10 @@
 (defclass immix-plan (plan) ()
   (:metaclass plan-metaclass))
 
+(defmethod boot-cycle-kinds ((p immix-plan))
+  (declare (ignore p))
+  '(:full :major))
+
 (defmethod plan-handle-allocation-failure ((p immix-plan) size space)
   ;; a full collect recycles dead blocks; if that doesn't free enough, a
   ;; :major defrags (opportunistic compaction) -- the anti-fragmentation path.
@@ -19,12 +23,6 @@
                    (progn (let ((os (vm-object-start (plan-vm p))))
                             (when os (s-set-bit os a2))) a2)
                    (error 'heap-exhausted :requested-size size :space :default)))))))
-
-(defmethod plan-collect ((p immix-plan) &key cycle-kind)
-  (let ((fn (gethash 'plan-collect (plan-function-table p))))
-    (if fn
-        (funcall fn p (or cycle-kind :full))
-        (plan-collect-phase p (or cycle-kind :full)))))
 
 (defun make-immix-plan (vm heap-size)
   (declare (ignore heap-size))

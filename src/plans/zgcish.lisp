@@ -32,32 +32,36 @@
                  (when os (s-set-bit os addr))) addr)
         (error 'heap-exhausted :requested-size size :space :from))))
 
-(defmethod plan-collect ((p zgc-plan) &key cycle-kind)
-  (declare (ignore cycle-kind))
-  (let ((fn (gethash 'plan-collect (plan-function-table p))))
-    (if fn (funcall fn p :full)
-        (plan-collect-phase p :full))))
-
 (defmethod phase-prologue ((p zgc-plan) k)
   (declare (ignore k))
   (vm-stop-mutators (plan-vm p))
   (let ((vm (plan-vm p)))
     (space-prepare (z-from p) vm)
     (allocator-reset (space-allocator (z-to p)))
-    (clrhash (vm-fwd-table vm))))
+    (fwd-clear vm)))
 
 ;; mark: precise trace + drain the SATB snapshot buffer (remark)
 (defmethod phase-mark ((p zgc-plan) k)
   (declare (ignore k))
   (mark-roots p (plan-tracer p))
-  (let ((vm (plan-vm p)) (tr (plan-tracer p)))
-    (map nil (lambda (ref)
-               (let ((addr (ref-strip-or-self vm ref)))
-                 (when (and (vm-reference-p vm ref)
-                            (space-contains-p (z-from p) addr))
-                   (space-trace-object (z-from p) vm ref tr))))
-         (barrier-satb-buffer (plan-barrier p)))
-    (setf (fill-pointer (barrier-satb-buffer (plan-barrier p))) 0)))
+  (let ((vm (plan-vm p))
+        (tr (plan-tracer p))
+        (buffer (barrier-satb-buffer (plan-barrier p))))
+    (loop for ref across buffer
+          for address = (ref-strip-or-self vm ref)
+          when (and (vm-reference-p vm ref)
+                    (eq (plan-space-for-address p address)
+                        (z-from p)))
+            do (mark-root-reference p ref))
+    ;; SATB entries may introduce previously unseen grey objects.
+    (tracer-drain tr #'mark-grey-reference p)
+    (setf (fill-pointer buffer) 0)))
+
+;; Relocation consumes the mark set. Generic Immix reclaim would clear it
+;; before PHASE-COMPACT and silently relocate nothing.
+(defmethod phase-reclaim ((p zgc-plan) k)
+  (declare (ignore p k))
+  nil)
 
 ;; relocate: copy every live (marked) object into the 'to' region, recording
 ;; old->new in the off-heap forwarding table.
@@ -69,31 +73,32 @@
          (fwd (vm-fwd-table vm))
          (to (space-allocator (z-to p))))
     (when (and mark os)
-      (s-for-set-cells mark
-        (cons (space-base-address (z-from p)) (space-end-address (z-from p)))
-        (lambda (addr)
-          (when (s-test-bit mark addr)
-            (let* ((n (vm-object-total-words vm addr))
-                   (dst (alloc to n)))
-              (when dst
-                (vm-object-copy vm addr dst)
-                (setf (gethash addr fwd) dst))))))
+      (loop for address from (space-base-address (z-from p))
+            below (space-end-address (z-from p))
+            when (s-test-bit mark address)
+              do (let* ((words (vm-object-total-words vm address))
+                        (destination (alloc to words)))
+                   (when destination
+                     (vm-object-copy vm address destination)
+                     (setf (aref fwd address) destination))))
       ;; remap: heal every root + every 'to' object's slots to forwarded refs
-      (let ((roots (vm-root-vector vm)))
-        (dotimes (i (length roots))
-          (let ((r (aref roots i)))
-            (when (vm-reference-p vm r)
-              (setf (aref roots i) (gethash r fwd r))))))
-      (dolist (b (ix-blocks to))
-        (s-for-set-cells os
-          (cons (immix-block-base b) (+ (immix-block-base b) (ix-block-words to)))
-          (lambda (addr)
-            (dotimes (j (vm-object-reference-count vm addr))
-              (let ((c (vm-object-reference vm addr j)))
-                (when (vm-reference-p vm c)
-                  (let ((healed (gethash c fwd c)))
-                    (unless (eql healed c)
-                      (setf (vm-object-reference vm addr j) healed))))))))))))
+      (vm-scan-roots vm p #'heal-forwarded-root)
+      (do-immix-blocks (block to)
+        (loop for address from (immix-block-base block)
+              below (+ (immix-block-base block) (ix-block-words to))
+              when (s-test-bit os address)
+                do (dotimes
+                       (slot (vm-object-reference-count vm address))
+                     (let ((child
+                             (vm-object-reference vm address slot)))
+                       (when (vm-reference-p vm child)
+                         (let* ((bare
+                                  (ref-strip-or-self vm child))
+                                (destination (aref fwd bare)))
+                           (when (plusp destination)
+                             (setf
+                              (vm-object-reference vm address slot)
+                              destination)))))))))))
 
 (defmethod phase-release ((p zgc-plan) k)
   (declare (ignore k))
@@ -103,7 +108,7 @@
     (rotatef (z-from p) (z-to p))
     (setf (space-default-p (z-from p)) t (space-default-p (z-to p)) nil)
     (allocator-reset (space-allocator (z-to p)))
-    (clrhash (vm-fwd-table vm))
+    (fwd-clear vm)
     (when (plan-stats p) (stats-event (plan-stats p) :gc-cycles 1))))
 
 (defun make-zgcish-plan (vm heap-size)

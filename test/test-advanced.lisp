@@ -30,8 +30,34 @@
       (clamsara-register-root a)
       (clamsara-gc)
       (let ((a2 (clamsara-root 0)))
-        (if (and (plusp a2) (plusp (%slot a2 0)))    ; relocate healed the ref
+        (if (and (/= a2 a)
+                 (/= (%slot a2 0) b)
+                 (vm-valid-reference-p (%vm) a2)
+                 (vm-valid-reference-p (%vm) (%slot a2 0))
+                 (not (vm-object-start-p (%vm) a))
+                 (not (vm-object-start-p (%vm) b)))
             (values t "ok") (values nil "relocate/heal failed"))))))
+
+(deftest zgc-satb-remark-retains-snapshot-object ()
+  (with-clamsara (:plan-type :zgcish :heap-size 65536)
+    (let ((parent (clamsara-allocate-object 1))
+          (snapshot-child (clamsara-allocate-object 0)))
+      (setf (%slot parent 0) snapshot-child)
+      (clamsara-register-root parent)
+      ;; The SATB barrier records the overwritten child. It is absent from the
+      ;; graph by the time root marking begins and must enter through remark.
+      (clamsara-write parent 0 0)
+      (plan-collect *clamsara-plan* :cycle-kind :full)
+      (let* ((space (z-from *clamsara-plan*))
+             (object-start (vm-object-start *clamsara-vm*))
+             (live-count
+               (loop for address from (space-base-address space)
+                     below (space-end-address space)
+                     count (s-test-bit object-start address))))
+        (if (and (= live-count 2)
+                 (not (vm-object-start-p *clamsara-vm* snapshot-child)))
+            (values t "ok")
+            (values nil "SATB remark did not retain/relocate snapshot child"))))))
 
 (deftest claimore-major ()
   (with-clamsara (:plan-type :claimore :heap-size 65536)

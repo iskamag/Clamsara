@@ -8,10 +8,28 @@
 
 (defclass generational-plan (plan)
   ((nursery :accessor gen-nursery :initform nil)
+   (nursery-to :accessor gen-nursery-to :initform nil)
    (mature :accessor gen-mature :initform nil)
    (mature-to :accessor gen-mature-to :initform nil)  ; set for copying mature
+   (promotion-age :initarg :promotion-age :initform 2
+                  :reader gen-promotion-age)
    (minor-count :accessor gen-minor-count :initform 0))
   (:metaclass plan-metaclass))
+
+(defclass nursery-copy-space (copy-space) ()
+  (:metaclass space-metaclass))
+
+(defmethod plan-nursery ((p generational-plan))
+  (gen-nursery p))
+
+(defmethod boot-cycle-kinds ((p generational-plan))
+  (declare (ignore p))
+  '(:minor :major))
+
+(defmethod boot-reset-state ((p generational-plan))
+  (call-next-method)
+  (setf (gen-minor-count p) 0)
+  p)
 
 (defmethod plan-install-strata ((p generational-plan) vm)
   (vm-set-location vm :mark :side)
@@ -44,73 +62,124 @@
                        (when os (s-set-bit os addr2))) addr2)
                (error 'heap-exhausted :requested-size size :space :nursery)))))))
 
-(defmethod plan-collect ((p generational-plan) &key cycle-kind)
-  (let ((fn (gethash 'plan-collect (plan-function-table p))))
-    (if fn
-        (funcall fn p (or cycle-kind :minor))
-        (plan-collect-phase p (or cycle-kind :minor)))))
-
 ;; ---- phases -------------------------------------------------------------
 
 (defmethod phase-prologue ((p generational-plan) k)
-  (vm-stop-mutators (plan-vm p))
-  (if (eq k :minor)
-      (space-prepare (gen-nursery p) (plan-vm p))
-      (progn
-        (map-spaces p (lambda (s ck) (space-prepare s (plan-vm p) :cycle-kind ck)) k)
-        (when (gen-mature-to p)
-          (allocator-reset (space-allocator (gen-mature-to p)))))))
+  (let ((vm (plan-vm p)))
+    (vm-stop-mutators vm)
+    ;; A minor traces the allocating nursery into its empty partner.  A major
+    ;; additionally prepares the mature policy, but the nursery is still a
+    ;; semispace collection rather than an in-place mark.
+    (s-clear (vm-stratum vm :mark))
+    (allocator-reset (space-allocator (gen-nursery-to p)))
+    (unless (eq k :minor)
+      (space-prepare (gen-mature p) vm :cycle-kind k)
+      (when (gen-mature-to p)
+        (allocator-reset (space-allocator (gen-mature-to p)))))))
 
 (defmethod phase-mark ((p generational-plan) k)
   (if (eq k :minor)
       (minor-mark p)
-      (mark-roots p (plan-tracer p))))
+      (mark-roots p (plan-tracer p) :trace-kind :major)))
 
 (defmethod phase-reclaim ((p generational-plan) k)
-  (if (eq k :minor)
-      (space-reclaim (gen-nursery p) (plan-vm p) :cycle-kind k)
-      (map-spaces p (lambda (s ck)
-                      (space-reclaim s (plan-vm p) :cycle-kind ck)))))
+  (unless (eq k :minor)
+    (space-reclaim (gen-mature p) (plan-vm p) :cycle-kind k)))
 
 (defmethod phase-release ((p generational-plan) k)
   (let ((vm (plan-vm p)))
+    ;; The old nursery contains forwarding headers.  Forget it only after all
+    ;; roots and slots have been healed by the trace.
+    (rotatef (gen-nursery p) (gen-nursery-to p))
+    (setf (space-default-p (gen-nursery p)) t
+          (space-default-p (gen-nursery-to p)) nil)
+    (allocator-reset (space-allocator (gen-nursery-to p)))
     (when (and (gen-mature-to p) (eq k :major))
       (rotatef (gen-mature p) (gen-mature-to p))
       (setf (space-default-p (gen-mature p)) t
             (space-default-p (gen-mature-to p)) nil)
       (allocator-reset (space-allocator (gen-mature-to p))))
-    (let ((card (vm-stratum vm :card))) (when card (s-clear card)))
-    (let ((mark (vm-stratum vm :mark))) (when (and mark (eq k :minor)) (s-clear mark)))
+    ;; Forwarding can leave an old object pointing at a nursery survivor.
+    ;; Rebuild against the post-swap graph; merely clearing the cards loses
+    ;; that edge at the next minor, while retaining old card addresses is
+    ;; wrong after a copying mature major.
+    (rebuild-remset p)
+    (let ((mark (vm-stratum vm :mark))) (when mark (s-clear mark)))
     (when (plan-stats p) (stats-event (plan-stats p) :gc-cycles 1))
     (incf (gen-minor-count p))))
 
+;; ---- nursery evacuation and age-based promotion -------------------------
+
+(defmethod space-trace-object ((s nursery-copy-space) vm ref tracer
+                               &key trace-kind)
+  (let* ((addr (ref-strip-or-self vm ref))
+         (plan (vm-plan vm)))
+    (cond
+      ((vm-object-is-forwarded-p vm addr)
+       (vm-object-forwarding-pointer vm addr))
+      ;; A second root can already name the to-space copy installed while
+      ;; processing the first root.
+      ((vm-object-is-marked-p vm addr) addr)
+      (t
+       (let* ((next-age (min 15 (1+ (vm-object-age vm addr))))
+              (promote-p (>= next-age (gen-promotion-age plan)))
+              (destination
+                (if promote-p
+                    (if (and (eq trace-kind :major) (gen-mature-to plan))
+                        (gen-mature-to plan)
+                        (gen-mature plan))
+                    (gen-nursery-to plan)))
+              (words (vm-object-total-words vm addr))
+              (dst (alloc (space-allocator destination) words)))
+         (unless dst
+           (error 'heap-exhausted :requested-size words
+                                  :space (space-name destination)))
+         (vm-object-copy vm addr dst)
+         (setf (vm-object-age vm dst) next-age
+               (vm-object-is-marked-p vm dst) t
+               (vm-object-forwarding-pointer vm addr) dst)
+         (tracer-enqueue tracer dst)
+         dst)))))
+
 ;; ---- minor marking: nursery only, seeded from roots + remembered set ----
+
+(defun minor-root-reference (plan ref)
+  (let* ((vm (plan-vm plan))
+         (nursery (gen-nursery plan))
+         (addr (ref-strip-or-self vm ref)))
+    (if (and (vm-reference-p vm ref)
+             (space-contains-p nursery addr))
+        (space-trace-object
+         nursery vm ref (plan-tracer plan) :trace-kind :minor)
+        ref)))
+
+(defun minor-grey-reference (plan ref)
+  (let* ((vm (plan-vm plan))
+         (tr (plan-tracer plan))
+         (nursery (gen-nursery plan))
+         (addr (ref-strip-or-self vm ref)))
+    (dotimes (k (vm-object-reference-count vm addr))
+      (let ((child (vm-object-reference vm addr k)))
+        (when (vm-reference-p vm child)
+          (let ((caddr (ref-strip-or-self vm child)))
+            (when (space-contains-p nursery caddr)
+              (let ((new
+                      (space-trace-object
+                       nursery vm child tr :trace-kind :minor)))
+                (unless (eql new child)
+                  (setf (vm-object-reference vm addr k) new))))))))))
 
 (defun minor-mark (plan)
   (let* ((vm (plan-vm plan))
          (tr (plan-tracer plan))
          (nursery (gen-nursery plan)))
+    (tracer-reset tr)
     ;; seed roots that point into the nursery
-    (let ((roots (vm-root-vector vm)))
-      (dotimes (i (length roots))
-        (let* ((ref (aref roots i)) (addr (ref-strip-or-self vm ref)))
-          (when (and (vm-reference-p vm ref) (space-contains-p nursery addr))
-            (let ((new (space-trace-object nursery vm ref tr)))
-              (unless (eql new ref) (setf (aref roots i) new)))))))
+    (vm-scan-roots vm plan #'minor-root-reference)
     ;; seed remembered set: dirty mature cards -> nursery refs
     (scan-remset plan vm nursery tr)
     ;; drain: trace nursery children only (mature refs are external roots)
-    (tracer-drain tr
-      (lambda (ref)
-        (let ((addr (ref-strip-or-self vm ref)))
-          (dotimes (k (vm-object-reference-count vm addr))
-            (let ((child (vm-object-reference vm addr k)))
-              (when (vm-reference-p vm child)
-                (let ((caddr (ref-strip-or-self vm child)))
-                  (when (space-contains-p nursery caddr)
-                    (let ((new (space-trace-object nursery vm child tr)))
-                      (unless (eql new child)
-                        (setf (vm-object-reference vm addr k) new)))))))))))))
+    (tracer-drain tr #'minor-grey-reference plan)))
 
 (defun scan-remset (plan vm nursery tr)
   "For each dirty mature card, seed the tracer with its nursery references."
@@ -118,40 +187,91 @@
         (os (vm-object-start vm))
         (mature (gen-mature plan)))
     (when (and card os mature)
-      (s-for-set-cells card
-        (cons (space-base-address mature) (space-end-address mature))
-        (lambda (caddr)
-          (s-for-set-cells os
-            (cons caddr (+ caddr (g-card)))
-            (lambda (oaddr)
-              (dotimes (k (vm-object-reference-count vm oaddr))
-                (let ((child (vm-object-reference vm oaddr k)))
-                  (when (and (vm-reference-p vm child)
-                             (space-contains-p nursery (ref-strip-or-self vm child)))
-                    (space-trace-object nursery vm child tr)))))))))))
+      (loop for card-address from (space-base-address mature)
+            below (space-end-address mature) by (g-card)
+            when (s-test-bit card card-address)
+              do (loop for object-address from card-address
+                       below (min (+ card-address (g-card))
+                                  (space-end-address mature))
+                       when (s-test-bit os object-address)
+                         do (dotimes
+                                (slot
+                                 (vm-object-reference-count
+                                  vm object-address))
+                              (let ((child
+                                      (vm-object-reference
+                                       vm object-address slot)))
+                                (when
+                                    (and
+                                     (vm-reference-p vm child)
+                                     (space-contains-p
+                                      nursery
+                                      (ref-strip-or-self vm child)))
+                                  (let ((new
+                                          (space-trace-object
+                                           nursery vm child tr
+                                           :trace-kind :minor)))
+                                    (unless (eql new child)
+                                      (setf
+                                       (vm-object-reference
+                                        vm object-address slot)
+                                       new)))))))))))
+
+(defun rebuild-remset (plan)
+  "Recompute mature-to-nursery cards after evacuation and space rotation."
+  (let* ((vm (plan-vm plan))
+         (card (vm-stratum vm :card))
+         (os (vm-object-start vm))
+         (nursery (gen-nursery plan))
+         (mature (gen-mature plan)))
+    (when card
+      (s-clear card)
+      (when (and os nursery mature)
+        (loop for object-address from (space-base-address mature)
+              below (space-end-address mature)
+              when (s-test-bit os object-address)
+                do (dotimes
+                       (slot (vm-object-reference-count vm object-address))
+                     (let ((child
+                             (vm-object-reference vm object-address slot)))
+                       (when (and
+                              (vm-reference-p vm child)
+                              (space-contains-p
+                               nursery (ref-strip-or-self vm child)))
+                         (s-set-bit card object-address)
+                         (return))))))))
+  plan)
 
 ;; ---- construction -------------------------------------------------------
 
 (defun %make-generational (name vm mature-class copy-mature-p)
-  (multiple-value-bind (nursery-spec mature-spec mto-spec)
+  (multiple-value-bind (nursery-spec nursery-to-spec mature-spec mto-spec)
       (if copy-mature-p
-          (values-list (partition-pages (vm-page-count vm) '(1/4 3/8 3/8)))
-          (values-list (append (partition-pages (vm-page-count vm) '(1/4 3/4))
-                                (list nil))))
-    (let* ((nursery (make-instance 'mark-sweep-space :vm vm
+          (values-list (partition-pages (vm-page-count vm) '(1/8 1/8 3/8 3/8)))
+          (values-list (append (partition-pages (vm-page-count vm) '(1/8 1/8 3/4))
+                               (list nil))))
+    (let* ((nursery (make-instance 'nursery-copy-space :vm vm
                                     :start-page (car nursery-spec) :page-count (cdr nursery-spec)
                                     :name :nursery :default-space t))
+           (nursery-to (make-instance 'nursery-copy-space :vm vm
+                                       :start-page (car nursery-to-spec)
+                                       :page-count (cdr nursery-to-spec)
+                                       :name :nursery-to :default-space nil))
            (mature (make-instance mature-class :vm vm
                                    :start-page (car mature-spec) :page-count (cdr mature-spec)
                                    :name :mature :default-space nil))
            (barrier (make-instance 'barrier :rules (list (card-barrier-rule))))
            (p (make-instance 'generational-plan
                             :name name :vm vm
-                            :spaces (list nursery mature)
+                            :spaces (list nursery nursery-to mature)
                             :barrier barrier
                             :constraints (make-instance 'plan-constraints
                                          :generational t :write-barrier :card))))
-      (setf (gen-nursery p) nursery (gen-mature p) mature)
+      (setf (gen-nursery p) nursery
+            (gen-nursery-to p) nursery-to
+            (gen-mature p) mature
+            (space-partner nursery) nursery-to
+            (space-partner nursery-to) nursery)
       (setf (barrier-plan barrier) p)
       (when (and copy-mature-p mto-spec)
         (let ((mto-space (make-instance 'copy-space :vm vm
@@ -160,7 +280,8 @@
           (setf (gen-mature-to p) mto-space
                 (space-partner mature) mto-space
                 (space-partner mto-space) mature)
-          (setf (plan-spaces p) (list nursery mature mto-space))))
+          (setf (plan-spaces p)
+                (list nursery nursery-to mature mto-space))))
       (finalize-plan p) p)))
 
 (defun make-gencopy-plan (vm heap-size)

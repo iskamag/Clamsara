@@ -8,7 +8,8 @@
 
 (defclass publication-strategy ()
   ((public-region :initarg :public-region :accessor public-region
-                  :initform nil)))
+                  :initform nil)
+   (work :accessor publication-work :initform (make-array 0 :fill-pointer 0))))
 
 (defgeneric publish (strategy vm object)
   (:documentation "Restore DLG for OBJECT becoming reachable from a public source."))
@@ -16,19 +17,12 @@
   (:documentation "Optional read-barrier rule this strategy requires, or NIL.")
   (:method ((s publication-strategy)) nil))
 
-(defun do-transitive-closure (vm root fn)
-  "Walk the transitive closure of ROOT, calling FN on each object once."
-  (let ((seen (make-hash-table :test 'eql))
-        (work (list root)))
-    (loop while work
-          for o = (pop work)
-          unless (gethash o seen)
-          do (setf (gethash o seen) t)
-             (funcall fn o)
-             (vm-scan-object-references vm o
-               (lambda (child)
-                 (let ((a (ref-strip-or-self vm child)))
-                   (when (vm-reference-p vm a) (push a work))))))))
+(defun initialize-publication-work (strategy vm)
+  "Allocate the eager-closure queue at boot, standing in for immortal storage."
+  (setf (publication-work strategy)
+        (make-array (vm-heap-size vm) :element-type 'fixnum
+                    :initial-element 0 :fill-pointer 0))
+  strategy)
 
 ;; ---- eager closure (Iso) -------------------------------------------------
 ;; Publish the whole transitive closure at once: set the public bit on each.
@@ -37,10 +31,31 @@
 (defclass eager-closure (publication-strategy) ())
 
 (defmethod publish ((s eager-closure) vm root)
-  (do-transitive-closure vm root
-    (lambda (o)
-      (unless (vm-object-is-public-p vm o)
-        (setf (vm-object-is-public-p vm o) t)))))
+  ;; The public bit is also the visited bit: publication is monotone, so an
+  ;; object can enter this queue at most once over the whole run.
+  (let ((work (publication-work s))
+        (head 0)
+        (root (ref-strip-or-self vm root)))
+    (setf (fill-pointer work) 0)
+    (unless (vm-object-is-public-p vm root)
+      (setf (vm-object-is-public-p vm root) t)
+      (unless (vector-push root work)
+        (error 'heap-exhausted :requested-size 1
+               :space :publication-queue)))
+    (loop while (< head (length work))
+          for object = (aref work head)
+          do (incf head)
+             (dotimes (i (vm-object-reference-count vm object))
+               (let* ((child (vm-object-reference vm object i))
+                      (addr (ref-strip-or-self vm child)))
+                 (when (and (vm-reference-p vm child)
+                            (not (vm-object-is-public-p vm addr)))
+                   (setf (vm-object-is-public-p vm addr) t)
+                   (unless (vector-push addr work)
+                     (error 'heap-exhausted :requested-size 1
+                            :space :publication-queue))))))
+    (setf (fill-pointer work) 0)
+    root))
 
 ;; ---- lazy read-barrier (Marlow/Dolan/Filatov-Mikheev lineage) ------------
 ;; Publish only the root; a read barrier promotes children on demand.

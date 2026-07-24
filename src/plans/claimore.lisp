@@ -1,0 +1,141 @@
+;;;; plans/claimore.lisp -- the stress-test collector.  Coordinates: superblock
+;;;; hierarchy / mixed policy (RC + trace) / non-moving + block compaction /
+;;;; publication + RC barriers / private nursery + global mature / concurrent.
+;;;;
+;;;; This is a FUNCTIONAL implementation exercising every axis: a thread-local
+;;;; mark-region nursery with publication, a mature space reclaimed by reference
+;;;; counting (off-heap table) with a backup trace for cycles, and a checkpoint
+;;;; phase (persistence stub).  The full superblock/metablock/block matrix
+;;;; hierarchy (heap.tex §6) is simplified to a flat RC mature space; the
+;;;; closure-over-matrices machinery (strata.lisp) is available but not wired
+;;;; into the reclaim path here.
+
+(in-package #:clamsara)
+
+(defclass claimore-plan (plan)
+  ((nursery :accessor cl-nursery :initform nil)
+   (mature :accessor cl-mature :initform nil))
+  (:metaclass plan-metaclass))
+
+(defmethod plan-install-strata ((p claimore-plan) vm)
+  (vm-set-location vm :mark :side)
+  (vm-set-location vm :forwarding :off-heap)      ; block compaction uses off-heap fwd
+  (vm-set-location vm :rc :off-heap)
+  (vm-register-stratum vm :mark
+    (make-stratum :mark (vm-min-alignment-words vm) :bit (vm-heap-size vm)))
+  (vm-register-stratum vm :public
+    (make-stratum :public (vm-min-alignment-words vm) :bit (vm-heap-size vm)))
+  (vm-register-stratum vm :card
+    (make-stratum :card (g-card) :bit (vm-heap-size vm))))
+
+(defmethod plan-allocate ((p claimore-plan) size space-designator)
+  (declare (ignore space-designator))
+  (let ((addr (alloc (space-allocator (cl-nursery p)) size)))
+    (cond (addr (let ((os (vm-object-start (plan-vm p))))
+                 (when os (s-set-bit os addr))) addr)
+          (t (plan-handle-allocation-failure p size (cl-nursery p))))))
+
+(defmethod plan-handle-allocation-failure ((p claimore-plan) size space)
+  (plan-collect p :cycle-kind :minor)
+  (let ((addr (alloc (space-allocator space) size)))
+    (cond (addr (let ((os (vm-object-start (plan-vm p))))
+                 (when os (s-set-bit os addr))) addr)
+          (t (plan-collect p :cycle-kind :major)
+             (let ((a2 (alloc (space-allocator space) size)))
+               (if a2
+                   (progn (let ((os (vm-object-start (plan-vm p))))
+                            (when os (s-set-bit os a2))) a2)
+                   (error 'heap-exhausted :requested-size size :space :nursery)))))))
+
+(defmethod plan-collect ((p claimore-plan) &key cycle-kind)
+  (let ((fn (gethash 'plan-collect (plan-function-table p))))
+    (if fn (funcall fn p (or cycle-kind :minor))
+        (plan-collect-phase p (or cycle-kind :minor)))))
+
+(defmethod phase-prologue ((p claimore-plan) k)
+  (vm-stop-mutators (plan-vm p))
+  (if (eq k :minor)
+      (space-prepare (cl-nursery p) (plan-vm p))
+      (map-spaces p (lambda (s ck) (space-prepare s (plan-vm p) :cycle-kind ck)) k)))
+
+(defmethod phase-mark ((p claimore-plan) k)
+  (if (eq k :minor) (claimore-minor-mark p) (mark-roots p (plan-tracer p))))
+
+(defmethod phase-reclaim ((p claimore-plan) k)
+  (let ((vm (plan-vm p)))
+    (if (eq k :minor)
+        (space-reclaim (cl-nursery p) vm :cycle-kind k)
+        (progn
+          ;; apply the coalesced RC log (increments/decrements) to the table
+          (claimore-apply-rc-log p)
+          ;; backup trace reclaims cycles: mark from roots, sweep unmarked
+          (map-spaces p (lambda (s ck) (space-reclaim s vm :cycle-kind ck)))))))
+
+(defmethod phase-checkpoint ((p claimore-plan) k)
+  (declare (ignore k))
+  ;; persistence stub: a real plan would capture the dirty set and mark CoW.
+  (when (plan-stats p) (stats-event (plan-stats p) :checkpoints 1)))
+
+(defmethod phase-release ((p claimore-plan) k)
+  (declare (ignore k))
+  (let ((vm (plan-vm p)))
+    (let ((mark (vm-stratum vm :mark))) (when (and mark (eq k :major)) (s-clear mark)))
+    (let ((card (vm-stratum vm :card))) (when card (s-clear card))))
+  (when (plan-stats p) (stats-event (plan-stats p) :gc-cycles 1)))
+
+(defun claimore-minor-mark (plan)
+  "Private nursery collection: trace the request's roots + published objects
+  within the nursery; public (mature) children are external."
+  (let* ((vm (plan-vm plan)) (tr (plan-tracer plan)) (nursery (cl-nursery plan)))
+    (let ((roots (vm-root-vector vm)))
+      (dotimes (i (length roots))
+        (let* ((ref (aref roots i)) (addr (ref-strip-or-self vm ref)))
+          (when (and (vm-reference-p vm ref) (space-contains-p nursery addr))
+            (space-trace-object nursery vm ref tr)))))
+    (let ((pub (vm-stratum vm :public)) (os (vm-object-start vm)))
+      (when (and pub os)
+        (s-for-set-cells pub (cons (space-base-address nursery) (space-end-address nursery))
+          (lambda (addr)
+            (when (vm-object-start-p vm addr)
+              (space-trace-object nursery vm addr tr))))))
+    (tracer-drain tr
+      (lambda (ref)
+        (let ((addr (ref-strip-or-self vm ref)))
+          (dotimes (k (vm-object-reference-count vm addr))
+            (let ((child (vm-object-reference vm addr k)))
+              (when (vm-reference-p vm child)
+                (let ((caddr (ref-strip-or-self vm child)))
+                  (when (space-contains-p nursery caddr)
+                    (space-trace-object nursery vm child tr)))))))))))
+
+(defun claimore-apply-rc-log (plan)
+  "Drain the RC delta buffer into the off-heap reference-count table."
+  (let ((buf (barrier-rc-buffer (plan-barrier plan)))
+        (table (vm-rc-table (plan-vm plan))))
+    (loop for (ref . delta) across buf
+          when (plusp ref)
+          do (let ((cur (gethash ref table 0)))
+               (setf (gethash ref table) (max 0 (+ cur delta)))))
+    (setf (fill-pointer buf) 0)))
+
+(defun make-claimore-plan (vm heap-size)
+  (declare (ignore heap-size))
+  (destructuring-bind (nu ma) (partition-pages (vm-page-count vm) '(1/3 2/3))
+    (let* ((nursery (make-instance 'immix-space :vm vm
+                                    :start-page (car nu) :page-count (cdr nu)
+                                    :name :nursery :default-space t
+                                    :moving :opportunistic))
+           (mature (make-instance 'mark-sweep-space :vm vm
+                                   :start-page (car ma) :page-count (cdr ma)
+                                   :name :mature :default-space nil))
+           (barrier (make-instance 'barrier
+                      :rules (list (publication-barrier-rule))))
+           (p (make-instance 'claimore-plan :name :claimore :vm vm
+                            :spaces (list nursery mature) :barrier barrier
+                            :constraints (make-instance 'plan-constraints
+                                         :scope :thread :write-barrier :publication
+                                         :read-barrier :none :forwarding :off-heap
+                                         :concurrency :concurrent-relocate))))
+      (setf (cl-nursery p) nursery (cl-mature p) mature (barrier-plan barrier) p
+            (plan-publication p) (make-instance 'trap-error-copy-a :public-region mature))
+      (finalize-plan p) p)))

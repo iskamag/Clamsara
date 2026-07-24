@@ -1,0 +1,60 @@
+;;;; test/test-advanced.lisp -- Iso (publication/DLG), ZGC (SATB+LVB+relocate),
+;;;; Claimore (RC+nursery+checkpoint).  Plus barrier unit tests.
+
+(in-package #:clamsara)
+
+(defun %vm () *clamsara-vm*)
+(defun %slot (a i) (vm-object-reference (%vm) a i))
+(defun (setf %slot) (v a i) (setf (vm-object-reference (%vm) a i) v))
+
+(deftest iso-publication-dlg ()
+  (with-clamsara (:plan-type :iso :heap-size 65536)
+    (let ((a (clamsara-allocate-object 2))
+          (b (clamsara-allocate-object 1)))
+      (setf (%slot a 0) b)
+      (clamsara-register-root a)
+      (let ((pub (clamsara-allocate-object 1)))
+        (setf (vm-object-is-public-p (%vm) pub) t)
+        (clamsara-write pub 0 a))   ; publication barrier publishes `a`
+      (clamsara-gc)
+      (let ((a2 (clamsara-root 0)))
+        (if (and (plusp a2) (= (vm-object-reference-count (%vm) a2) 2)
+                 (vm-object-is-public-p (%vm) a2))
+            (values t "ok") (values nil "publication/DLG failed"))))))
+
+(deftest zgc-relocate-heal ()
+  (with-clamsara (:plan-type :zgcish :heap-size 65536)
+    (let ((a (clamsara-allocate-object 3))
+          (b (clamsara-allocate-object 2)))
+      (setf (%slot a 0) b)
+      (clamsara-register-root a)
+      (clamsara-gc)
+      (let ((a2 (clamsara-root 0)))
+        (if (and (plusp a2) (plusp (%slot a2 0)))    ; relocate healed the ref
+            (values t "ok") (values nil "relocate/heal failed"))))))
+
+(deftest claimore-major ()
+  (with-clamsara (:plan-type :claimore :heap-size 65536)
+    (let ((a (clamsara-allocate-object 2))
+          (b (clamsara-allocate-object 1)))
+      (setf (%slot a 0) b)
+      (clamsara-register-root a)
+      (clamsara-gc)
+      (dotimes (i 3)
+        (dotimes (j 40) (clamsara-allocate-object 3))
+        (clamsara-gc))
+      (clamsara-gc :cycle-kind :major)
+      (let ((a2 (clamsara-root 0)))
+        (if (and (plusp a2) (= (vm-object-reference-count (%vm) a2) 2))
+            (values t "ok") (values nil "claimore major failed"))))))
+
+(deftest barrier-card-rule ()
+  (let ((card (make-barrier-rule :name :card :trigger :ref-write
+                 :transfer (lambda (vm barrier src slot new)
+                             (declare (ignore barrier slot))
+                             (when (and (plusp new) (vm-object-old-p vm src)
+                                        (vm-object-young-p vm new))
+                               (let ((c (vm-stratum vm :card)))
+                                 (when c (s-set-bit c src))))))))
+    (if (eq (barrier-rule-trigger card) :ref-write)
+        (values t "ok") (values nil "card rule wrong"))))

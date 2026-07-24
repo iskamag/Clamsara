@@ -2,3 +2,5 @@ paper
 paper-*
 README.md
 /.agent-shell/
+*.fasl
+*.fasl

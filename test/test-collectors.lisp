@@ -1,0 +1,51 @@
+;;;; test/test-collectors.lisp -- every collector: allocate, link, GC, reclaim,
+;;;; verify liveness + that dead objects are reclaimed + sanity check.
+
+(in-package #:clamsara)
+
+(defun %vm () *clamsara-vm*)
+(defun %slots (a) (vm-object-reference-count (%vm) a))
+(defun %slot (a i) (vm-object-reference (%vm) a i))
+(defun (setf %slot) (v a i) (setf (vm-object-reference (%vm) a i) v))
+
+(defun %survives-p (plan-type)
+  (with-clamsara (:plan-type plan-type :heap-size 65536)
+    (let* ((a (clamsara-allocate-object 3))
+           (b (clamsara-allocate-object 2))
+           (c (clamsara-allocate-object 2)))
+      (setf (%slot a 0) b (%slot a 1) c (%slot b 0) c)
+      (let ((root (clamsara-register-root a)))
+        (declare (ignore root))
+        (clamsara-gc)
+        (let ((a2 (clamsara-root 0)))
+          (unless (and (plusp a2) (= (%slots a2) 3)
+                       (plusp (%slot a2 0)) (plusp (%slot a2 1))
+                       (= (%slot (%slot a2 0) 0) (%slot a2 1)))
+            (return-from %survives-p (values nil "live graph broke"))))
+        (dotimes (i 200) (clamsara-allocate-object 5))  ; garbage
+        (clamsara-gc)
+        (let ((a3 (clamsara-root 0)))
+          (if (and (= (%slots a3) 3) (plusp (%slot a3 0)))
+              (values t "ok") (values nil "survivors lost after churn")))))))
+
+(dolist (pt '(:semispace :marksweep :immix :gencopy :genms :genimmix))
+  (let ((nm (intern (format nil "COLLECTOR-~a" pt))))
+    (push (cons nm (lambda () (%survives-p pt))) *clamsara-tests*)))
+
+(deftest collector-nogc ()
+  (with-clamsara (:plan-type :nogc :heap-size 65536)
+    (let ((a (clamsara-allocate-object 3)))
+      (clamsara-register-root a)
+      (if (= (%slots a) 3) (values t "ok") (values nil "alloc wrong")))))
+
+(deftest collector-sticky-survives ()
+  (with-clamsara (:plan-type :stickyimmix :heap-size 65536)
+    (let ((root (clamsara-allocate-object 2)))
+      (clamsara-register-root root)
+      (dotimes (i 5)
+        (dotimes (j 50) (clamsara-allocate-object 3))
+        (clamsara-gc))
+      (clamsara-gc :cycle-kind :major)
+      (let ((r (clamsara-root 0)))
+        (if (and (plusp r) (= (%slots r) 2)) (values t "ok")
+            (values nil "sticky root lost"))))))

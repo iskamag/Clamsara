@@ -323,28 +323,50 @@ stratum with a non-zero default (an inverted stratum) is consistent from boot."
                      do (s-set dst (ash (+ (* i factor) k) (log2-int dg)) 1))))))
 
 ;; ---- matrix stratum (remembered sets, closure) ---------------------------
+;;
+;; The 1-bit remembered-set matrix from iskamag.com/posts/remsets.  Like the C
+;; reference (bitmatrices/c/peel_space.c, bitvectors.c) the storage and all
+;; work buffers are allocated ONCE at construction; the closure/peel loops
+;; never call MAKE-ARRAY, matching the strata.md §6 rule that the collector
+;; cannot call the host allocator.  Vectorised bulk steps use destructive
+;; BIT-IOR / BIT-AND into the preallocated scratch (SBCL makes those
+;; allocation-free when the result array is one of the arguments).
 
 (defclass matrix-stratum ()
   ((granularity :initarg :granularity :reader matrix-granularity)
-   (direction   :initarg :direction :reader matrix-direction) ; :points-to :pointed-by
-   (regions     :initarg :regions :reader matrix-regions)
-   (bits        :accessor matrix-bits)           ; host bit-vector
-   (words-per-row :reader matrix-words-per-row))
+    (direction   :initarg :direction :reader matrix-direction) ; :points-to :pointed-by
+    (regions     :initarg :regions :reader matrix-regions)
+    (bits        :accessor matrix-bits)           ; host bit-vector (the graph)
+    (words-per-row :reader matrix-words-per-row)
+    ;; Preallocated work buffers (the C reference's `static` + stack arrays):
+    ;; a/b/c are regions-sized live-set/active accumulators; row is one row.
+    (scratch-a   :accessor matrix-scratch-a)
+    (scratch-b   :accessor matrix-scratch-b)
+    (scratch-c   :accessor matrix-scratch-c)
+    (scratch-row :accessor matrix-scratch-row))
   (:default-initargs :direction :points-to))
 
 (defmethod shared-initialize :after ((m matrix-stratum) slot-names &key)
   (declare (ignore slot-names))
   (unless (slot-boundp m 'words-per-row)
     (let* ((r (matrix-regions m))
-           (bits-per-row r)
-           (wpr bits-per-row))
+           (wpr r))
       (setf (slot-value m 'words-per-row) wpr)
       (unless (slot-boundp m 'bits)
         (setf (matrix-bits m) (make-array (* wpr r)
                                           :element-type 'bit
                                           :initial-element 0))
         ;; diagonal must be zero (a self-reference is not a cross-region edge)
-        (loop for i below r do (matrix-clear m i i))))))
+        (loop for i below r do (matrix-clear m i i)))
+      ;; Allocate the peel/closure scratch once, at boot.
+      (setf (matrix-scratch-a m)   (make-array r :element-type 'bit
+                                              :initial-element 0)
+            (matrix-scratch-b m)   (make-array r :element-type 'bit
+                                              :initial-element 0)
+            (matrix-scratch-c m)   (make-array r :element-type 'bit
+                                              :initial-element 0)
+            (matrix-scratch-row m) (make-array wpr :element-type 'bit
+                                               :initial-element 0)))))
 
 (defun make-matrix-stratum (granularity regions &key (direction :points-to))
   (make-instance 'matrix-stratum :granularity granularity
@@ -363,49 +385,108 @@ stratum with a non-zero default (an inverted stratum) is consistent from boot."
 (defun matrix-clear (m i j)
   (setf (sbit (matrix-bits m) (%m-bit-index m i j)) 0))
 
+(defun matrix-row-into (m i vec)
+  "Copy row I into the preallocated bit-vector VEC (length = regions).  Returns
+VEC.  Allocation-free; the collection-path row extraction."
+  (let ((wpr (matrix-words-per-row m))
+        (base (* i (matrix-words-per-row m))))
+    (replace vec (matrix-bits m) :start2 base :end2 (+ base wpr))
+    vec))
+
+(defun matrix-column-into (m j vec)
+  "Write column j into the preallocated bit-vector VEC (length = regions)."
+  (let ((r (matrix-regions m)))
+    (fill vec 0)
+    (dotimes (i r vec)
+      (when (eql 1 (matrix-ref m i j))
+        (setf (sbit vec i) 1)))))
+
 (defun matrix-row (m i)
-  "Return a fresh bit-vector containing row I."
-  (let* ((wpr (matrix-words-per-row m))
-         (base (* i wpr))
-         (row (make-array wpr :element-type 'bit :initial-element 0)))
-    (replace row (matrix-bits m) :start2 base :end2 (+ base wpr))
-    row))
+  "Return row I as a FRESH bit-vector.  Diagnostic only (allocates); the
+collection path uses MATRIX-ROW-INTO with the preallocated scratch."
+  (matrix-row-into m i (make-array (matrix-words-per-row m)
+                                   :element-type 'bit :initial-element 0)))
 
 (defun matrix-column (m j)
-  "Return a fresh bit-vector (length regions) of column j."
-  (let* ((r (matrix-regions m)) (col (make-array r :element-type 'bit
-                                                  :initial-element 0)))
-    (loop for i below r do (setf (sbit col i) (matrix-ref m i j)))
-    col))
+  "Return column j as a FRESH bit-vector.  Diagnostic only (allocates)."
+  (matrix-column-into m j (make-array (matrix-regions m)
+                                      :element-type 'bit :initial-element 0)))
 
 (defun matrix-clear-all (m) (fill (matrix-bits m) 0))
 
 (defun matrix-closure (m roots &optional (max-passes nil))
-  "Transitive closure from ROOTS (bit-vector of regions) over the matrix.
-  Returns a fresh bit-vector of reached regions.  MAX-PASSES bounds diameter
-  (NIL = run to fixpoint)."
+  "Least-fixpoint forward closure from ROOTS over the points-to matrix
+(strata.md §5).  Returns the reached-regions bit-vector, which is shared
+preallocated scratch — copy it if you must keep it across another call.
+MAX-PASSES bounds the diameter (NIL = run to fixpoint).
+
+Allocation-free: each pass snapshots the seed into scratch-b, ORs every live
+row into scratch-a via destructive BIT-IOR (the SIMD-able bulk step the C
+reference calls DENSE_PASS), and stops when scratch-a stops growing."
   (let* ((r (matrix-regions m))
-         (live (make-array r :element-type 'bit :initial-contents
-                           (loop for i below r collect (if (< i (length roots))
-                                                           (sbit roots i) 0))))
-         (passes 0))
-    (loop
-      (when (and max-passes (>= passes max-passes)) (return))
-      (let ((changed nil))
-        (dotimes (i r)
-          (when (eql 1 (sbit live i))
-            (let ((base (* i (matrix-words-per-row m))))
-              (dotimes (j r)
-                (when (and (eql 1 (sbit (matrix-bits m) (+ base j)))
-                           (zerop (sbit live j)))
-                  (setf (sbit live j) 1 changed t))))))
-        (incf passes)
-        (unless changed (return))))
+         (bits (matrix-bits m))
+         (wpr (matrix-words-per-row m))
+         (live (matrix-scratch-a m))
+         (prev (matrix-scratch-b m))
+         (row  (matrix-scratch-row m))
+         (nroots (min (length roots) r)))
+    (fill live 0)
+    (replace live roots :end1 nroots :end2 nroots)
+    (loop for passes fixnum from 0
+          while (or (not max-passes) (< passes max-passes))
+          do (replace prev live)                  ; snapshot pre-pass seed
+             (dotimes (i r)
+               (when (eql 1 (sbit prev i))
+                 (let ((base (* i wpr)))
+                   (replace row bits :start2 base :end2 (+ base wpr))
+                   (bit-ior row live live))))     ; live |= row[i]  (destructive)
+             (when (null (mismatch live prev))
+               (return)))                         ; fixpoint: nothing grew
     live))
 
 (defun matrix-closure-bounded (m roots passes)
   "Bounded closure: exactly PASSES OR-rounds (the spec's `repeat k times`)."
   (matrix-closure m roots passes))
+
+(defun matrix-peel (m roots &optional (max-passes nil))
+  "Greatest-fixpoint peel (iskamag.com/posts/remsets): start with every region
+alive and, each pass, drop regions that no alive region points to, pinning
+ROOTS alive.  Returns the live-regions bit-vector (shared scratch).
+MAX-PASSES bounds the peel depth (NIL = run to fixpoint); the blog shows a
+bounded peel trades a little over-retention for predictable latency.
+
+Allocation-free: acc = OR of active rows (destructive BIT-IOR into scratch-b),
+roots pinned into acc, then active &= acc (destructive BIT-AND into
+scratch-a); scratch-c holds the pre-pass snapshot for fixpoint detection."
+  (let* ((r (matrix-regions m))
+         (bits (matrix-bits m))
+         (wpr (matrix-words-per-row m))
+         (active (matrix-scratch-a m))
+         (acc    (matrix-scratch-b m))
+         (prev   (matrix-scratch-c m))
+         (row    (matrix-scratch-row m))
+         (nroots (min (length roots) r)))
+    (fill active 1)                               ; everyone starts alive
+    (loop for passes fixnum from 0
+          while (or (not max-passes) (< passes max-passes))
+          do (replace prev active)                ; snapshot for fixpoint test
+             (fill acc 0)
+             (dotimes (i r)
+               (when (eql 1 (sbit active i))
+                 (let ((base (* i wpr)))
+                   (replace row bits :start2 base :end2 (+ base wpr))
+                   (bit-ior row acc acc))))       ; acc |= row[i]
+             (when nroots                        ; pin roots alive
+               (dotimes (k nroots)
+                 (when (eql 1 (sbit roots k)) (setf (sbit acc k) 1))))
+             (bit-and active acc active)          ; active &= acc (destructive)
+             (when (null (mismatch active prev))
+               (return)))                         ; fixpoint: nothing dropped
+    active))
+
+(defun matrix-peel-bounded (m roots passes)
+  "Bounded peel: exactly PASSES greatest-fixpoint drops."
+  (matrix-peel m roots passes))
 
 ;; ---- convenience ---------------------------------------------------------
 

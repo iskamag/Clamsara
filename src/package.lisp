@@ -29,8 +29,10 @@
            #:s-get #:s-set #:s-cas #:s-test-bit #:s-set-bit #:s-clear-bit
            #:s-clear #:s-fold #:s-for-set-cells #:s-project #:s-refine
            #:s-popcount
-           #:matrix-ref #:matrix-set #:matrix-clear #:matrix-row #:matrix-column
-           #:matrix-closure #:matrix-closure-bounded
+            #:matrix-ref #:matrix-set #:matrix-clear #:matrix-row #:matrix-column
+            #:matrix-row-into #:matrix-column-into
+            #:matrix-closure #:matrix-closure-bounded
+            #:matrix-peel #:matrix-peel-bounded
            #:stratum-address-range
            #:storage-contiguous #:storage-two-level #:storage-active-set)
   ;; page resources

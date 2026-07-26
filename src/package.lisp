@@ -66,7 +66,7 @@
            #:vm-object-old-p #:vm-object-young-p
            #:vm-valid-reference-p #:vm-reference-p
            #:vm-allocate-object #:vm-root-set
-           #:vm-add-root #:vm-remove-root #:vm-clear-roots
+            #:vm-add-root #:vm-remove-root #:vm-remove-root-at-index #:vm-clear-roots
            #:vm-set-reference)
   ;; heap / spaces / allocators
   (:export #:space #:space-p #:space-name #:space-start-page #:space-page-count

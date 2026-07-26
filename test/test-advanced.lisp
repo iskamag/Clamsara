@@ -75,12 +75,19 @@
             (values t "ok") (values nil "claimore major failed"))))))
 
 (deftest barrier-card-rule ()
-  (let ((card (make-barrier-rule :name :card :trigger :ref-write
-                 :transfer (lambda (vm barrier src slot new)
-                             (declare (ignore barrier slot))
-                             (when (and (plusp new) (vm-object-old-p vm src)
-                                        (vm-object-young-p vm new))
-                               (let ((c (vm-stratum vm :card)))
-                                 (when c (s-set-bit c src))))))))
-    (if (eq (barrier-rule-trigger card) :ref-write)
-        (values t "ok") (values nil "card rule wrong"))))
+  ;; The card rule must actually dirty the source card on an old->young write,
+  ;; not merely report the right trigger keyword.
+  (let ((vm (make-simulator-vm 4096)))
+    (vm-register-stratum vm :card (make-stratum :card (g-card) :bit 4096))
+    (vm-register-stratum vm :age (make-stratum :age (g-word) :u4 4096))
+    (let ((os (vm-object-start vm)))
+      (s-set-bit os 512)                        ; "old" object
+      (s-set-bit os 1024))                      ; "young" object
+    (s-set (vm-stratum vm :age) 512 3)         ; aged => old
+    (let ((rule (card-barrier-rule))
+          (barrier (make-instance 'barrier :rules nil)))
+      (funcall (barrier-rule-transfer rule) vm barrier 512 0 1024)
+      (if (and (eq (barrier-rule-trigger rule) :ref-write)
+               (s-test-bit (vm-stratum vm :card) 512))
+          (values t "ok")
+          (values nil "card rule did not dirty the source card")))))

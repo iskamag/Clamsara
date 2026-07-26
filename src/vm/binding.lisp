@@ -160,6 +160,16 @@
         (setf (aref v i) (aref v (1- (length v))))
         (decf (fill-pointer v))
         (return)))))
+(defun vm-remove-root-at-index (vm index)
+  "Remove the root at INDEX via swap-remove.  Returns the removed address, or
+NIL if INDEX is out of range.  Removing a root invalidates the index of the
+root that was last in the vector (it moves into INDEX); callers must refresh
+any indices they hold."
+  (let ((v (vm-root-vector vm)))
+    (when (and (<= 0 index) (< index (length v)))
+      (prog1 (aref v index)
+        (setf (aref v index) (aref v (1- (length v))))
+        (decf (fill-pointer v))))))
 (defun vm-clear-roots (vm)
   (setf (fill-pointer (vm-root-vector vm)) 0))
 (defun vm-root-set (vm) (vm-root-vector vm))

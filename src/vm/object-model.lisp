@@ -80,10 +80,15 @@
       (loop for k below n do (setf (ref-u64 vm (+ dst k)) (ref-u64 vm (+ src k)))))
     (let ((os (vm-object-start vm)))
       (when os (s-set-bit os dst)))
-    ;; preserve age + public bit (mark starts fresh)
-    (let ((age (vm-stratum vm :age)) (pub (vm-stratum vm :public)))
+    ;; preserve age + public bit.  A copy of a live (marked) object is itself
+    ;; live, so the mark bit is carried too; callers that want a fresh mark
+    ;; (copy-space tracing an unmarked source) are unaffected because the
+    ;; source is unmarked there.
+    (let ((age (vm-stratum vm :age)) (pub (vm-stratum vm :public))
+          (mark (vm-stratum vm :mark)))
       (when age (s-set age dst (s-get age src)))
-      (when pub (when (s-test-bit pub src) (s-set-bit pub dst))))))
+      (when pub (when (s-test-bit pub src) (s-set-bit pub dst)))
+      (when mark (when (s-test-bit mark src) (s-set-bit mark dst))))))
 
 (defgeneric vm-scan-object-references (vm address fn)
   (:documentation "Invoke FN on each reference slot of the object at ADDRESS.")

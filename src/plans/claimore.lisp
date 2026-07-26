@@ -136,17 +136,19 @@
                                     :start-page (car nu) :page-count (cdr nu)
                                     :name :nursery :default-space t
                                     :moving :opportunistic))
-           (mature (make-instance 'mark-sweep-space :vm vm
-                                   :start-page (car ma) :page-count (cdr ma)
-                                   :name :mature :default-space nil))
-           (barrier (make-instance 'barrier
-                      :rules (list (publication-barrier-rule))))
-           (p (make-instance 'claimore-plan :name :claimore :vm vm
-                            :spaces (list nursery mature) :barrier barrier
-                            :constraints (make-instance 'plan-constraints
-                                         :scope :thread :write-barrier :publication
-                                         :read-barrier :none :forwarding :off-heap
-                                         :concurrency :concurrent-relocate))))
+            (mature (make-instance 'mark-sweep-space :vm vm
+                                    :start-page (car ma) :page-count (cdr ma)
+                                    :name :mature :default-space nil
+                                    :policy :refcount))
+            (barrier (make-instance 'barrier
+                       :rules (list (publication-barrier-rule)
+                                    (rc-barrier-rule))))
+            (p (make-instance 'claimore-plan :name :claimore :vm vm
+                             :spaces (list nursery mature) :barrier barrier
+                             :constraints (make-instance 'plan-constraints
+                                          :scope :thread :write-barrier :publication
+                                          :read-barrier :none :forwarding :off-heap
+                                          :concurrency :stw))))
       (setf (cl-nursery p) nursery (cl-mature p) mature (barrier-plan barrier) p
             (plan-publication p) (make-instance 'trap-error-copy-a :public-region mature))
       (finalize-plan p) p)))

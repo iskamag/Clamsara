@@ -106,7 +106,7 @@
     (rebuild-remset p)
     (let ((mark (vm-stratum vm :mark))) (when mark (s-clear mark)))
     (when (plan-stats p) (stats-event (plan-stats p) :gc-cycles 1))
-    (incf (gen-minor-count p))))
+    (when (eq k :minor) (incf (gen-minor-count p)))))
 
 ;; ---- nursery evacuation and age-based promotion -------------------------
 

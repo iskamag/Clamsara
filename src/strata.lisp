@@ -55,10 +55,11 @@
 (defun %stratum-allocate (s)
   (let* ((ct (stratum-cell-type s))
          (cells (%cell-count s))
-         (storage (stratum-storage s)))
+         (storage (stratum-storage s))
+         (default (stratum-default s)))
     (case storage
       ((:contiguous :contiguous-with-active-set)
-       (setf (stratum-cells s) (%make-flat ct cells)
+       (setf (stratum-cells s) (%make-flat ct cells default)
              (stratum-active s)
              (if (eq storage :contiguous-with-active-set)
                  (make-array cells :element-type 'fixnum
@@ -72,20 +73,28 @@
               (dir (make-array chunks :initial-element nil)))
          (dotimes (chunk chunks)
            (setf (aref dir chunk)
-                 (%make-flat ct (stratum-chunk-cells s))))
+                 (%make-flat ct (stratum-chunk-cells s) default)))
          (setf (stratum-dir s) dir)))
       (t (error 'clamsara-error
                 :message (format nil "unknown storage ~a" storage))))
     s))
 
-(defun %make-flat (cell-type cells)
+(defun %make-flat (cell-type cells &optional (default 0))
+  "Create a flat backing store for CELL-TYPE.  Cells start at DEFAULT so a
+stratum with a non-zero default (an inverted stratum) is consistent from boot."
   (ecase cell-type
-    (:bit  (make-array cells :element-type 'bit :initial-element 0))
+    (:bit  (make-array cells :element-type 'bit
+                       :initial-element (ldb (byte 1 0) default)))
     (:u4   (make-array (ceiling cells 2) :element-type '(unsigned-byte 8)
-                       :initial-element 0))
-    (:u8   (make-array cells :element-type '(unsigned-byte 8) :initial-element 0))
-    (:u16  (make-array cells :element-type '(unsigned-byte 16) :initial-element 0))
-    (:ref  (make-array cells :element-type '(unsigned-byte 64) :initial-element 0))))
+                       :initial-element
+                       (let ((d default))
+                         (logior (ldb (byte 4 0) d) (ash (ldb (byte 4 0) d) 4)))))
+    (:u8   (make-array cells :element-type '(unsigned-byte 8)
+                       :initial-element (ldb (byte 8 0) default)))
+    (:u16  (make-array cells :element-type '(unsigned-byte 16)
+                       :initial-element (ldb (byte 16 0) default)))
+    (:ref  (make-array cells :element-type '(unsigned-byte 64)
+                       :initial-element default))))
 
 (defun make-stratum (name granularity cell-type heap-words
                      &key (default 0) (storage :contiguous) concurrent)
@@ -204,13 +213,17 @@
 (defun s-clear (s &optional range)
   (let ((def (stratum-default s)))
     (cond
-      ((and (null range) (member (stratum-storage s) '(:contiguous :contiguous-with-active-set)))
-       (ecase (stratum-cell-type s)
-         (:bit  (fill (stratum-cells s) 0))
-         (:u4   (fill (stratum-cells s) (%default-byte s :u4)))
-         (:u8   (fill (stratum-cells s) (ldb (byte 8 0) def)))
-         (:u16  (fill (stratum-cells s) (ldb (byte 16 0) def)))
-         (:ref  (fill (stratum-cells s) def)))
+       ((and (null range) (member (stratum-storage s) '(:contiguous :contiguous-with-active-set)))
+        (ecase (stratum-cell-type s)
+          (:bit  (let ((def (stratum-default s)))
+                   ;; a set cell is a non-default cell: for default 0 that is
+                   ;; bit 1, for default 1 that is bit 0.  Honour the default
+                   ;; so an inverted stratum clears/restores correctly.
+                   (fill (stratum-cells s) (if (zerop def) 0 1))))
+          (:u4   (fill (stratum-cells s) (%default-byte s :u4)))
+          (:u8   (fill (stratum-cells s) (ldb (byte 8 0) def)))
+          (:u16  (fill (stratum-cells s) (ldb (byte 16 0) def)))
+          (:ref  (fill (stratum-cells s) def)))
        (when (stratum-active s)
          (setf (fill-pointer (stratum-active s)) 0)))
       (t
@@ -234,16 +247,17 @@
   a bounded RANGE counts only the cells in [start,end)."
   (cond
     ((and (eq (stratum-cell-type s) :bit)
-          (member (stratum-storage s) '(:contiguous :contiguous-with-active-set)))
-     (let ((vec (stratum-cells s)) (sum 0))
-       (declare (fixnum sum))
-       (if (null range)
-           (setf sum (count 1 vec))
-           (multiple-value-bind (start end) (%range-bounds s range)
-             (loop for c from start below end
-                   when (eql 1 (sbit vec c))
-                   do (incf sum))))
-       sum))
+           (member (stratum-storage s) '(:contiguous :contiguous-with-active-set)))
+      (let ((vec (stratum-cells s)) (sum 0)
+            (set-bit (if (zerop (stratum-default s)) 1 0)))
+        (declare (fixnum sum))
+        (if (null range)
+            (setf sum (count set-bit vec))
+            (multiple-value-bind (start end) (%range-bounds s range)
+              (loop for c from start below end
+                    when (eql set-bit (sbit vec c))
+                    do (incf sum))))
+        sum))
     (t
      (s-fold s range (lambda (v n) (if (eql v (stratum-default s)) n (1+ n))) 0))))
 
@@ -256,10 +270,11 @@
       (cond
         ((and (eq (stratum-cell-type s) :bit)
               (member (stratum-storage s) '(:contiguous :contiguous-with-active-set)))
-         (let ((vec (stratum-cells s)))
-           (loop for idx from start below end
-                 when (eql 1 (sbit vec idx))
-                 do (funcall fn (ash idx shift)))))
+          (let ((vec (stratum-cells s))
+                (set-bit (if (zerop (stratum-default s)) 1 0)))
+            (loop for idx from start below end
+                  when (eql set-bit (sbit vec idx))
+                  do (funcall fn (ash idx shift)))))
         ((stratum-active s)
          (loop for idx across (stratum-active s)
                when (and (>= idx start) (< idx end)

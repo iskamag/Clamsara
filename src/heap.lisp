@@ -211,20 +211,34 @@
   ((page-resource :initarg :page-resource :accessor los-pr)
    (vm :initarg :vm :accessor los-vm)
    (space :initarg :space :accessor los-space)
+   ;; The page-resource hands out *relative* page indices (starting at 1);
+   ;; base-page is the absolute page offset of this space so that the
+   ;; allocator returns addresses inside the space's own range.
+   (base-page :initarg :base-page :accessor los-base-page :initform 0)
    (allocated :accessor los-allocated :initform (make-hash-table :test 'eql))))
 
 (defmethod alloc ((a los-allocator) size &key &allow-other-keys)
   (let* ((pages (ceiling size +page-words+))
          (p (page-resource-get (los-pr a) pages)))
     (when p
-      (setf (gethash (ash p +log-page-words+) (los-allocated a)) pages)
-      (ash p +log-page-words+))))
+      (let ((abs-page (+ p (los-base-page a))))
+        (setf (gethash (ash abs-page +log-page-words+) (los-allocated a)) pages)
+        (ash abs-page +log-page-words+)))))
 (defmethod free ((a los-allocator) addr size)
   (declare (ignore size))
   (let ((pages (gethash addr (los-allocated a))))
-    (when pages (page-resource-release (los-pr a) (address-page addr) pages)
+    (when pages
+      (let ((abs-page (address-page addr)))
+        (page-resource-release (los-pr a) (- abs-page (los-base-page a)) pages))
       (remhash addr (los-allocated a)))))
-(defmethod allocator-reset ((a los-allocator)) nil)
+(defmethod allocator-reset ((a los-allocator))
+  ;; release every allocated page back to the resource, then forget them
+  (maphash (lambda (addr pages)
+             (let ((abs-page (address-page addr)))
+               (page-resource-release (los-pr a)
+                                      (- abs-page (los-base-page a)) pages)))
+           (los-allocated a))
+  (clrhash (los-allocated a)))
 
 ;; ---- Immix allocator (mark-region, block granular) -----------------------
 ;; Blocks are pages (512 words), carved from a fixed word range.  Bump within
@@ -416,7 +430,13 @@ bounded implementation only compacts when an out-of-place block is available."
     (if (vm-reference-p vm ref)
         (let* ((address (ref-strip-or-self vm ref))
                (destination (aref (vm-fwd-table vm) address)))
-          (if (plusp destination) destination ref))
+          (if (plusp destination)
+              ;; Preserve the pointer colour so a self-healing LVB sees the
+              ;; relocated reference as "good" rather than a bare address.
+              (if (typep vm 'coloured-pointer-mixin)
+                  (ref-set-colour vm destination (vm-good-colour vm))
+                  destination)
+              ref))
         ref)))
 
 ;; ---- concrete spaces -----------------------------------------------------
@@ -458,7 +478,13 @@ bounded implementation only compacts when an out-of-place block is available."
               ((or cons-space)        (make-instance 'cons-allocator :start start :limit end :vm vm :space space))
               (immortal-space         (make-instance 'monotone-allocator :start start :limit end :vm vm :space space))
               (mark-sweep-space       (make-instance 'free-list-allocator :start start :limit end :vm vm :space space))
-              (los-space              (make-instance 'free-list-allocator :start start :limit end :vm vm :space space))
+               (los-space              (make-instance 'los-allocator
+                                           :page-resource
+                                           (make-instance 'bitmap-page-resource
+                                             :total-pages (space-page-count space)
+                                             :heap (vm-heap vm))
+                                           :base-page (space-start-page space)
+                                           :vm vm :space space))
               (immix-space            (make-instance 'immix-allocator :vm vm :space space
                                                      :start start :limit end))
               (superblock-space       (make-instance 'hierarchical-allocator :vm vm :space space

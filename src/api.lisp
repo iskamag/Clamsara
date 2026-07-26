@@ -49,7 +49,11 @@ GC may update the entry in place, so callers track the INDEX, not the address)."
   (aref (vm-root-vector *clamsara-vm*) index))
 
 (defun clamsara-remove-root (index)
-  (vm-remove-root *clamsara-vm* (clamsara-root index)))
+  "Remove root slot INDEX.  Returns the address that was at INDEX, or NIL.
+Removing is by index (not address), so a duplicate address in another slot is
+left untouched.  Note: removal uses swap-remove, so the root formerly at the
+last index moves into INDEX — callers must refresh any indices they hold."
+  (vm-remove-root-at-index *clamsara-vm* index))
 
 (defun clamsara-gc (&key cycle-kind)
   (plan-collect *clamsara-plan* :cycle-kind (or cycle-kind :full))

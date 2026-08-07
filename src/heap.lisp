@@ -462,7 +462,8 @@ bounded implementation only compacts when an out-of-place block is available."
 (defclass immortal-space (space) ()
   (:default-initargs :policy nil :moving :none)
   (:metaclass space-metaclass))
-(defclass superblock-space (space) ()
+(defclass superblock-space (space)
+  ((sb-refcounts :accessor sb-refcounts :initarg :sb-refcounts :initform nil))
   (:default-initargs :policy :hierarchical :moving :none)
   (:metaclass space-metaclass))
 
@@ -660,6 +661,41 @@ bounded implementation only compacts when an out-of-place block is available."
 
 (defmethod space-reclaim ((s immortal-space) vm &key cycle-kind)
   (declare (ignore vm cycle-kind)) s)
+
+;; ---- superblock-space (Claimore hierarchical space) ----------------------
+;; Paper-v8 heap.tex §7.6: reference counting at superblock granularity.  A
+;; conventional off-heap table holds per-superblock counts; superblock 0 is the
+;; root and is never freed.  A superblock whose count reaches zero is released
+;; wholesale.  (Metablock search and block compaction — the lower two levels of
+;; the hierarchy — are not yet modelled here.)
+
+(defun sb-index (s address)
+  "Which superblock ADDRESS belongs to, within space S (superblock 0 is the
+  first superblock in the space's address range)."
+  (floor (- address (space-base-address s)) +g-superblock+))
+
+(defmethod space-reclaim ((s superblock-space) vm &key cycle-kind)
+  (declare (ignore cycle-kind))
+  (let ((counts (sb-refcounts s)))
+    (when counts
+      (let ((a (space-allocator s))
+            (os (vm-object-start vm))
+            (base (space-base-address s)))
+        (dotimes (i (length counts))
+          (when (and (plusp i) (zerop (aref counts i)))
+            ;; Free superblock I wholesale: forget its objects, rewind the bump
+            ;; cursor.  The allocator is a monotone bump; releasing the highest
+            ;; superblock rewinds, lower superblocks leave a hole the simulator
+            ;; does not reuse (matching the "released wholesale" semantics).
+            (let ((start (+ base (* i +g-superblock+))))
+              (when os
+                (loop for address from start below (+ start +g-superblock+)
+                      when (s-test-bit os address)
+                        do (vm-forget-object vm address)))
+              (when (and a (typep a 'hierarchical-allocator)
+                         (>= (ha-cursor a) (+ start +g-superblock+)))
+                (setf (ha-cursor a) (min (ha-cursor a) start)))))))))
+  s)
 
 ;; ---- hierarchical allocator (Claimore superblock hierarchy) --------------
 ;; Simplified: allocates objects into blocks of the active superblock; the

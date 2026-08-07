@@ -4,11 +4,12 @@
 ;;;;
 ;;;; This is a FUNCTIONAL implementation exercising every axis: a thread-local
 ;;;; mark-region nursery with publication, a mature space reclaimed by reference
-;;;; counting (off-heap table) with a backup trace for cycles, and a checkpoint
-;;;; phase (persistence stub).  The full superblock/metablock/block matrix
-;;;; hierarchy (heap.tex §6) is simplified to a flat RC mature space; the
-;;;; closure-over-matrices machinery (strata.lisp) is available but not wired
-;;;; into the reclaim path here.
+;;;; counting at superblock granularity (paper-v8 heap.tex §7.6: per-superblock
+;;;; counts, superblock 0 = root, never freed) with a backup trace for cycles,
+;;;; and a checkpoint phase (persistence stub).  The metablock-search and
+;;;; block-compaction levels of the hierarchy are not yet wired into the
+;;;; reclaim path; the closure-over-matrices machinery (strata.lisp) is
+;;;; available for them.
 
 (in-package #:clamsara)
 
@@ -118,15 +119,31 @@
     (tracer-drain tr #'claimore-minor-grey-reference plan)))
 
 (defun claimore-apply-rc-log (plan)
-  "Drain the RC delta buffer into the off-heap reference-count table."
+  "Drain the RC delta buffer, folding each object-level delta up to the
+  per-superblock reference count of its containing superblock (paper-v8
+  heap.tex §7.6).  The mature space's refcounts are per-superblock, so two
+  references to objects in the same superblock contribute one count.
+  A delta logged against a poisoned nursery original (trap-error-copy-a) is
+  redirected to the public copy it stands in for."
   (let ((buf (barrier-rc-buffer (plan-barrier plan)))
-        (table (vm-rc-table (plan-vm plan))))
-    (loop for i from 0 below (length buf) by 2
-          for ref = (aref buf i)
-          for delta = (aref buf (1+ i))
-          when (plusp ref)
-          do (let ((cur (aref table ref)))
-               (setf (aref table ref) (max 0 (+ cur delta)))))
+        (mature (cl-mature plan))
+        (vm (plan-vm plan)))
+    (when (and (sb-refcounts mature) buf)
+      (let ((counts (sb-refcounts mature)))
+        (loop for i from 0 below (length buf) by 2
+              for ref = (aref buf i)
+              for delta = (aref buf (1+ i))
+              when (plusp ref)
+              do (let ((target ref))
+                   ;; trap-error-copy-a poisons the private original; route the
+                   ;; delta to the public copy's superblock instead.
+                   (when (and (error-object-p vm ref)
+                              (space-contains-p mature (error-redirect vm ref)))
+                     (setf target (error-redirect vm ref)))
+                   (when (space-contains-p mature target)
+                     (let* ((sb (sb-index mature target))
+                            (cur (aref counts sb)))
+                       (setf (aref counts sb) (max 0 (+ cur delta)))))))))
     (setf (fill-pointer buf) 0)))
 
 (defun make-claimore-plan (vm heap-size)
@@ -136,10 +153,15 @@
                                     :start-page (car nu) :page-count (cdr nu)
                                     :name :nursery :default-space t
                                     :moving :opportunistic))
-            (mature (make-instance 'mark-sweep-space :vm vm
+            (mature (make-instance 'superblock-space :vm vm
                                     :start-page (car ma) :page-count (cdr ma)
                                     :name :mature :default-space nil
-                                    :policy :refcount))
+                                    :policy :refcount
+                                    :sb-refcounts
+                                    (make-array (max 1 (ceiling (* (cdr ma) +page-words+)
+                                                               +g-superblock+))
+                                                :element-type 'fixnum
+                                                :initial-element 0)))
             (barrier (make-instance 'barrier
                        :rules (list (publication-barrier-rule)
                                     (rc-barrier-rule))))

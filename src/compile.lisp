@@ -67,6 +67,8 @@
       (fwd-clear vm)
       (rc-clear vm)
       (dolist (space (plan-spaces p))
+        (when (and (typep space 'superblock-space) (sb-refcounts space))
+          (fill (sb-refcounts space) 0))
         (boot-reset-allocator-state (space-allocator space)))
       (when (plan-barrier p)
         (setf (fill-pointer (barrier-satb-buffer (plan-barrier p))) 0

@@ -38,6 +38,53 @@
             (values t "ok")
             (values nil "RC buffer stayed empty after a barrier write"))))))
 
+;; ---- Claimore RC granularity is per-superblock (paper-v8 heap.tex §7.6) --
+
+(deftest claimore-rc-is-per-superblock ()
+  (with-clamsara (:plan-type :claimore :heap-size 65536)
+    (let ((mature (cl-mature *clamsara-plan*)))
+      (unless (typep mature 'superblock-space)
+        (return-from claimore-rc-is-per-superblock
+          (values nil (format nil "mature is ~a, not superblock-space"
+                              (type-of mature)))))
+      (let* ((vm *clamsara-vm*)
+             (counts (sb-refcounts mature))
+             (public (clamsara-allocate-object 1))
+             (child (clamsara-allocate-object 0)))
+        ;; Publish the PUBLIC object so a subsequent write from it copies the
+        ;; still-private CHILD into the mature superblock space.  The write
+        ;; then logs an RC delta for the copied CHILD's superblock.  Initialize
+        ;; the slot collector-internally: a freshly allocated object's slots
+        ;; hold stale words (the heap is not cleared at boot), and a
+        ;; barrier-visible zero-store would log a spurious decrement.
+        (vm-set-reference vm public 0 0)
+        (setf (vm-object-is-public-p vm public) t)
+        (clamsara-write public 0 child)
+        ;; The RC log drains into the per-superblock counts at major-GC time
+        ;; (phase-reclaim).  Force one so the deltas land.
+        (clamsara-gc :cycle-kind :major)
+        (let* ((stored (vm-object-reference vm public 0))
+               ;; trap-error-copy-a poisons the nursery original; the read
+               ;; barrier heals it to the public copy.  After a major the
+               ;; original may be swept or restored, so resolve defensively:
+               ;; if the stored value is a poison, use its redirect.
+               (mature-copy (if (and (error-object-p vm stored)
+                                     (space-contains-p mature
+                                                       (error-redirect vm stored)))
+                                (error-redirect vm stored)
+                                stored))
+               (sb (if (space-contains-p mature mature-copy)
+                       (sb-index mature mature-copy)
+                       0)))
+          ;; The folded count lands on the superblock, never on the object's
+          ;; own slot in the per-object RC table.
+          (if (and (plusp (aref counts sb))
+                   (zerop (vm-object-rc vm mature-copy)))
+              (values t "ok")
+              (values nil (format nil "RC not per-superblock: copy ~a sb ~a count ~a obj-rc ~a"
+                                  mature-copy sb (aref counts sb)
+                                  (vm-object-rc vm mature-copy)))))))))
+
 ;; ---- B5: healing a forwarded root must preserve the pointer colour -------
 
 (deftest heal-forwarded-root-preserves-colour ()

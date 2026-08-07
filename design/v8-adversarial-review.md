@@ -57,7 +57,14 @@ named in the paper is implemented.
    safepoints, interleaved barriers, fault delivery, and relocation races.
 5. Replace Claimore's flat nursery/mature scaffold with the paper's hierarchy,
    coalesced RC ownership rules, cycle backup, checkpoint persistence, and
-   crash/recovery invariants.
+   crash/recovery invariants. RC granularity is now per-superblock
+   (heap.tex §7.6: per-superblock counts, superblock 0 = root, never freed;
+   the RC log folds object deltas up to their superblock). Still missing: the
+   metablock-search and block-compaction levels of the hierarchy (the points-to
+   matrices in strata.lisp are not wired into `superblock-space` reclaim), the
+   "released wholesale" hole remains a non-reused bump rewind rather than a free
+   list, and there is no promotion path (nursery objects stay put; only
+   published objects enter the mature space).
 6. Implement weak references/finalization and persistence event semantics.
 7. Expand the Maclina value model beyond `NIL`, signed 59-bit immediates, and
    cons references. Symbols, strings, vectors, functions, and general objects

@@ -91,7 +91,10 @@
          (eql (vm-object-type-tag vm addr) +error-tag+))))
 
 (defun error-redirect (vm reference)
-  (forwarding-address (vm-object-header vm (ref-strip-or-self vm reference))))
+  "The copy address encoded in the error stand-in's size field (bits 0-23);
+  the type tag occupies bits 24-31, so the full forwarding field must not be
+  used (it would include the tag)."
+  (ldb (byte 24 0) (vm-object-header vm (ref-strip-or-self vm reference))))
 
 (defclass trap-error-copy-a (publication-strategy) ())
 

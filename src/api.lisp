@@ -66,9 +66,11 @@ last index moves into INDEX — callers must refresh any indices they hold."
 ;; ---- barrier-aware mutator accessors ------------------------------------
 
 (defun clamsara-write (object slot value)
-  "Mutator store: apply the write barrier, then store."
+  "Mutator store: apply the write barrier, then store the (possibly replaced)
+  value.  A publication barrier may replace VALUE with the public copy."
   (let ((barrier (plan-barrier *clamsara-plan*)))
-    (when barrier (barrier-note-write *clamsara-vm* barrier object slot value))
+    (when barrier
+      (setf value (barrier-note-write *clamsara-vm* barrier object slot value)))
     (setf (vm-object-reference *clamsara-vm* object slot) value)
     value))
 

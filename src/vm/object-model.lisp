@@ -206,8 +206,12 @@
 ;; ---- allocation helper (header write + object-start mark) ----------------
 
 (defun vm-write-header (vm address type-tag slot-count)
-  "Write a header at ADDRESS and mark the object-start bit.  Returns ADDRESS."
+  "Write a header at ADDRESS, zero the SLOT-COUNT payload slots, and mark the
+  object-start bit.  Returns ADDRESS.  Zeroing the payload is required so a
+  first barrier-visible store to a fresh slot observes a non-reference:
+  reused heap regions hold stale words from their previous occupant."
   (setf (ref-u64 vm address) (pack-header slot-count type-tag))
+  (dotimes (k slot-count) (setf (ref-u64 vm (+ address 1 k)) 0))
   (let ((os (vm-object-start vm)))
     (when os (s-set-bit os address)))
   address)

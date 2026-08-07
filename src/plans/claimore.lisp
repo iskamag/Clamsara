@@ -123,27 +123,19 @@
   per-superblock reference count of its containing superblock (paper-v8
   heap.tex §7.6).  The mature space's refcounts are per-superblock, so two
   references to objects in the same superblock contribute one count.
-  A delta logged against a poisoned nursery original (trap-error-copy-a) is
-  redirected to the public copy it stands in for."
+  Increments for published objects are logged against the public copy by the
+  publication barrier rule, so only mature-space targets are counted here."
   (let ((buf (barrier-rc-buffer (plan-barrier plan)))
-        (mature (cl-mature plan))
-        (vm (plan-vm plan)))
+        (mature (cl-mature plan)))
     (when (and (sb-refcounts mature) buf)
       (let ((counts (sb-refcounts mature)))
         (loop for i from 0 below (length buf) by 2
               for ref = (aref buf i)
               for delta = (aref buf (1+ i))
-              when (plusp ref)
-              do (let ((target ref))
-                   ;; trap-error-copy-a poisons the private original; route the
-                   ;; delta to the public copy's superblock instead.
-                   (when (and (error-object-p vm ref)
-                              (space-contains-p mature (error-redirect vm ref)))
-                     (setf target (error-redirect vm ref)))
-                   (when (space-contains-p mature target)
-                     (let* ((sb (sb-index mature target))
-                            (cur (aref counts sb)))
-                       (setf (aref counts sb) (max 0 (+ cur delta)))))))))
+              when (and (plusp ref) (space-contains-p mature ref))
+              do (let* ((sb (sb-index mature ref))
+                        (cur (aref counts sb)))
+                   (setf (aref counts sb) (max 0 (+ cur delta)))))))
     (setf (fill-pointer buf) 0)))
 
 (defun make-claimore-plan (vm heap-size)
@@ -162,15 +154,20 @@
                                                                +g-superblock+))
                                                 :element-type 'fixnum
                                                 :initial-element 0)))
+            (publication (make-instance 'trap-error-copy-a :public-region mature))
+            (read-rule (make-barrier-rule
+                        :name :publication-heal :trigger :ref-read
+                        :transfer (publication-read-rule publication)))
             (barrier (make-instance 'barrier
                        :rules (list (publication-barrier-rule)
-                                    (rc-barrier-rule))))
+                                    (rc-barrier-rule)
+                                    read-rule)))
             (p (make-instance 'claimore-plan :name :claimore :vm vm
                              :spaces (list nursery mature) :barrier barrier
                              :constraints (make-instance 'plan-constraints
                                           :scope :thread :write-barrier :publication
-                                          :read-barrier :none :forwarding :off-heap
+                                          :read-barrier :publication :forwarding :off-heap
                                           :concurrency :stw))))
       (setf (cl-nursery p) nursery (cl-mature p) mature (barrier-plan barrier) p
-            (plan-publication p) (make-instance 'trap-error-copy-a :public-region mature))
+            (plan-publication p) publication)
       (finalize-plan p) p)))

@@ -81,9 +81,12 @@
 (defparameter +error-tag+ 6 "Type tag for poisoned stand-ins.")
 
 (defun poison-as-error (vm original copy)
-  "Overwrite ORIGINAL's header with an error stand-in pointing at COPY."
-  (setf (vm-object-header vm original)
-        (pack-header copy +error-tag+)))
+  "Overwrite ORIGINAL with an error stand-in of size 1 whose slot 0 holds the
+  public COPY's address.  A 1-slot stand-in is a well-formed object under the
+  object model (vm-object-total-words = 2), so a walker scanning it cannot run
+  off into the heap."
+  (setf (vm-object-header vm original) (pack-header 1 +error-tag+))
+  (setf (vm-object-reference vm original 0) copy))
 
 (defun error-object-p (vm reference)
   (let ((addr (ref-strip-or-self vm reference)))
@@ -91,10 +94,8 @@
          (eql (vm-object-type-tag vm addr) +error-tag+))))
 
 (defun error-redirect (vm reference)
-  "The copy address encoded in the error stand-in's size field (bits 0-23);
-  the type tag occupies bits 24-31, so the full forwarding field must not be
-  used (it would include the tag)."
-  (ldb (byte 24 0) (vm-object-header vm (ref-strip-or-self vm reference))))
+  "The public copy address stored in slot 0 of the error stand-in."
+  (vm-object-reference vm (ref-strip-or-self vm reference) 0))
 
 (defclass trap-error-copy-a (publication-strategy) ())
 

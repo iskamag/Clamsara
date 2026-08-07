@@ -42,12 +42,15 @@
 
 (declaim (inline barrier-note-write))
 (defun barrier-note-write (vm barrier src slot new)
-  "Mutator reference store: apply every :ref-write transfer in order."
+  "Mutator reference store: apply every :ref-write transfer in order.
+  Returns the value that should be stored (a transfer may replace NEW, e.g.
+  publication rewrites the slot to the public copy)."
   (let ((rules (barrier-rules barrier)))
     (when rules
       (loop for r in rules
             when (eq (barrier-rule-trigger r) :ref-write)
-            do (funcall (barrier-rule-transfer r) vm barrier src slot new)))))
+            do (setf new (funcall (barrier-rule-transfer r) vm barrier src slot new))))
+    new))
 
 (declaim (inline barrier-note-read))
 (defun barrier-note-read (vm barrier slot-addr reference)
@@ -86,7 +89,8 @@
                (when (and (vm-reference-p vm new) (vm-object-old-p vm src)
                           (vm-object-young-p vm new))
                  (let ((card (vm-stratum vm :card)))
-                   (when card (s-set-bit card src)))))))
+                   (when card (s-set-bit card src))))
+               new)))
 
 (defun sticky-dirty-barrier-rule (&optional (name :sticky-dirty))
   "Log a mutated marked object so a sticky minor rescans its outgoing edges."
@@ -97,7 +101,8 @@
                (when (and (vm-reference-p vm src)
                           (vm-object-is-marked-p vm src))
                  (let ((log (vm-stratum vm :log)))
-                   (when log (s-set-bit log src)))))))
+                   (when log (s-set-bit log src))))
+               new)))
 
 (defun satb-barrier-rule (&optional (name :satb))
   (make-barrier-rule
@@ -106,7 +111,8 @@
                (declare (ignore new))
                (let ((prev (vm-object-reference vm src slot)))
                  (when (and prev (plusp prev) (vm-valid-reference-p vm prev))
-                   (satb-enqueue barrier prev))))))
+                   (satb-enqueue barrier prev)))
+               new)))
 
 (defun rc-barrier-rule (&optional (name :rc))
   (make-barrier-rule
@@ -114,7 +120,8 @@
    :transfer (lambda (vm barrier src slot new)
                (let ((old (vm-object-reference vm src slot)))
                  (when (vm-reference-p vm old) (rc-log-decrement barrier old))
-                 (when (vm-reference-p vm new) (rc-log-increment barrier new))))))
+                 (when (vm-reference-p vm new) (rc-log-increment barrier new)))
+               new)))
 
 (defun publication-barrier-rule (&optional (name :publication))
   (make-barrier-rule
@@ -122,10 +129,18 @@
    :transfer (lambda (vm barrier src slot new)
                (declare (ignore slot))
                (let ((plan (barrier-plan barrier)))
-                 (when (and (vm-reference-p vm new)
-                            (vm-object-is-public-p vm src)
-                            (not (vm-object-is-public-p vm new)))
-                   (publish (plan-publication plan) vm new))))))
+                 (if (and (vm-reference-p vm new)
+                          (vm-object-is-public-p vm src)
+                          (not (vm-object-is-public-p vm new)))
+                     (let ((published (publish (plan-publication plan) vm new)))
+                       ;; The mutator stores the returned value, so the slot
+                       ;; ends up pointing at the public copy; the original is
+                       ;; poisoned and pre-existing references to it are healed
+                       ;; by the read barrier.  The RC rule runs after this
+                       ;; rule and logs the single +1 for the copy (the value
+                       ;; that now lives in the RC-counted mature space).
+                       (if (and published (not (eql published new))) published new))
+                     new)))))
 
 (defun lvb-barrier-rule (&optional (name :lvb))
   "Self-healing load-value barrier: test colour; if stale, heal via forwarding."

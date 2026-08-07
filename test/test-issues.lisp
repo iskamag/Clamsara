@@ -53,32 +53,20 @@
              (child (clamsara-allocate-object 0)))
         ;; Publish the PUBLIC object so a subsequent write from it copies the
         ;; still-private CHILD into the mature superblock space.  The write
-        ;; then logs an RC delta for the copied CHILD's superblock.  Initialize
-        ;; the slot collector-internally: a freshly allocated object's slots
-        ;; hold stale words (the heap is not cleared at boot), and a
-        ;; barrier-visible zero-store would log a spurious decrement.
-        (vm-set-reference vm public 0 0)
+        ;; then logs an RC delta for the copied CHILD's superblock.
         (setf (vm-object-is-public-p vm public) t)
         (clamsara-write public 0 child)
         ;; The RC log drains into the per-superblock counts at major-GC time
         ;; (phase-reclaim).  Force one so the deltas land.
         (clamsara-gc :cycle-kind :major)
-        (let* ((stored (vm-object-reference vm public 0))
-               ;; trap-error-copy-a poisons the nursery original; the read
-               ;; barrier heals it to the public copy.  After a major the
-               ;; original may be swept or restored, so resolve defensively:
-               ;; if the stored value is a poison, use its redirect.
-               (mature-copy (if (and (error-object-p vm stored)
-                                     (space-contains-p mature
-                                                       (error-redirect vm stored)))
-                                (error-redirect vm stored)
-                                stored))
-               (sb (if (space-contains-p mature mature-copy)
-                       (sb-index mature mature-copy)
-                       0)))
+        ;; The read barrier heals the poisoned nursery original to the public
+        ;; copy (GAP-001); this is what a mutator load observes.
+        (let* ((mature-copy (clamsara-read public 0))
+               (sb (sb-index mature mature-copy)))
           ;; The folded count lands on the superblock, never on the object's
           ;; own slot in the per-object RC table.
-          (if (and (plusp (aref counts sb))
+          (if (and (space-contains-p mature mature-copy)
+                   (plusp (aref counts sb))
                    (zerop (vm-object-rc vm mature-copy)))
               (values t "ok")
               (values nil (format nil "RC not per-superblock: copy ~a sb ~a count ~a obj-rc ~a"
@@ -255,3 +243,47 @@
       (if ok-p
           (values nil "harness called a failure a pass")
           (values t "ok")))))
+
+;; ---- GAP-002: fresh allocation slots are zeroed --------------------------
+
+(deftest fresh-allocation-zeroes-slots ()
+  ;; A freshly allocated object's payload slots must be zero (a non-reference),
+  ;; so the first barrier-visible store to a slot cannot log a spurious RC
+  ;; decrement for a stale word left by a previous occupant.
+  (with-clamsara (:plan-type :claimore :heap-size 65536)
+    (let* ((vm *clamsara-vm*)
+           (a (clamsara-allocate-object 3)))
+      ;; slots 0..2 are zero, and 0 is not a valid reference
+      (if (and (zerop (vm-object-reference vm a 0))
+               (zerop (vm-object-reference vm a 1))
+               (zerop (vm-object-reference vm a 2))
+               (not (vm-reference-p vm (vm-object-reference vm a 0))))
+          (values t "ok")
+          (values nil "fresh object slots not zeroed")))))
+
+;; ---- GAP-010: poison stand-in is a well-formed 1-slot object -------------
+
+(deftest poison-stand-in-is-well-formed ()
+  ;; The error stand-in (at the original's address) must be a well-formed
+  ;; object (size 1, redirect in slot 0) so vm-object-total-words cannot walk
+  ;; off the heap, and error-object-p / error-redirect must round-trip.  The
+  ;; public slot itself holds the copy (the write barrier chains it), so the
+  ;; poison is observed at the original's address.
+  (with-clamsara (:plan-type :claimore :heap-size 65536)
+    (let* ((vm *clamsara-vm*)
+           (mature (cl-mature *clamsara-plan*))
+           (a (clamsara-allocate-object 1))
+           (b (clamsara-allocate-object 0)))
+      ;; publish B: copies it into mature, poisons the nursery original A
+      (setf (vm-object-is-public-p vm a) t)
+      (clamsara-write a 0 b)
+      (let* ((stored (vm-object-reference vm a 0))
+             (copy (error-redirect vm b)))
+        (if (and (space-contains-p mature stored)     ; slot holds the copy
+                 (error-object-p vm b)                ; original is poisoned
+                 (space-contains-p mature copy)       ; poison redirects to copy
+                 (= (vm-object-total-words vm b) 2))  ; header + 1 slot
+            (values t "ok")
+            (values nil (format nil "poison stand-in malformed: stored ~a poisoned ~a copy ~a words ~a"
+                                stored (error-object-p vm b) copy
+                                (vm-object-total-words vm b))))))))

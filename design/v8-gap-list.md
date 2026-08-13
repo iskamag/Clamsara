@@ -77,3 +77,17 @@ status ledger, updated in place; the git log is the changelog.
 - **G10 — Concurrency (vm-capabilities.tex §6, plans.tex).** Single-threaded
   phase simulation only; no mutator contexts, scheduler/work packets, or
   adversarial interleaving. ZGC/Claimore concurrent phases run STW.
+
+## Reviewer rounds (this pass)
+
+- R1: 13 complaints (trap-A dangling, persistence no-ops, finalizer partial
+  cycles, hierarchy dead code, medium-object hole, DLG-r sanity) — fixed in
+  d5ba588.
+- R2: 12 complaints (span corruption, image-based checksums, compaction dest
+  heal, trap-B idempotency, cyclic dedup, sweep bound, :checkpoint ecase) —
+  fixed in b48d8a4 and 3e01f5b.
+- R3: 9 complaints — fixed in 3e01f5b and verified in-session (the round-4
+  subagent hit its turn limit with no report; the assistant ran the repros
+  directly: span exclusivity, trap-B same-copy, self-cycle single-copy,
+  :checkpoint admission, sweep frees dead blocks in reached MBs, exhaustion
+  control flow).

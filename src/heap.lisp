@@ -350,10 +350,20 @@
                  (when (<= (+ c size) (ix-block-end b (ix-block-words a)))
                    (setf (immix-block-cursor b) (+ c size))
                    c))))
-        (or (and (ix-current a) (try-block (ix-current a)))
+        (or (and (ix-current a)
+                 (minusp (aref (ix-span-root a)
+                               (floor (- (immix-block-base (ix-current a))
+                                         (ix-start a))
+                                      (ix-block-words a))))
+                 (try-block (ix-current a)))
             (loop for i below (ix-block-count a)
                   for b = (aref (ix-blocks a) i)
-                  thereis (try-block b))
+                  ;; span runs are EXCLUSIVE: a medium-object span's blocks
+                  ;; are reclaimed atomically, so small objects never share
+                  ;; a span block (its tail may look free but dies with the
+                  ;; root object).
+                  thereis (and (minusp (aref (ix-span-root a) i))
+                               (try-block b)))
             (let ((b (ix-new-block a))) (when b (try-block b)))))))
 
 (defmethod ix-new-block ((a immix-allocator))
@@ -1043,31 +1053,22 @@ bounded implementation only compacts when an out-of-place block is available."
          (os (vm-object-start vm))
          (nsb (sb-count s))
          (bpm (sb-blocks-per-metablock s))
-         (mps (sb-mbs-per-superblock s))
-         (matrices (sb-block-matrices s)))
+         (mps (sb-mbs-per-superblock s)))
     (when (and mark os)
       (dotimes (sb nsb)
         (unless (zerop sb)
           (let ((reached (aref (sb-reached-mbs s) sb)))
             (dotimes (m mps)
               (when (and reached (eql 1 (sbit reached m)))
-                ;; per-MB block matrix is indexed by GLOBAL metablock index
-                (let ((mb-matrix
-                        (and matrices
-                             (< (+ (* sb mps) m) (length matrices))
-                             (aref matrices (+ (* sb mps) m)))))
-                  (dotimes (b bpm)
-                    (let ((bi (+ (* sb mps bpm) (* m bpm) b)))
+                (dotimes (b bpm)
+                  (let ((bi (+ (* sb mps bpm) (* m bpm) b)))
                       (when (and (< bi (sb-block-count s))
-                                 (hierarchical-block-in-use-p a bi)
-                                 ;; the block closure must reach this block;
-                                 ;; unreached blocks are skipped without
-                                 ;; paging their objects (strata.tex §5.1)
-                                 (or (null mb-matrix)
-                                     (eql 1 (matrix-ref
-                                             mb-matrix
-                                             (sb-local-block s bi)
-                                             (sb-local-block s bi)))))
+                                 (hierarchical-block-in-use-p a bi))
+                        ;; within a reached metablock the mark stratum is the
+                        ;; authority: free in-use blocks with zero marked
+                        ;; object starts (strata.tex §5.1: search bounds the
+                        ;; trace to reached metablocks; the precise trace
+                        ;; inside them decides liveness)
                         (let ((live-p nil))
                           (loop for address from (sb-block-base s bi)
                                 below (+ (sb-block-base s bi)
@@ -1075,8 +1076,8 @@ bounded implementation only compacts when an out-of-place block is available."
                                 when (and (s-test-bit os address)
                                           (s-test-bit mark address))
                                   do (setf live-p t) (return))
-                          (unless live-p
-                            (hierarchical-free-block a vm bi))))))))))))))
+                           (unless live-p
+                             (hierarchical-free-block a vm bi)))))))))))))
   s)
 
 (defun superblock-compact (s vm)

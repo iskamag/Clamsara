@@ -221,6 +221,59 @@
           (values t "ok")
           (values nil "intact segment misclassified as torn after mutation")))))
 
+(deftest persistence-recovery-truncates-at-torn-segment ()
+  ;; persistence.tex §1: recovery reads forward to the last intact snapshot
+  ;; and stops; a torn trailing segment is truncated, everything after it
+  ;; discarded.
+  (let* ((vm (make-simulator-vm 4096))
+         (plan (make-instance 'plan :vm vm :name :t
+                              :spaces (list (make-instance
+                                             'immix-space :vm vm
+                                             :start-page 1 :page-count 7
+                                             :name :d :default-space t)))))
+    (vm-register-stratum vm :card
+      (make-stratum :card (g-card) :bit 4096))
+    (s-set-bit (vm-stratum vm :card) +page-words+)
+    (let ((s1 (checkpoint-heap plan :timestamp 1)))
+      (s-set-bit (vm-stratum vm :card) (* 2 +page-words+))
+      (let ((s2 (checkpoint-heap plan :timestamp 2)))
+        ;; tear s2: corrupt a stored image word
+        (setf (aref (gethash 2 (persistence-segment-images s2)) 5) 424242)
+        (multiple-value-bind (intact torn-p)
+            (recover-last-intact-snapshot (list s1 s2) vm)
+          (if (and (= (length intact) 1)
+                   torn-p
+                   (eql (first intact) s1))
+              (values t "ok")
+              (values nil (format nil "recovery wrong: intact=~a torn=~a"
+                                  (length intact) torn-p))))))))
+
+(deftest medium-object-span-excludes-small-objects ()
+  ;; A span run is exclusive: small objects never share a span block, so a
+  ;; live small object cannot be wiped when the span's root dies.
+  (with-clamsara (:plan-type :immix :heap-size 65536)
+    (let ((dead (clamsara-allocate-object 600)))  ; dead medium object
+      (declare (ignore dead))
+      (let ((s (clamsara-allocate-object 1)))     ; small object
+        (clamsara-register-root s)
+        (clamsara-gc)
+        (let ((s2 (clamsara-root 0)))
+          (if (and (= s2 s)                       ; not in a span block
+                   (vm-object-start-p *clamsara-vm* s2))
+              (values t "ok")
+              (values nil "small object co-located in a dead span block")))))))
+
+(deftest checkpoint-cycle-kind-admitted ()
+  ;; persistence.tex §4: a checkpoint is an extra plan phase; the compiled
+  ;; collector must admit :checkpoint (previously fell through the ecase).
+  (with-clamsara (:plan-type :marksweep :heap-size 32768)
+    (let ((a (clamsara-allocate-object 1)))
+      (clamsara-register-root a)
+      (plan-collect *clamsara-plan* :cycle-kind :checkpoint)
+      (if (vm-object-start-p *clamsara-vm* (clamsara-root 0))
+          (values t "ok")
+          (values nil ":checkpoint broke the heap")))))
+
 (deftest plan-validation-rejects-incoherent-combos ()
   ;; heap.tex §7 / plans.tex §1: incoherent axis combinations are rejected at
   ;; finalization, before any code is generated.

@@ -151,7 +151,16 @@
                        ;; by the read barrier.  The RC rule runs after this
                        ;; rule and logs the single +1 for the copy (the value
                        ;; that now lives in the RC-counted mature space).
-                       (if (and published (not (eql published new))) published new))
+                       ;; Publication failure (NIL: the public region could
+                       ;; not hold the closure) must NEVER fall back to
+                       ;; storing the private referent -- that would silently
+                       ;; break DLG (locality.tex §1).
+                       (if (and published (not (eql published new)))
+                           published
+                           (if published
+                               new
+                               (error 'heap-exhausted
+                                      :requested-size 1 :space :public))))
                      new)))))
 
 (defun lvb-barrier-rule (&optional (name :lvb))

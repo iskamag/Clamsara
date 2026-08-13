@@ -146,7 +146,7 @@
   the same protocol, a longer pause).  On T0/T1 the pause copies the page's
   words into the segment buffer directly: WRITE-SEGMENT reads them before
   resume, so this function materialises the frozen copy into a preallocated
-  page buffer."
+  WORD-granular snapshot buffer."
   (when (and pages
              (not (vm-has-feature-p vm :t2)))
     ;; Materialise the frozen copies now (T0/T1): copy each dirty page into
@@ -155,7 +155,8 @@
     (let ((buffer (or (vm-stratum vm :snapshot-buffer)
                       (vm-register-stratum
                        vm :snapshot-buffer
-                       (make-stratum :snapshot-buffer +page-words+ :ref
+                       (make-stratum :snapshot-buffer
+                                     (vm-min-alignment-words vm) :ref
                                      (vm-heap-size vm))))))
       (dolist (page pages)
         (let ((base (page-start-address page)))

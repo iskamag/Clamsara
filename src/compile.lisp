@@ -128,7 +128,11 @@ on the first live VM-OBJECT-REFERENCE after boot."
      (setf (slot-value allocator 'block-count) 0
            (slot-value allocator 'current) nil
            (slot-value allocator 'next-base)
-           (slot-value allocator 'start)))
+           (slot-value allocator 'start))
+     (when (slot-value allocator 'span-root)
+       (fill (slot-value allocator 'span-root) -1))
+     (when (slot-value allocator 'block-live)
+       (fill (slot-value allocator 'block-live) 0)))
     (hierarchical-allocator
      (fill (slot-value allocator 'cursors) -1)
      (setf (fill-pointer (slot-value allocator 'free-blocks)) 0
@@ -165,14 +169,18 @@ on the first live VM-OBJECT-REFERENCE after boot."
   #+sbcl
   (let ((minor (direct-phase-forms plan :minor))
         (major (direct-phase-forms plan :major))
-        (full (direct-phase-forms plan :full)))
+        (full (direct-phase-forms plan :full))
+        (checkpoint (direct-phase-forms plan :checkpoint)))
     `(lambda (ignored-plan cycle-kind)
        (declare (ignore ignored-plan))
        (let ((started (get-internal-run-time)))
          (ecase cycle-kind
            (:minor ,@minor)
            (:major ,@major)
-           (:full ,@full))
+           (:full ,@full)
+           ;; persistence.tex §4: a checkpoint is an extra plan phase; the
+           ;; compiled collector admits it so phase-checkpoint runs
+           (:checkpoint ,@checkpoint))
          (let ((statistics (slot-value ',plan 'stats)))
            (when statistics
              (incf (gethash :gc-time (slot-value statistics 'events) 0)

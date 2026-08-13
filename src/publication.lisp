@@ -199,9 +199,13 @@
   ;; Variant A (locality.tex §2): copy o's CLOSURE into the public region so
   ;; the public graph is self-contained (strong DLG).  The copy is deep:
   ;; children are copied too, so no public object references a private one.
+  ;; On public-region exhaustion the publication aborts cleanly: the
+  ;; original is left untouched (never poisoned), NIL is returned, and the
+  ;; caller signals instead of storing a private referent.
   (let ((copy (copy-closure-to-public vm object (public-region s))))
-    (setf (vm-object-is-public-p vm copy) t)
-    (poison-as-error vm object copy)
+    (when copy
+      (setf (vm-object-is-public-p vm copy) t)
+      (poison-as-error vm object copy))
     copy))
 
 (defmethod publication-read-rule ((s trap-error-copy-a))
@@ -241,31 +245,30 @@
 (defmethod publication-read-rule ((s trap-error-copy-b))
   ;; locality.tex §2 Variant B: a public accessor traps on the error copy and
   ;; is redirected to a public copy made at that moment ("now promoted");
-  ;; the stand-in is healed so later reads miss the trap.  Healing rewrites
-  ;; the stand-in's header to a normal object: a second accessor holding the
-  ;; same stand-in sees a plain object whose slot 0 already names the
-  ;; promoted copy, so promotion is idempotent (one incarnation per stand-in).
+  ;; the stand-in's slot is healed so later reads miss the trap.  The
+  ;; stand-in KEEPS its error tag: healing rewrites slot 0 to the promoted
+  ;; copy, so a second accessor still holding the stand-in re-traps, follows
+  ;; the redirect, and receives the SAME promoted copy (idempotent, one
+  ;; incarnation per stand-in).
   (lambda (vm slot-addr reference)
     (if (error-object-p vm reference)
         (let* ((stand-in (ref-strip-or-self vm reference))
-               (original (error-redirect vm reference)))
-          (if (and (not (vm-object-is-public-p vm original))
-                   (not (error-object-p vm original)))
+               (redirect (vm-object-reference vm stand-in 0)))
+          (if (not (vm-object-is-public-p vm redirect))
+              ;; not yet promoted: the redirect names the private original
               (let ((promoted (copy-closure-to-public
-                               vm original (public-region s))))
-                (setf (vm-object-is-public-p vm promoted) t)
-                ;; heal: rewrite the stand-in as a plain 1-slot object so
-                ;; later reads miss the trap entirely
-                (setf (vm-object-header vm stand-in)
-                      (pack-header 1 +tag-object+)
-                      (vm-object-reference vm stand-in 0) promoted)
-                (setf (ref-u64 vm slot-addr) promoted)
+                               vm redirect (public-region s))))
+                (unless promoted
+                  (error 'heap-exhausted :requested-size 1 :space :public))
+                (setf (vm-object-is-public-p vm promoted) t
+                      ;; heal slot 0; the error tag stays, so a second
+                      ;; accessor re-traps and follows the redirect
+                      (vm-object-reference vm stand-in 0) promoted
+                      (ref-u64 vm slot-addr) promoted)
                 promoted)
-              ;; already promoted (or the redirect was itself rewritten):
-              ;; return the current redirect without re-copying
-              (let ((healed original))
-                (setf (ref-u64 vm slot-addr) healed)
-                healed)))
+              ;; already promoted: redirect names the public copy
+              (progn (setf (ref-u64 vm slot-addr) redirect)
+                     redirect)))
         reference)))
 
 (defun initialize-trap-b-published-roots (strategy vm)
@@ -298,6 +301,9 @@
           (let ((root-copy (copy-one object)))
             (when (and root-copy work)
               (clrhash seen)
+              ;; seed the root itself so a cycle back to the root is NOT
+              ;; re-copied: each object is published at most once
+              (setf (gethash object seen) root-copy)
               (let ((head 0))
                 (setf (fill-pointer work) 0)
                 (vector-push root-copy work)

@@ -35,6 +35,14 @@
 
 (defmethod plan-allocate ((p claimore-plan) size space-designator)
   (declare (ignore space-designator))
+  (let* ((los (plan-los p)))
+    (when (and los (> (* size +word-bytes+)
+                      (constraints-max-non-los-bytes (plan-constraints p))))
+      (return-from plan-allocate
+        (let ((addr (alloc (space-allocator los) size)))
+          (cond (addr (let ((os (vm-object-start (plan-vm p))))
+                        (when os (s-set-bit os addr))) addr)
+                (t (plan-handle-allocation-failure p size los)))))))
   (let ((addr (alloc (space-allocator (cl-nursery p)) size)))
     (cond (addr (let ((os (vm-object-start (plan-vm p))))
                  (when os (s-set-bit os addr))) addr)
@@ -183,4 +191,5 @@
                                           :concurrency :stw))))
       (setf (cl-nursery p) nursery (cl-mature p) mature (barrier-plan barrier) p
             (plan-publication p) publication)
+      (add-los-space p 1/16)
       (finalize-plan p) p)))

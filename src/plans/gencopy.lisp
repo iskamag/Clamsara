@@ -43,9 +43,19 @@
 
 (defmethod plan-allocate ((p generational-plan) size space-designator)
   (declare (ignore space-designator))
+  ;; LOS objects (heap.tex §2) bypass the nursery: whole-page allocations in
+  ;; the large-object space.
+  (let* ((los (plan-los p)))
+    (when (and los (> (* size +word-bytes+)
+                      (constraints-max-non-los-bytes (plan-constraints p))))
+      (return-from plan-allocate
+        (let ((addr (alloc (space-allocator los) size)))
+          (cond (addr (let ((os (vm-object-start (plan-vm p))))
+                        (when os (s-set-bit os addr))) addr)
+                (t (plan-handle-allocation-failure p size los)))))))
   (let ((addr (alloc (space-allocator (gen-nursery p)) size)))
     (cond (addr (let ((os (vm-object-start (plan-vm p))))
-                 (when os (s-set-bit os addr))) addr)
+                  (when os (s-set-bit os addr))) addr)
           (t (plan-handle-allocation-failure p size (gen-nursery p))))))
 
 (defmethod plan-handle-allocation-failure ((p generational-plan) size space)
@@ -293,6 +303,7 @@
                 (space-partner mto-space) mature)
           (setf (plan-spaces p)
                 (list nursery nursery-to mature mto-space))))
+      (add-los-space p 1/16)
       (finalize-plan p) p)))
 
 (defun make-gencopy-plan (vm heap-size)

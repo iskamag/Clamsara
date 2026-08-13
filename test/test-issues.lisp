@@ -135,6 +135,33 @@
                (values nil "los-allocator failed a whole-page alloc"))
               (t (values t "ok")))))))
 
+;; ---- G3: every plan layout includes a large-object space ----------------
+
+(deftest every-plan-layout-has-los-space ()
+  (dolist (plan-type '(:nogc :semispace :marksweep :immix :gencopy :genms
+                       :genimmix :stickyimmix :stickyms :iso :zgcish
+                       :claimore))
+    (with-clamsara (:plan-type plan-type :heap-size 65536)
+      (let ((los (plan-los *clamsara-plan*)))
+        (unless (and los (typep (space-allocator los) 'los-allocator))
+          (return-from every-plan-layout-has-los-space
+            (values nil (format nil "~a has no LOS space" plan-type)))))))
+  (values t "ok"))
+
+(deftest los-allocation-bypasses-nursery ()
+  ;; A >8192-byte object must land in the LOS space, not the nursery, for a
+  ;; plan whose plan-allocate otherwise routes everything to the nursery.
+  (with-clamsara (:plan-type :gencopy :heap-size 65536)
+    (let ((big (clamsara-allocate-object 1024)))     ; 1025 words > 8 KiB
+      (let ((los (plan-los *clamsara-plan*)))
+        (if (and (space-contains-p los big)
+                 (vm-object-start-p *clamsara-vm* big))
+            (values t "ok")
+            (values nil (format nil "big object landed in ~a, not LOS"
+                                (space-name
+                                 (plan-space-for-address
+                                  *clamsara-plan* big)))))))))
+
 ;; ---- B14: Claimore's concurrency constraint must reflect reality ---------
 
 (deftest claimore-concurrency-matches-implementation ()

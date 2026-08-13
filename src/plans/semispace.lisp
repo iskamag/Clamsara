@@ -10,6 +10,14 @@
 
 (defmethod plan-allocate ((p semispace-plan) size space-designator)
   (declare (ignore space-designator))
+  (let* ((los (plan-los p)))
+    (when (and los (> (* size +word-bytes+)
+                      (constraints-max-non-los-bytes (plan-constraints p))))
+      (return-from plan-allocate
+        (let ((addr (alloc (space-allocator los) size)))
+          (cond (addr (let ((os (vm-object-start (plan-vm p))))
+                        (when os (s-set-bit os addr))) addr)
+                (t (plan-handle-allocation-failure p size los)))))))
   (let ((addr (alloc (space-allocator (sp-from p)) size)))
     (cond (addr (let ((os (vm-object-start (plan-vm p))))
                  (when os (s-set-bit os addr))) addr)
@@ -54,4 +62,5 @@
                             :constraints (make-instance 'plan-constraints))))
       (setf (space-partner from) to (space-partner to) from
             (sp-from p) from (sp-to p) to)
+      (add-los-space p 1/16)
       (finalize-plan p) p)))

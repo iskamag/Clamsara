@@ -31,4 +31,5 @@
                                  :page-count (cdr a) :name :default :default-space t)))
       (let ((p (make-instance 'immix-plan :name :immix :vm vm :spaces (list space)
                              :constraints (make-instance 'plan-constraints))))
+        (add-los-space p 1/16)
         (finalize-plan p) p))))

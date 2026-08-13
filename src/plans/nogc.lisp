@@ -23,4 +23,5 @@
                                  :policy nil :moving :none :default-space t)))
       (let ((p (make-instance 'nogc-plan :name :nogc :vm vm :spaces (list space)
                              :constraints (make-instance 'plan-constraints))))
+        (add-los-space p 1/16)
         (finalize-plan p) p))))

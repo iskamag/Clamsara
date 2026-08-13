@@ -566,7 +566,9 @@ bounded implementation only compacts when an out-of-place block is available."
             when (and (s-test-bit os address)
                       (not (s-test-bit mark address)))
               do (free a address (vm-object-total-words vm address)))
-      (s-clear mark))
+      ;; Range-clear: the mark stratum is heap-wide; other spaces (LOS,
+      ;; sticky partners) own their marks and reclaim after this space.
+      (s-clear-range mark start end))
     s))
 
 (defmethod space-occupancy ((s mark-sweep-space))
@@ -614,7 +616,8 @@ bounded implementation only compacts when an out-of-place block is available."
       (setf (ix-current a) (ix-first-block a)))
     (when (eq cycle-kind :major)
       (immix-defrag s vm))
-    (s-clear (vm-stratum vm :mark))
+    (let ((mark (vm-stratum vm :mark)))
+      (when mark (s-clear-range mark (ix-start a) (ix-limit a))))
     s))
 
 (defmethod space-occupancy ((s immix-space))
@@ -644,7 +647,9 @@ bounded implementation only compacts when an out-of-place block is available."
             when (and (s-test-bit os address)
                       (not (s-test-bit mark address)))
               do (free a address (vm-object-total-words vm address)))
-      (s-clear mark))
+      ;; Clear marks only within this space's range: the mark stratum is
+      ;; heap-wide and other spaces (notably sticky plans) own their marks.
+      (s-clear-range mark (space-base-address s) (space-end-address s)))
     s))
 
 ;; ---- immortal-space ------------------------------------------------------

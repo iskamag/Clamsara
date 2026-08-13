@@ -81,4 +81,5 @@
                              :barrier barrier
                              :constraints (make-instance 'plan-constraints))))
         (setf (barrier-plan barrier) p)
+        (add-los-space p 1/16)
         (finalize-plan p) p))))

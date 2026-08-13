@@ -163,6 +163,33 @@
 (defun plan-los (plan)
   (find-if (lambda (s) (typep s 'los-space)) (plan-spaces plan)))
 
+(defun add-los-space (plan pages-fraction)
+  "Append a large-object space (heap.tex §2: whole-page, treadmill) to PLAN's
+  layout by carving PAGES-FRACTION of the last space's pages.  The last space
+  keeps its start page; only its extent shrinks, so other spaces' addresses
+  are undisturbed.  LOS allocations are exempt from the plan's nursery
+  overrides via PLAN-ALLOCATE's size check."
+  (let ((vm (plan-vm plan))
+        (spaces (plan-spaces plan)))
+    (when spaces
+      (let* ((last (car (last spaces)))
+             (carve (max 4 (floor (* (space-page-count last) pages-fraction))))
+             (los-count (min carve (max 1 (- (space-page-count last) 2)))))
+        (when (plusp los-count)
+          (decf (slot-value last 'page-count) los-count)
+          ;; The last space's allocator was built against the old extent;
+          ;; rebuild it so its limit matches the shrunk region.
+          (slot-makunbound last 'allocator)
+          (%ensure-allocator last vm)
+          (let* ((los-start (+ (space-start-page last)
+                               (space-page-count last)))
+                 (space (make-instance 'los-space :vm vm
+                                       :start-page los-start
+                                       :page-count los-count
+                                       :name :los :default-space nil)))
+            (setf (plan-spaces plan) (append spaces (list space)))
+            space))))))
+
 ;; ---- SFT (Space Function Table, O(1) address->space) --------------------
 
 (defun plan-build-sft (plan)

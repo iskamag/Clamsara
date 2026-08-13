@@ -19,6 +19,14 @@
 
 (defmethod plan-allocate ((p zgc-plan) size space-designator)
   (declare (ignore space-designator))
+  (let* ((los (plan-los p)))
+    (when (and los (> (* size +word-bytes+)
+                      (constraints-max-non-los-bytes (plan-constraints p))))
+      (return-from plan-allocate
+        (let ((addr (alloc (space-allocator los) size)))
+          (cond (addr (let ((os (vm-object-start (plan-vm p))))
+                        (when os (s-set-bit os addr))) addr)
+                (t (plan-handle-allocation-failure p size los)))))))
   (let ((addr (alloc (space-allocator (z-from p)) size)))
     (cond (addr (let ((os (vm-object-start (plan-vm p))))
                  (when os (s-set-bit os addr))) addr)
@@ -118,4 +126,5 @@
                                          :forwarding :off-heap
                                          :concurrency :concurrent-relocate))))
       (setf (z-from p) from (z-to p) to (barrier-plan barrier) p)
+      (add-los-space p 1/16)
       (finalize-plan p) p)))

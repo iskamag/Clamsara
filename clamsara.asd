@@ -35,6 +35,7 @@
      (:file "plan")
      (:file "compile")
      (:file "weak")
+     (:file "persistence")
      (:file "stats")
      (:module "plans"
       :serial t
@@ -69,6 +70,7 @@
                  (:file "test-collectors")
                  (:file "test-advanced")
                  (:file "test-sanity")
+                 (:file "test-persistence")
                  (:file "test-issues")))))
 
 ;;; Optional Maclina workload driver. EXTRINSICL must be loaded before its

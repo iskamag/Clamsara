@@ -140,7 +140,12 @@
            #:sanity-check #:sanity-errors
            #:gc-event-pre-collection #:gc-event-post-collection
            #:gc-event-object-forwarded #:gc-event-pages-released
-           #:gc-event-checkpoint)
+           #:gc-event-checkpoint
+           #:persistent-allocator #:persistence-log #:make-persistence-log
+           #:persistence-segment #:write-segment #:verify-segment
+           #:collector-dirty-set #:collector-clear-dirty
+           #:mark-pages-cow #:persistent-plan #:checkpoint-heap
+           #:replay-segment #:recover-last-intact-snapshot)
   ;; public api
   (:export #:with-clamsara #:clamsara-allocate-object
            #:clamsara-register-root #:clamsara-gc #:clamsara-write

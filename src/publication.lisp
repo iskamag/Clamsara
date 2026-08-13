@@ -63,7 +63,8 @@
 (defclass lazy-read-barrier (publication-strategy) ())
 
 (defmethod publish ((s lazy-read-barrier) vm object)
-  (setf (vm-object-is-public-p vm object) t))
+  (setf (vm-object-is-public-p vm object) t)
+  object)
 
 (defmethod publication-read-rule ((s lazy-read-barrier))
   ;; on read of a still-private child of a public object, publish it
@@ -116,7 +117,9 @@
 
 (defmethod publish ((s trap-error-copy-b) vm object)
   ;; keep the original in place; place an error copy in the public region.
-  (setf (vm-object-is-public-p vm object) t))
+  ;; (stub: the stand-in install and pinning of the spec are not yet wired)
+  (setf (vm-object-is-public-p vm object) t)
+  object)
 
 (defun copy-to-public (vm object public-space)
   "Allocate in PUBLIC-SPACE and copy OBJECT's payload there."

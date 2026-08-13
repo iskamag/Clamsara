@@ -179,8 +179,9 @@ are rejected instead of smuggling host pointers into the simulated heap."
     (let ((address (%reference-address vm object))
           (encoded (%encode-heap-value vm value)))
       (when barrier
-        (clamsara:barrier-note-write
-         vm barrier address slot encoded))
+        (setf encoded
+              (clamsara:barrier-note-write
+               vm barrier address slot encoded)))
       (clamsara:vm-set-reference
        vm address slot encoded))
     object))

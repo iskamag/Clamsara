@@ -27,6 +27,7 @@
 
 (defgeneric phase-prologue (plan cycle-kind))
 (defgeneric phase-mark (plan cycle-kind))
+(defgeneric phase-weak (plan cycle-kind))
 (defgeneric phase-reclaim (plan cycle-kind))
 (defgeneric phase-compact (plan cycle-kind))
 (defgeneric phase-checkpoint (plan cycle-kind))
@@ -55,7 +56,10 @@
    ;; backend replaces this per-plan slot with per-worker collector state.
    (active-trace-kind :accessor plan-active-trace-kind :initform nil)
    (booted-p :accessor plan-booted-p :initform nil)
-   (sticky-p :initarg :sticky :initform nil :reader plan-sticky-p))
+   (sticky-p :initarg :sticky :initform nil :reader plan-sticky-p)
+   ;; finalization trait (weak.tex §2): known/pending finalizer vectors
+   (known :accessor plan-known-finalizers :initform nil)
+   (pending :accessor plan-pending-finalizers :initform nil))
   (:metaclass plan-metaclass)
   (:default-initargs :constraints (make-instance 'plan-constraints)))
 
@@ -91,6 +95,15 @@
   (declare (ignore k))
   (mark-roots p (plan-tracer p)))
 
+(defmethod phase-weak ((p plan) k)
+  (declare (ignore k))
+  ;; weak.tex: weak-pointer processing after the transitive closure and
+  ;; BEFORE reclamation (liveness data must still be readable); dead
+  ;; finalizers move known->pending here so the epilogue can run them.
+  (weak-phase p)
+  (when (plan-known-finalizers p)
+    (process-finalizers p)))
+
 (defmethod phase-reclaim ((p plan) k)
   (reclaim-spaces p k))
 
@@ -108,6 +121,7 @@
 (defmethod plan-collect-phase ((p plan) cycle-kind)
   (phase-prologue p cycle-kind)
   (phase-mark p cycle-kind)
+  (phase-weak p cycle-kind)
   (phase-reclaim p cycle-kind)
   (phase-compact p cycle-kind)
   (phase-checkpoint p cycle-kind)

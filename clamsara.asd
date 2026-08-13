@@ -34,6 +34,7 @@
      (:file "barrier")
      (:file "plan")
      (:file "compile")
+     (:file "weak")
      (:file "stats")
      (:module "plans"
       :serial t

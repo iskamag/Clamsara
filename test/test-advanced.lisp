@@ -74,7 +74,52 @@
         (if (and (plusp a2) (= (vm-object-reference-count (%vm) a2) 2))
             (values t "ok") (values nil "claimore major failed"))))))
 
-;; ---- G4: read-guarded DLG machinery --------------------------------------
+;; ---- G5: weak references + finalization (weak.tex) -----------------------
+
+(deftest weak-referent-cleared-when-dead ()
+  (with-clamsara (:plan-type :marksweep :heap-size 32768)
+    (let* ((wm (clamsara-allocate-object 1))
+           (target (clamsara-allocate-object 0)))
+      (register-weak-pointer *clamsara-vm* wm)
+      (setf (%slot wm 0) target)
+      (clamsara-register-root wm)
+      ;; target is unreachable except through the weak pointer: after a full
+      ;; collection its slot must be cleared
+      (clamsara-gc)
+      (if (zerop (%slot (clamsara-root 0) 0))
+          (values t "ok")
+          (values nil "weak referent was not cleared")))))
+
+(deftest weak-referent-kept-when-live ()
+  (with-clamsara (:plan-type :marksweep :heap-size 32768)
+    (let* ((wm (clamsara-allocate-object 1))
+           (target (clamsara-allocate-object 0)))
+      (register-weak-pointer *clamsara-vm* wm)
+      (setf (%slot wm 0) target)
+      (clamsara-register-root wm)
+      (clamsara-register-root target)     ; strong root keeps it alive
+      (clamsara-gc)
+      (let ((live-wm (clamsara-root 0))
+            (live-target (clamsara-root 1)))
+        (if (and (plusp (%slot live-wm 0))
+                 (= (%slot live-wm 0) live-target))
+            (values t "ok")
+            (values nil "live weak referent was cleared"))))))
+
+(deftest finalizers-move-dead-to-pending ()
+  (with-clamsara (:plan-type :marksweep :heap-size 32768)
+    (let* ((dead (clamsara-allocate-object 0))
+           (live (clamsara-allocate-object 0)))
+      (initialize-finalization *clamsara-plan* *clamsara-vm*)
+      (register-finalizer *clamsara-plan* dead)
+      (register-finalizer *clamsara-plan* live)
+      (clamsara-register-root live)
+      (clamsara-gc)   ; phase-weak moves dead finalizers to pending
+      (let ((pending (drain-pending-finalizers *clamsara-plan*)))
+        (if (and (= (length pending) 1)
+                 (equal pending (list dead)))
+            (values t "ok")
+            (values nil (format nil "pending finalizers wrong: ~a" pending)))))))
 
 (deftest published-roots-record-and-drain ()
   ;; locality.tex §1: the published-roots set records guarded EDGES (object +

@@ -72,19 +72,23 @@
   (let* ((vm (plan-vm plan))
          (tracer (plan-tracer plan))
          (addr (ref-strip-or-self vm ref))
-         (slots (vm-reference-slots vm addr)))
+         (slots (vm-reference-slots vm addr))
+         (weak-p (weak-pointer-p vm addr)))
     (flet ((process-slot (i)
-             (let ((child (vm-object-reference vm addr i)))
-               (when (vm-reference-p vm child)
-                 (let* ((caddr (ref-strip-or-self vm child))
-                        (space (plan-space-for-address plan caddr)))
-                   (when space
-                     (let ((new
-                             (space-trace-object
-                              space vm child tracer
-                              :trace-kind (plan-active-trace-kind plan))))
-                       (unless (eql new child)
-                         (setf (vm-object-reference vm addr i) new)))))))))
+             ;; weak.tex §1: a weak pointer's referent slot is not scanned
+             ;; during normal tracing; the weak phase processes it.
+             (when (or (not weak-p) (not (zerop i)))
+               (let ((child (vm-object-reference vm addr i)))
+                 (when (vm-reference-p vm child)
+                   (let* ((caddr (ref-strip-or-self vm child))
+                          (space (plan-space-for-address plan caddr)))
+                     (when space
+                       (let ((new
+                               (space-trace-object
+                                space vm child tracer
+                                :trace-kind (plan-active-trace-kind plan))))
+                         (unless (eql new child)
+                           (setf (vm-object-reference vm addr i) new))))))))))
       (if slots
           (loop for i across slots do (process-slot i))
           (dotimes (i (vm-object-reference-count vm addr)) (process-slot i))))

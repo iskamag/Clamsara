@@ -153,8 +153,9 @@ on the first live VM-OBJECT-REFERENCE after boot."
 #+sbcl
 (defun direct-phase-forms (plan cycle-kind)
   "Resolve the ordered phase generics and prebuild their argument lists."
-  (loop for name in '(phase-prologue phase-mark phase-reclaim phase-compact
-                      phase-checkpoint phase-release phase-epilogue)
+  (loop for name in '(phase-prologue phase-mark phase-weak phase-reclaim
+                      phase-compact phase-checkpoint phase-release
+                      phase-epilogue)
         for arguments = (list plan cycle-kind)
         for method-function =
           (selected-primary-method-function (fdefinition name) arguments)

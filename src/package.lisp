@@ -120,7 +120,11 @@
            #:constraints-max-non-los-bytes
            #:plan-collect #:plan-allocate #:plan-get-space
            #:plan-handle-allocation-failure #:plan-collect-phase
-           #:gc-phase
+           #:gc-phase #:phase-weak
+           #:weak-phase #:weak-pointer-p #:register-weak-pointer
+           #:finalization-trait #:initialize-finalization
+           #:register-finalizer #:process-finalizers
+           #:pending-finalizer-count #:drain-pending-finalizers
            #:cycle-kind #:default-space
            #:defplan
            #:compile-to-functions #:boot-gc

@@ -1,0 +1,143 @@
+;;;; weak.lisp -- weak references and finalization (paper-v8 ch. weak).
+;;;;
+;;;; A weak pointer's referent slot is not scanned during normal tracing; it
+;;;; is processed in a dedicated phase after the transitive closure, before
+;;;; reclamation.  For each weak pointer: (1) resolve forwarding -- if the
+;;;; referent moved, update the slot (and, under concurrent relocation, heal
+;;;; via the load barrier); (2) if the referent is live (marked, forwarded, or
+;;;; with non-zero reference count), keep the pointer; (3) otherwise clear the
+;;;; slot.  Finalizers registered against dead objects move from `known` to
+;;;; `pending` in the epilogue and run on a mutator after the pause, never
+;;;; inside it.
+
+(in-package #:clamsara)
+
+;; ---- registration --------------------------------------------------------
+
+(defun weak-pointer-p (vm address)
+  "True if the object at ADDRESS is a registered weak pointer (its slot 0 is
+  the referent and is excluded from normal tracing)."
+  (let ((weak (vm-stratum vm :weak)))
+    (and weak (s-test-bit weak address))))
+
+(defun register-weak-pointer (vm address)
+  "Declare the object at ADDRESS a weak pointer: its referent slot 0 is
+  processed in the weak phase, not the mark phase."
+  (let ((weak (vm-stratum vm :weak)))
+    (unless weak
+      (setf weak (vm-register-stratum
+                  vm :weak
+                  (make-stratum :weak (vm-min-alignment-words vm) :bit
+                                (vm-heap-size vm)))))
+    (s-set-bit weak address)
+    address))
+
+;; ---- weak phase ----------------------------------------------------------
+
+(defun weak-referent-live-p (vm referent)
+  "weak.tex §1: a referent is live if it is marked, forwarded, or has a
+  non-zero reference count.  The cycle backup may later prove it dead; the
+  sanity checker treats such referents as dead and clears the pointer."
+  (or (vm-object-is-marked-p vm referent)
+      (vm-object-is-forwarded-p vm referent)
+      (plusp (vm-object-rc vm referent))))
+
+(defun resolve-weak-forwarding (vm referent)
+  "Step 1: if the referent moved, resolve its forwarding (in-header or
+  off-heap) before the liveness test."
+  (if (vm-object-is-forwarded-p vm referent)
+      (vm-object-forwarding-pointer vm referent)
+      referent))
+
+(defun weak-phase (plan)
+  "Process every registered weak pointer after the transitive closure and
+  before reclamation: resolve forwarding, then clear dead referents.
+  Referents of weak pointers registered against a thread-local space are
+  processed during that space's private collection; a published referent is
+  treated as live (DLG guarantees it is reachable elsewhere)."
+  (let* ((vm (plan-vm plan))
+         (weak (vm-stratum vm :weak))
+         (os (vm-object-start vm)))
+    (when (and weak os)
+      (s-for-set-cells weak nil
+        (lambda (address)
+          (when (s-test-bit os address)
+            (let* ((referent (vm-object-reference vm address 0))
+                   (stripped (and (vm-valid-reference-p vm referent)
+                                  (ref-strip-or-self vm referent))))
+              (cond
+                ((null-ref-p referent) nil)  ; already cleared
+                ((not stripped) nil)          ; not a reference (raw payload)
+                (t
+                 (let ((resolved (resolve-weak-forwarding vm stripped)))
+                   ;; heal the slot before the liveness test
+                   (unless (eql resolved stripped)
+                     (setf (vm-object-reference vm address 0) resolved))
+                   (let ((live-p
+                           (or (weak-referent-live-p vm resolved)
+                               (vm-object-is-public-p vm resolved))))
+                     (unless live-p
+                       (setf (vm-object-reference vm address 0) 0))))))))))))
+  plan)
+
+;; ---- finalization trait (weak.tex §2) ------------------------------------
+;; The trait slots live directly on the plan class (see plan.lisp), so every
+;; plan carries them without redefining the class hierarchy.
+
+(defun initialize-finalization (plan vm)
+  "Preallocate the known/pending finalizer vectors at boot (immortal storage
+  on a target; fixed-capacity vectors on the simulator)."
+  (let ((capacity (vm-heap-size vm)))
+    (unless (plan-known-finalizers plan)
+      (setf (plan-known-finalizers plan)
+            (make-array capacity :element-type 'fixnum
+                        :initial-element 0 :fill-pointer 0)
+            (plan-pending-finalizers plan)
+            (make-array capacity :element-type 'fixnum
+                        :initial-element 0 :fill-pointer 0))))
+  plan)
+
+(defun register-finalizer (plan address)
+  "Register the object at ADDRESS for finalization."
+  (let ((known (plan-known-finalizers plan)))
+    (unless (vector-push address known)
+      (error 'heap-exhausted :requested-size 1 :space :finalizers)))
+  address)
+
+(defun process-finalizers (plan)
+  "weak.tex §2: in the epilogue, dead objects with registered finalizers move
+  from known to pending; finalizers run on a mutator after the collection
+  pause, never inside it."
+  (let* ((vm (plan-vm plan))
+         (known (plan-known-finalizers plan))
+         (pending (plan-pending-finalizers plan))
+         (os (vm-object-start vm)))
+    (when (and known pending os)
+      (let ((survivors 0))
+        (loop for i from 0 below (length known)
+              for address = (aref known i)
+              do (cond
+                   ((or (not (s-test-bit os address))
+                        (and (not (vm-object-is-marked-p vm address))
+                             (not (vm-object-is-forwarded-p vm address))
+                             (zerop (vm-object-rc vm address))))
+                    ;; dead: move to pending
+                    (vector-push address pending))
+                   (t
+                    ;; live: keep in known
+                    (setf (aref known survivors) address)
+                    (incf survivors))))
+        (setf (fill-pointer known) survivors)))
+    plan))
+
+(defun pending-finalizer-count (plan)
+  (length (plan-pending-finalizers plan)))
+
+(defun drain-pending-finalizers (plan)
+  "Pop every pending finalizer address (called by a mutator after the
+  pause).  Returns a fresh list."
+  (let ((pending (plan-pending-finalizers plan))
+        (result nil))
+    (loop while (plusp (length pending))
+          do (push (vector-pop pending) result))
+    (nreverse result)))

@@ -98,16 +98,18 @@
 (defun vm-map-reference-slots (vm address fn)
   "Invoke FN on each reference-bearing slot of the object at ADDRESS, per the
   declared per-type layout (memory.tex §3); NIL layout means conservative
-  scanning (every payload slot).  Returns ADDRESS."
-  (let ((slots (vm-reference-slots vm address)))
-    (if slots
-        (loop for i across slots
-              for r = (vm-object-reference vm address i)
-              unless (null-ref-p r) do (funcall fn r))
-        (let ((n (vm-object-reference-count vm address)))
-          (dotimes (i n)
-            (let ((r (vm-object-reference vm address i)))
-              (unless (null-ref-p r) (funcall fn r)))))))
+  scanning (every payload slot).  Weak pointers (weak.tex §1) have their
+  referent slot 0 excluded from normal tracing; the weak phase processes it.
+  Returns ADDRESS."
+  (let ((slots (vm-reference-slots vm address))
+        (weak-p (weak-pointer-p vm address)))
+    (flet ((visit (i)
+             (when (or (not weak-p) (not (zerop i)))
+               (let ((r (vm-object-reference vm address i)))
+                 (unless (null-ref-p r) (funcall fn r))))))
+      (if slots
+          (loop for i across slots do (visit i))
+          (dotimes (i (vm-object-reference-count vm address)) (visit i)))))
   address)
 
 (defun vm-heal-reference-slots (vm address fwd-table)

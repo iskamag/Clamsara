@@ -23,7 +23,8 @@
                                     reachable errors visits heap-size)))))
   errors)
 
-(defun sanity-check (plan &key (check-mark t) (check-dlg t))
+(defun sanity-check (plan &key (check-mark t) (check-dlg t)
+                              (check-rc t) (check-fwd t))
   "Return a list of invariant-violation strings (empty = heap consistent)."
   (let* ((vm (plan-vm plan))
          (heap-size (vm-heap-size vm))
@@ -58,6 +59,45 @@
                               addr (ref-strip-or-self vm c))
                       errors))))))
        reachable))
+    (when check-fwd
+      ;; memory.tex §2 invariant: after release, no forwarding state remains
+      ;; for reachable objects; off-heap tables are drained or consistent.
+      (maphash
+       (lambda (addr _)
+         (declare (ignore _))
+         (when (vm-object-is-forwarded-p vm addr)
+           (push (format nil "reachable object ~a still forwarded" addr)
+                 errors)))
+       reachable))
+    (when check-rc
+      ;; testing.tex §1: for a :refcount-policy space, reference counts equal
+      ;; the actual in-degree, by a verification trace.  (:hierarchical
+      ;; spaces count at superblock granularity, not per object.)
+      (when (some (lambda (s) (eq (space-policy s) :refcount))
+                  (plan-spaces plan))
+        (let ((rc (vm-rc-table vm)))
+          (when rc
+            (let ((in-degree (make-hash-table :test 'eql)))
+              (maphash
+               (lambda (src _)
+                 (declare (ignore _))
+                 (vm-map-reference-slots
+                  vm src
+                  (lambda (c)
+                    (when (vm-reference-p vm c)
+                      (let ((bare (ref-strip-or-self vm c)))
+                        (incf (gethash bare in-degree 0)))))))
+               reachable)
+              (maphash
+               (lambda (addr _)
+                 (declare (ignore _))
+                 (let ((expected (gethash addr in-degree 0))
+                       (actual (vm-object-rc vm addr)))
+                   (unless (eql expected actual)
+                     (push (format nil "RC mismatch @ ~a: table ~a, in-degree ~a"
+                                   addr actual expected)
+                           errors))))
+               in-degree))))))
     (nreverse errors)))
 
 (defun sanity-errors (plan) (sanity-check plan))

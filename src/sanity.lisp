@@ -45,20 +45,11 @@
             (unless (zerop n)
               (push (format nil "mark stratum not clear: ~d bits remain" n) errors))))))
     (when check-dlg
-      (maphash
-       (lambda (addr _)
-         (declare (ignore _))
-         (when (vm-object-is-public-p vm addr)
-           (vm-map-reference-slots
-            vm addr
-            (lambda (c)
-              (when (and (vm-reference-p vm c)
-                         (not (vm-object-is-public-p
-                               vm (ref-strip-or-self vm c))))
-                (push (format nil "DLG violated: public ~a -> private ~a"
-                              addr (ref-strip-or-self vm c))
-                      errors))))))
-       reachable))
+      ;; testing.tex §1: strong DLG for eager closure and trap Variant A;
+      ;; for read-guarded strategies every public-to-private edge must be
+      ;; recorded in the published-roots set and intercepted by the read
+      ;; rule or a trapping stand-in (DLG-r).
+      (sanity-check-dlg plan vm reachable errors))
     (when check-fwd
       ;; memory.tex §2 invariant: after release, no forwarding state remains
       ;; for reachable objects; off-heap tables are drained or consistent.
@@ -101,3 +92,36 @@
     (nreverse errors)))
 
 (defun sanity-errors (plan) (sanity-check plan))
+
+(defun sanity-check-dlg (plan vm reachable errors)
+  "DLG/DLG-r verification (testing.tex §1).  Strong DLG: no public object
+  references a private one.  Read-guarded: every public-to-private edge is
+  recorded in the published-roots set."
+  (let ((strategy (plan-publication plan))
+        (read-guarded (and (plan-publication plan)
+                           (strategy-read-guarded-p
+                            (plan-publication plan)))))
+    (maphash
+     (lambda (addr _)
+       (declare (ignore _))
+       (when (vm-object-is-public-p vm addr)
+         (vm-map-reference-slots
+          vm addr
+          (lambda (c)
+            (when (and (vm-reference-p vm c)
+                       (not (vm-object-is-public-p
+                             vm (ref-strip-or-self vm c))))
+              (let ((bare (ref-strip-or-self vm c)))
+                (cond
+                  ((not read-guarded)
+                   (push (format nil "DLG violated: public ~a -> private ~a"
+                                 addr bare) errors))
+                  ((let ((pr (and strategy
+                                  (strategy-published-roots strategy))))
+                     (not (and pr (published-edge-recorded-p
+                                   pr vm addr bare))))
+                   (push (format nil
+                                 "DLG-r violated: public ~a -> private ~a not in published-roots"
+                                 addr bare) errors)))))))))
+     reachable))
+  errors)

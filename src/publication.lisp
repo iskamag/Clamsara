@@ -79,6 +79,20 @@
 
 (defun published-roots-count (pr) (published-roots-fill pr))
 
+(defun published-edge-recorded-p (pr vm object referent)
+  "True if the published-roots set contains a guarded edge from OBJECT whose
+  slot currently holds REFERENT (DLG-r verification: every public-to-private
+  edge must be recorded at publication time)."
+  (let ((fill (published-roots-fill pr)))
+    (loop for i from 0 below fill
+          for edge-object = (aref (published-roots-objects pr) i)
+          for edge-slot = (aref (published-roots-slots pr) i)
+          when (and (eql edge-object object)
+                    (eql (vm-object-reference vm edge-object edge-slot)
+                         referent))
+            return t
+          finally (return nil))))
+
 (defun edge-referent-live-p (vm object slot)
   (let ((child (vm-object-reference vm object slot)))
     (and (vm-reference-p vm child) child)))
@@ -177,9 +191,13 @@
 (defclass trap-error-copy-a (publication-strategy) ())
 
 (defmethod publish ((s trap-error-copy-a) vm object)
-  (let ((copy (copy-to-public vm object (public-region s))))
+  ;; Variant A (locality.tex §2): copy o's CLOSURE into the public region so
+  ;; the public graph is self-contained (strong DLG).  The copy is deep:
+  ;; children are copied too, so no public object references a private one.
+  (let ((copy (copy-closure-to-public vm object (public-region s))))
     (setf (vm-object-is-public-p vm copy) t)
-    (poison-as-error vm object copy)))
+    (poison-as-error vm object copy)
+    copy))
 
 (defmethod publication-read-rule ((s trap-error-copy-a))
   (lambda (vm slot-addr reference)
@@ -213,23 +231,82 @@
     stand-in))
 
 (defmethod publication-read-rule ((s trap-error-copy-b))
-  ;; The trap IS the runtime's type check; the strategy exposes no read rule
-  ;; (locality.tex: publication-read-rule returns NIL for trap variants).
-  nil)
+  ;; locality.tex §2 Variant B: a public accessor traps on the error copy and
+  ;; is redirected to a public copy made at that moment ("now promoted");
+  ;; the stand-in's slot is healed so later reads miss the trap.
+  (lambda (vm slot-addr reference)
+    (if (error-object-p vm reference)
+        (let* ((original (error-redirect vm reference))
+               (promoted (copy-closure-to-public
+                          vm original (public-region s))))
+          (setf (vm-object-is-public-p vm promoted) t)
+          ;; heal the stand-in's slot so later reads miss the trap
+          (setf (vm-object-reference vm (ref-strip-or-self vm reference) 0)
+                promoted)
+          (setf (ref-u64 vm slot-addr) promoted)
+          promoted)
+        reference)))
 
 (defun initialize-trap-b-published-roots (strategy vm)
   (setf (strategy-published-roots strategy)
         (make-published-roots (vm-heap-size vm)))
   strategy)
 
-(defun copy-to-public (vm object public-space)
-  "Allocate in PUBLIC-SPACE and copy OBJECT's payload there."
+(defun copy-closure-to-public (vm object public-space)
+  "Deep-copy OBJECT and its transitive closure into PUBLIC-SPACE, rewriting
+  every slot so the public graph is self-contained (strong DLG).  Uses
+  VM-OBJECT-COPY so side metadata is preserved (memory.tex §2).  Returns the
+  address of the copied root (or OBJECT if PUBLIC-SPACE cannot allocate)."
   (if (and public-space (space-allocator public-space))
-      (let* ((n (vm-object-total-words vm object))
-             (dst (alloc (space-allocator public-space) n)))
-        (if dst
-            (progn (loop for k below n do (setf (ref-u64 vm (+ dst k)) (ref-u64 vm (+ object k))))
-                   (let ((os (vm-object-start vm))) (when os (s-set-bit os dst)))
-                   dst)
-            object))
+      (let ((work (publication-work
+                   (plan-publication (vm-plan vm)))))
+        (flet ((copy-one (src)
+                 (let* ((n (vm-object-total-words vm src))
+                        (dst (alloc (space-allocator public-space) n)))
+                   (when dst
+                     (vm-object-copy vm src dst)
+                     (let ((os (vm-object-start vm)))
+                       (when os (s-set-bit os dst)))
+                     (setf (vm-object-is-public-p vm dst) t)
+                     dst))))
+          (let ((root-copy (copy-one object)))
+            (when (and root-copy work)
+              (let ((head 0)
+                    (in-work (make-hash-table :test 'eql)))
+                (setf (fill-pointer work) 0)
+                (vector-push root-copy work)
+                (loop while (< head (length work))
+                      for src = (aref work head)
+                      do (incf head)
+                         ;; rewrite slots: each reference child is copied once
+                         (vm-map-reference-slots
+                          vm src
+                          (lambda (child)
+                            (let* ((bare (ref-strip-or-self vm child))
+                                   (slot
+                                     (slot-of-child vm src child)))
+                              (declare (ignore slot))
+                              (unless (gethash bare in-work)
+                                (let ((child-copy (copy-one bare)))
+                                  (when child-copy
+                                    (setf (gethash bare in-work) child-copy)
+                                    (vector-push child-copy work))))
+                              (let ((existing (gethash bare in-work)))
+                                (when existing
+                                  (setf (vm-object-reference
+                                         vm src (slot-of-child vm src child))
+                                        existing)))))))
+                (setf (fill-pointer work) 0)))
+            root-copy)))
       object))
+
+(defun slot-of-child (vm src child)
+  "The slot index of the first reference slot in SRC holding CHILD."
+  (let ((slots (vm-reference-slots vm src)))
+    (if slots
+        (loop for i across slots
+              when (eql (vm-object-reference vm src i) child)
+                return i)
+        (dotimes (i (vm-object-reference-count vm src))
+          (when (eql (vm-object-reference vm src i) child)
+            (return i))))))

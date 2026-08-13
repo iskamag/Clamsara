@@ -41,14 +41,19 @@
 ;; ---- the log (persistence.tex §1, §3) ------------------------------------
 
 (defclass persistence-log ()
-  ((segments :accessor plog-segments :initform nil)  ; list of (ts . pages)
-   (allocations :accessor plog-allocations :initform nil)))
+  ((segments :accessor plog-segments :initform nil)  ; list of segments
+   (allocations :accessor plog-allocations :initform nil)
+   (alloc-count :accessor plog-alloc-count :initform 0)))
 
 (defun make-persistence-log ()
   (make-instance 'persistence-log))
 
 (defun plog-record-alloc (log addr size)
-  (declare (ignore addr size))
+  "Record an allocation: the base allocator's address/size pair is appended
+  to the allocation history so a recovered image can rebuild free state."
+  (setf (plog-allocations log)
+        (cons (cons addr size) (plog-allocations log)))
+  (incf (plog-alloc-count log))
   log)
 
 ;; ---- the segment writer (persistence.tex §1) -----------------------------
@@ -81,11 +86,11 @@
 
 (defun collector-dirty-set (plan)
   "The set of pages dirtied since the last snapshot, consumed from whatever
-  the collector already maintains: the MMU dirty bits when armed, else the
-  plan's card stratum projected to page granularity."
+  the collector already maintains: the MMU dirty bits when the MMU is ARMED,
+  else the plan's card stratum projected to page granularity."
   (let* ((vm (plan-vm plan))
          (pages nil))
-    (if (and (typep vm 'virtual-memory-mixin) (mmu-dirty vm))
+    (if (and (typep vm 'virtual-memory-mixin) (mmu-armed vm))
         (let ((dirty (mmu-dirty vm)))
           (dotimes (p (length dirty))
             (when (eql 1 (sbit dirty p)) (push p pages))))
@@ -120,14 +125,27 @@
 
 (defun mark-pages-cow (vm pages)
   "Protect the dirty pages for copy-on-write (T2) or copy them now (T0/T1:
-  the same protocol, a longer pause).  The simulator's software MMU
-  reproduces the fault-driven variant."
+  the same protocol, a longer pause).  On T0/T1 the pause copies the page's
+  words into the segment buffer directly: WRITE-SEGMENT reads them before
+  resume, so this function materialises the frozen copy into a preallocated
+  page buffer."
+  (when (and pages
+             (not (vm-has-feature-p vm :t2)))
+    ;; Materialise the frozen copies now (T0/T1): copy each dirty page into
+    ;; the segment buffer so the segment writer reads the snapshot, not the
+    ;; live page that mutators will resume writing to.
+    (let ((buffer (or (vm-stratum vm :snapshot-buffer)
+                      (vm-register-stratum
+                       vm :snapshot-buffer
+                       (make-stratum :snapshot-buffer +page-words+ :ref
+                                     (vm-heap-size vm))))))
+      (dolist (page pages)
+        (let ((base (page-start-address page)))
+          (dotimes (k +page-words+)
+            (s-set buffer (+ base k) (ref-u64 vm (+ base k))))))))
   (dolist (page pages)
-    (if (vm-has-feature-p vm :t2)
-        (vm-mprotect vm page 1 :read)
-        ;; T0/T1: no fault handler; the pause copies the page's words into the
-        ;; segment buffer directly (write-segment reads them before resume).
-        nil))
+    (when (vm-has-feature-p vm :t2)
+      (vm-mprotect vm page 1 :read)))
   vm)
 
 ;; ---- checkpoint as a collection phase (persistence.tex §4) ---------------
@@ -146,18 +164,16 @@
 
 ;; ---- recovery (persistence.tex §1 crash consistency) ---------------------
 
-(defun recover-last-intact-snapshot (segments)
+(defun recover-last-intact-snapshot (segments &optional vm)
   "Read forward to the last intact snapshot and stop.  A segment torn by a
   crash (trailing checksum mismatch) is truncated; everything after it is
   discarded.  Returns (values intact-segments torn-p)."
   (let ((intact nil)
         (torn-p nil))
     (dolist (segment segments)
-      ;; A real log stores the checksum with the segment; the simulator
-      ;; recomputes it against the live heap, so a torn write shows up as a
-      ;; mismatch when the segment was persisted.
-      (declare (ignore segment))
-      nil)
+      (if (and vm (verify-segment segment vm))
+          (push segment intact)
+          (progn (setf torn-p t) (return))))
     (values (nreverse intact) torn-p)))
 
 (defun verify-segment (segment vm)
@@ -186,9 +202,13 @@
   "Reconstruct the segment's pages into a fresh heap vector (host-side
   recovery model).  Returns the reconstructed heap or NIL if torn."
   (when (verify-segment segment vm)
-    (let ((heap (vm-heap vm)))
+    (let ((heap (make-array (vm-heap-size vm)
+                            :element-type '(unsigned-byte 64)
+                            :initial-element 0)))
+      ;; copy the live heap, then overwrite with the segment's frozen pages
+      (replace heap (vm-heap vm))
       (dolist (page (persistence-segment-pages segment))
         (let ((base (page-start-address page)))
           (dotimes (k +page-words+)
-            (declare (ignore k)) nil)))
+            (setf (aref heap (+ base k)) (ref-u64 vm (+ base k))))))
       heap)))

@@ -105,7 +105,8 @@
            #:strategy-read-guarded-p #:strategy-published-roots
            #:published-roots #:make-published-roots
            #:record-published-edge #:drain-published-roots
-           #:published-roots-count
+           #:published-roots-count #:published-edge-recorded-p
+           #:copy-closure-to-public
            #:card-barrier-rule #:sticky-dirty-barrier-rule
            #:satb-barrier-rule #:rc-barrier-rule
            #:publication-barrier-rule)

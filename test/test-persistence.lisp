@@ -5,16 +5,12 @@
 
 (deftest persistence-dirty-set-projection ()
   ;; barriers.tex §2: dirty-page derivation for persistence is s-project from
-  ;; the card stratum to the page stratum.  The simulator VM has MMU dirty
-  ;; bits; the card path is exercised when the MMU is not armed.
+  ;; the card stratum to the page stratum (the MMU-not-armed path).
   (let ((vm (make-simulator-vm 4096)))
     (vm-register-stratum vm :card
       (make-stratum :card (g-card) :bit 4096))
     (s-set-bit (vm-stratum vm :card) 0)          ; page 0
     (s-set-bit (vm-stratum vm :card) (* 3 +page-words+))  ; page 3
-    ;; set MMU dirty bits for the same pages so both paths agree
-    (setf (sbit (mmu-dirty vm) 0) 1)
-    (setf (sbit (mmu-dirty vm) 3) 1)
     (let ((plan (make-instance 'plan :vm vm :name :t
                                :spaces (list (make-instance
                                               'immix-space :vm vm
@@ -35,9 +31,12 @@
                                              'immix-space :vm vm
                                              :start-page 1 :page-count 7
                                              :name :d :default-space t)))))
-    ;; make pages 1 and 2 dirty (MMU path) and checkpoint
-    (setf (sbit (mmu-dirty vm) 1) 1)
-    (setf (sbit (mmu-dirty vm) 2) 1)
+    ;; make pages 1 and 2 dirty (card-projection path, MMU not armed) and
+    ;; checkpoint
+    (vm-register-stratum vm :card
+      (make-stratum :card (g-card) :bit 4096))
+    (s-set-bit (vm-stratum vm :card) +page-words+)
+    (s-set-bit (vm-stratum vm :card) (* 2 +page-words+))
     (let ((segment (checkpoint-heap plan :timestamp 42)))
       (if (and (verify-segment segment vm)
                (= (persistence-segment-timestamp segment) 42)
@@ -52,7 +51,9 @@
                                              'immix-space :vm vm
                                              :start-page 1 :page-count 7
                                              :name :d :default-space t)))))
-    (setf (sbit (mmu-dirty vm) 0) 1)
+    (vm-register-stratum vm :card
+      (make-stratum :card (g-card) :bit 4096))
+    (s-set-bit (vm-stratum vm :card) 0)
     (checkpoint-heap plan)
     (if (null (collector-dirty-set plan))
         (values t "ok")

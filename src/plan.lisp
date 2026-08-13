@@ -100,10 +100,11 @@
   (declare (ignore k))
   ;; weak.tex: weak-pointer processing after the transitive closure and
   ;; BEFORE reclamation (liveness data must still be readable); dead
-  ;; finalizers move known->pending here so the epilogue can run them.
+  ;; finalizers move known->pending only for objects whose space this
+  ;; cycle's liveness data covers (weak.tex §2).
   (weak-phase p)
   (when (plan-known-finalizers p)
-    (process-finalizers p)))
+    (process-finalizers p :cycle-kind k)))
 
 (defmethod phase-reclaim ((p plan) k)
   (reclaim-spaces p k))

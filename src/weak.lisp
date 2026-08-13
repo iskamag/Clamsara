@@ -36,11 +36,21 @@
 
 (defun weak-referent-live-p (vm referent)
   "weak.tex §1: a referent is live if it is marked, forwarded, or has a
-  non-zero reference count.  The cycle backup may later prove it dead; the
-  sanity checker treats such referents as dead and clears the pointer."
+  non-zero reference count.  For a hierarchical space the count is
+  per-superblock (heap.tex §6); a referent whose superblock count is zero is
+  dead unless marked/forwarded.  The cycle backup may later prove it dead;
+  the sanity checker treats such referents as dead and clears the pointer."
   (or (vm-object-is-marked-p vm referent)
       (vm-object-is-forwarded-p vm referent)
-      (plusp (vm-object-rc vm referent))))
+      (plusp (vm-object-rc vm referent))
+      (let ((plan (vm-plan vm)))
+        (some (lambda (s)
+                (and (typep s 'superblock-space)
+                     (space-contains-p s referent)
+                     (let ((counts (sb-refcounts s)))
+                       (and counts
+                            (plusp (aref counts (sb-index s referent)))))))
+              (and plan (plan-spaces plan))))))
 
 (defun resolve-weak-forwarding (vm referent)
   "Step 1: if the referent moved, resolve its forwarding (in-header or
@@ -104,10 +114,12 @@
       (error 'heap-exhausted :requested-size 1 :space :finalizers)))
   address)
 
-(defun process-finalizers (plan)
-  "weak.tex §2: in the epilogue, dead objects with registered finalizers move
-  from known to pending; finalizers run on a mutator after the collection
-  pause, never inside it."
+(defun process-finalizers (plan &key (cycle-kind nil))
+  "weak.tex §2: dead objects with registered finalizers move from known to
+  pending.  Liveness is judged only for objects whose space the current
+  cycle actually traced: on a partial cycle (e.g. Claimore :minor, which
+  traces only the nursery), finalizers whose object lives outside the
+  traced spaces are skipped, never misclassified as dead."
   (let* ((vm (plan-vm plan))
          (known (plan-known-finalizers plan))
          (pending (plan-pending-finalizers plan))
@@ -118,7 +130,8 @@
               for address = (aref known i)
               do (cond
                    ((or (not (s-test-bit os address))
-                        (and (not (vm-object-is-marked-p vm address))
+                        (and (finalizer-dead-p plan vm address cycle-kind)
+                             (not (vm-object-is-marked-p vm address))
                              (not (vm-object-is-forwarded-p vm address))
                              (zerop (vm-object-rc vm address))))
                     ;; dead: move to pending
@@ -129,6 +142,20 @@
                     (incf survivors))))
         (setf (fill-pointer known) survivors)))
     plan))
+
+(defun finalizer-dead-p (plan vm address cycle-kind)
+  "True if the object at ADDRESS is genuinely dead.  On a partial cycle,
+  objects outside the traced spaces are NOT dead — their liveness data is
+  simply not current, so they are kept in known."
+  (if (eq cycle-kind :minor)
+      ;; partial cycle: only objects inside the nursery/private space have
+      ;; current liveness data
+      (let ((nursery (and plan (plan-nursery plan))))
+        (and nursery (space-contains-p nursery address)
+             (not (vm-object-is-marked-p vm address))
+             (not (vm-object-is-forwarded-p vm address))))
+      ;; full/major cycle: all spaces traced
+      t))
 
 (defun pending-finalizer-count (plan)
   (length (plan-pending-finalizers plan)))

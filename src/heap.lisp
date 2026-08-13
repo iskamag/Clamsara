@@ -308,16 +308,37 @@
 (defun ix-block-end (b block-words) (+ (immix-block-base b) block-words))
 
 (defmethod alloc ((a immix-allocator) size &key &allow-other-keys)
-  (flet ((try-block (b)
-           (let ((c (immix-block-cursor b)))
-             (when (<= (+ c size) (ix-block-end b (ix-block-words a)))
-               (setf (immix-block-cursor b) (+ c size))
-               c))))
-    (or (and (ix-current a) (try-block (ix-current a)))
-        (loop for i below (ix-block-count a)
-              for b = (aref (ix-blocks a) i)
-              thereis (try-block b))
-        (let ((b (ix-new-block a))) (when b (try-block b))))))
+  ;; Medium objects (heap.tex §2: below the LOS threshold but above one
+  ;; block) get a contiguous multi-block run carved from the never-used
+  ;; region; small objects bump within the current block.
+  (if (> size (ix-block-words a))
+      (let ((pages (ceiling size (ix-block-words a))))
+        (when (<= (+ (ix-next-base a) (* pages (ix-block-words a)))
+                  (ix-limit a))
+          (let ((base (ix-next-base a))
+                (remaining size))
+            (dotimes (k pages)
+              (let ((bi (+ (ix-block-count a) k)))
+                (when (< bi (length (ix-blocks a)))
+                  (let ((b (aref (ix-blocks a) bi)))
+                    (setf (immix-block-cursor b)
+                          (+ (immix-block-base b)
+                             (min remaining (ix-block-words a))))
+                    (decf remaining (ix-block-words a))))))
+            (incf (ix-block-count a) pages)
+            (incf (ix-next-base a) (* pages (ix-block-words a)))
+            (setf (ix-current a) (aref (ix-blocks a) (1- (ix-block-count a))))
+            base)))
+      (flet ((try-block (b)
+               (let ((c (immix-block-cursor b)))
+                 (when (<= (+ c size) (ix-block-end b (ix-block-words a)))
+                   (setf (immix-block-cursor b) (+ c size))
+                   c))))
+        (or (and (ix-current a) (try-block (ix-current a)))
+            (loop for i below (ix-block-count a)
+                  for b = (aref (ix-blocks a) i)
+                  thereis (try-block b))
+            (let ((b (ix-new-block a))) (when b (try-block b)))))))
 
 (defmethod ix-new-block ((a immix-allocator))
   "Carve the next block from the space's word range."
@@ -967,31 +988,46 @@ bounded implementation only compacts when an out-of-place block is available."
 
 (defun superblock-sweep (s vm)
   "Stage 3: after the precise trace (marks set), free every block in a live
-  superblock with zero marked objects.  Superblock 0 is the persistent root
-  set and is never swept.  This block-level sweep is the periodic full-trace
-  backup that reclaims cycle garbage inside a still-counted superblock."
+  superblock with zero marked objects.  The sweep is bounded by the search
+  results: only metablocks reached by the closure are examined, and within a
+  reached metablock the per-MB block points-to matrix skips blocks the
+  closure could not reach (strata.tex §5.1 search).  Superblock 0 is the
+  persistent root set and is never swept.  This block-level sweep is the
+  periodic full-trace backup that reclaims cycle garbage inside a
+  still-counted superblock."
   (let* ((a (space-allocator s))
          (mark (vm-stratum vm :mark))
          (os (vm-object-start vm))
          (nsb (sb-count s))
          (bpm (sb-blocks-per-metablock s))
-         (mps (sb-mbs-per-superblock s)))
+         (mps (sb-mbs-per-superblock s))
+         (matrices (sb-block-matrices s)))
     (when (and mark os)
       (dotimes (sb nsb)
         (unless (zerop sb)
-          (dotimes (m mps)
-            (dotimes (b bpm)
-              (let ((bi (+ (* sb mps bpm) (* m bpm) b)))
-                (when (and (< bi (sb-block-count s))
-                           (hierarchical-block-in-use-p a bi))
-                  (let ((live-p nil))
-                    (loop for address from (sb-block-base s bi)
-                          below (+ (sb-block-base s bi) (sb-block-words s))
-                          when (and (s-test-bit os address)
-                                    (s-test-bit mark address))
-                            do (setf live-p t) (return))
-                    (unless live-p
-                      (hierarchical-free-block a vm bi)))))))))))
+          (let ((reached (aref (sb-reached-mbs s) sb)))
+            (dotimes (m mps)
+              (when (or (plusp (length (sb-reached-mbs s)))
+                        (eql 1 (sbit reached m)))
+                ;; per-MB block matrix is indexed by GLOBAL metablock index
+                (let ((mb-matrix
+                        (and matrices
+                             (< (+ (* sb mps) m) (length matrices))
+                             (aref matrices (+ (* sb mps) m)))))
+                  (declare (ignore mb-matrix))
+                  (dotimes (b bpm)
+                    (let ((bi (+ (* sb mps bpm) (* m bpm) b)))
+                      (when (and (< bi (sb-block-count s))
+                                 (hierarchical-block-in-use-p a bi))
+                        (let ((live-p nil))
+                          (loop for address from (sb-block-base s bi)
+                                below (+ (sb-block-base s bi)
+                                         (sb-block-words s))
+                                when (and (s-test-bit os address)
+                                          (s-test-bit mark address))
+                                  do (setf live-p t) (return))
+                          (unless live-p
+                            (hierarchical-free-block a vm bi))))))))))))))
   s)
 
 (defun superblock-compact (s vm)
@@ -1055,10 +1091,14 @@ bounded implementation only compacts when an out-of-place block is available."
   s)
 
 (defmethod space-reclaim ((s superblock-space) vm &key cycle-kind)
-  (declare (ignore cycle-kind))
+  ;; heap.tex §6: run the hierarchy in cost order -- refcount release first
+  ;; (cheapest, largest gain), then search closure over reached metablocks,
+  ;; then block compaction (the expensive last resort, run rarely).
   (superblock-release-zero-count s vm)
   (superblock-search s vm)
   (superblock-sweep s vm)
+  (when (eq cycle-kind :major)
+    (superblock-compact s vm))
   s)
 
 (defmethod space-occupancy ((s superblock-space))
@@ -1124,16 +1164,37 @@ bounded implementation only compacts when an out-of-place block is available."
        (prog1 (ha-next-fresh a) (incf (ha-next-fresh a)))))))
 
 (defun hierarchical-free-block (a vm block-index)
-  "Return an in-use block to the free list and forget its object identity."
+  "Return an in-use block to the free list, forget its object identity, and
+  clear its hierarchy relations: the block's row/column in the points-to
+  matrices and its escape bits (strata.tex §5: a stale M[i,j] no longer means
+  'region i may reference region j')."
   (when (hierarchical-block-in-use-p a block-index)
     (vm-clear-metadata-range
      vm (hierarchical-block-base a block-index)
      (+ (hierarchical-block-base a block-index) (ha-block-words a)))
-    (setf (aref (ha-cursors a) block-index) -1)
-    (unless (vector-push block-index (ha-free-blocks a))
-      (error 'heap-exhausted :requested-size 1 :space :block-free-list))
-    (when (eql (ha-current a) block-index)
-      (setf (ha-current a) nil)))
+    (let ((s (ha-space a)))
+      (when (typep s 'superblock-space)
+        (let* ((src-mb (floor block-index (sb-blocks-per-metablock s)))
+               (src-sb (floor src-mb (sb-mbs-per-superblock s)))
+               (local-mb (sb-local-mb s src-mb))
+               (local-block (sb-local-block s block-index)))
+          ;; block points-to matrix: clear row and column
+          (let ((bm (and (sb-block-matrices s)
+                         (< src-mb (length (sb-block-matrices s)))
+                         (aref (sb-block-matrices s) src-mb))))
+            (when bm
+              (dotimes (j (sb-blocks-per-metablock s))
+                (matrix-clear bm local-block j)
+                (matrix-clear bm j local-block))))
+          ;; metablock matrix: this block's MB may have lost its last edge
+          ;; into another MB -- recompute lazily on next search instead of
+          ;; here; but escape bits are per-block and must be cleared now
+          (setf (sb-escape-value s vm block-index) 0)))
+      (setf (aref (ha-cursors a) block-index) -1)
+      (unless (vector-push block-index (ha-free-blocks a))
+        (error 'heap-exhausted :requested-size 1 :space :block-free-list))
+      (when (eql (ha-current a) block-index)
+        (setf (ha-current a) nil))))
   block-index)
 
 (defun hierarchical-sb-in-use-p (a sb)

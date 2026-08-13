@@ -125,7 +125,8 @@
 
 (defun claimore-minor-mark (plan)
   "Private nursery collection: trace the request's roots + published objects
-  within the nursery; public (mature) children are external."
+  within the nursery; public (mature) children are external.  The
+  published-roots set is drained twice (locality.tex §1)."
   (let* ((vm (plan-vm plan)) (tr (plan-tracer plan)) (nursery (cl-nursery plan)))
     (tracer-reset tr)
     (vm-scan-roots vm plan #'claimore-minor-root-reference)
@@ -136,7 +137,25 @@
               when (and (s-test-bit pub address)
                         (s-test-bit os address))
                 do (space-trace-object nursery vm address tr))))
-    (tracer-drain tr #'claimore-minor-grey-reference plan)))
+    (claimore-drain-published-roots plan)
+    (tracer-drain tr #'claimore-minor-grey-reference plan)
+    (claimore-drain-published-roots plan)))
+
+(defun claimore-drain-published-roots (plan)
+  (let* ((strategy (plan-publication plan))
+         (pr (and strategy (strategy-published-roots strategy))))
+    (when (and pr (strategy-read-guarded-p strategy))
+      (drain-published-roots
+       pr
+       (lambda (object slot)
+         (let ((vm (plan-vm plan)))
+           (let ((referent (vm-object-reference vm object slot)))
+             (when (vm-reference-p vm referent)
+               (let ((nursery (cl-nursery plan)))
+                 (when (space-contains-p
+                        nursery (ref-strip-or-self vm referent))
+                   (space-trace-object
+                    nursery vm referent (plan-tracer plan))))))))))))
 
 (defun claimore-apply-rc-log (plan)
   "Drain the RC delta buffer, folding each object-level delta up to the

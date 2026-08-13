@@ -74,6 +74,60 @@
         (if (and (plusp a2) (= (vm-object-reference-count (%vm) a2) 2))
             (values t "ok") (values nil "claimore major failed"))))))
 
+;; ---- G4: read-guarded DLG machinery --------------------------------------
+
+(deftest published-roots-record-and-drain ()
+  ;; locality.tex §1: the published-roots set records guarded EDGES (object +
+  ;; slot) and drains them without clearing (append-only, drained twice).
+  (let* ((vm (make-simulator-vm 4096))
+         (strategy (make-instance 'lazy-read-barrier)))
+    (initialize-publication-work strategy vm)
+    (let ((pr (strategy-published-roots strategy)))
+      (unless pr
+        (return-from published-roots-record-and-drain
+          (values nil "no published-roots set on a lazy strategy")))
+      (record-published-edge pr 100 0)
+      (record-published-edge pr 200 3)
+      (let ((drained nil))
+        (drain-published-roots pr
+          (lambda (object slot) (push (cons object slot) drained)))
+        ;; first drain sees both edges
+        (unless (= (length drained) 2)
+          (return-from published-roots-record-and-drain
+            (values nil "first drain missed edges")))
+        ;; set is retained (append-only)
+        (unless (= (published-roots-count pr) 2)
+          (return-from published-roots-record-and-drain
+            (values nil "drain cleared the append-only set")))
+        (let ((second nil))
+          (drain-published-roots pr
+            (lambda (object slot) (push (cons object slot) second)))
+          (if (= (length second) 2)
+              (values t "ok")
+              (values nil "second drain missed edges")))))))
+
+(deftest trap-b-installs-guarded-stand-in ()
+  ;; locality.tex §2 Variant B: the private original stays in place and the
+  ;; public region gets a trapping stand-in whose edge is a published root.
+  (let* ((vm (make-simulator-vm 4096))
+         (strategy (make-instance 'lazy-read-barrier))) ; placeholder region
+    (declare (ignore vm strategy))
+    (with-clamsara (:plan-type :claimore :heap-size 65536)
+      (let* ((mature (cl-mature *clamsara-plan*))
+             (private-obj (clamsara-allocate-object 1))
+             (strategy (make-instance 'trap-error-copy-b
+                                      :public-region mature)))
+        (initialize-publication-work strategy *clamsara-vm*)
+        (let ((stand-in (publish strategy *clamsara-vm* private-obj)))
+          (if (and stand-in
+                   (space-contains-p mature stand-in)
+                   (error-object-p *clamsara-vm* stand-in)
+                   (not (vm-object-is-public-p *clamsara-vm* private-obj))
+                   (= (published-roots-count
+                       (strategy-published-roots strategy)) 1))
+              (values t "ok")
+              (values nil (format nil "trap-B stand-in wrong: ~a" stand-in))))))))
+
 (deftest barrier-card-rule ()
   ;; The card rule must actually dirty the source card on an old->young write,
   ;; not merely report the right trigger keyword.

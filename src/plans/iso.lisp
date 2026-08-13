@@ -120,8 +120,32 @@
               when (and (s-test-bit pub address)
                         (s-test-bit os address))
                 do (space-trace-object priv vm address tr))))
+    ;; first drain of the published-roots set: guarded inbound edges seed the
+    ;; trace (locality.tex §1)
+    (iso-drain-published-roots plan)
     ;; drain private only; public-space children are external
-    (tracer-drain tr #'iso-minor-grey-reference plan)))
+    (tracer-drain tr #'iso-minor-grey-reference plan)
+    ;; second drain just before reclaim: referents of edges appended
+    ;; mid-collection are traced so the reclaim cannot free them
+    (iso-drain-published-roots plan)))
+
+(defun iso-drain-published-roots (plan)
+  "Trace the referent of every guarded edge in the published-roots set
+  (first drain seeds; second drain re-pins mid-collection edges)."
+  (let* ((strategy (plan-publication plan))
+         (pr (and strategy (strategy-published-roots strategy))))
+    (when (and pr (strategy-read-guarded-p strategy))
+      (drain-published-roots
+       pr
+       (lambda (object slot)
+         (let ((vm (plan-vm plan)))
+           (let ((referent (vm-object-reference vm object slot)))
+             (when (vm-reference-p vm referent)
+               (let ((private (iso-private plan)))
+                 (when (space-contains-p
+                        private (ref-strip-or-self vm referent))
+                   (space-trace-object
+                    private vm referent (plan-tracer plan))))))))))))
 
 (defun make-iso-plan (vm heap-size)
   (declare (ignore heap-size))

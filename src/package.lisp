@@ -102,6 +102,10 @@
            #:publication-strategy #:publish #:publication-read-rule
            #:eager-closure #:lazy-read-barrier #:trap-error-copy-a
            #:trap-error-copy-b
+           #:strategy-read-guarded-p #:strategy-published-roots
+           #:published-roots #:make-published-roots
+           #:record-published-edge #:drain-published-roots
+           #:published-roots-count
            #:card-barrier-rule #:sticky-dirty-barrier-rule
            #:satb-barrier-rule #:rc-barrier-rule
            #:publication-barrier-rule)

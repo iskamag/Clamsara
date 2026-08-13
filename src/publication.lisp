@@ -16,13 +16,72 @@
 (defgeneric publication-read-rule (strategy)
   (:documentation "Optional read-barrier rule this strategy requires, or NIL.")
   (:method ((s publication-strategy)) nil))
+(defgeneric strategy-read-guarded-p (strategy)
+  (:documentation "True if the strategy uses read-guarded DLG (DLG-r).")
+  (:method ((s publication-strategy)) nil))
+(defgeneric strategy-published-roots (strategy)
+  (:documentation "The strategy's published-roots set, or NIL.")
+  (:method ((s publication-strategy)) nil))
 
 (defun initialize-publication-work (strategy vm)
-  "Allocate the eager-closure queue at boot, standing in for immortal storage."
+  "Allocate the eager-closure queue (and any published-roots set) at boot,
+  standing in for immortal storage."
   (setf (publication-work strategy)
         (make-array (vm-heap-size vm) :element-type 'fixnum
                     :initial-element 0 :fill-pointer 0))
+  (when (typep strategy 'lazy-read-barrier)
+    (initialize-lazy-published-roots strategy vm))
+  (when (typep strategy 'trap-error-copy-b)
+    (initialize-trap-b-published-roots strategy vm))
   strategy)
+
+;; ---- the published-roots set (locality.tex §1) ---------------------------
+;; Every guarded public-to-private edge is recorded here at publication time.
+;; The private collection drains it twice: at start (seeding the trace) and
+;; again before reclaim (pinning referents of edges appended mid-collection
+;; by foreign read rules).  Entries record EDGES (published object + slot),
+;; not just objects: the healing mechanism needs the slot.  Two parallel
+;; fixnum vectors, no host conses on the mutator path.
+
+(defclass published-roots ()
+  ((objects :accessor published-roots-objects)
+   (slots :accessor published-roots-slots)
+   (fill :accessor published-roots-fill :initform 0)))
+
+(defun make-published-roots (capacity)
+  (let ((pr (make-instance 'published-roots)))
+    (setf (published-roots-objects pr)
+          (make-array capacity :element-type 'fixnum :initial-element 0)
+          (published-roots-slots pr)
+          (make-array capacity :element-type 'fixnum :initial-element 0))
+    pr))
+
+(defun published-roots-empty-p (pr) (zerop (published-roots-fill pr)))
+
+(defun record-published-edge (pr object slot)
+  "Append the guarded edge (OBJECT . SLOT).  Append-only: never dropped."
+  (let ((fill (published-roots-fill pr)))
+    (unless (< fill (length (published-roots-objects pr)))
+      (error 'heap-exhausted :requested-size 1 :space :published-roots))
+    (setf (aref (published-roots-objects pr) fill) object
+          (aref (published-roots-slots pr) fill) slot
+          (published-roots-fill pr) (1+ fill))
+    pr))
+
+(defun drain-published-roots (pr fn)
+  "Invoke (FN object slot) on every recorded edge.  The edge entries are
+  retained: the set is append-only and drained, not cleared (locality.tex)."
+  (let ((fill (published-roots-fill pr)))
+    (dotimes (i fill)
+      (funcall fn (aref (published-roots-objects pr) i)
+               (aref (published-roots-slots pr) i))))
+  pr)
+
+(defun published-roots-count (pr) (published-roots-fill pr))
+
+(defun edge-referent-live-p (vm object slot)
+  (let ((child (vm-object-reference vm object slot)))
+    (and (vm-reference-p vm child) child)))
 
 ;; ---- eager closure (Iso) -------------------------------------------------
 ;; Publish the whole transitive closure at once: set the public bit on each.
@@ -59,12 +118,23 @@
     root))
 
 ;; ---- lazy read-barrier (Marlow/Dolan/Filatov-Mikheev lineage) ------------
-;; Publish only the root; a read barrier promotes children on demand.
+;; Publish only the root; a read barrier promotes children on demand.  The
+;; guarded edge (published object, slot) is recorded in the published-roots
+;; set so the private collection can pin/heal the referent (DLG-r).
 
-(defclass lazy-read-barrier (publication-strategy) ())
+(defclass lazy-read-barrier (publication-strategy)
+  ((published-roots :accessor strategy-published-roots :initform nil)))
+
+(defmethod strategy-read-guarded-p ((s lazy-read-barrier)) t)
 
 (defmethod publish ((s lazy-read-barrier) vm object)
   (setf (vm-object-is-public-p vm object) t)
+  ;; record every outgoing slot as a guarded edge: a read of a private child
+  ;; publishes on demand, and the private collection must know all such slots
+  (let ((pr (strategy-published-roots s)))
+    (when pr
+      (dotimes (slot (vm-object-reference-count vm object))
+        (record-published-edge pr object slot))))
   object)
 
 (defmethod publication-read-rule ((s lazy-read-barrier))
@@ -75,6 +145,11 @@
         (setf (vm-object-is-public-p vm addr) t)
         (setf (ref-u64 vm slot-addr) reference)))
     reference))
+
+(defun initialize-lazy-published-roots (strategy vm)
+  (setf (strategy-published-roots strategy)
+        (make-published-roots (vm-heap-size vm)))
+  strategy)
 
 ;; ---- trap / error-copy (Claimore experiments) ----------------------------
 ;; Variant A: copy into public region, poison the private original with an
@@ -114,13 +189,38 @@
           healed)
         reference)))
 
-(defclass trap-error-copy-b (publication-strategy) ())
+(defclass trap-error-copy-b (publication-strategy)
+  ((published-roots :accessor strategy-published-roots :initform nil)))
+
+(defmethod strategy-read-guarded-p ((s trap-error-copy-b)) t)
 
 (defmethod publish ((s trap-error-copy-b) vm object)
-  ;; keep the original in place; place an error copy in the public region.
-  ;; (stub: the stand-in install and pinning of the spec are not yet wired)
-  (setf (vm-object-is-public-p vm object) t)
-  object)
+  ;; Variant B: keep the original private; install an error stand-in in the
+  ;; public region whose edge to the original is a guarded published root.
+  ;; Dereferencing the stand-in traps (error tag); the trap handler promotes.
+  (let* ((region (public-region s))
+         (stand-in (if (and region (space-allocator region))
+                       (alloc (space-allocator region) 2)
+                       nil)))
+    (when stand-in
+      (setf (vm-object-header vm stand-in) (pack-header 1 +error-tag+)
+            (vm-object-reference vm stand-in 0)
+            (ref-strip-or-self vm object))
+      (let ((os (vm-object-start vm)))
+        (when os (s-set-bit os stand-in)))
+      (let ((pr (strategy-published-roots s)))
+        (when pr (record-published-edge pr stand-in 0))))
+    stand-in))
+
+(defmethod publication-read-rule ((s trap-error-copy-b))
+  ;; The trap IS the runtime's type check; the strategy exposes no read rule
+  ;; (locality.tex: publication-read-rule returns NIL for trap variants).
+  nil)
+
+(defun initialize-trap-b-published-roots (strategy vm)
+  (setf (strategy-published-roots strategy)
+        (make-published-roots (vm-heap-size vm)))
+  strategy)
 
 (defun copy-to-public (vm object public-space)
   "Allocate in PUBLIC-SPACE and copy OBJECT's payload there."

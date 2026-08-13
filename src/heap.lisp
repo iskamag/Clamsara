@@ -553,8 +553,7 @@ bounded implementation only compacts when an out-of-place block is available."
                                            :vm vm :space space))
               (immix-space            (make-instance 'immix-allocator :vm vm :space space
                                                      :start start :limit end))
-              (superblock-space       (make-instance 'hierarchical-allocator :vm vm :space space
-                                                     :start start :limit end))
+              (superblock-space       (make-hierarchical-allocator vm space))
               (otherwise               (make-instance 'bump-allocator :start start :limit end :vm vm :space space)))))))
 
 (defmethod shared-initialize :after ((s space) slot-names &rest keys &key vm)
@@ -769,96 +768,155 @@ bounded implementation only compacts when an out-of-place block is available."
 (defconstant +escape-pointed-to-by-older+ 4)
 
 (defclass superblock-space (space)
-  ((sb-refcounts :reader sb-refcounts :initarg :sb-refcounts :initform nil)
+  ((sb-refcounts :reader sb-refcounts :initarg :sb-refcounts :initform nil
+                 :type (or (simple-array fixnum (*)) null))
    (block-words :reader sb-block-words :initarg :block-words
-                :initform +g-block+)
+                :initform +g-block+ :type fixnum)
    (blocks-per-metablock :reader sb-blocks-per-metablock
-                         :initarg :blocks-per-metablock :initform 256)
+                         :initarg :blocks-per-metablock :initform 256
+                         :type fixnum)
    (metablocks-per-superblock :reader sb-mbs-per-superblock
-                              :initarg :metablocks-per-superblock :initform 256)
+                              :initarg :metablocks-per-superblock
+                              :initform 256 :type fixnum)
    ;; per-SB metablock points-to matrices (heap.tex §6, strata.tex §5)
-   (mb-matrices :accessor sb-mb-matrices :initform nil)
+   (mb-matrices :accessor sb-mb-matrices :initform nil
+                :type (or (simple-array (or matrix-stratum null) (*)) null))
    ;; per-MB block points-to matrices (indexed by global metablock index)
-   (block-matrices :accessor sb-block-matrices :initform nil)
+   (block-matrices :accessor sb-block-matrices :initform nil
+                   :type (or (simple-array (or matrix-stratum null) (*)) null))
    ;; preallocated closure scratch: root/reached bit-vectors per SB
    (mb-root-bits :accessor sb-mb-root-bits :initform nil)
    (reached-mbs :accessor sb-reached-mbs :initform nil)
    ;; SBs that must not be released wholesale this cycle
-   (pinned :accessor sb-pinned :initform nil)
+   (pinned :accessor sb-pinned :initform nil
+           :type (or (simple-array bit (*)) null))
    ;; the block-granularity 3-bit escape stratum (registered on the VM)
-   (escape :accessor sb-escape :initform nil))
+   (escape :accessor sb-escape :initform nil
+           :type (or stratum null)))
   (:default-initargs :policy :hierarchical :moving :none)
   (:metaclass space-metaclass))
+
+;; ---- collection-path slot access (no CLOS dispatch) ----------------------
+;; The superblock collection path must not dispatch through CLOS slot
+;; accessors: SBCL allocates an effective method on the first dynamically
+;; typed access.  These wrappers read slots via (STRUCTURE-CLASS . SLOT) 
+;; slot-value with fixnum/vector type propagation, compiled to direct slot
+;; offsets under (SPEED 3) (SAFETY 0).
+
+(declaim (inline %sb-block-words %sb-bpm %sb-mps %sb-block-count
+                 %sb-mb-count %sb-count %sb-block-matrices
+                 %sb-mb-matrices %sb-refcounts %sb-pinned
+                 %sb-reached-mbs %sb-mb-root-bits %sb-escape))
+(defun %sb-block-words (s)
+  (declare (optimize (speed 3) (safety 0)))
+  (the fixnum (slot-value s 'block-words)))
+(defun %sb-bpm (s)
+  (declare (optimize (speed 3) (safety 0)))
+  (the fixnum (slot-value s 'blocks-per-metablock)))
+(defun %sb-mps (s)
+  (declare (optimize (speed 3) (safety 0)))
+  (the fixnum (slot-value s 'metablocks-per-superblock)))
+(defun %sb-block-count (s)
+  (declare (optimize (speed 3) (safety 0)))
+  (the fixnum (floor (- (space-end-address s) (space-base-address s))
+                     (%sb-block-words s))))
+(defun %sb-mb-count (s)
+  (declare (optimize (speed 3) (safety 0)))
+  (the fixnum (ceiling (%sb-block-count s) (%sb-bpm s))))
+(defun %sb-count (s)
+  (declare (optimize (speed 3) (safety 0)))
+  (the fixnum (ceiling (%sb-mb-count s) (%sb-mps s))))
+(defun %sb-block-matrices (s)
+  (declare (optimize (speed 3) (safety 0)))
+  (slot-value s 'block-matrices))
+(defun %sb-mb-matrices (s)
+  (declare (optimize (speed 3) (safety 0)))
+  (slot-value s 'mb-matrices))
+(defun %sb-refcounts (s)
+  (declare (optimize (speed 3) (safety 0)))
+  (slot-value s 'sb-refcounts))
+(defun %sb-pinned (s)
+  (declare (optimize (speed 3) (safety 0)))
+  (slot-value s 'pinned))
+(defun %sb-reached-mbs (s)
+  (declare (optimize (speed 3) (safety 0)))
+  (slot-value s 'reached-mbs))
+(defun %sb-mb-root-bits (s)
+  (declare (optimize (speed 3) (safety 0)))
+  (slot-value s 'mb-root-bits))
+(defun %sb-escape (s)
+  (declare (optimize (speed 3) (safety 0)))
+  (slot-value s 'escape))
 
 ;; ---- region geometry -----------------------------------------------------
 
 (declaim (inline sb-words-per-block sb-words-per-mb sb-words-per-superblock))
-(defun sb-words-per-block (s) (sb-block-words s))
+(defun sb-words-per-block (s) (%sb-block-words s))
 (defun sb-words-per-mb (s)
-  (* (sb-block-words s) (sb-blocks-per-metablock s)))
+  (* (%sb-block-words s) (%sb-bpm s)))
 (defun sb-words-per-superblock (s)
-  (* (sb-words-per-mb s) (sb-mbs-per-superblock s)))
+  (* (sb-words-per-mb s) (%sb-mps s)))
 
 (defun sb-block-count (s)
-  (floor (- (space-end-address s) (space-base-address s)) (sb-block-words s)))
+  (floor (- (space-end-address s) (space-base-address s)) (%sb-block-words s)))
 (defun sb-mb-count (s)
-  (ceiling (sb-block-count s) (sb-blocks-per-metablock s)))
+  (ceiling (%sb-block-count s) (%sb-bpm s)))
 (defun sb-count (s)
-  (ceiling (sb-mb-count s) (sb-mbs-per-superblock s)))
+  (ceiling (%sb-mb-count s) (%sb-mps s)))
 
 (defun sb-index (s address)
   "Which superblock ADDRESS belongs to (superblock 0 is the first in the
   space's address range; it holds the persistent root set and is never freed)."
   (floor (- address (space-base-address s)) (sb-words-per-superblock s)))
 (defun sb-block-index (s address)
-  (floor (- address (space-base-address s)) (sb-block-words s)))
+  (floor (- address (space-base-address s)) (%sb-block-words s)))
 (defun sb-mb-index (s address)
-  (floor (sb-block-index s address) (sb-blocks-per-metablock s)))
+  (floor (sb-block-index s address) (%sb-bpm s)))
 (defun sb-local-block (s block-index)
-  (mod block-index (sb-blocks-per-metablock s)))
+  (mod block-index (%sb-bpm s)))
 (defun sb-local-mb (s mb-index)
-  (mod mb-index (sb-mbs-per-superblock s)))
+  (mod mb-index (%sb-mps s)))
 (defun sb-block-base (s block-index)
-  (+ (space-base-address s) (* block-index (sb-block-words s))))
+  (+ (space-base-address s) (* block-index (%sb-block-words s))))
 
 (defmethod shared-initialize :after ((s superblock-space) slot-names &key)
   (declare (ignore slot-names))
-  (let ((nsb (sb-count s))
-        (nmbs (sb-mb-count s))
-        (mps (sb-mbs-per-superblock s))
-        (bpm (sb-blocks-per-metablock s)))
-    (unless (sb-refcounts s)
+  (let ((nsb (%sb-count s))
+        (nmbs (%sb-mb-count s))
+        (mps (%sb-mps s))
+        (bpm (%sb-bpm s)))
+    (unless (%sb-refcounts s)
       (setf (slot-value s 'sb-refcounts)
             (make-array nsb :element-type 'fixnum :initial-element 0)))
-    (unless (sb-mb-matrices s)
-      (setf (sb-mb-matrices s)
+    (unless (%sb-mb-matrices s)
+      (setf (slot-value s (quote clamsara::mb-matrices))
             (make-array nsb :initial-element nil))
       (dotimes (i nsb)
-        (setf (aref (sb-mb-matrices s) i)
+        (setf (aref (%sb-mb-matrices s) i)
               (make-matrix-stratum (sb-words-per-mb s) mps)))
-      (setf (sb-block-matrices s)
+      (setf (slot-value s (quote clamsara::block-matrices))
             (make-array nmbs :initial-element nil))
       (dotimes (i nmbs)
-        (setf (aref (sb-block-matrices s) i)
-              (make-matrix-stratum (sb-block-words s) bpm)))
-      (setf (sb-mb-root-bits s)
+        (setf (aref (%sb-block-matrices s) i)
+              (make-matrix-stratum (%sb-block-words s) bpm)))
+      (setf (slot-value s (quote clamsara::mb-root-bits))
             (make-array nsb :initial-element nil)
-            (sb-reached-mbs s)
+            (slot-value s (quote clamsara::reached-mbs))
             (make-array nsb :initial-element nil)
-            (sb-pinned s)
+            (slot-value s (quote clamsara::pinned))
             (make-array nsb :element-type 'bit :initial-element 0))
       (dotimes (i nsb)
-        (setf (aref (sb-mb-root-bits s) i)
+        (setf (aref (%sb-mb-root-bits s) i)
               (make-array mps :element-type 'bit :initial-element 0)
-              (aref (sb-reached-mbs s) i)
+              (aref (%sb-reached-mbs s) i)
               (make-array mps :element-type 'bit :initial-element 0))))
     ;; The escape stratum is VM-registered; register once per VM.
     (let ((vm (space-vm s)))
       (when (and vm (not (vm-stratum vm :block-escape)))
-        (setf (sb-escape s)
+        (setf (slot-value s (quote clamsara::escape))
               (vm-register-stratum
                vm :block-escape
-               (make-stratum :block-escape (sb-block-words s) :u4
+               (make-stratum :block-escape (%sb-block-words s) :u4
                              (vm-heap-size vm))))))))
 
 (defun superblock-trace-object (s vm ref tracer &key trace-kind)
@@ -880,10 +938,12 @@ bounded implementation only compacts when an out-of-place block is available."
 ;; ---- escape bits (block-granularity stratum) -----------------------------
 
 (defun sb-escape-value (s vm block-index)
-  (let ((escape (or (sb-escape s) (vm-stratum vm :block-escape))))
+  (declare (optimize (speed 3) (safety 0)))
+  (let ((escape (or (%sb-escape s) (vm-stratum vm :block-escape))))
     (if escape (s-get escape (sb-block-base s block-index)) 0)))
 (defun (setf sb-escape-value) (bits s vm block-index)
-  (let ((escape (or (sb-escape s) (vm-stratum vm :block-escape))))
+  (declare (optimize (speed 3) (safety 0)))
+  (let ((escape (or (%sb-escape s) (vm-stratum vm :block-escape))))
     (when escape (s-set escape (sb-block-base s block-index) bits))
     bits))
 
@@ -897,10 +957,10 @@ bounded implementation only compacts when an out-of-place block is available."
   (called from the RC write-barrier rule, which runs after publication)."
   (let* ((src-block (sb-block-index s src))
          (dst-block (sb-block-index s new))
-         (src-mb (floor src-block (sb-blocks-per-metablock s)))
-         (dst-mb (floor dst-block (sb-blocks-per-metablock s)))
-         (src-sb (floor src-mb (sb-mbs-per-superblock s)))
-         (dst-sb (floor dst-mb (sb-mbs-per-superblock s))))
+         (src-mb (floor src-block (%sb-bpm s)))
+         (dst-mb (floor dst-block (%sb-bpm s)))
+         (src-sb (floor src-mb (%sb-mps s)))
+         (dst-sb (floor dst-mb (%sb-mps s))))
     (when (/= src-sb dst-sb)
       ;; to-foreign on the source block, from-foreign on the target block
       (setf (sb-escape-value s vm src-block)
@@ -909,10 +969,10 @@ bounded implementation only compacts when an out-of-place block is available."
             (logior (sb-escape-value s vm dst-block) +escape-from-foreign+)))
     (cond
       ((/= src-mb dst-mb)
-       (matrix-set (aref (sb-mb-matrices s) src-sb)
+       (matrix-set (aref (%sb-mb-matrices s) src-sb)
                    (sb-local-mb s src-mb) (sb-local-mb s dst-mb)))
       ((/= src-block dst-block)
-       (matrix-set (aref (sb-block-matrices s) src-mb)
+       (matrix-set (aref (%sb-block-matrices s) src-mb)
                    (sb-local-block s src-block) (sb-local-block s dst-block))))
     (when (and (= src-sb dst-sb) (< src-mb dst-mb))
       (setf (sb-escape-value s vm dst-block)
@@ -926,15 +986,17 @@ bounded implementation only compacts when an out-of-place block is available."
   "SBs that must survive RC release this cycle: superblock 0 (persistent root
   set) plus every SB containing a marked (live) object.  The precise trace is
   the authority; the count table only releases SBs the trace agrees are dead."
-  (let ((pinned (sb-pinned s))
+  (declare (optimize (speed 3) (safety 0)))
+  (let ((pinned (%sb-pinned s))
         (mark (vm-stratum vm :mark))
         (os (vm-object-start vm))
         (base (space-base-address s))
         (end (space-end-address s)))
+    (declare (type fixnum base end))
     (fill pinned 0)
     (setf (sbit pinned 0) 1)
     (when (and mark os)
-      (loop for address from base below end
+      (loop for address fixnum from base below end
             when (and (s-test-bit os address) (s-test-bit mark address))
               do (setf (sbit pinned (sb-index s address)) 1)))
     pinned))
@@ -943,32 +1005,36 @@ bounded implementation only compacts when an out-of-place block is available."
   "Stage 1 (cheapest, largest gain): a superblock whose count reached zero is
   released wholesale — every block returned to the free list, object identity
   forgotten.  Pinned superblocks (root set, live objects) are excluded."
-  (let ((counts (sb-refcounts s))
+  (declare (optimize (speed 3) (safety 0)))
+  (let ((counts (%sb-refcounts s))
         (pinned (superblock-pinned s vm))
         (a (space-allocator s)))
-    (dotimes (i (sb-count s))
-      (when (and (plusp i) (zerop (aref counts i)) (zerop (sbit pinned i)))
-        (dotimes (b (sb-blocks-per-metablock s))
-          (let ((bi (+ (* i (sb-mbs-per-superblock s)
-                          (sb-blocks-per-metablock s))
-                       b)))
-            (when (< bi (sb-block-count s))
-              (hierarchical-free-block a vm bi)))))))
-  s)
+    (let ((nsb (%sb-count s))
+          (bpm (%sb-bpm s))
+          (mps (%sb-mps s))
+          (nblocks (%sb-block-count s)))
+      (declare (type fixnum nsb bpm mps nblocks))
+      (dotimes (i nsb)
+        (when (and (plusp i) (zerop (aref counts i)) (zerop (sbit pinned i)))
+          (dotimes (b bpm)
+            (let ((bi (the fixnum (+ (the fixnum (* i mps bpm)) b))))
+              (when (< bi nblocks)
+                (hierarchical-free-block a vm bi)))))))
+    s))
 
 (defun superblock-root-mbs (s vm)
   "Seed bits per SB: metablocks containing root references or nursery-edge
   targets.  A superset of the trace seeds keeps the closure a valid bound."
   (let* ((plan (vm-plan vm))
          (nursery (and plan (plan-nursery plan)))
-         (nsb (sb-count s)))
-    (dotimes (i nsb) (fill (aref (sb-mb-root-bits s) i) 0))
+         (nsb (%sb-count s)))
+    (dotimes (i nsb) (fill (aref (%sb-mb-root-bits s) i) 0))
     (flet ((seed (ref)
              (when (and (plusp ref) (space-contains-p s ref))
                (let* ((mi (sb-mb-index s ref))
-                      (sb (floor mi (sb-mbs-per-superblock s))))
+                      (sb (floor mi (%sb-mps s))))
                  (when (< sb nsb)
-                   (setf (sbit (aref (sb-mb-root-bits s) sb)
+                   (setf (sbit (aref (%sb-mb-root-bits s) sb)
                                (sb-local-mb s mi)) 1))))))
       (let ((roots (vm-root-vector vm)))
         (dotimes (i (length roots)) (seed (aref roots i))))
@@ -987,9 +1053,9 @@ bounded implementation only compacts when an out-of-place block is available."
     (flet ((seed (ref)
              (when (and (plusp ref) (space-contains-p s ref))
                (let* ((mi (sb-mb-index s ref))
-                      (sb (floor mi (sb-mbs-per-superblock s))))
-                 (when (< sb (sb-count s))
-                   (setf (sbit (aref (sb-mb-root-bits s) sb)
+                      (sb (floor mi (%sb-mps s))))
+                 (when (< sb (%sb-count s))
+                   (setf (sbit (aref (%sb-mb-root-bits s) sb)
                                (sb-local-mb s mi)) 1))))))
       (if slots
           (loop for i across slots
@@ -1006,30 +1072,30 @@ bounded implementation only compacts when an out-of-place block is available."
   RC table and escape bits rule out incoming edges from reached regions).
   The reached sets are retained for the post-collection sanity check: the
   precise trace's marked set must lie within them."
-  (let* ((nsb (sb-count s))
-         (mps (sb-mbs-per-superblock s))
+  (let* ((nsb (%sb-count s))
+         (mps (%sb-mps s))
          (a (space-allocator s)))
     (superblock-root-mbs s vm)
     (dotimes (sb nsb)
-      (let ((reached (aref (sb-reached-mbs s) sb))
-            (roots (aref (sb-mb-root-bits s) sb)))
+      (let ((reached (aref (%sb-reached-mbs s) sb))
+            (roots (aref (%sb-mb-root-bits s) sb)))
         (when (hierarchical-sb-in-use-p a sb)
           ;; iterate to fixpoint: closure, then fold in from-foreign targets
           (loop repeat mps
                 for added-p = nil
                 do (let ((closure
                            (matrix-closure
-                            (aref (sb-mb-matrices s) sb) roots)))
+                            (aref (%sb-mb-matrices s) sb) roots)))
                      (replace reached closure))
-                   (dotimes (mi (min mps (sb-mb-count s)))
+                   (dotimes (mi (min mps (%sb-mb-count s)))
                      (when (and (= (floor mi mps) sb)  ; local to this SB
                                 (zerop (sbit reached (sb-local-mb s mi))))
                        ;; unreached: keep only if a from-foreign block exists
                        (let ((foreign-p nil))
-                         (dotimes (b (sb-blocks-per-metablock s))
-                           (let ((bi (+ (* mi (sb-blocks-per-metablock s))
+                         (dotimes (b (%sb-bpm s))
+                           (let ((bi (+ (* mi (%sb-bpm s))
                                         b)))
-                             (when (and (< bi (sb-block-count s))
+                             (when (and (< bi (%sb-block-count s))
                                         (logtest (sb-escape-value s vm bi)
                                                  +escape-from-foreign+))
                                (setf foreign-p t) (return))))
@@ -1051,13 +1117,13 @@ bounded implementation only compacts when an out-of-place block is available."
   (let* ((a (space-allocator s))
          (mark (vm-stratum vm :mark))
          (os (vm-object-start vm))
-         (nsb (sb-count s))
-         (bpm (sb-blocks-per-metablock s))
-         (mps (sb-mbs-per-superblock s)))
+         (nsb (%sb-count s))
+         (bpm (%sb-bpm s))
+         (mps (%sb-mps s)))
     (when (and mark os)
       (dotimes (sb nsb)
         (unless (zerop sb)
-          (let ((reached (aref (sb-reached-mbs s) sb)))
+          (let ((reached (aref (%sb-reached-mbs s) sb)))
             (dotimes (m mps)
               (when (and reached (eql 1 (sbit reached m)))
                 ;; within a reached metablock the mark stratum is the
@@ -1066,22 +1132,25 @@ bounded implementation only compacts when an out-of-place block is available."
                 ;; block's live count, never judged independently
                 (dotimes (b bpm)
                   (let ((bi (+ (* sb mps bpm) (* m bpm) b)))
-                    (when (and (< bi (sb-block-count s))
+                    (when (and (< bi (%sb-block-count s))
                                (hierarchical-block-in-use-p a bi))
-                      (let ((root (aref (ha-span-root a) bi)))
-                        (when (and (>= root 0) (/= root bi))
-                          ;; tail block: skip individual judgement; the root
-                          ;; block's pass reclaims the whole run
-                          (return)))
-                      (let ((live-p nil))
-                        (loop for address from (sb-block-base s bi)
-                              below (+ (sb-block-base s bi)
-                                       (sb-block-words s))
-                              when (and (s-test-bit os address)
-                                        (s-test-bit mark address))
-                                do (setf live-p t) (return))
-                        (unless live-p
-                          (hierarchical-free-block a vm bi))))))))))))))
+                      (let ((root (aref (hierarchical-allocator-span-root a) bi)))
+                        (unless (and (>= root 0) (/= root bi))
+                          ;; root or single block: judge liveness.  Tail
+                          ;; blocks are skipped (the root's pass reclaims
+                          ;; the whole run), but iteration CONTINUES so a
+                          ;; later dead span in the same metablock is still
+                          ;; swept.
+                          (let ((live-p nil))
+                            (loop for address from (sb-block-base s bi)
+                                  below (+ (sb-block-base s bi)
+                                           (%sb-block-words s))
+                                  when (and (s-test-bit os address)
+                                            (s-test-bit mark address))
+                                    do (setf live-p t) (return))
+                            (unless live-p
+                              (hierarchical-free-block
+                               a vm bi))))))))))))))))
 
 (defun superblock-compact (s vm)
   "Block compaction (heap.tex §6, the expensive last resort): move the live
@@ -1094,11 +1163,11 @@ bounded implementation only compacts when an out-of-place block is available."
          (fwd (vm-fwd-table vm)))
     (when (and mark os (hierarchical-fresh-available-p a))
       (let ((source nil) (source-frag 0))
-        (dotimes (bi (sb-block-count s))
+        (dotimes (bi (%sb-block-count s))
           (when (and (hierarchical-block-in-use-p a bi)
                      (plusp (sb-index s (sb-block-base s bi)))) ; SB0 pinned
             (let* ((base (sb-block-base s bi))
-                   (limit (+ base (sb-block-words s)))
+                   (limit (+ base (%sb-block-words s)))
                    (cursor (hierarchical-block-cursor a bi))
                    (live-words 0))
               (loop for address from base below limit
@@ -1107,13 +1176,13 @@ bounded implementation only compacts when an out-of-place block is available."
               (let ((frag (- (- cursor base) live-words)))
                 (when (and (plusp live-words) (> frag source-frag))
                   (setf source bi source-frag frag))))))
-        (when (and source (>= source-frag (ash (sb-block-words s) -1)))
+        (when (and source (>= source-frag (ash (%sb-block-words s) -1)))
           ;; copy survivors into a fresh destination block
           (let* ((dest (hierarchical-acquire-block a))
                  (dcur (sb-block-base s dest))
-                 (dlim (+ dcur (sb-block-words s))))
+                 (dlim (+ dcur (%sb-block-words s))))
             (loop for address from (sb-block-base s source)
-                  below (+ (sb-block-base s source) (sb-block-words s))
+                  below (+ (sb-block-base s source) (%sb-block-words s))
                   when (and (s-test-bit os address) (s-test-bit mark address))
                     do (let ((words (vm-object-total-words vm address)))
                          (when (> (+ dcur words) dlim)
@@ -1136,10 +1205,10 @@ bounded implementation only compacts when an out-of-place block is available."
                         below (space-end-address nursery)
                         when (s-test-bit os address)
                           do (vm-heal-reference-slots vm address fwd)))))
-            (dotimes (bi (sb-block-count s))
+            (dotimes (bi (%sb-block-count s))
               (when (hierarchical-block-in-use-p a bi)
                 (loop for address from (sb-block-base s bi)
-                      below (+ (sb-block-base s bi) (sb-block-words s))
+                      below (+ (sb-block-base s bi) (%sb-block-words s))
                       when (s-test-bit os address)
                         do (vm-heal-reference-slots vm address fwd))))
             (hierarchical-free-block a vm source)
@@ -1168,187 +1237,220 @@ bounded implementation only compacts when an out-of-place block is available."
 ;; swept block) returns its blocks to the free list, so released memory is
 ;; reused rather than left as a hole.  Objects larger than one block are
 ;; carved from the never-used region as contiguous block runs.
+;;
+;; DEFSTRUCT, not DEFCLASS: struct accessors compile to raw memory reads, so
+;; the collection path never pays PCL slot-accessor dispatch (the same reason
+;; IMMIX-BLOCK is a struct).  The generic ALLOC/FREE/COALESCE/ALLOCATOR-RESET
+;; methods dispatch on the struct type name instead.
 
-(defclass hierarchical-allocator ()
-  ((vm :initarg :vm :accessor ha-vm)
-   (space :initarg :space :accessor ha-space)
-   (start :initarg :start :accessor ha-start)
-   (limit :initarg :limit :accessor ha-limit)
-   (block-words :accessor ha-block-words)
-   (block-count :accessor ha-block-count)
-   ;; per-block bump cursor; -1 means the block is on the free list
-   (cursors :accessor ha-cursors)
-   (free-blocks :accessor ha-free-blocks)   ; fixnum vector + fill pointer
-   (next-fresh :accessor ha-next-fresh :initform 0)
-   (current :accessor ha-current :initform nil)
-   ;; span-root[i] = root block index of the multi-block run block i
-   ;; belongs to, or -1 (mirrors the immix allocator's span tracking)
-   (span-root :accessor ha-span-root :initform nil)))
+(defstruct (hierarchical-allocator
+             (:constructor %make-hierarchical-allocator
+                           (vm space start limit)))
+  (vm nil :type (or vm-binding null) :read-only t)
+  (space nil :read-only t)
+  (start 0 :type word-address :read-only t)
+  (limit 0 :type word-address :read-only t)
+  (block-words 0 :type fixnum)
+  (block-count 0 :type fixnum)
+  ;; per-block bump cursor; -1 means the block is on the free list
+  (cursors nil :type (or (simple-array fixnum (*)) null))
+  (free-blocks nil :type (or (and (vector fixnum) (not simple-array)) null))
+  (next-fresh 0 :type fixnum)
+  (current nil)
+  ;; span-root[i] = root block index of the multi-block run block i
+  ;; belongs to, or -1 (mirrors the immix allocator's span tracking)
+  (span-root nil :type (or (simple-array fixnum (*)) null)))
 
-(defmethod shared-initialize :after ((a hierarchical-allocator) slot-names &key)
-  (declare (ignore slot-names))
-  (unless (slot-boundp a 'block-words)
-    (let* ((s (ha-space a))
-           (count (floor (- (ha-limit a) (ha-start a)) (sb-block-words s))))
-      (setf (ha-block-words a) (sb-block-words s)
-            (ha-block-count a) count
-            (ha-cursors a) (make-array count :element-type 'fixnum
-                                       :initial-element -1)
-            (ha-free-blocks a) (make-array count :element-type 'fixnum
-                                           :initial-element 0
-                                           :fill-pointer 0)
-            (ha-span-root a) (make-array count :element-type 'fixnum
-                                         :initial-element -1)))))
+(defun make-hierarchical-allocator (vm space)
+  "Build the hierarchical allocator for SPACE, wiring the block geometry."
+  (let* ((count (floor (- (space-end-address space)
+                          (space-base-address space))
+                       (sb-block-words space)))
+         (a (%make-hierarchical-allocator
+             vm space (space-base-address space)
+             (space-end-address space))))
+    (setf (hierarchical-allocator-block-words a) (sb-block-words space)
+          (hierarchical-allocator-block-count a) count
+          (hierarchical-allocator-cursors a)
+          (make-array count :element-type 'fixnum :initial-element -1)
+          (hierarchical-allocator-free-blocks a)
+          (make-array count :element-type 'fixnum
+                      :initial-element 0 :fill-pointer 0)
+          (hierarchical-allocator-span-root a)
+          (make-array count :element-type 'fixnum :initial-element -1))
+    a))
 
-(declaim (inline hierarchical-block-in-use-p hierarchical-block-cursor))
+(declaim (inline hierarchical-block-in-use-p hierarchical-block-cursor
+                 hierarchical-block-base hierarchical-fresh-available-p
+                 hierarchical-clear-relations))
+
 (defun hierarchical-block-in-use-p (a block-index)
-  (and (< block-index (ha-block-count a))
-       (>= (aref (ha-cursors a) block-index) 0)))
+  (and (< block-index (hierarchical-allocator-block-count a))
+       (>= (aref (hierarchical-allocator-cursors a) block-index) 0)))
 (defun hierarchical-block-cursor (a block-index)
-  (aref (ha-cursors a) block-index))
+  (aref (hierarchical-allocator-cursors a) block-index))
 (defun (setf hierarchical-block-cursor) (cursor a block-index)
-  (setf (aref (ha-cursors a) block-index) cursor))
+  (setf (aref (hierarchical-allocator-cursors a) block-index) cursor))
 (defun hierarchical-fresh-available-p (a)
-  (< (ha-next-fresh a) (ha-block-count a)))
+  (< (hierarchical-allocator-next-fresh a)
+     (hierarchical-allocator-block-count a)))
 
 (defun hierarchical-block-base (a block-index)
-  (+ (ha-start a) (* block-index (ha-block-words a))))
+  (declare (type hierarchical-allocator a) (type fixnum block-index)
+           (optimize (speed 3) (safety 0)))
+  (let ((start (hierarchical-allocator-start a))
+        (log-bw (1- (integer-length
+                     (hierarchical-allocator-block-words a)))))
+    (declare (type fixnum start log-bw))
+    (the fixnum (+ start (ash block-index log-bw)))))
 
 (defun hierarchical-acquire-block (a)
   "Pop a recycled block, else carve the next never-used block."
-  (let ((free (ha-free-blocks a)))
+  (let ((free (hierarchical-allocator-free-blocks a)))
     (cond
       ((plusp (fill-pointer free))
        (decf (fill-pointer free))
        (aref free (fill-pointer free)))
       ((hierarchical-fresh-available-p a)
-       (prog1 (ha-next-fresh a) (incf (ha-next-fresh a)))))))
+       (prog1 (hierarchical-allocator-next-fresh a) (incf (hierarchical-allocator-next-fresh a)))))))
 
 (defun hierarchical-free-block (a vm block-index)
   "Return an in-use block to the free list, forget its object identity, and
   clear its hierarchy relations: the block's row/column in the points-to
   matrices and its escape bits (strata.tex §5: a stale M[i,j] no longer means
   'region i may reference region j')."
+  (declare (type hierarchical-allocator a) (type fixnum block-index)
+           (optimize (speed 3) (safety 0)))
   (when (hierarchical-block-in-use-p a block-index)
-    (let ((root (aref (ha-span-root a) block-index)))
+    (let ((root (aref (hierarchical-allocator-span-root a) block-index))
+          (bw (hierarchical-allocator-block-words a)))
+      (declare (type fixnum root bw))
       (cond
         ;; a tail block is never freed individually; the run is reclaimed
-        ;; atomically when its root block dies
+        ;; atomically when its root block dies: do nothing
         ((and (>= root 0) (/= root block-index))
-         (return-from hierarchical-free-block block-index))
-        ;; freeing a run's root releases the whole contiguous run
+         nil)
+        ;; freeing a run's root releases the whole contiguous run, with the
+        ;; same hierarchy-relation cleanup as a single block
         ((and (>= root 0) (= root block-index))
-         (loop for bi from root below (ha-block-count a)
-               do (let ((r2 (aref (ha-span-root a) bi)))
+         (loop for bi fixnum from root below (hierarchical-allocator-block-count a)
+               do (let ((r2 (aref (hierarchical-allocator-span-root a) bi)))
                     (unless (and (>= r2 0) (= r2 root)) (return))
                     (vm-clear-metadata-range
                      vm (hierarchical-block-base a bi)
-                     (+ (hierarchical-block-base a bi) (ha-block-words a)))
-                    (setf (aref (ha-cursors a) bi) -1
-                          (aref (ha-span-root a) bi) -1)
-                    (unless (vector-push bi (ha-free-blocks a))
+                     (the fixnum (+ (hierarchical-block-base a bi) bw)))
+                    (hierarchical-clear-relations a vm bi)
+                    (setf (aref (hierarchical-allocator-cursors a) bi) -1
+                          (aref (hierarchical-allocator-span-root a) bi) -1)
+                    (unless (vector-push bi (hierarchical-allocator-free-blocks a))
                       (error 'heap-exhausted :requested-size 1
                              :space :block-free-list))
-                    (when (eql (ha-current a) bi)
-                      (setf (ha-current a) nil))))
-         (return-from hierarchical-free-block block-index))
+                    (when (eql (hierarchical-allocator-current a) bi)
+                      (setf (hierarchical-allocator-current a) nil)))))
         ;; ordinary single-block free
         (t
          (vm-clear-metadata-range
           vm (hierarchical-block-base a block-index)
-          (+ (hierarchical-block-base a block-index) (ha-block-words a)))
-         (let ((s (ha-space a)))
-           (when (typep s 'superblock-space)
-             (let* ((src-mb (floor block-index (sb-blocks-per-metablock s)))
-                    (local-block (sb-local-block s block-index)))
-               ;; block points-to matrix: clear row and column
-               (let ((bm (and (sb-block-matrices s)
-                              (< src-mb (length (sb-block-matrices s)))
-                              (aref (sb-block-matrices s) src-mb))))
-                 (when bm
-                   (dotimes (j (sb-blocks-per-metablock s))
-                     (matrix-clear bm local-block j)
-                     (matrix-clear bm j local-block))))
-               ;; escape bits are per-block and must be cleared now
-               (setf (sb-escape-value s vm block-index) 0)))
-           (setf (aref (ha-cursors a) block-index) -1)
-           (unless (vector-push block-index (ha-free-blocks a))
-             (error 'heap-exhausted :requested-size 1 :space :block-free-list))
-           (when (eql (ha-current a) block-index)
-             (setf (ha-current a) nil)))))))
+          (the fixnum (+ (hierarchical-block-base a block-index) bw)))
+         (hierarchical-clear-relations a vm block-index)
+         (setf (aref (hierarchical-allocator-cursors a) block-index) -1)
+         (unless (vector-push block-index (hierarchical-allocator-free-blocks a))
+           (error 'heap-exhausted :requested-size 1 :space :block-free-list))
+         (when (eql (hierarchical-allocator-current a) block-index)
+           (setf (hierarchical-allocator-current a) nil))))))
+  block-index)
+
+
+(defun hierarchical-clear-relations (a vm block-index)
+  "Clear BLOCK-INDEX's hierarchy relations: its block points-to matrix
+  row/column and its escape bits (strata.tex §5)."
+  (let ((s (hierarchical-allocator-space a)))
+    (when (typep s 'superblock-space)
+      (let* ((src-mb (floor block-index (%sb-bpm s)))
+             (local-block (sb-local-block s block-index)))
+        (let ((bm (and (%sb-block-matrices s)
+                       (< src-mb (length (%sb-block-matrices s)))
+                       (aref (%sb-block-matrices s) src-mb))))
+          (when bm
+            (dotimes (j (%sb-bpm s))
+              (matrix-clear bm local-block j)
+              (matrix-clear bm j local-block)))
+          (setf (sb-escape-value s vm block-index) 0)))))
   block-index)
 
 (defun hierarchical-sb-in-use-p (a sb)
-  (let* ((s (ha-space a))
-         (bpm (sb-blocks-per-metablock s))
-         (mps (sb-mbs-per-superblock s)))
+  (let* ((s (hierarchical-allocator-space a))
+         (bpm (%sb-bpm s))
+         (mps (%sb-mps s)))
     (loop for m below mps
           thereis (loop for b below bpm
                         for bi = (+ (* sb mps bpm) (* m bpm) b)
-                        when (and (< bi (ha-block-count a))
+                        when (and (< bi (hierarchical-allocator-block-count a))
                                   (hierarchical-block-in-use-p a bi))
                           return t))))
 
 (defun hierarchical-bump (a block-index size)
   (let ((base (hierarchical-block-base a block-index))
-        (cursor (aref (ha-cursors a) block-index)))
+        (cursor (aref (hierarchical-allocator-cursors a) block-index)))
     (when (and (>= cursor 0)
-               (<= (+ cursor size) (+ base (ha-block-words a))))
-      (setf (aref (ha-cursors a) block-index) (+ cursor size))
+               (<= (+ cursor size) (+ base (hierarchical-allocator-block-words a))))
+      (setf (aref (hierarchical-allocator-cursors a) block-index) (+ cursor size))
       cursor)))
 
 (defmethod alloc ((a hierarchical-allocator) size &key &allow-other-keys)
-  (if (<= size (ha-block-words a))
+  (if (<= size (hierarchical-allocator-block-words a))
       ;; small object: never bump into a span block — span runs are
       ;; exclusive and reclaimed atomically with their root
       (let ((candidate
-              (or (and (ha-current a)
-                       (minusp (aref (ha-span-root a) (ha-current a)))
-                       (ha-current a))
-                  (loop for bi below (ha-block-count a)
+              (or (and (hierarchical-allocator-current a)
+                       (minusp (aref (hierarchical-allocator-span-root a) (hierarchical-allocator-current a)))
+                       (hierarchical-allocator-current a))
+                  (loop for bi below (hierarchical-allocator-block-count a)
                         when (and (hierarchical-block-in-use-p a bi)
-                                  (minusp (aref (ha-span-root a) bi)))
+                                  (minusp (aref (hierarchical-allocator-span-root a) bi)))
                           return bi))))
         (or (and candidate (hierarchical-bump a candidate size))
             (let ((block (hierarchical-acquire-block a)))
               (when block
-                (setf (aref (ha-cursors a) block)
+                (setf (aref (hierarchical-allocator-cursors a) block)
                       (hierarchical-block-base a block)
-                      (ha-current a) block)
+                      (hierarchical-allocator-current a) block)
                 (hierarchical-bump a block size)))))
       ;; Large object: carve contiguous never-used blocks (no recycled runs);
       ;; the run is span-tracked so the sweep reclaims it atomically.
-      (let ((pages (ceiling size (ha-block-words a))))
-        (when (<= (+ (ha-next-fresh a) pages) (ha-block-count a))
-          (let ((base (hierarchical-block-base a (ha-next-fresh a)))
-                (first-block (ha-next-fresh a))
+      (let ((pages (ceiling size (hierarchical-allocator-block-words a))))
+        (when (<= (+ (hierarchical-allocator-next-fresh a) pages) (hierarchical-allocator-block-count a))
+          (let ((base (hierarchical-block-base a (hierarchical-allocator-next-fresh a)))
+                (first-block (hierarchical-allocator-next-fresh a))
                 (remaining size))
             (dotimes (k pages)
-              (let ((bi (+ (ha-next-fresh a) k)))
-                (setf (aref (ha-cursors a) bi)
+              (let ((bi (+ (hierarchical-allocator-next-fresh a) k)))
+                (setf (aref (hierarchical-allocator-cursors a) bi)
                       (+ (hierarchical-block-base a bi)
-                         (if (< remaining (ha-block-words a))
+                         (if (< remaining (hierarchical-allocator-block-words a))
                              remaining
-                             (ha-block-words a))))
-                (setf (aref (ha-span-root a) bi) first-block)
-                (decf remaining (ha-block-words a))))
-            (incf (ha-next-fresh a) pages)
+                             (hierarchical-allocator-block-words a))))
+                (setf (aref (hierarchical-allocator-span-root a) bi) first-block)
+                (decf remaining (hierarchical-allocator-block-words a))))
+            (incf (hierarchical-allocator-next-fresh a) pages)
             base)))))
 
 (defmethod free ((a hierarchical-allocator) addr size) (declare (ignore addr size)) nil)
 (defmethod coalesce ((a hierarchical-allocator)) nil)
 
 (defmethod allocator-reset ((a hierarchical-allocator))
-  (vm-clear-metadata-range (ha-vm a) (ha-start a) (ha-limit a))
-  (fill (ha-cursors a) -1)
-  (when (ha-span-root a)
-    (fill (ha-span-root a) -1))
-  (setf (fill-pointer (ha-free-blocks a)) 0
-        (ha-next-fresh a) 0
-        (ha-current a) nil))
+  (vm-clear-metadata-range (hierarchical-allocator-vm a)
+                           (hierarchical-allocator-start a)
+                           (hierarchical-allocator-limit a))
+  (fill (hierarchical-allocator-cursors a) -1)
+  (when (hierarchical-allocator-span-root a)
+    (fill (hierarchical-allocator-span-root a) -1))
+  (setf (fill-pointer (hierarchical-allocator-free-blocks a)) 0
+        (hierarchical-allocator-next-fresh a) 0
+        (hierarchical-allocator-current a) nil))
 
 (defun hierarchical-occupied-words (a)
-  (loop for bi below (ha-block-count a)
+  (loop for bi below (hierarchical-allocator-block-count a)
         when (hierarchical-block-in-use-p a bi)
-          sum (- (aref (ha-cursors a) bi)
+          sum (- (aref (hierarchical-allocator-cursors a) bi)
                  (hierarchical-block-base a bi))))

@@ -104,7 +104,89 @@ on the first live VM-OBJECT-REFERENCE after boot."
          (address (and space (space-base-address space))))
     (when (and address (< (1+ address) (vm-heap-size vm)))
       (vm-object-reference vm address 0)))
+  ;; Every stratum registered on the VM resolves its slot accessors on the
+  ;; collection path (s-get/s-set read stratum-cells, stratum-log-gran,
+  ;; stratum-storage, ...).  Warm them all so no effective method is
+  ;; constructed inside a measured collection.
+  (let ((vm (plan-vm plan)))
+    (maphash (lambda (name stratum)
+               (declare (ignore name))
+               (%warm-stratum stratum))
+             (vm-strata-table vm)))
+  ;; Hierarchy accessors used on the collection path must resolve at boot:
+  ;; superblock-space slot accessors, the escape stratum, the hierarchical
+  ;; allocator's vector operations, and the full release/search path.  The
+  ;; warm-up goes through T-typed helper parameters so SBCL cannot inline the
+  ;; accessors as static slot reads: the real CLOS dispatch cache is what the
+  ;; collection path uses, and that is what must be hot.
+  (dolist (space (plan-spaces plan))
+    (when (typep space 'superblock-space)
+      (%warm-superblock space (plan-vm plan))))
   plan)
+
+(defun %warm-stratum (stratum)
+  "Resolve every stratum slot accessor through the generic dispatch path."
+  (stratum-name stratum)
+  (stratum-granularity stratum)
+  (stratum-cell-type stratum)
+  (stratum-default stratum)
+  (stratum-storage stratum)
+  (stratum-heap-words stratum)
+  (stratum-log-gran stratum)
+  (stratum-cells stratum)
+  (stratum-active stratum)
+  (stratum-concurrent-p stratum)
+  (s-get stratum 0)
+  (s-set stratum 0 (s-get stratum 0))
+  stratum)
+
+(defun %warm-superblock (space vm)
+  "Resolve every superblock-space / hierarchical-allocator accessor through
+  the generic dispatch path and exercise the whole release path once.
+  NOTINLINE forces real CLOS dispatch so the dispatch cache (not a static
+  slot read) is what gets warmed."
+  (declare (notinline sb-escape sb-refcounts sb-pinned sb-mb-matrices
+                      sb-block-matrices sb-mb-root-bits sb-reached-mbs
+                      sb-block-words sb-blocks-per-metablock
+                      sb-mbs-per-superblock sb-count sb-block-count sb-mb-count
+                      space-allocator))
+  (sb-escape space)
+  (sb-refcounts space)
+  (sb-pinned space)
+  (sb-mb-matrices space)
+  (sb-block-matrices space)
+  (sb-mb-root-bits space)
+  (sb-reached-mbs space)
+  (sb-block-words space)
+  (sb-blocks-per-metablock space)
+  (sb-mbs-per-superblock space)
+  (sb-count space)
+  (sb-block-count space)
+  (sb-mb-count space)
+  (setf (sb-escape-value space vm 0) 0)
+  (sb-index space 0)
+  (sb-block-index space 0)
+  (sb-mb-index space 0)
+  (sb-local-block space 0)
+  (sb-local-mb space 0)
+  (sb-block-base space 0)
+  (let ((a (space-allocator space)))
+    (when (typep a 'hierarchical-allocator)
+      (%warm-hierarchical-allocator a vm space)))
+  space)
+
+(defun %warm-hierarchical-allocator (a vm space)
+  "Exercise the release path on a scratch block so every effective method
+  inside it is resolved before mutators run."
+  (declare (ignore space))
+  (let ((scratch (hierarchical-acquire-block a)))
+    (when scratch
+      (setf (aref (hierarchical-allocator-cursors a) scratch)
+            (hierarchical-block-base a scratch)
+            (hierarchical-allocator-current a) scratch)
+      (eql (hierarchical-allocator-current a) scratch)
+      (hierarchical-free-block a vm scratch)))
+  a)
 
 (defun boot-reset-allocator-state (allocator)
   "Restore an allocator to empty using only storage allocated at boot."
@@ -134,10 +216,12 @@ on the first live VM-OBJECT-REFERENCE after boot."
      (when (slot-value allocator 'block-live)
        (fill (slot-value allocator 'block-live) 0)))
     (hierarchical-allocator
-     (fill (slot-value allocator 'cursors) -1)
-     (setf (fill-pointer (slot-value allocator 'free-blocks)) 0
-           (slot-value allocator 'next-fresh) 0
-           (slot-value allocator 'current) nil)))
+     (fill (hierarchical-allocator-cursors allocator) -1)
+     (when (hierarchical-allocator-span-root allocator)
+       (fill (hierarchical-allocator-span-root allocator) -1))
+     (setf (fill-pointer (hierarchical-allocator-free-blocks allocator)) 0
+           (hierarchical-allocator-next-fresh allocator) 0
+           (hierarchical-allocator-current allocator) nil)))
   allocator)
 
 #+sbcl

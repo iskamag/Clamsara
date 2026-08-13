@@ -67,8 +67,18 @@
       (fwd-clear vm)
       (rc-clear vm)
       (dolist (space (plan-spaces p))
-        (when (and (typep space 'superblock-space) (sb-refcounts space))
-          (fill (sb-refcounts space) 0))
+        (when (typep space 'superblock-space)
+          (fill (sb-refcounts space) 0)
+          (fill (sb-pinned space) 0)
+          (dotimes (i (length (sb-mb-matrices space)))
+            (let ((m (aref (sb-mb-matrices space) i)))
+              (when m (matrix-clear-all m))))
+          (dotimes (i (length (sb-block-matrices space)))
+            (let ((m (aref (sb-block-matrices space) i)))
+              (when m (matrix-clear-all m))))
+          (dotimes (i (length (sb-mb-root-bits space)))
+            (fill (aref (sb-mb-root-bits space) i) 0)
+            (fill (aref (sb-reached-mbs space) i) 0)))
         (boot-reset-allocator-state (space-allocator space)))
       (when (plan-barrier p)
         (setf (fill-pointer (barrier-satb-buffer (plan-barrier p))) 0
@@ -120,8 +130,10 @@ on the first live VM-OBJECT-REFERENCE after boot."
            (slot-value allocator 'next-base)
            (slot-value allocator 'start)))
     (hierarchical-allocator
-     (setf (slot-value allocator 'cursor)
-           (slot-value allocator 'start))))
+     (fill (slot-value allocator 'cursors) -1)
+     (setf (fill-pointer (slot-value allocator 'free-blocks)) 0
+           (slot-value allocator 'next-fresh) 0
+           (slot-value allocator 'current) nil)))
   allocator)
 
 #+sbcl

@@ -140,32 +140,33 @@
 
 (defun make-claimore-plan (vm heap-size)
   (declare (ignore heap-size))
+  ;; Mature space region geometry: simulator-scale hierarchy (paper-v8
+  ;; heap.tex §6).  Blocks stay 512 words (1 page); metablocks and superblocks
+  ;; are shrunk so a small heap still contains several of each.  Superblock 0
+  ;; holds the persistent root set and is never freed.
   (destructuring-bind (nu ma) (partition-pages (vm-page-count vm) '(1/3 2/3))
     (let* ((nursery (make-instance 'immix-space :vm vm
                                     :start-page (car nu) :page-count (cdr nu)
                                     :name :nursery :default-space t
                                     :moving :opportunistic))
-            (mature (make-instance 'superblock-space :vm vm
-                                    :start-page (car ma) :page-count (cdr ma)
-                                    :name :mature :default-space nil
-                                    :policy :refcount
-                                    :sb-refcounts
-                                    (make-array (max 1 (ceiling (* (cdr ma) +page-words+)
-                                                               +g-superblock+))
-                                                :element-type 'fixnum
-                                                :initial-element 0)))
-            (publication (make-instance 'trap-error-copy-a :public-region mature))
-            (read-rule (make-barrier-rule
-                        :name :publication-heal :trigger :ref-read
-                        :transfer (publication-read-rule publication)))
-            (barrier (make-instance 'barrier
-                       :rules (list (publication-barrier-rule)
-                                    (rc-barrier-rule)
-                                    read-rule)))
-            (p (make-instance 'claimore-plan :name :claimore :vm vm
-                             :spaces (list nursery mature) :barrier barrier
-                             :constraints (make-instance 'plan-constraints
-                                          :scope :thread :write-barrier :publication
+           (mature (make-instance 'superblock-space :vm vm
+                                   :start-page (car ma) :page-count (cdr ma)
+                                   :name :mature :default-space nil
+                                   :blocks-per-metablock 8
+                                   :metablocks-per-superblock 4
+                                   :policy :hierarchical))
+           (publication (make-instance 'trap-error-copy-a :public-region mature))
+           (read-rule (make-barrier-rule
+                       :name :publication-heal :trigger :ref-read
+                       :transfer (publication-read-rule publication)))
+           (barrier (make-instance 'barrier
+                      :rules (list (publication-barrier-rule)
+                                   (rc-barrier-rule)
+                                   read-rule)))
+           (p (make-instance 'claimore-plan :name :claimore :vm vm
+                            :spaces (list nursery mature) :barrier barrier
+                            :constraints (make-instance 'plan-constraints
+                                          :scope :thread :write-barrier '(:publication :rc)
                                           :read-barrier :publication :forwarding :off-heap
                                           :concurrency :stw))))
       (setf (cl-nursery p) nursery (cl-mature p) mature (barrier-plan barrier) p

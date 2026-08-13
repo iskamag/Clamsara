@@ -120,7 +120,19 @@
    :transfer (lambda (vm barrier src slot new)
                (let ((old (vm-object-reference vm src slot)))
                  (when (vm-reference-p vm old) (rc-log-decrement barrier old))
-                 (when (vm-reference-p vm new) (rc-log-increment barrier new)))
+                 (when (vm-reference-p vm new) (rc-log-increment barrier new))
+                 ;; hierarchy bookkeeping (heap.tex §6): a store whose source
+                 ;; or target lives in a superblock space updates the
+                 ;; per-SB/per-MB points-to matrices and the block escape bits
+                 (let* ((plan (barrier-plan barrier))
+                        (spaces (and plan (plan-spaces plan))))
+                   (dolist (space spaces)
+                     (when (and (typep space 'superblock-space)
+                                (vm-reference-p vm new))
+                       (let ((saddr (ref-strip-or-self vm src))
+                             (naddr (ref-strip-or-self vm new)))
+                         (when (space-contains-p space saddr)
+                           (superblock-note-write space vm saddr naddr)))))))
                new)))
 
 (defun publication-barrier-rule (&optional (name :publication))
@@ -181,6 +193,7 @@
         (error 'barrier-incompatible :plan plan
                :message "publication barrier needs a publication strategy")))
     (when (find :rc rules :key #'barrier-rule-name)
-      (unless (some (lambda (s) (eq (space-policy s) :refcount)) (plan-spaces plan))
+      (unless (some (lambda (s) (member (space-policy s) '(:refcount :hierarchical)))
+                    (plan-spaces plan))
         (error 'barrier-incompatible :plan plan
-               :message "RC barrier needs a :refcount space")))))
+               :message "RC barrier needs a :refcount or :hierarchical space")))))

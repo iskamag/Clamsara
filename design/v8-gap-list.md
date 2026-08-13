@@ -53,4 +53,27 @@ status ledger, updated in place; the git log is the changelog.
 
 ## Closed
 
-(none yet this pass)
+- **G1** — Claimore hierarchy: superblock RC + metablock/block matrices +
+  escape bits + staged reclaim (RC release -> search -> sweep -> compaction),
+  block-granular hierarchical allocator, `:hierarchical` policy.
+- **G2** — Precise scanning: per-type slot maps (type tag + header spare
+  layout id), all scan/heal/remset sites route through them.
+- **G3** — LOS space in every plan layout; oversize allocations bypass
+  nurseries; reclaims clear the shared mark stratum by range.
+- **G4** — Published-roots set (edge-granular, append-only, double-drained),
+  real trap-B stand-ins, lazy strategy records guarded edges.
+- **G5** — Weak references (slot-0 exclusion, weak phase between mark and
+  reclaim) + finalization (known/pending, dead move in phase-weak).
+- **G6** — Persistent allocator, dirty-set capture (MMU or card projection),
+  CoW marking, checksummed delta segments, recovery truncation semantics.
+- **G7** — Space/plan validation: requires-tier, partner, allocator
+  coherence, moving/mixed-age, declared barrier names, scope->publication.
+- **G8** — Sanity: RC in-degree verification + forwarding-drain check.
+
+## Open
+
+- **G9 — Compilation boundary (compilation.tex §3).** Inner VM/space protocol
+  calls still dispatch through CLOS; no structural completeness test exists.
+- **G10 — Concurrency (vm-capabilities.tex §6, plans.tex).** Single-threaded
+  phase simulation only; no mutator contexts, scheduler/work packets, or
+  adversarial interleaving. ZGC/Claimore concurrent phases run STW.

@@ -170,7 +170,16 @@ on the first live VM-OBJECT-REFERENCE after boot."
   (let ((minor (direct-phase-forms plan :minor))
         (major (direct-phase-forms plan :major))
         (full (direct-phase-forms plan :full))
-        (checkpoint (direct-phase-forms plan :checkpoint)))
+        ;; persistence.tex §4: a checkpoint is a SNAPSHOT, not a collection.
+        ;; The compiled arm runs only the checkpoint phase (plus the
+        ;; stop/resume safepoint), never prologue/mark/reclaim/compact.
+        (checkpoint-form
+          (loop for name in '(phase-checkpoint)
+                for arguments = (list plan :checkpoint)
+                for method-function =
+                  (selected-primary-method-function (fdefinition name)
+                                                    arguments)
+                collect `(funcall ,method-function ',arguments nil))))
     `(lambda (ignored-plan cycle-kind)
        (declare (ignore ignored-plan))
        (let ((started (get-internal-run-time)))
@@ -178,9 +187,10 @@ on the first live VM-OBJECT-REFERENCE after boot."
            (:minor ,@minor)
            (:major ,@major)
            (:full ,@full)
-           ;; persistence.tex §4: a checkpoint is an extra plan phase; the
-           ;; compiled collector admits it so phase-checkpoint runs
-           (:checkpoint ,@checkpoint))
+           (:checkpoint
+            (vm-stop-mutators (plan-vm ',plan))
+            ,@checkpoint-form
+            (vm-resume-mutators (plan-vm ',plan))))
          (let ((statistics (slot-value ',plan 'stats)))
            (when statistics
              (incf (gethash :gc-time (slot-value statistics 'events) 0)

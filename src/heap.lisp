@@ -1060,25 +1060,28 @@ bounded implementation only compacts when an out-of-place block is available."
           (let ((reached (aref (sb-reached-mbs s) sb)))
             (dotimes (m mps)
               (when (and reached (eql 1 (sbit reached m)))
+                ;; within a reached metablock the mark stratum is the
+                ;; authority for liveness, but a span (multi-block) run is
+                ;; reclaimed atomically: tail blocks inherit their root
+                ;; block's live count, never judged independently
                 (dotimes (b bpm)
                   (let ((bi (+ (* sb mps bpm) (* m bpm) b)))
-                      (when (and (< bi (sb-block-count s))
-                                 (hierarchical-block-in-use-p a bi))
-                        ;; within a reached metablock the mark stratum is the
-                        ;; authority: free in-use blocks with zero marked
-                        ;; object starts (strata.tex §5.1: search bounds the
-                        ;; trace to reached metablocks; the precise trace
-                        ;; inside them decides liveness)
-                        (let ((live-p nil))
-                          (loop for address from (sb-block-base s bi)
-                                below (+ (sb-block-base s bi)
-                                         (sb-block-words s))
-                                when (and (s-test-bit os address)
-                                          (s-test-bit mark address))
-                                  do (setf live-p t) (return))
-                           (unless live-p
-                             (hierarchical-free-block a vm bi)))))))))))))
-  s)
+                    (when (and (< bi (sb-block-count s))
+                               (hierarchical-block-in-use-p a bi))
+                      (let ((root (aref (ha-span-root a) bi)))
+                        (when (and (>= root 0) (/= root bi))
+                          ;; tail block: skip individual judgement; the root
+                          ;; block's pass reclaims the whole run
+                          (return)))
+                      (let ((live-p nil))
+                        (loop for address from (sb-block-base s bi)
+                              below (+ (sb-block-base s bi)
+                                       (sb-block-words s))
+                              when (and (s-test-bit os address)
+                                        (s-test-bit mark address))
+                                do (setf live-p t) (return))
+                        (unless live-p
+                          (hierarchical-free-block a vm bi))))))))))))))
 
 (defun superblock-compact (s vm)
   "Block compaction (heap.tex §6, the expensive last resort): move the live
@@ -1177,7 +1180,10 @@ bounded implementation only compacts when an out-of-place block is available."
    (cursors :accessor ha-cursors)
    (free-blocks :accessor ha-free-blocks)   ; fixnum vector + fill pointer
    (next-fresh :accessor ha-next-fresh :initform 0)
-   (current :accessor ha-current :initform nil)))
+   (current :accessor ha-current :initform nil)
+   ;; span-root[i] = root block index of the multi-block run block i
+   ;; belongs to, or -1 (mirrors the immix allocator's span tracking)
+   (span-root :accessor ha-span-root :initform nil)))
 
 (defmethod shared-initialize :after ((a hierarchical-allocator) slot-names &key)
   (declare (ignore slot-names))
@@ -1190,7 +1196,9 @@ bounded implementation only compacts when an out-of-place block is available."
                                        :initial-element -1)
             (ha-free-blocks a) (make-array count :element-type 'fixnum
                                            :initial-element 0
-                                           :fill-pointer 0)))))
+                                           :fill-pointer 0)
+            (ha-span-root a) (make-array count :element-type 'fixnum
+                                         :initial-element -1)))))
 
 (declaim (inline hierarchical-block-in-use-p hierarchical-block-cursor))
 (defun hierarchical-block-in-use-p (a block-index)
@@ -1222,30 +1230,52 @@ bounded implementation only compacts when an out-of-place block is available."
   matrices and its escape bits (strata.tex §5: a stale M[i,j] no longer means
   'region i may reference region j')."
   (when (hierarchical-block-in-use-p a block-index)
-    (vm-clear-metadata-range
-     vm (hierarchical-block-base a block-index)
-     (+ (hierarchical-block-base a block-index) (ha-block-words a)))
-    (let ((s (ha-space a)))
-      (when (typep s 'superblock-space)
-        (let* ((src-mb (floor block-index (sb-blocks-per-metablock s)))
-               (local-block (sb-local-block s block-index)))
-          ;; block points-to matrix: clear row and column
-          (let ((bm (and (sb-block-matrices s)
-                         (< src-mb (length (sb-block-matrices s)))
-                         (aref (sb-block-matrices s) src-mb))))
-            (when bm
-              (dotimes (j (sb-blocks-per-metablock s))
-                (matrix-clear bm local-block j)
-                (matrix-clear bm j local-block))))
-          ;; metablock matrix: this block's MB may have lost its last edge
-          ;; into another MB -- recompute lazily on next search instead of
-          ;; here; but escape bits are per-block and must be cleared now
-          (setf (sb-escape-value s vm block-index) 0)))
-      (setf (aref (ha-cursors a) block-index) -1)
-      (unless (vector-push block-index (ha-free-blocks a))
-        (error 'heap-exhausted :requested-size 1 :space :block-free-list))
-      (when (eql (ha-current a) block-index)
-        (setf (ha-current a) nil))))
+    (let ((root (aref (ha-span-root a) block-index)))
+      (cond
+        ;; a tail block is never freed individually; the run is reclaimed
+        ;; atomically when its root block dies
+        ((and (>= root 0) (/= root block-index))
+         (return-from hierarchical-free-block block-index))
+        ;; freeing a run's root releases the whole contiguous run
+        ((and (>= root 0) (= root block-index))
+         (loop for bi from root below (ha-block-count a)
+               do (let ((r2 (aref (ha-span-root a) bi)))
+                    (unless (and (>= r2 0) (= r2 root)) (return))
+                    (vm-clear-metadata-range
+                     vm (hierarchical-block-base a bi)
+                     (+ (hierarchical-block-base a bi) (ha-block-words a)))
+                    (setf (aref (ha-cursors a) bi) -1
+                          (aref (ha-span-root a) bi) -1)
+                    (unless (vector-push bi (ha-free-blocks a))
+                      (error 'heap-exhausted :requested-size 1
+                             :space :block-free-list))
+                    (when (eql (ha-current a) bi)
+                      (setf (ha-current a) nil))))
+         (return-from hierarchical-free-block block-index))
+        ;; ordinary single-block free
+        (t
+         (vm-clear-metadata-range
+          vm (hierarchical-block-base a block-index)
+          (+ (hierarchical-block-base a block-index) (ha-block-words a)))
+         (let ((s (ha-space a)))
+           (when (typep s 'superblock-space)
+             (let* ((src-mb (floor block-index (sb-blocks-per-metablock s)))
+                    (local-block (sb-local-block s block-index)))
+               ;; block points-to matrix: clear row and column
+               (let ((bm (and (sb-block-matrices s)
+                              (< src-mb (length (sb-block-matrices s)))
+                              (aref (sb-block-matrices s) src-mb))))
+                 (when bm
+                   (dotimes (j (sb-blocks-per-metablock s))
+                     (matrix-clear bm local-block j)
+                     (matrix-clear bm j local-block))))
+               ;; escape bits are per-block and must be cleared now
+               (setf (sb-escape-value s vm block-index) 0)))
+           (setf (aref (ha-cursors a) block-index) -1)
+           (unless (vector-push block-index (ha-free-blocks a))
+             (error 'heap-exhausted :requested-size 1 :space :block-free-list))
+           (when (eql (ha-current a) block-index)
+             (setf (ha-current a) nil)))))))
   block-index)
 
 (defun hierarchical-sb-in-use-p (a sb)
@@ -1269,17 +1299,29 @@ bounded implementation only compacts when an out-of-place block is available."
 
 (defmethod alloc ((a hierarchical-allocator) size &key &allow-other-keys)
   (if (<= size (ha-block-words a))
-      (or (and (ha-current a) (hierarchical-bump a (ha-current a) size))
-          (let ((block (hierarchical-acquire-block a)))
-            (when block
-              (setf (aref (ha-cursors a) block)
-                    (hierarchical-block-base a block)
-                    (ha-current a) block)
-              (hierarchical-bump a block size))))
-      ;; Large object: carve contiguous never-used blocks (no recycled runs).
+      ;; small object: never bump into a span block — span runs are
+      ;; exclusive and reclaimed atomically with their root
+      (let ((candidate
+              (or (and (ha-current a)
+                       (minusp (aref (ha-span-root a) (ha-current a)))
+                       (ha-current a))
+                  (loop for bi below (ha-block-count a)
+                        when (and (hierarchical-block-in-use-p a bi)
+                                  (minusp (aref (ha-span-root a) bi)))
+                          return bi))))
+        (or (and candidate (hierarchical-bump a candidate size))
+            (let ((block (hierarchical-acquire-block a)))
+              (when block
+                (setf (aref (ha-cursors a) block)
+                      (hierarchical-block-base a block)
+                      (ha-current a) block)
+                (hierarchical-bump a block size)))))
+      ;; Large object: carve contiguous never-used blocks (no recycled runs);
+      ;; the run is span-tracked so the sweep reclaims it atomically.
       (let ((pages (ceiling size (ha-block-words a))))
         (when (<= (+ (ha-next-fresh a) pages) (ha-block-count a))
           (let ((base (hierarchical-block-base a (ha-next-fresh a)))
+                (first-block (ha-next-fresh a))
                 (remaining size))
             (dotimes (k pages)
               (let ((bi (+ (ha-next-fresh a) k)))
@@ -1288,6 +1330,7 @@ bounded implementation only compacts when an out-of-place block is available."
                          (if (< remaining (ha-block-words a))
                              remaining
                              (ha-block-words a))))
+                (setf (aref (ha-span-root a) bi) first-block)
                 (decf remaining (ha-block-words a))))
             (incf (ha-next-fresh a) pages)
             base)))))
@@ -1298,6 +1341,8 @@ bounded implementation only compacts when an out-of-place block is available."
 (defmethod allocator-reset ((a hierarchical-allocator))
   (vm-clear-metadata-range (ha-vm a) (ha-start a) (ha-limit a))
   (fill (ha-cursors a) -1)
+  (when (ha-span-root a)
+    (fill (ha-span-root a) -1))
   (setf (fill-pointer (ha-free-blocks a)) 0
         (ha-next-fresh a) 0
         (ha-current a) nil))

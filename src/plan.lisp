@@ -121,14 +121,22 @@
   (vm-resume-mutators (plan-vm p)))
 
 (defmethod plan-collect-phase ((p plan) cycle-kind)
-  (phase-prologue p cycle-kind)
-  (phase-mark p cycle-kind)
-  (phase-weak p cycle-kind)
-  (phase-reclaim p cycle-kind)
-  (phase-compact p cycle-kind)
-  (phase-checkpoint p cycle-kind)
-  (phase-release p cycle-kind)
-  (phase-epilogue p cycle-kind))
+  (if (eq cycle-kind :checkpoint)
+      ;; persistence.tex §4: a checkpoint is a snapshot, not a collection.
+      ;; Only the checkpoint phase (plus the stop/resume safepoint) runs.
+      (progn
+        (vm-stop-mutators (plan-vm p))
+        (phase-checkpoint p cycle-kind)
+        (vm-resume-mutators (plan-vm p)))
+      (progn
+        (phase-prologue p cycle-kind)
+        (phase-mark p cycle-kind)
+        (phase-weak p cycle-kind)
+        (phase-reclaim p cycle-kind)
+        (phase-compact p cycle-kind)
+        (phase-checkpoint p cycle-kind)
+        (phase-release p cycle-kind)
+        (phase-epilogue p cycle-kind))))
 
 (defmethod plan-collect-phase :around ((p plan) cycle-kind)
   (let ((t0 (get-internal-run-time)))

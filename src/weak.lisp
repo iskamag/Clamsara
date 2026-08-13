@@ -144,18 +144,16 @@
     plan))
 
 (defun finalizer-dead-p (plan vm address cycle-kind)
-  "True if the object at ADDRESS is genuinely dead.  On a partial cycle,
-  objects outside the traced spaces are NOT dead — their liveness data is
-  simply not current, so they are kept in known."
-  (if (eq cycle-kind :minor)
-      ;; partial cycle: only objects inside the nursery/private space have
-      ;; current liveness data
+  "True if the object at ADDRESS is genuinely dead.  Only cycles that TRACE
+  all spaces (:full, :major for non-nursery plans) have complete liveness
+  data; a :minor (or any non-tracing cycle kind like :checkpoint) judges
+  only the nursery, and objects outside it are kept in known."
+  (if (member cycle-kind '(:full :major))
+      t
       (let ((nursery (and plan (plan-nursery plan))))
         (and nursery (space-contains-p nursery address)
              (not (vm-object-is-marked-p vm address))
-             (not (vm-object-is-forwarded-p vm address))))
-      ;; full/major cycle: all spaces traced
-      t))
+             (not (vm-object-is-forwarded-p vm address))))))
 
 (defun pending-finalizer-count (plan)
   (length (plan-pending-finalizers plan)))

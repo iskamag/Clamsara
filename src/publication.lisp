@@ -9,7 +9,10 @@
 (defclass publication-strategy ()
   ((public-region :initarg :public-region :accessor public-region
                   :initform nil)
-   (work :accessor publication-work :initform (make-array 0 :fill-pointer 0))))
+   (work :accessor publication-work :initform (make-array 0 :fill-pointer 0))
+   ;; preallocated closure-copy dedup table (boot-time; the publication
+   ;; barrier must not call the host allocator)
+   (copy-seen :accessor publication-copy-seen :initform nil)))
 
 (defgeneric publish (strategy vm object)
   (:documentation "Restore DLG for OBJECT becoming reachable from a public source."))
@@ -28,7 +31,9 @@
   standing in for immortal storage."
   (setf (publication-work strategy)
         (make-array (vm-heap-size vm) :element-type 'fixnum
-                    :initial-element 0 :fill-pointer 0))
+                    :initial-element 0 :fill-pointer 0)
+        (publication-copy-seen strategy)
+        (make-hash-table :test 'eql))
   (when (typep strategy 'lazy-read-barrier)
     (initialize-lazy-published-roots strategy vm))
   (when (typep strategy 'trap-error-copy-b)
@@ -226,6 +231,9 @@
             (ref-strip-or-self vm object))
       (let ((os (vm-object-start vm)))
         (when os (s-set-bit os stand-in)))
+      ;; the stand-in lives in the public region: it IS a public object, so
+      ;; the DLG-r sanity check can see its guarded edge
+      (setf (vm-object-is-public-p vm stand-in) t)
       (let ((pr (strategy-published-roots s)))
         (when pr (record-published-edge pr stand-in 0))))
     stand-in))
@@ -233,18 +241,31 @@
 (defmethod publication-read-rule ((s trap-error-copy-b))
   ;; locality.tex §2 Variant B: a public accessor traps on the error copy and
   ;; is redirected to a public copy made at that moment ("now promoted");
-  ;; the stand-in's slot is healed so later reads miss the trap.
+  ;; the stand-in is healed so later reads miss the trap.  Healing rewrites
+  ;; the stand-in's header to a normal object: a second accessor holding the
+  ;; same stand-in sees a plain object whose slot 0 already names the
+  ;; promoted copy, so promotion is idempotent (one incarnation per stand-in).
   (lambda (vm slot-addr reference)
     (if (error-object-p vm reference)
-        (let* ((original (error-redirect vm reference))
-               (promoted (copy-closure-to-public
-                          vm original (public-region s))))
-          (setf (vm-object-is-public-p vm promoted) t)
-          ;; heal the stand-in's slot so later reads miss the trap
-          (setf (vm-object-reference vm (ref-strip-or-self vm reference) 0)
+        (let* ((stand-in (ref-strip-or-self vm reference))
+               (original (error-redirect vm reference)))
+          (if (and (not (vm-object-is-public-p vm original))
+                   (not (error-object-p vm original)))
+              (let ((promoted (copy-closure-to-public
+                               vm original (public-region s))))
+                (setf (vm-object-is-public-p vm promoted) t)
+                ;; heal: rewrite the stand-in as a plain 1-slot object so
+                ;; later reads miss the trap entirely
+                (setf (vm-object-header vm stand-in)
+                      (pack-header 1 +tag-object+)
+                      (vm-object-reference vm stand-in 0) promoted)
+                (setf (ref-u64 vm slot-addr) promoted)
                 promoted)
-          (setf (ref-u64 vm slot-addr) promoted)
-          promoted)
+              ;; already promoted (or the redirect was itself rewritten):
+              ;; return the current redirect without re-copying
+              (let ((healed original))
+                (setf (ref-u64 vm slot-addr) healed)
+                healed)))
         reference)))
 
 (defun initialize-trap-b-published-roots (strategy vm)
@@ -254,11 +275,16 @@
 
 (defun copy-closure-to-public (vm object public-space)
   "Deep-copy OBJECT and its transitive closure into PUBLIC-SPACE, rewriting
-  every slot so the public graph is self-contained (strong DLG).  Uses
-  VM-OBJECT-COPY so side metadata is preserved (memory.tex §2).  Returns the
-  address of the copied root (or OBJECT if PUBLIC-SPACE cannot allocate)."
+  every slot so the public graph is self-contained (strong DLG).  Children
+  already public are NOT re-copied: their slot is rewritten to point at the
+  existing public incarnation (each object is published at most once,
+  locality.tex §2).  Uses VM-OBJECT-COPY so side metadata is preserved
+  (memory.tex §2).  Returns the address of the copied root, or NIL if the
+  public region cannot hold the closure (never a partial copy)."
   (if (and public-space (space-allocator public-space))
       (let ((work (publication-work
+                   (plan-publication (vm-plan vm))))
+            (seen (publication-copy-seen
                    (plan-publication (vm-plan vm)))))
         (flet ((copy-one (src)
                  (let* ((n (vm-object-total-words vm src))
@@ -271,8 +297,8 @@
                      dst))))
           (let ((root-copy (copy-one object)))
             (when (and root-copy work)
-              (let ((head 0)
-                    (in-work (make-hash-table :test 'eql)))
+              (clrhash seen)
+              (let ((head 0))
                 (setf (fill-pointer work) 0)
                 (vector-push root-copy work)
                 (loop while (< head (length work))
@@ -282,23 +308,36 @@
                          (vm-map-reference-slots
                           vm src
                           (lambda (child)
-                            (let* ((bare (ref-strip-or-self vm child))
-                                   (slot
-                                     (slot-of-child vm src child)))
-                              (declare (ignore slot))
-                              (unless (gethash bare in-work)
-                                (let ((child-copy (copy-one bare)))
-                                  (when child-copy
-                                    (setf (gethash bare in-work) child-copy)
-                                    (vector-push child-copy work))))
-                              (let ((existing (gethash bare in-work)))
-                                (when existing
+                            (let ((bare (ref-strip-or-self vm child)))
+                              (if (vm-object-is-public-p vm bare)
+                                  ;; already published: point at the
+                                  ;; existing incarnation, never re-copy
                                   (setf (vm-object-reference
-                                         vm src (slot-of-child vm src child))
-                                        existing)))))))
+                                         vm src (slot-of-child
+                                                 vm src child))
+                                        bare)
+                                  (progn
+                                    (unless (gethash bare seen)
+                                      (let ((child-copy (copy-one bare)))
+                                        (unless child-copy
+                                          ;; closure cannot fit: abort the
+                                          ;; whole publication, never a
+                                          ;; partial public graph
+                                          (setf (fill-pointer work) 0)
+                                          (return-from
+                                              copy-closure-to-public nil))
+                                        (setf (gethash bare seen)
+                                              child-copy)
+                                        (vector-push child-copy work)))
+                                    (let ((existing (gethash bare seen)))
+                                      (when existing
+                                        (setf (vm-object-reference
+                                               vm src (slot-of-child
+                                                       vm src child))
+                                              existing)))))))))
                 (setf (fill-pointer work) 0)))
             root-copy)))
-      object))
+      nil))
 
 (defun slot-of-child (vm src child)
   "The slot index of the first reference slot in SRC holding CHILD."

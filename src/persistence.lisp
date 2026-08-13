@@ -61,26 +61,44 @@
 (defstruct (persistence-segment (:constructor %make-segment))
   (timestamp 0 :type fixnum)
   (pages nil :type list)   ; sorted page numbers whose contents are recorded
+  (images nil :type (or hash-table null)) ; page-index -> frozen word vector
   (checksum 0 :type fixnum))
 
-(defun page-checksum (vm page-index)
-  "A position-dependent fold over the page's words; a torn segment's trailing
-  checksum mismatch is how recovery detects the truncation point."
-  (let ((sum 0)
-        (base (page-start-address page-index)))
+(defun page-checksum-of-image (words timestamp page-index)
+  "A position-dependent fold over a FROZEN page image; a torn segment's
+  trailing checksum mismatch is how recovery detects the truncation point.
+  The checksum must fold over the stored image, never the live heap: a
+  snapshot verifies after later mutation by definition (recovery reads a
+  heap that has moved on)."
+  (let ((sum timestamp))
     (dotimes (k +page-words+ sum)
-      (setf sum (logxor sum
-                        (+ (ref-u64 vm (+ base k)) k))))))
+      (setf sum (logxor sum (+ (aref words k) k page-index))))))
 
 (defun write-segment (vm dirty-pages timestamp)
   "Write a delta segment: TIMESTAMP, the modified page numbers, and their
-  contents, page-aligned.  Returns the segment record."
+  contents (frozen at the pause), page-aligned.  Returns the segment."
   (let* ((sorted (sort (copy-list dirty-pages) #'<))
-         (checksum
-           (reduce (lambda (acc page)
-                     (logxor acc (page-checksum vm page)))
-                   sorted :initial-value timestamp)))
-    (%make-segment :timestamp timestamp :pages sorted :checksum checksum)))
+         (images (make-hash-table :test 'eql))
+         (checksum timestamp))
+    (dolist (page sorted)
+      (let* ((base (page-start-address page))
+             (words (make-array +page-words+
+                                :element-type '(unsigned-byte 64)
+                                :initial-element 0)))
+        ;; read from the snapshot buffer when the T0/T1 pause materialised
+        ;; one, else from the live heap (armed-MMU/T2 path)
+        (let ((buffer (vm-stratum vm :snapshot-buffer)))
+          (dotimes (k +page-words+)
+            (setf (aref words k)
+                  (if buffer
+                      (s-get buffer (+ base k))
+                      (ref-u64 vm (+ base k))))))
+        (setf (gethash page images) words)
+        (setf checksum
+              (logxor checksum
+                      (page-checksum-of-image words checksum page)))))
+    (%make-segment :timestamp timestamp :pages sorted
+                   :images images :checksum checksum)))
 
 ;; ---- dirty-set capture (persistence.tex §2 step 4) -----------------------
 
@@ -167,22 +185,30 @@
 (defun recover-last-intact-snapshot (segments &optional vm)
   "Read forward to the last intact snapshot and stop.  A segment torn by a
   crash (trailing checksum mismatch) is truncated; everything after it is
-  discarded.  Returns (values intact-segments torn-p)."
+  discarded.  Verification uses the segments' stored images, so VM is only
+  needed for hosts that persist segments externally.  Returns (values
+  intact-segments torn-p)."
+  (declare (ignore vm))
   (let ((intact nil)
         (torn-p nil))
     (dolist (segment segments)
-      (if (and vm (verify-segment segment vm))
+      (if (verify-segment segment nil)
           (push segment intact)
           (progn (setf torn-p t) (return))))
     (values (nreverse intact) torn-p)))
 
 (defun verify-segment (segment vm)
-  "Recompute SEGMENT's checksum against the live heap; NIL means torn."
-  (let ((checksum
-          (reduce (lambda (acc page)
-                    (logxor acc (page-checksum vm page)))
-                  (persistence-segment-pages segment)
-                  :initial-value (persistence-segment-timestamp segment))))
+  "Recompute SEGMENT's checksum against its STORED page images (not the live
+  heap); NIL means torn."
+  (declare (ignore vm))
+  (let ((checksum (persistence-segment-timestamp segment)))
+    (dolist (page (persistence-segment-pages segment))
+      (let ((words (gethash page (persistence-segment-images segment))))
+        (unless words (return-from verify-segment nil))
+        (setf checksum
+              (logxor checksum
+                      (page-checksum-of-image
+                       words checksum page)))))
     (eql checksum (persistence-segment-checksum segment))))
 
 ;; ---- simulation (persistence.tex §5) -------------------------------------
@@ -200,15 +226,16 @@
 
 (defun replay-segment (segment vm)
   "Reconstruct the segment's pages into a fresh heap vector (host-side
-  recovery model).  Returns the reconstructed heap or NIL if torn."
+  recovery model).  Reads the segment's STORED images, never the live heap.
+  Returns the reconstructed heap or NIL if torn."
   (when (verify-segment segment vm)
     (let ((heap (make-array (vm-heap-size vm)
                             :element-type '(unsigned-byte 64)
                             :initial-element 0)))
-      ;; copy the live heap, then overwrite with the segment's frozen pages
-      (replace heap (vm-heap vm))
       (dolist (page (persistence-segment-pages segment))
-        (let ((base (page-start-address page)))
-          (dotimes (k +page-words+)
-            (setf (aref heap (+ base k)) (ref-u64 vm (+ base k))))))
+        (let ((base (page-start-address page))
+              (words (gethash page (persistence-segment-images segment))))
+          (when words
+            (dotimes (k +page-words+)
+              (setf (aref heap (+ base k)) (aref words k))))))
       heap)))

@@ -162,7 +162,64 @@
                                  (plan-space-for-address
                                   *clamsara-plan* big)))))))))
 
-;; ---- G7: metaclass/plan validation ----------------------------------------
+;; ---- R2: reviewer round-2 regressions --------------------------------------
+
+(deftest medium-object-survives-full-gc ()
+  ;; A 600-slot object spans two immix blocks; the block-level sweep must not
+  ;; recycle the span's tail block while the root object is live.
+  (with-clamsara (:plan-type :immix :heap-size 65536)
+    (let ((m (clamsara-allocate-object 600)))
+      (setf (vm-object-reference *clamsara-vm* m 511) 111111)
+      (setf (vm-object-reference *clamsara-vm* m 512) 999999)
+      (clamsara-register-root m)
+      (clamsara-gc)
+      (let ((fresh (clamsara-allocate-object 1)))
+        (declare (ignore fresh))
+        (let ((m2 (clamsara-root 0)))
+          (if (and (= (vm-object-reference *clamsara-vm* m2 511) 111111)
+                   (= (vm-object-reference *clamsara-vm* m2 512) 999999))
+              (values t "ok")
+              (values nil "medium-object span corrupted by block sweep")))))))
+
+(deftest trap-a-closure-copy-is-deep ()
+  ;; locality.tex §2 Variant A: the public copy's closure is deep; no public
+  ;; object references a private one, and already-public children are reused.
+  (with-clamsara (:plan-type :claimore :heap-size 65536)
+    (let* ((mature (cl-mature *clamsara-plan*))
+           (strategy (make-instance 'trap-error-copy-a
+                                    :public-region mature))
+           (a (clamsara-allocate-object 1))
+           (b (clamsara-allocate-object 0)))
+      (initialize-publication-work strategy *clamsara-vm*)
+      (setf (vm-object-reference *clamsara-vm* a 0) b)
+      (let ((copy (publish strategy *clamsara-vm* a)))
+        (let ((child (vm-object-reference *clamsara-vm* copy 0)))
+          (if (and (space-contains-p mature copy)
+                   (space-contains-p mature child)
+                   (vm-object-is-public-p *clamsara-vm* copy)
+                   (vm-object-is-public-p *clamsara-vm* child))
+              (values t "ok")
+              (values nil "trap-A copy is not a deep public closure")))))))
+
+(deftest persistence-segment-verifies-after-mutation ()
+  ;; persistence.tex §1: a segment's checksum folds its stored images, so a
+  ;; checkpoint verifies after the live heap mutates (recovery by definition
+  ;; reads a heap that moved on).
+  (let* ((vm (make-simulator-vm 4096))
+         (plan (make-instance 'plan :vm vm :name :t
+                              :spaces (list (make-instance
+                                             'immix-space :vm vm
+                                             :start-page 1 :page-count 7
+                                             :name :d :default-space t)))))
+    (vm-register-stratum vm :card
+      (make-stratum :card (g-card) :bit 4096))
+    (s-set-bit (vm-stratum vm :card) +page-words+)
+    (let ((segment (checkpoint-heap plan :timestamp 42)))
+      ;; mutate page 1 after the checkpoint
+      (setf (ref-u64 vm (+ (page-start-address 1) 10)) 777)
+      (if (verify-segment segment vm)
+          (values t "ok")
+          (values nil "intact segment misclassified as torn after mutation")))))
 
 (deftest plan-validation-rejects-incoherent-combos ()
   ;; heap.tex §7 / plans.tex §1: incoherent axis combinations are rejected at

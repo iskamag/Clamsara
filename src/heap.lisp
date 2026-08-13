@@ -279,7 +279,14 @@
    (blocks :accessor ix-blocks)
    (block-count :accessor ix-block-count :initform 0)
    (current :accessor ix-current :initform nil)
-   (next-base :accessor ix-next-base :initform 0)))
+   (next-base :accessor ix-next-base :initform 0)
+   ;; Medium-object spans: span-root[i] = the root block index of the
+   ;; contiguous run block i belongs to, or -1.  Span blocks are reclaimed
+   ;; atomically (only when the root object dies); the block-level sweep
+   ;; must never recycle a span block while its root object is live.
+   (span-root :accessor ix-span-root :initform nil)
+   ;; preallocated per-block live counts (the sweep's two-pass span logic)
+   (block-live :accessor ix-block-live :initform nil)))
 
 (defmethod shared-initialize :after ((a immix-allocator) slot-names &key)
   (declare (ignore slot-names))
@@ -293,7 +300,13 @@
                 (make-immix-block :base base :cursor base :live 0))))
       (setf (ix-blocks a) blocks
             (ix-block-count a) 0
-            (ix-next-base a) (ix-start a)))))
+            (ix-next-base a) (ix-start a)
+            (ix-span-root a)
+            (make-array count :element-type 'fixnum
+                        :initial-element -1)
+            (ix-block-live a)
+            (make-array count :element-type 'fixnum
+                        :initial-element 0)))))
 
 (defmacro do-immix-blocks ((block allocator &optional result) &body body)
   `(loop for %block-index fixnum below (ix-block-count ,allocator)
@@ -310,12 +323,14 @@
 (defmethod alloc ((a immix-allocator) size &key &allow-other-keys)
   ;; Medium objects (heap.tex §2: below the LOS threshold but above one
   ;; block) get a contiguous multi-block run carved from the never-used
-  ;; region; small objects bump within the current block.
+  ;; region; the span is tracked so the block-level sweep reclaims it
+  ;; atomically, never block-by-block while the root object is live.
   (if (> size (ix-block-words a))
       (let ((pages (ceiling size (ix-block-words a))))
         (when (<= (+ (ix-next-base a) (* pages (ix-block-words a)))
                   (ix-limit a))
           (let ((base (ix-next-base a))
+                (first-block (ix-block-count a))
                 (remaining size))
             (dotimes (k pages)
               (let ((bi (+ (ix-block-count a) k)))
@@ -324,7 +339,8 @@
                     (setf (immix-block-cursor b)
                           (+ (immix-block-base b)
                              (min remaining (ix-block-words a))))
-                    (decf remaining (ix-block-words a))))))
+                    (decf remaining (ix-block-words a)))
+                  (setf (aref (ix-span-root a) bi) first-block))))
             (incf (ix-block-count a) pages)
             (incf (ix-next-base a) (* pages (ix-block-words a)))
             (setf (ix-current a) (aref (ix-blocks a) (1- (ix-block-count a))))
@@ -357,7 +373,9 @@
   (vm-clear-metadata-range (ix-vm a) (ix-start a) (ix-limit a))
   (setf (ix-block-count a) 0
         (ix-current a) nil
-        (ix-next-base a) (ix-start a)))
+        (ix-next-base a) (ix-start a))
+  (when (ix-span-root a)
+    (fill (ix-span-root a) -1)))
 
 (defun immix-block-live-count (a vm b)
   "Number of marked object starts in block B."
@@ -398,11 +416,14 @@ bounded implementation only compacts when an out-of-place block is available."
       (let ((source nil))
         ;; A source is fragmented iff its live payload occupies fewer words
         ;; than its bump extent. Fully-live blocks gain nothing from moving.
+        ;; Span (multi-block) objects are never defrag sources: their live
+        ;; set cannot fit one destination block.
         (loop for i below (ix-block-count a)
               for block = (aref (ix-blocks a) i)
               for used = (- (immix-block-cursor block)
                             (immix-block-base block))
-              when (plusp used)
+              when (and (plusp used)
+                        (minusp (aref (ix-span-root a) i)))
               do (let ((live-words 0))
                    (loop for address from (immix-block-base block)
                          below (+ (immix-block-base block)
@@ -646,17 +667,39 @@ bounded implementation only compacts when an out-of-place block is available."
 (defmethod space-reclaim ((s immix-space) vm &key cycle-kind)
   (let ((a (space-allocator s)))
     (when (and (plusp (ix-block-count a)) (vm-stratum vm :mark))
-      (do-immix-blocks (b a)
-        (let ((live (immix-block-live-count a vm b)))
-          (setf (immix-block-live b) live)
-          (immix-forget-dead-objects a vm b)
-          (when (zerop live)
-            ;; fully dead: recycle the whole block for reuse
-            (vm-clear-metadata-range vm
-                                     (immix-block-base b)
-                                     (+ (immix-block-base b)
-                                        (ix-block-words a)))
-            (setf (immix-block-cursor b) (immix-block-base b)))))
+      ;; First pass: decide each block's live count, but a span block is
+      ;; reclaimed atomically with its root object: the whole span lives or
+      ;; dies together (heap.tex §2 medium objects).  The per-block counts
+      ;; live in a boot-allocated vector, never a host allocation.
+      (let ((block-live (ix-block-live a)))
+        (do-immix-blocks (b a)
+          (let ((bi (floor (- (immix-block-base b) (ix-start a))
+                           (ix-block-words a))))
+            (setf (aref block-live bi)
+                  (immix-block-live-count a vm b))))
+        ;; A span block inherits the live count of its ROOT block (the
+        ;; block holding the object's header); non-root blocks have no
+        ;; object starts so their own count would be zero.
+        (dotimes (bi (ix-block-count a))
+          (let ((root (aref (ix-span-root a) bi)))
+            (when (and (>= root 0) (/= root bi))
+              (setf (aref block-live bi) (aref block-live root)))))
+        (do-immix-blocks (b a)
+          (let* ((bi (floor (- (immix-block-base b) (ix-start a))
+                            (ix-block-words a)))
+                 (live (aref block-live bi)))
+            (setf (immix-block-live b) live)
+            (immix-forget-dead-objects a vm b)
+            (when (zerop live)
+              ;; fully dead: recycle the whole block for reuse
+              (vm-clear-metadata-range vm
+                                       (immix-block-base b)
+                                       (+ (immix-block-base b)
+                                          (ix-block-words a)))
+              (setf (immix-block-cursor b) (immix-block-base b))
+              ;; a recycled span block leaves its span
+              (when (>= (aref (ix-span-root a) bi) 0)
+                (setf (aref (ix-span-root a) bi) -1))))))
       (setf (ix-current a) (ix-first-block a)))
     (when (eq cycle-kind :major)
       (immix-defrag s vm))
@@ -1007,18 +1050,24 @@ bounded implementation only compacts when an out-of-place block is available."
         (unless (zerop sb)
           (let ((reached (aref (sb-reached-mbs s) sb)))
             (dotimes (m mps)
-              (when (or (plusp (length (sb-reached-mbs s)))
-                        (eql 1 (sbit reached m)))
+              (when (and reached (eql 1 (sbit reached m)))
                 ;; per-MB block matrix is indexed by GLOBAL metablock index
                 (let ((mb-matrix
                         (and matrices
                              (< (+ (* sb mps) m) (length matrices))
                              (aref matrices (+ (* sb mps) m)))))
-                  (declare (ignore mb-matrix))
                   (dotimes (b bpm)
                     (let ((bi (+ (* sb mps bpm) (* m bpm) b)))
                       (when (and (< bi (sb-block-count s))
-                                 (hierarchical-block-in-use-p a bi))
+                                 (hierarchical-block-in-use-p a bi)
+                                 ;; the block closure must reach this block;
+                                 ;; unreached blocks are skipped without
+                                 ;; paging their objects (strata.tex §5.1)
+                                 (or (null mb-matrix)
+                                     (eql 1 (matrix-ref
+                                             mb-matrix
+                                             (sb-local-block s bi)
+                                             (sb-local-block s bi)))))
                         (let ((live-p nil))
                           (loop for address from (sb-block-base s bi)
                                 below (+ (sb-block-base s bi)
@@ -1071,7 +1120,10 @@ bounded implementation only compacts when an out-of-place block is available."
                                (aref fwd address) dcur)
                          (incf dcur words)))
             (setf (hierarchical-block-cursor a dest) dcur)
-            ;; heal all live references through the forwarding table
+            ;; heal all live references through the forwarding table —
+            ;; INCLUDING the destination block: vm-object-copy reproduced
+            ;; the source payloads, so destination slots still hold the old
+            ;; source addresses and must be healed before the source dies.
             (vm-scan-roots vm (vm-plan vm) #'heal-forwarded-root)
             (let ((plan (vm-plan vm)))
               (when (and plan (plan-nursery plan))
@@ -1081,7 +1133,7 @@ bounded implementation only compacts when an out-of-place block is available."
                         when (s-test-bit os address)
                           do (vm-heal-reference-slots vm address fwd)))))
             (dotimes (bi (sb-block-count s))
-              (when (and (hierarchical-block-in-use-p a bi) (/= bi dest))
+              (when (hierarchical-block-in-use-p a bi)
                 (loop for address from (sb-block-base s bi)
                       below (+ (sb-block-base s bi) (sb-block-words s))
                       when (s-test-bit os address)
@@ -1175,8 +1227,6 @@ bounded implementation only compacts when an out-of-place block is available."
     (let ((s (ha-space a)))
       (when (typep s 'superblock-space)
         (let* ((src-mb (floor block-index (sb-blocks-per-metablock s)))
-               (src-sb (floor src-mb (sb-mbs-per-superblock s)))
-               (local-mb (sb-local-mb s src-mb))
                (local-block (sb-local-block s block-index)))
           ;; block points-to matrix: clear row and column
           (let ((bm (and (sb-block-matrices s)

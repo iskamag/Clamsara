@@ -117,6 +117,7 @@
            #:plan-constraints #:constraints-generational #:constraints-scope
            #:constraints-write-barrier #:constraints-read-barrier
            #:constraints-forwarding #:constraints-concurrency
+           #:constraints-requires-tier
            #:constraints-max-non-los-bytes
            #:plan-collect #:plan-allocate #:plan-get-space
            #:plan-handle-allocation-failure #:plan-collect-phase

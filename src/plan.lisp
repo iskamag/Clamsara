@@ -16,6 +16,7 @@
    (read-barrier       :initarg :read-barrier       :initform :none :accessor constraints-read-barrier)
    (forwarding         :initarg :forwarding         :initform :in-header :accessor constraints-forwarding)
    (concurrency        :initarg :concurrency        :initform :stw :accessor constraints-concurrency)
+   (requires-tier      :initarg :requires-tier      :initform :t0 :accessor constraints-requires-tier)
    (max-non-los-bytes  :initarg :max-non-los-bytes  :initform 8192 :accessor constraints-max-non-los-bytes))
   (:documentation "The axis coordinates of a plan (plans.tex)."))
 
@@ -269,6 +270,10 @@
         (barrier-check (plan-barrier plan) plan))
       (when (plan-publication plan)
         (initialize-publication-work (plan-publication plan) vm))
+      ;; space validation runs here, after slots are populated: allocator
+      ;; checks and the concurrent-relocate forwarding rule need the VM.
+      (dolist (s (plan-spaces plan))
+        (component-validate s))
       (component-validate plan)
       (setf (plan-booted-p plan) t)))
   plan)
@@ -289,12 +294,56 @@
     (when (eq (constraints-concurrency c) :concurrent-relocate)
       (unless (eq (constraints-forwarding c) :off-heap)
         (error 'plan-incompatible :plan p
-               :message "concurrent-relocate requires off-heap forwarding")))
+               :message "concurrent-relocate requires off-heap forwarding"))
+      ;; an LVB read rule is required for concurrent relocation
+      (let ((rules (and (plan-barrier p) (barrier-rules (plan-barrier p)))))
+        (unless (find :lvb rules :key #'barrier-rule-name)
+          (error 'plan-incompatible :plan p
+                 :message "concurrent-relocate requires an LVB read barrier"))))
     (when (eq (constraints-forwarding c) :off-heap)
       (unless (vm-has-feature-p vm :t0)         ; off-heap table works on any tier
         (error 'plan-incompatible :plan p :message "off-heap forwarding needs VM access")))
     (when (member (constraints-scope c) '(:thread :request))
       (unless (plan-publication p)
         (error 'plan-incompatible :plan p
-               :message "non-global scope requires a publication strategy")))
+               :message "non-global scope requires a publication strategy"))
+      ;; a space with scope /= :global requires the plan's publication
+      ;; strategy (heap.tex §7); a read-guarded strategy requires a read rule
+      ;; or a trap entry (locality.tex §5)
+      (when (and (plan-publication p)
+                 (strategy-read-guarded-p (plan-publication p))
+                 (not (eq (constraints-read-barrier c) :none))
+                 (null (publication-read-rule (plan-publication p))))
+        (unless (member :trap
+                        (if (listp (constraints-read-barrier c))
+                            (constraints-read-barrier c)
+                            (list (constraints-read-barrier c))))
+          (error 'plan-incompatible :plan p
+                 :message "read-guarded publication needs a read rule or trap"))))
+    ;; requires-tier must not exceed the VM's tier (plans.tex §1)
+    (let* ((tiers '(:t0 :t1 :t2))
+           (vm-pos (position (vm-tier vm) tiers))
+           (req-pos (position (constraints-requires-tier c) tiers)))
+      (unless (and vm-pos req-pos (<= req-pos vm-pos))
+        (error 'plan-incompatible :plan p
+               :message (format nil "plan requires ~a, VM provides ~a"
+                                (constraints-requires-tier c) (vm-tier vm)))))
+    ;; copying spaces must declare a partner (heap.tex §7)
+    (dolist (s (plan-spaces p))
+      (when (and (eq (space-moving s) :stw-copy) (not (space-partner s)))
+        (error 'plan-incompatible :plan p
+               :message (format nil "copying space ~a has no partner"
+                                (space-name s)))))
+    ;; the barrier rule list must be consistent with the declared write
+    ;; barrier names (plans.tex §1)
+    (let ((rules (and (plan-barrier p) (barrier-rules (plan-barrier p)))))
+      (dolist (name (if (listp (constraints-write-barrier c))
+                        (constraints-write-barrier c)
+                        (and (not (eq (constraints-write-barrier c) :none))
+                             (list (constraints-write-barrier c)))))
+        (unless (or (eq name :none)
+                    (find name rules :key #'barrier-rule-name))
+          (error 'plan-incompatible :plan p
+                 :message (format nil "declared write barrier ~a not in rule list"
+                                  name)))))
     p))

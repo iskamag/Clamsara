@@ -35,6 +35,37 @@
   (declare (ignore slot-names))
   (component-validate s))
 
+;; ---- space-metaclass coherence checks (heap.tex §7) ----------------------
+
+(defmethod component-validate ((s space))
+  ;; Guard: shared-initialize runs before :vm lands; the full check happens
+  ;; again at plan finalization when slots are populated.
+  (when (and (slot-boundp s 'vm) (space-vm s))
+    (when (and (eq (space-moving s) :concurrent-relocate)
+               (not (eq (vm-location (space-vm s) :forwarding) :off-heap)))
+      (error 'plan-incompatible :plan s
+             :message "concurrent-relocate space needs off-heap forwarding")))
+  (let ((constraints (space-constraints s)))
+    (when (slot-boundp s 'allocator)
+      (let ((a (space-allocator s)))
+        (when (and (typep s 'immix-space)
+                   a
+                   (not (typep a 'immix-allocator)))
+          (error 'plan-incompatible :plan s
+                 :message "immix-space needs an immix-allocator"))
+        (when (and (typep s 'mark-sweep-space)
+                   a
+                   (not (typep a 'free-list-allocator)))
+          (error 'plan-incompatible :plan s
+                 :message "mark-sweep-space needs a free-list allocator"))))
+    ;; moving /= :none implies mixed-age = nil, unless hierarchical
+    (when (and (not (eq (space-moving s) :none))
+               (mixed-age constraints)
+               (not (eq (space-policy s) :hierarchical)))
+      (error 'plan-incompatible :plan s
+             :message "moving spaces cannot be mixed-age"))
+    s))
+
 (declaim (inline space-base-address space-end-address))
 (defun space-base-address (s) (ash (space-start-page s) +log-page-words+))
 (defun space-end-address (s) (ash (+ (space-start-page s) (space-page-count s)) +log-page-words+))
@@ -42,14 +73,6 @@
 (defmethod space-contains-p ((s space) address)
   (let ((start (space-base-address s)) (end (space-end-address s)))
     (and (>= address start) (< address end))))
-
-(defmethod component-validate ((s space))
-  ;; coherence checks (heap.tex §7); relaxed for the simulator's small heaps.
-  (when (and (eq (space-moving s) :concurrent-relocate)
-             (not (eq (vm-location (space-vm s) :forwarding) :off-heap)))
-    (error 'plan-incompatible :plan s
-           :message "concurrent-relocate space needs off-heap forwarding"))
-  s)
 
 ;; ---- space protocol (heap.tex) -------------------------------------------
 

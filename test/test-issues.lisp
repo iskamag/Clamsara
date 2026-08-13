@@ -162,7 +162,41 @@
                                  (plan-space-for-address
                                   *clamsara-plan* big)))))))))
 
-;; ---- B14: Claimore's concurrency constraint must reflect reality ---------
+;; ---- G7: metaclass/plan validation ----------------------------------------
+
+(deftest plan-validation-rejects-incoherent-combos ()
+  ;; heap.tex §7 / plans.tex §1: incoherent axis combinations are rejected at
+  ;; finalization, before any code is generated.
+  (let ((vm (make-simulator-vm 4096)))
+    ;; concurrent-relocate without off-heap forwarding must signal at plan
+    ;; finalization
+    (let ((caught-p nil))
+      (handler-case
+          (finalize-plan
+           (make-instance 'plan
+             :vm vm :name :bad
+             :spaces (list (make-instance 'immix-space :vm vm
+                                          :start-page 1 :page-count 6
+                                          :name :bad :default-space t
+                                          :moving :concurrent-relocate))))
+        (plan-incompatible () (setf caught-p t)))
+      (unless caught-p
+        (return-from plan-validation-rejects-incoherent-combos
+          (values nil "concurrent-relocate without off-heap fwd not rejected"))))
+    ;; a copying space without a partner must be rejected at plan validation
+    (let ((caught-p nil))
+      (handler-case
+          (finalize-plan
+           (make-instance 'plan
+             :vm vm :name :bad
+             :spaces (list (make-instance 'copy-space :vm vm
+                                          :start-page 1 :page-count 2
+                                          :name :lonely :default-space t))))
+        (plan-incompatible () (setf caught-p t)))
+      (unless caught-p
+        (return-from plan-validation-rejects-incoherent-combos
+          (values nil "partnerless copying space not rejected"))))
+    (values t "ok")))
 
 (deftest claimore-concurrency-matches-implementation ()
   (with-clamsara (:plan-type :claimore :heap-size 65536)

@@ -157,17 +157,22 @@
   (let* ((vm (plan-vm plan))
          (tr (plan-tracer plan))
          (nursery (gen-nursery plan))
-         (addr (ref-strip-or-self vm ref)))
-    (dotimes (k (vm-object-reference-count vm addr))
-      (let ((child (vm-object-reference vm addr k)))
-        (when (vm-reference-p vm child)
-          (let ((caddr (ref-strip-or-self vm child)))
-            (when (space-contains-p nursery caddr)
-              (let ((new
-                      (space-trace-object
-                       nursery vm child tr :trace-kind :minor)))
-                (unless (eql new child)
-                  (setf (vm-object-reference vm addr k) new))))))))))
+         (addr (ref-strip-or-self vm ref))
+         (slots (vm-reference-slots vm addr)))
+    (flet ((process-slot (k)
+             (let ((child (vm-object-reference vm addr k)))
+               (when (vm-reference-p vm child)
+                 (let ((caddr (ref-strip-or-self vm child)))
+                   (when (space-contains-p nursery caddr)
+                     (let ((new
+                             (space-trace-object
+                              nursery vm child tr :trace-kind :minor)))
+                       (unless (eql new child)
+                         (setf (vm-object-reference vm addr k) new)))))))))
+      (if slots
+          (loop for k across slots do (process-slot k))
+          (dotimes (k (vm-object-reference-count vm addr)) (process-slot k))))
+    ref))
 
 (defun minor-mark (plan)
   (let* ((vm (plan-vm plan))
@@ -194,28 +199,28 @@
                        below (min (+ card-address (g-card))
                                   (space-end-address mature))
                        when (s-test-bit os object-address)
-                         do (dotimes
-                                (slot
-                                 (vm-object-reference-count
-                                  vm object-address))
-                              (let ((child
-                                      (vm-object-reference
-                                       vm object-address slot)))
-                                (when
-                                    (and
-                                     (vm-reference-p vm child)
-                                     (space-contains-p
-                                      nursery
-                                      (ref-strip-or-self vm child)))
-                                  (let ((new
-                                          (space-trace-object
-                                           nursery vm child tr
-                                           :trace-kind :minor)))
-                                    (unless (eql new child)
-                                      (setf
-                                       (vm-object-reference
-                                        vm object-address slot)
-                                       new)))))))))))
+                         do (remset-heal-object
+                             vm object-address nursery tr))))))
+
+(defun remset-heal-object (vm object-address nursery tr)
+  "Trace (and heal) the reference slots of OBJECT-ADDRESS that point into
+  NURSERY.  Top-level with explicit state: no host closure per object."
+  (let ((slots (vm-reference-slots vm object-address)))
+    (flet ((process-slot (slot)
+             (let ((child (vm-object-reference vm object-address slot)))
+               (when (and (vm-reference-p vm child)
+                          (space-contains-p nursery
+                                            (ref-strip-or-self vm child)))
+                 (let ((new (space-trace-object
+                             nursery vm child tr :trace-kind :minor)))
+                   (unless (eql new child)
+                     (setf (vm-object-reference vm object-address slot)
+                           new)))))))
+      (if slots
+          (loop for slot across slots do (process-slot slot))
+          (dotimes (slot (vm-object-reference-count vm object-address))
+            (process-slot slot)))))
+  object-address)
 
 (defun rebuild-remset (plan)
   "Recompute mature-to-nursery cards after evacuation and space rotation."
@@ -230,17 +235,23 @@
         (loop for object-address from (space-base-address mature)
               below (space-end-address mature)
               when (s-test-bit os object-address)
-                do (dotimes
-                       (slot (vm-object-reference-count vm object-address))
-                     (let ((child
-                             (vm-object-reference vm object-address slot)))
-                       (when (and
-                              (vm-reference-p vm child)
-                              (space-contains-p
-                               nursery (ref-strip-or-self vm child)))
-                         (s-set-bit card object-address)
-                         (return))))))))
+                do (when (object-has-nursery-ref-p
+                          vm object-address nursery)
+                     (s-set-bit card object-address))))))
   plan)
+
+(defun object-has-nursery-ref-p (vm address nursery)
+  "True if any reference slot of the object at ADDRESS points into NURSERY."
+  (let ((slots (vm-reference-slots vm address)))
+    (flet ((slot-p (i)
+             (let ((child (vm-object-reference vm address i)))
+               (and (vm-reference-p vm child)
+                    (space-contains-p nursery
+                                      (ref-strip-or-self vm child))))))
+      (if slots
+          (loop for i across slots thereis (slot-p i))
+          (dotimes (i (vm-object-reference-count vm address))
+            (when (slot-p i) (return t)))))))
 
 ;; ---- construction -------------------------------------------------------
 

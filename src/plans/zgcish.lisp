@@ -87,18 +87,7 @@
         (loop for address from (immix-block-base block)
               below (+ (immix-block-base block) (ix-block-words to))
               when (s-test-bit os address)
-                do (dotimes
-                       (slot (vm-object-reference-count vm address))
-                     (let ((child
-                             (vm-object-reference vm address slot)))
-                       (when (vm-reference-p vm child)
-                         (let* ((bare
-                                  (ref-strip-or-self vm child))
-                                (destination (aref fwd bare)))
-                           (when (plusp destination)
-                             (setf
-                              (vm-object-reference vm address slot)
-                              destination)))))))))))
+                do (vm-heal-reference-slots vm address fwd))))))
 
 (defmethod phase-release ((p zgc-plan) k)
   (declare (ignore k))

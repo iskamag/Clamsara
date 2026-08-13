@@ -68,6 +68,9 @@
            #:vm-object-old-p #:vm-object-young-p
            #:vm-valid-reference-p #:vm-reference-p
            #:vm-allocate-object #:vm-root-set
+           #:vm-reference-slots #:vm-map-reference-slots
+           #:vm-map-reference-slots-writeback #:vm-heal-reference-slots
+           #:slot-map #:register-slot-map #:slot-map-for
             #:vm-add-root #:vm-remove-root #:vm-remove-root-at-index #:vm-clear-roots
            #:vm-set-reference)
   ;; heap / spaces / allocators

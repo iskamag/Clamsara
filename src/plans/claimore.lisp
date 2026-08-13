@@ -96,12 +96,24 @@
          (tracer (plan-tracer plan))
          (nursery (cl-nursery plan))
          (addr (ref-strip-or-self vm ref)))
-    (dotimes (k (vm-object-reference-count vm addr))
-      (let ((child (vm-object-reference vm addr k)))
-        (when (and (vm-reference-p vm child)
-                   (space-contains-p
-                    nursery (ref-strip-or-self vm child)))
-          (space-trace-object nursery vm child tracer))))))
+    (claimore-trace-nursery-children vm addr nursery tracer)
+    ref))
+
+(defun claimore-trace-nursery-children (vm address nursery tracer)
+  "Trace every reference slot of the object at ADDRESS whose target lives in
+  NURSERY.  Top-level with explicit state: no host closure per object."
+  (let ((slots (vm-reference-slots vm address)))
+    (flet ((process-slot (i)
+             (let ((child (vm-object-reference vm address i)))
+               (when (and (vm-reference-p vm child)
+                          (space-contains-p
+                           nursery (ref-strip-or-self vm child)))
+                 (space-trace-object nursery vm child tracer)))))
+      (if slots
+          (loop for i across slots do (process-slot i))
+          (dotimes (i (vm-object-reference-count vm address))
+            (process-slot i)))))
+  address)
 
 (defun claimore-minor-mark (plan)
   "Private nursery collection: trace the request's roots + published objects

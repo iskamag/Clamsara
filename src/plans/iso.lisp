@@ -78,12 +78,24 @@
          (tracer (plan-tracer plan))
          (private (iso-private plan))
          (addr (ref-strip-or-self vm ref)))
-    (dotimes (k (vm-object-reference-count vm addr))
-      (let ((child (vm-object-reference vm addr k)))
-        (when (and (vm-reference-p vm child)
-                   (space-contains-p
-                    private (ref-strip-or-self vm child)))
-          (space-trace-object private vm child tracer))))))
+    (iso-trace-private-children vm addr private tracer)
+    ref))
+
+(defun iso-trace-private-children (vm address private tracer)
+  "Trace every reference slot of the object at ADDRESS whose target lives in
+  PRIVATE.  Top-level with explicit state: no host closure per object."
+  (let ((slots (vm-reference-slots vm address)))
+    (flet ((process-slot (i)
+             (let ((child (vm-object-reference vm address i)))
+               (when (and (vm-reference-p vm child)
+                          (space-contains-p
+                           private (ref-strip-or-self vm child)))
+                 (space-trace-object private vm child tracer)))))
+      (if slots
+          (loop for i across slots do (process-slot i))
+          (dotimes (i (vm-object-reference-count vm address))
+            (process-slot i)))))
+  address)
 
 (defun iso-minor-mark (plan)
   (let* ((vm (plan-vm plan))

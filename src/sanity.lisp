@@ -16,11 +16,12 @@
       (cons (format nil "reachable ref ~a is not an object start" addr) errors)))
   (when (vm-object-is-forwarded-p vm addr)
     (push (format nil "reachable object ~a is still forwarded" addr) errors))
-  (dotimes (i (vm-object-reference-count vm addr) errors)
-    (let ((child (vm-object-reference vm addr i)))
+  (vm-map-reference-slots vm addr
+    (lambda (child)
       (when (vm-reference-p vm child)
         (setf errors (%sanity-visit vm (ref-strip-or-self vm child)
-                                    reachable errors visits heap-size))))))
+                                    reachable errors visits heap-size)))))
+  errors)
 
 (defun sanity-check (plan &key (check-mark t) (check-dlg t))
   "Return a list of invariant-violation strings (empty = heap consistent)."
@@ -47,13 +48,15 @@
        (lambda (addr _)
          (declare (ignore _))
          (when (vm-object-is-public-p vm addr)
-           (dotimes (i (vm-object-reference-count vm addr))
-             (let ((c (vm-object-reference vm addr i)))
-               (when (and (vm-reference-p vm c)
-                          (not (vm-object-is-public-p vm (ref-strip-or-self vm c))))
-                 (push (format nil "DLG violated: public ~a -> private ~a"
-                               addr (ref-strip-or-self vm c))
-                       errors))))))
+           (vm-map-reference-slots
+            vm addr
+            (lambda (c)
+              (when (and (vm-reference-p vm c)
+                         (not (vm-object-is-public-p
+                               vm (ref-strip-or-self vm c))))
+                (push (format nil "DLG violated: public ~a -> private ~a"
+                              addr (ref-strip-or-self vm c))
+                      errors))))))
        reachable))
     (nreverse errors)))
 

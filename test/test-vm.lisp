@@ -40,3 +40,28 @@
   (let ((vm (make-simulator-vm 4096)))
     (setf (vm-object-rc vm 512) 3) (setf (vm-object-rc vm 512) (1- (vm-object-rc vm 512)))
     (if (= (vm-object-rc vm 512) 2) (values t "rc ok") (values nil "rc wrong"))))
+
+(deftest slot-map-precise-scanning ()
+  ;; memory.tex §3: a declared per-type layout restricts scanning to the
+  ;; reference-bearing slots; undeclared layouts stay conservative.
+  (let ((vm (make-simulator-vm 4096)))
+    (vm-write-header vm 512 +tag-object+ 4)     ; slots 0..3
+    (vm-write-header vm 800 +tag-object+ 4)
+    (setf (vm-object-reference vm 512 0) 800)   ; slot 0 = reference
+    (setf (vm-object-reference vm 512 1) 12345) ; slot 1 = raw payload
+    ;; register a layout: only slot 0 is a reference
+    (register-slot-map vm +tag-object+ 7 #(0))
+    (setf (vm-object-header vm 512)
+          (dpb 7 (byte 16 48) (vm-object-header vm 512)))
+    (let ((seen nil))
+      (vm-scan-object-references vm 512 (lambda (r) (push r seen)))
+      (if (and (equal seen '(800))
+               ;; conservative fallback: unregistered layout scans all slots
+               (let ((conservative nil))
+                 (setf (vm-object-header vm 512)
+                       (dpb 9 (byte 16 48) (vm-object-header vm 512)))
+                 (vm-scan-object-references
+                  vm 512 (lambda (r) (push r conservative)))
+                 (= (length conservative) 2)))
+          (values t "ok")
+          (values nil (format nil "precise scan wrong: ~a" seen))))))

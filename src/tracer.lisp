@@ -71,19 +71,24 @@
 (defun mark-grey-reference (plan ref)
   (let* ((vm (plan-vm plan))
          (tracer (plan-tracer plan))
-         (addr (ref-strip-or-self vm ref)))
-    (dotimes (i (vm-object-reference-count vm addr))
-      (let ((child (vm-object-reference vm addr i)))
-        (when (vm-reference-p vm child)
-          (let* ((caddr (ref-strip-or-self vm child))
-                 (space (plan-space-for-address plan caddr)))
-            (when space
-              (let ((new
-                      (space-trace-object
-                       space vm child tracer
-                       :trace-kind (plan-active-trace-kind plan))))
-                (unless (eql new child)
-                  (setf (vm-object-reference vm addr i) new))))))))))
+         (addr (ref-strip-or-self vm ref))
+         (slots (vm-reference-slots vm addr)))
+    (flet ((process-slot (i)
+             (let ((child (vm-object-reference vm addr i)))
+               (when (vm-reference-p vm child)
+                 (let* ((caddr (ref-strip-or-self vm child))
+                        (space (plan-space-for-address plan caddr)))
+                   (when space
+                     (let ((new
+                             (space-trace-object
+                              space vm child tracer
+                              :trace-kind (plan-active-trace-kind plan))))
+                       (unless (eql new child)
+                         (setf (vm-object-reference vm addr i) new)))))))))
+      (if slots
+          (loop for i across slots do (process-slot i))
+          (dotimes (i (vm-object-reference-count vm addr)) (process-slot i))))
+    ref))
 
 (defun mark-roots (plan tracer &key trace-kind)
   "Seed the mark queue from roots, then drain to fixpoint.  Policy-agnostic:

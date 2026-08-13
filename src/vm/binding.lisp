@@ -22,6 +22,7 @@
    (fwd-table   :initarg :fwd-table :accessor vm-fwd-table :initform nil)
    (rc-table    :initarg :rc-table :accessor vm-rc-table :initform nil)
    (object-start :accessor vm-object-start :initform nil)
+   (slot-maps   :accessor vm-slot-maps :initform nil)  ; per-type layout registry
    (stats       :accessor vm-stats :initform nil)
    (plan        :initarg :plan :accessor vm-plan :initform nil)))
 
@@ -173,6 +174,43 @@ any indices they hold."
 (defun vm-clear-roots (vm)
   (setf (fill-pointer (vm-root-vector vm)) 0))
 (defun vm-root-set (vm) (vm-root-vector vm))
+
+;; ---- precise scanning: per-type slot maps (memory.tex §3) ----------------
+;; A slot map names the reference-bearing slots of a layout.  An object's
+;; type tag selects its layout (memory.tex §1); the header spare field holds
+;; the layout id for tagged objects.  Every scan/heal site must route through
+;; VM-REFERENCE-SLOTS; treating every payload slot as a reference is the
+;; conservative fallback when no map is declared.
+
+(defstruct (slot-map (:constructor %make-slot-map))
+  (type-tag 0 :type fixnum)
+  (ref-slots nil :type (or simple-vector null)))
+
+(defun register-slot-map (vm type-tag layout-id ref-slots)
+  "Declare that objects with type-tag TYPE-TAG and header spare LAYOUT-ID
+  have reference slots REF-SLOTS (a vector of slot indices, ascending).
+  Returns the layout id."
+  (unless (vm-slot-maps vm)
+    (setf (vm-slot-maps vm) (make-array 64 :initial-element nil)))
+  (setf (aref (vm-slot-maps vm) layout-id)
+        (%make-slot-map :type-tag type-tag :ref-slots ref-slots))
+  layout-id)
+
+(defun slot-map-for (vm address)
+  (let* ((maps (vm-slot-maps vm))
+         (tag (vm-object-type-tag vm address))
+         (layout-id (if (eql tag +tag-cons+)
+                        0
+                        (header-spare (vm-object-header vm address)))))
+    (and maps (< layout-id (length maps))
+         (let ((m (aref maps layout-id)))
+           (and m (eql (slot-map-type-tag m) tag) m)))))
+
+(defun vm-reference-slots (vm address)
+  "The reference-bearing slot indices of the object at ADDRESS, per its
+  declared layout; NIL means conservative (every slot is a reference)."
+  (let ((m (slot-map-for vm address)))
+    (if m (slot-map-ref-slots m) nil)))
 
 (defgeneric vm-scan-roots (vm collector-state fn)
   (:documentation "Invoke FN as (FN COLLECTOR-STATE REF) on each root and

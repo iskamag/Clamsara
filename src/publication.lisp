@@ -45,15 +45,16 @@
     (loop while (< head (length work))
           for object = (aref work head)
           do (incf head)
-             (dotimes (i (vm-object-reference-count vm object))
-               (let* ((child (vm-object-reference vm object i))
-                      (addr (ref-strip-or-self vm child)))
-                 (when (and (vm-reference-p vm child)
-                            (not (vm-object-is-public-p vm addr)))
-                   (setf (vm-object-is-public-p vm addr) t)
-                   (unless (vector-push addr work)
-                     (error 'heap-exhausted :requested-size 1
-                            :space :publication-queue))))))
+             (vm-map-reference-slots
+              vm object
+              (lambda (child)
+                (let ((addr (ref-strip-or-self vm child)))
+                  (when (and (vm-reference-p vm child)
+                             (not (vm-object-is-public-p vm addr)))
+                    (setf (vm-object-is-public-p vm addr) t)
+                    (unless (vector-push addr work)
+                      (error 'heap-exhausted :requested-size 1
+                             :space :publication-queue)))))))
     (setf (fill-pointer work) 0)
     root))
 

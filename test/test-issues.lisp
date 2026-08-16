@@ -721,6 +721,60 @@
         (values t "phase failure resumed mutators")
         (values nil "phase failure left VM stopped"))))
 
+(defclass %compiled-error-phase-plan (plan) ()
+  (:metaclass plan-metaclass))
+
+(defvar *compiled-phase-failure* nil)
+
+(defmethod gc-phase :mark ((p %compiled-error-phase-plan) k)
+  (declare (ignore p))
+  (when (and *compiled-phase-failure* (eq k :full))
+    (error "intentional compiled collection failure")))
+
+(defmethod gc-phase :checkpoint ((p %compiled-error-phase-plan) k)
+  (declare (ignore p))
+  (when (and *compiled-phase-failure* (eq k :checkpoint))
+    (error "intentional compiled checkpoint failure")))
+
+(deftest compiled-phase-error-resumes-mutators ()
+  ;; The boot-emitted direct phase arms have the same cleanup guarantee as the
+  ;; interpreted phase machine, including the checkpoint fence arm.
+  (let* ((vm (make-simulator-vm 32768))
+         (p (make-instance '%compiled-error-phase-plan
+                           :name :compiled-error :vm vm
+                           :spaces (list (make-instance 'mark-sweep-space
+                                                        :vm vm :start-page 1
+                                                        :page-count 60
+                                                        :name :default
+                                                        :default-space t))
+                           :constraints (make-instance 'plan-constraints)))
+         (full-caught nil)
+         (checkpoint-caught nil))
+    (let ((*compiled-phase-failure* nil))
+      (boot-gc p))
+    (let ((*compiled-phase-failure* t))
+      (handler-case (plan-collect p :cycle-kind :full)
+        (error () (setf full-caught t)))
+      (unless (and full-caught (not (vm-stopped-p vm))
+                   (not (vm-stop-requested-p vm)))
+        (return-from compiled-phase-error-resumes-mutators
+          (values nil "compiled collection failure left VM stopped")))
+      (handler-case (plan-collect p :cycle-kind :checkpoint)
+        (error () (setf checkpoint-caught t))))
+    (if (and checkpoint-caught (not (vm-stopped-p vm))
+             (not (vm-stop-requested-p vm)))
+        (values t "compiled phase failures resumed mutators")
+        (values nil "compiled checkpoint failure left VM stopped"))))
+
+(deftest checkpoint-event-increments-statistic ()
+  (with-clamsara (:plan-type :semispace :heap-size 4096)
+    (let ((stats (plan-stats *clamsara-plan*)))
+      (stats-reset stats)
+      (gc-event-checkpoint *clamsara-plan* *clamsara-vm* nil)
+      (if (= (stats-get stats :checkpoints) 1)
+          (values t "checkpoint metric incremented")
+          (values nil "checkpoint metric did not increment")))))
+
 (deftest gc-phase-most-specific-primary-only ()
   ;; A phase qualifier selects the most-specific primary method.  The generic
   ;; PLAN fallback must not run after the %PROBE-PLAN MARK method: leave its

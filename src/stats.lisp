@@ -67,4 +67,14 @@ stand-alone statistics objects."
 ;; ---- GC event protocol (persistence.tex); checkpoint is the live hook ----
 
 (defgeneric gc-event-checkpoint (plan vm dirty-pages)
-  (:method (plan vm dirty-pages) (declare (ignore plan vm dirty-pages)) nil))
+  (:method ((plan plan) (vm vm-binding) dirty-pages)
+    ;; Checkpoint capture is a first-class event even when it writes no pages;
+    ;; keep this counter on the event seam so every persistence backend reports
+    ;; it consistently.
+    (declare (ignore vm dirty-pages))
+    (when (plan-stats plan)
+      (stats-event (plan-stats plan) :checkpoints 1))
+    nil)
+  (:method (plan vm dirty-pages)
+    (declare (ignore plan vm dirty-pages))
+    nil))

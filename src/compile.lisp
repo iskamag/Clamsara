@@ -294,13 +294,26 @@ from ordinary collection phase lists: it is a fence, not a GC sub-phase."
        (declare (ignore ignored-plan))
        (let ((started (get-internal-run-time)))
          (ecase cycle-kind
-           (:minor ,@minor)
-           (:major ,@major)
-           (:full ,@full)
+           (:minor
+            (unwind-protect
+                 (progn ,@minor)
+              ;; The normal epilogue resumes the VM, but this idempotent
+              ;; cleanup also covers a phase/backend error.
+              (vm-resume-mutators (plan-vm ',plan))))
+           (:major
+            (unwind-protect
+                 (progn ,@major)
+              (vm-resume-mutators (plan-vm ',plan))))
+           (:full
+            (unwind-protect
+                 (progn ,@full)
+              (vm-resume-mutators (plan-vm ',plan))))
            (:checkpoint
             (vm-stop-mutators (plan-vm ',plan))
-            ,checkpoint-form
-            (vm-resume-mutators (plan-vm ',plan))))
+            (unwind-protect
+                 ,checkpoint-form
+              (vm-resume-mutators (plan-vm ',plan))))
+         )
          (let ((statistics (slot-value ',plan 'stats)))
            (when statistics
              (incf (gethash :gc-time (slot-value statistics 'events) 0)

@@ -2,8 +2,9 @@
 ;;;;
 ;;;; Maclina remains a host interpreter/compiler; its own bytecode, lexical
 ;;;; cells, and compiler data are host objects.  The overridden allocation and
-;;;; mutation subset below makes evaluated Lisp construct its cons graph in the
-;;;; Clamsara simulator heap, which is the workload seam required by paper-v8.
+;;;; mutation subset below makes evaluated Lisp construct its cons, struct, and
+;;;; one-dimensional array graphs in the Clamsara simulator heap, which is the
+;;;; workload seam required by paper-v8.
 
 (in-package #:clamsara-maclina)
 
@@ -23,7 +24,21 @@
   (defconstant +maclina-integer-payload-bits+ 59)
   (defconstant +maclina-integer-payload-mask+ #.(1- (ash 1 59)))
   (defconstant +maclina-min-integer+ #.(- (ash 1 58)))
-  (defconstant +maclina-max-integer+ #.(1- (ash 1 58))))
+  (defconstant +maclina-max-integer+ #.(1- (ash 1 58)))
+  ;; Header spare values are the array element encoding/layout.  Zero is
+  ;; deliberately left conservative: a general array may contain references
+  ;; in every slot.  Numeric layouts are registered with the VM as having no
+  ;; reference slots, so an integer/float bit pattern can never be mistaken
+  ;; for a heap pointer by the collector.
+  (defconstant +maclina-array-generic-code+ 0)
+  (defconstant +maclina-array-single-float-code+ 1)
+  (defconstant +maclina-array-integer-code+ 2)
+  ;; Single-floats are stored as their IEEE-754 payload in simulated words.
+  ;; SBCL is already a Maclina prerequisite, so use its allocation-free bit
+  ;; conversion primitives rather than boxing an array/vector on the host.
+  (defconstant +maclina-float-tag-bit+ 58)
+  (defconstant +maclina-float-tag+ #.(ash 1 58))
+  (defconstant +maclina-float-payload-mask+ #.(1- (ash 1 32))))
 
 (defun make-maclina-vm (&key (heap-size 65536) plan)
   (when (>= heap-size +maclina-integer-tag+)
@@ -112,6 +127,9 @@ are rejected instead of smuggling host pointers into the simulated heap."
   (cond ((null value) 0)
         ((%maclina-reference-p vm value)
          (%reference-address vm value))
+        ((typep value 'single-float)
+         (logior +maclina-float-tag+
+                 (sb-kernel:single-float-bits value)))
         ((%maclina-integer-p value)
          (logior +maclina-integer-tag+
                  (logand value +maclina-integer-payload-mask+)))
@@ -133,6 +151,9 @@ are rejected instead of smuggling host pointers into the simulated heap."
        (if (logbitp (1- +maclina-integer-payload-bits+) payload)
            (- payload (ash 1 +maclina-integer-payload-bits+))
            payload)))
+    ((logbitp +maclina-float-tag-bit+ value)
+     (sb-kernel:make-single-float
+      (logand value +maclina-float-payload-mask+)))
     (t
      (error "Invalid word in the Maclina simulated heap: ~S" value))))
 
@@ -322,29 +343,233 @@ Temporary roots keep both inputs live if a barrier transfer allocates."
              value))
       (setf (fill-pointer (clamsara::vm-root-vector vm)) root-base))))
 
-(defun %allocate-struct (client slot-count values)
-  "Allocate a +TAG-STRUCT+ object and initialize VALUES atomically enough for
-our mutator model.  Every tagged input is rooted before allocation, because
-PLAN-ALLOCATE may run a moving collection."
+(defun %allocate-struct-fixed (client slot-count v0 v1 v2 v3 v4 v5 v6 v7)
+  "Allocation-free fixed-arity struct allocation for generated constructors.
+The eight arguments cover the supported simple DEFSTRUCT subset; unlike an
+&REST helper this path creates no host argument/list sequence."
+  (when (> slot-count 8)
+    (error "Simple simulated DEFSTRUCT supports at most eight slots"))
   (let* ((plan (maclina-client-plan client))
          (vm (clamsara:plan-vm plan))
          (root-base (length (clamsara::vm-root-vector vm)))
-         (indices (mapcar (lambda (value) (%temporary-root vm value)) values)))
+         (root-index root-base))
+    (labels ((pin (value)
+             (when (%maclina-reference-p vm value)
+               (clamsara:vm-add-root vm value)
+               (incf root-index)))
+           (current (value)
+             (if (%maclina-reference-p vm value)
+                 (prog1
+                     (%make-maclina-reference
+                      vm (aref (clamsara::vm-root-vector vm) root-index))
+                   (incf root-index))
+                 value))
+           (store (address slot value)
+             (clamsara:vm-set-reference
+              vm address slot (%encode-heap-value vm (current value)))))
+      (when (> slot-count 0) (pin v0))
+      (when (> slot-count 1) (pin v1))
+      (when (> slot-count 2) (pin v2))
+      (when (> slot-count 3) (pin v3))
+      (when (> slot-count 4) (pin v4))
+      (when (> slot-count 5) (pin v5))
+      (when (> slot-count 6) (pin v6))
+      (when (> slot-count 7) (pin v7))
+      (unwind-protect
+           (let ((address
+                   (clamsara::allocate-object
+                    plan slot-count :type-tag clamsara:+tag-struct+)))
+             (setf root-index root-base)
+             (when (> slot-count 0) (store address 0 v0))
+             (when (> slot-count 1) (store address 1 v1))
+             (when (> slot-count 2) (store address 2 v2))
+             (when (> slot-count 3) (store address 3 v3))
+             (when (> slot-count 4) (store address 4 v4))
+             (when (> slot-count 5) (store address 5 v5))
+             (when (> slot-count 6) (store address 6 v6))
+             (when (> slot-count 7) (store address 7 v7))
+             (%make-maclina-reference vm address))
+        (setf (fill-pointer (clamsara::vm-root-vector vm)) root-base)))))
+
+(defun %allocate-struct (client slot-count values)
+  "Allocate a +TAG-STRUCT+ object and initialize VALUES without constructing
+an auxiliary index list.  VALUES is the caller's argument sequence; all tagged
+inputs are pinned in the preallocated VM root vector before allocation."
+  (let* ((plan (maclina-client-plan client))
+         (vm (clamsara:plan-vm plan))
+         (root-base (length (clamsara::vm-root-vector vm)))
+         (root-index root-base))
+    ;; Pin values in place.  This loop deliberately avoids MAPCAR/PUSH and
+    ;; therefore does not cons on the host collector path.
+    (dolist (value values)
+      (when (%maclina-reference-p vm value)
+        (clamsara:vm-add-root vm value)
+        (incf root-index)))
     (unwind-protect
          (let ((address
                  (clamsara::allocate-object
                   plan slot-count :type-tag clamsara:+tag-struct+)))
+           (setf root-index root-base)
            (loop for value in values
-                 for index in indices
                  for slot from 0
-                 for current = (if (not (null index))
-                                  (%make-maclina-reference
-                                   vm (aref (clamsara::vm-root-vector vm) index))
-                                  value)
-                 do (clamsara:vm-set-reference
-                     vm address slot (%encode-heap-value vm current)))
+                 do (let ((current
+                            (if (%maclina-reference-p vm value)
+                                (prog1
+                                    (%make-maclina-reference
+                                     vm (aref (clamsara::vm-root-vector vm)
+                                              root-index))
+                                  (incf root-index))
+                                value)))
+                      (clamsara:vm-set-reference
+                       vm address slot (%encode-heap-value vm current))))
            (%make-maclina-reference vm address))
       (setf (fill-pointer (clamsara::vm-root-vector vm)) root-base))))
+
+(defun %simulated-array-p (vm value)
+  (and (%maclina-reference-p vm value)
+       (= (clamsara:vm-object-type-tag
+           vm (%reference-address vm value))
+          clamsara:+tag-array+)))
+
+(defun %array-element-code (vm object)
+  (clamsara::header-spare
+   (clamsara:vm-object-header vm (%reference-address vm object))))
+
+(defun %array-length (vm object)
+  (clamsara::header-size
+   (clamsara:vm-object-header vm (%reference-address vm object))))
+
+(defun %array-index (vm object index)
+  (unless (and (integerp index)
+               (<= 0 index)
+               (< index (%array-length vm object)))
+    (error 'type-error :datum index :expected-type 'fixnum))
+  index)
+
+(defun %read-array-slot (vm plan object index)
+  (let* ((root-base (length (clamsara::vm-root-vector vm)))
+         (object-index (%temporary-root vm object)))
+    (unwind-protect
+         (let* ((address
+                  (%reference-address
+                   vm (%make-maclina-reference
+                       vm (aref (clamsara::vm-root-vector vm) object-index))))
+                (raw (clamsara:vm-object-reference vm address index))
+                (barrier (clamsara:plan-barrier plan))
+                (healed (if barrier
+                            (clamsara:barrier-note-read
+                             vm barrier (+ address 1 index) raw)
+                            raw)))
+           (setf (clamsara:vm-object-reference vm address index) healed)
+           healed)
+      (setf (fill-pointer (clamsara::vm-root-vector vm)) root-base))))
+
+(defun %write-array-slot (client object index value)
+  (let* ((plan (maclina-client-plan client))
+         (vm (clamsara:plan-vm plan))
+         (barrier (clamsara:plan-barrier plan))
+         (root-base (length (clamsara::vm-root-vector vm)))
+         (object-index (%temporary-root vm object))
+         (value-index (%temporary-root vm value)))
+    (unwind-protect
+         (progn
+           (unless (%simulated-array-p vm object)
+             (error 'type-error :datum object :expected-type 'array))
+           (%array-index vm object index)
+           (let ((code (%array-element-code vm object)))
+             (when (and (= code +maclina-array-single-float-code+)
+                        (not (typep value 'single-float)))
+               (error 'type-error :datum value :expected-type 'single-float))
+             (when (and (= code +maclina-array-integer-code+)
+                        (not (integerp value)))
+               (error 'type-error :datum value :expected-type 'integer)))
+           (let* ((address (%reference-address
+                            vm (%make-maclina-reference
+                                vm (aref (clamsara::vm-root-vector vm)
+                                         object-index))))
+                  (encoded (%encode-heap-value vm value)))
+             (when barrier
+               (setf encoded
+                     (clamsara:barrier-note-write
+                      vm barrier address index encoded)))
+             (setf address
+                   (%reference-address
+                    vm (%make-maclina-reference
+                        vm (aref (clamsara::vm-root-vector vm)
+                                 object-index))))
+             (when (not (null value-index))
+               (let ((current (aref (clamsara::vm-root-vector vm) value-index)))
+                 (unless (eql current value)
+                   (setf encoded (%encode-heap-value
+                                  vm (%make-maclina-reference vm current))))))
+             (clamsara:vm-set-reference vm address index encoded)
+             value))
+      (setf (fill-pointer (clamsara::vm-root-vector vm)) root-base))))
+
+(defun %make-simulated-array (client dimensions &key element-type initial-element initial-element-p)
+  (let* ((plan (maclina-client-plan client))
+         (vm (clamsara:plan-vm plan))
+         (length (cond ((integerp dimensions) dimensions)
+                       ;; Accept the one-element list spelling used by
+                       ;; ordinary MAKE-ARRAY callers without allocating a
+                       ;; host backing vector.
+                       ((and (consp dimensions)
+                             (null (cdr dimensions))
+                             (integerp (car dimensions)))
+                        (car dimensions))
+                       (t (error "Only one-dimensional simulated arrays are supported"))))
+         (code (cond ((or (null element-type) (eql element-type t))
+                      +maclina-array-generic-code+)
+                     ((or (eql element-type 'single-float)
+                          (equal element-type '(single-float)))
+                      +maclina-array-single-float-code+)
+                     ((or (eql element-type 'integer)
+                          (equal element-type '(integer)))
+                      +maclina-array-integer-code+)
+                     (t (error "Unsupported simulated array element type: ~S"
+                               element-type)))))
+    (unless (and (integerp length) (<= 0 length))
+      (error 'type-error :datum length :expected-type '(integer 0)))
+    (when (and (= code +maclina-array-single-float-code+)
+               (not initial-element-p))
+      (setf initial-element 0.0s0))
+    (when (and (= code +maclina-array-single-float-code+)
+               (not (typep initial-element 'single-float)))
+      (error 'type-error :datum initial-element :expected-type 'single-float))
+    ;; Numeric arrays contain no references.  Registering an empty slot map is
+    ;; a boot/setup operation; collection then scans no numeric payload words.
+    (let* ((root-base (length (clamsara::vm-root-vector vm)))
+           (initial-index (%temporary-root vm initial-element)))
+      (unwind-protect
+           (let* ((address
+                    (clamsara::allocate-object
+                     plan length :type-tag clamsara:+tag-array+
+                     :layout-id code))
+                  (initial
+                    (if (not (null initial-index))
+                        (%make-maclina-reference
+                         vm (aref (clamsara::vm-root-vector vm) initial-index))
+                        initial-element)))
+             (dotimes (index length)
+               (clamsara:vm-set-reference
+                vm address index (%encode-heap-value vm initial)))
+             (%make-maclina-reference vm address))
+        (setf (fill-pointer (clamsara::vm-root-vector vm)) root-base)))))
+
+(defun %array-ref (client object index)
+  (let* ((plan (maclina-client-plan client))
+         (vm (clamsara:plan-vm plan)))
+    (if (%simulated-array-p vm object)
+        (%decode-heap-value
+         vm (%read-array-slot vm plan object (%array-index vm object index)))
+        (cl:aref object index))))
+
+(defun %array-set (client value object index)
+  (let* ((plan (maclina-client-plan client))
+         (vm (clamsara:plan-vm plan)))
+    (if (%simulated-array-p vm object)
+        (%write-array-slot client object (%array-index vm object index) value)
+        (setf (cl:aref object index) value))))
 
 (defun %parse-simple-defstruct (name-and-options slot-specs)
   "Parse the fixed simple DEFSTRUCT subset used by the Boehm benchmark."
@@ -409,24 +634,23 @@ benchmark-specific pattern matching."
     (declare (ignore defstruct))
     (multiple-value-bind (name constructor predicate copier conc-name slots)
         (%parse-simple-defstruct name-and-options slot-specs)
+      (when (> (length slots) 8)
+        (error "Simple simulated DEFSTRUCT supports at most eight slots"))
       (let* ((plan (maclina-client-plan client))
              (vm (clamsara:plan-vm plan))
              ;; A constructor is exposed as a macro so :slot names are quoted
              ;; before Maclina compiles the call.  Its hidden function remains a
              ;; normal Clostrum function closure.
              (constructor-function (gensym (format nil "%MAKE-~A-" name))))
+        ;; Generate a fixed keyword lambda at DEFSTRUCT installation time.
+        ;; Runtime constructor calls therefore use keyword registers directly,
+        ;; not an &REST list or MAKE-LIST temporary.
         (setf (clostrum:fdefinition client environment constructor-function)
-              (lambda (&rest arguments)
-                (let ((values (make-list (length slots))))
-                  (loop for (key value) on arguments by #'cddr
-                        do (let ((index
-                                   (position key slots :test #'string-equal
-                                                    :key #'symbol-name)))
-                             (if index
-                                 (setf (nth index values) value)
-                                 (error "Unknown or malformed ~A constructor key: ~S"
-                                        constructor key))))
-                  (%allocate-struct client (length slots) values))))
+              (eval `(lambda (&key ,@slots)
+                       (%allocate-struct-fixed
+                        ,client ,(length slots)
+                        ,@(append slots
+                                  (make-list (- 8 (length slots))))))))
         (setf (clostrum:macro-function client environment constructor)
               (lambda (call-form macro-environment)
                 (declare (ignore macro-environment))
@@ -450,24 +674,30 @@ benchmark-specific pattern matching."
                         (lambda (value object)
                           (%struct-set client value object slot-index)))))
         (when copier
+          ;; Generate a fixed-arity copier too; LOOP/COLLECT would otherwise
+          ;; put the copied payload in a transient host list.
           (setf (clostrum:fdefinition client environment copier)
-                (lambda (object)
-                  (%allocate-struct
-                   client (length slots)
-                   (loop for index below (length slots)
-                         collect (%struct-ref client object index))))))
+                (eval `(lambda (object)
+                         (%allocate-struct-fixed
+                          ,client ,(length slots)
+                          ,@(loop for index below (length slots)
+                                  collect `(%struct-ref ,client object ,index))
+                          ,@(make-list (- 8 (length slots))))))))
         ;; Keep a type cell for TYPEP/TYPE-OF users that only need the name.
         ;; The fixed object representation is identified by +TAG-STRUCT+.
         (values name constructor predicate copier)))))
 
 (defun %install-make-array-macro (client environment)
-  ;; The host alias installed by EXTRINSICL has the useful element-type
-  ;; resolution logic, but Maclina currently treats unquoted keyword names as
-  ;; lexical variables.  Keep the alias under a private function name and
-  ;; quote only keyword *names* in the public macro expansion.
-  (let ((function-name (gensym "%MAKE-ARRAY-"))
-        (function (clostrum:fdefinition client environment 'cl:make-array)))
-    (setf (clostrum:fdefinition client environment function-name) function)
+  ;; Simulated arrays are headered +TAG-ARRAY+ objects.  The macro only quotes
+  ;; keyword names for Maclina; the runtime helper never calls host MAKE-ARRAY.
+  (let ((function-name (gensym "%MAKE-SIMULATED-ARRAY-")))
+    (setf (clostrum:fdefinition client environment function-name)
+          (lambda (dimensions &key element-type (initial-element nil initial-element-p))
+            (%make-simulated-array
+             client dimensions
+             :element-type element-type
+             :initial-element initial-element
+             :initial-element-p initial-element-p)))
     (setf (clostrum:macro-function client environment 'cl:make-array)
           (lambda (form macro-environment)
             (declare (ignore macro-environment))
@@ -478,6 +708,12 @@ benchmark-specific pattern matching."
 (defun install-clamsara-maclina-overrides (client environment)
   (let* ((plan (maclina-client-plan client))
          (vm (clamsara:plan-vm plan)))
+    ;; Numeric array payloads contain no references; register those layouts at
+    ;; setup time so collection never allocates or conservatively scans them.
+    (clamsara:register-slot-map
+     vm clamsara:+tag-array+ +maclina-array-single-float-code+ #())
+    (clamsara:register-slot-map
+     vm clamsara:+tag-array+ +maclina-array-integer-code+ #())
     (labels ((cons* (car cdr) (%allocate-cons client car cdr))
              (car* (object)
                (if (%simulated-cons-p vm object)
@@ -503,13 +739,30 @@ benchmark-specific pattern matching."
             (clostrum:fdefinition client environment 'cl:consp) #'consp*
             (clostrum:fdefinition client environment 'cl:rplaca) #'rplaca*
             (clostrum:fdefinition client environment 'cl:rplacd) #'rplacd*
-            (clostrum:fdefinition client environment 'cl:list) #'make-list*)
+            (clostrum:fdefinition client environment 'cl:list) #'make-list*
+            (clostrum:fdefinition client environment 'cl:aref)
+            (lambda (object index) (%array-ref client object index))
+            (clostrum:fdefinition client environment '(setf cl:aref))
+            (lambda (value object index) (%array-set client value object index))
+            (clostrum:fdefinition client environment 'cl:length)
+            (lambda (object)
+              (if (%simulated-array-p vm object)
+                  (%array-length vm object)
+                  (cl:length object)))
+            (clostrum:fdefinition client environment 'cl:arrayp)
+            (lambda (object)
+              (or (%simulated-array-p vm object) (cl:arrayp object)))
+            (clostrum:fdefinition client environment 'cl:array-element-type)
+            (lambda (object)
+              (if (%simulated-array-p vm object)
+                  (case (%array-element-code vm object)
+                    (#.+maclina-array-single-float-code+ 'single-float)
+                    (#.+maclina-array-integer-code+ 'integer)
+                    (otherwise t))
+                  (cl:array-element-type object))))
       ;; Fixed simple DEFSTRUCT support.  These are ordinary host closures,
       ;; but all payload words they manipulate live in the simulated heap.
-      (setf (clostrum:fdefinition client environment '%make-struct-raw)
-            (lambda (slot-count &rest values)
-              (%allocate-struct client slot-count values))
-            (clostrum:fdefinition client environment '%struct-ref)
+      (setf (clostrum:fdefinition client environment '%struct-ref)
             (lambda (object slot)
               (%struct-ref client object slot))
             (clostrum:fdefinition client environment '%struct-set)

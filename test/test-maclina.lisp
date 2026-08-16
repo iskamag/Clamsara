@@ -112,9 +112,34 @@
         (assert (= new-cdr (clamsara:vm-object-reference vm parent-address 1)))))
   ;; Load the real Boehm benchmark source, not a translated workload.  The
   ;; reduced depth keeps this optional test bounded while exercising simulated
-  ;; structs, keyword constructors, arrays/floats, macros, cons allocation,
+  ;; structs, keyword constructors, simulated arrays/floats, macros, cons allocation,
   ;; moving collections, and liveness assertions.
   (with-clamsara-maclina (:plan-type :semispace :heap-size 32768)
+    ;; The compatibility objects themselves must be simulator references,
+    ;; rather than host vectors/structures hidden behind a passing API.
+    (let ((array (clamsara-maclina-eval
+                  '(make-array 3 :initial-element 7))))
+      (assert (clamsara:vm-reference-p clamsara:*clamsara-vm* array))
+      (assert (= clamsara:+tag-array+
+                 (clamsara:vm-object-type-tag
+                  clamsara:*clamsara-vm*
+                  (%reference-address clamsara:*clamsara-vm* array))))
+      (assert (= 3 (clamsara-maclina-eval `(length ,array))))
+      (assert (= 7 (clamsara-maclina-eval `(aref ,array 0))))
+      (assert (= 9
+                 (clamsara-maclina-eval
+                  `(progn (setf (aref ,array 1) 9)
+                          (aref ,array 1))))))
+    (clamsara-maclina-eval
+     '(defstruct allocation-probe left right))
+    (let ((node (clamsara-maclina-eval
+                 '(make-allocation-probe :left 11 :right 22))))
+      (assert (clamsara:vm-reference-p clamsara:*clamsara-vm* node))
+      (assert (= clamsara:+tag-struct+
+                 (clamsara:vm-object-type-tag
+                  clamsara:*clamsara-vm*
+                  (%reference-address clamsara:*clamsara-vm* node))))
+      (assert (= 11 (clamsara-maclina-eval `(allocation-probe-left ,node)))))
     (%load-maclina-source-file (%boehm-fixture-path))
     (assert (clamsara-maclina-eval '(gcbench 8)))
     (assert (plusp

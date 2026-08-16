@@ -428,16 +428,22 @@ heap-sized capacity so registration and collection never grow them."
         (error 'plan-incompatible :plan p
                :message (format nil "copying space ~a has no partner"
                                 (space-name s)))))
-    ;; the barrier rule list must be consistent with the declared write
-    ;; barrier names (plans.tex §1)
+    ;; The barrier rule list must be consistent with the declared write and
+    ;; read barrier names (plans.tex §1). These declarations name the
+    ;; concrete fused rules; a publication strategy name is not itself a
+    ;; read rule (for example Claimore uses :publication-heal).
     (let ((rules (and (plan-barrier p) (barrier-rules (plan-barrier p)))))
-      (dolist (name (if (listp (constraints-write-barrier c))
-                        (constraints-write-barrier c)
-                        (and (not (eq (constraints-write-barrier c) :none))
-                             (list (constraints-write-barrier c)))))
-        (unless (or (eq name :none)
-                    (find name rules :key #'barrier-rule-name))
-          (error 'plan-incompatible :plan p
-                 :message (format nil "declared write barrier ~a not in rule list"
-                                  name)))))
+      (dolist (kind (list (cons :write (constraints-write-barrier c))
+                          (cons :read (constraints-read-barrier c))))
+        (let ((direction (car kind))
+              (declared (cdr kind)))
+          (dolist (name (if (listp declared)
+                            declared
+                            (and (not (eq declared :none))
+                                 (list declared))))
+            (unless (or (eq name :none)
+                        (find name rules :key #'barrier-rule-name))
+              (error 'plan-incompatible :plan p
+                     :message (format nil "declared ~a barrier ~a not in rule list"
+                                      direction name)))))))
     p))

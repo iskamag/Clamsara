@@ -170,8 +170,13 @@
                             :spaces (list nursery mature) :barrier barrier
                             :constraints (make-instance 'plan-constraints
                                           :scope :thread :write-barrier '(:publication :rc)
-                                          :read-barrier :publication :forwarding :off-heap
-                                          :concurrency :stw))))
+                                          ;; The fused rule is named
+                                          ;; :publication-heal; declarations name
+                                          ;; barrier rules, not strategies.
+                                          :read-barrier :publication-heal
+                                          :forwarding :off-heap
+                                          :concurrency :stw
+                                          :requires-tier :t2))))
       (setf (cl-nursery p) nursery (cl-mature p) mature (barrier-plan barrier) p
             (plan-publication p) publication)
       (add-los-space p 1/16)

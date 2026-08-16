@@ -34,15 +34,24 @@
     (make-stratum :card (g-card) :bit (vm-heap-size vm))))
 
 (defmethod plan-allocate ((p claimore-plan) size space-designator)
-  (declare (ignore space-designator))
-  (let* ((los (plan-los p)))
-    (when (and los (> (* size +word-bytes+)
-                      (constraints-max-non-los-bytes (plan-constraints p))))
-      (return-from plan-allocate
-        (or (plan-allocate-in p size los)
-            (plan-handle-allocation-failure p size los)))))
-  (or (plan-allocate-in p size (cl-nursery p))
-      (plan-handle-allocation-failure p size (cl-nursery p))))
+  (let ((explicit (plan-explicit-space p space-designator)))
+    (if explicit
+        ;; Explicit names (for example :mature or :los) bypass the nursery
+        ;; and automatic LOS policy.
+        (or (plan-allocate-in p size explicit)
+            (plan-handle-allocation-failure p size explicit))
+        (progn
+          (let ((los (plan-los p)))
+            (when (and (or (eq space-designator :default)
+                           (null space-designator))
+                       los (> (* size +word-bytes+)
+                              (constraints-max-non-los-bytes
+                               (plan-constraints p))))
+              (return-from plan-allocate
+                (or (plan-allocate-in p size los)
+                    (plan-handle-allocation-failure p size los)))))
+          (or (plan-allocate-in p size (cl-nursery p))
+              (plan-handle-allocation-failure p size (cl-nursery p)))))))
 
 (defmethod plan-handle-allocation-failure ((p claimore-plan) size space)
   (plan-collect p :cycle-kind :minor)

@@ -237,6 +237,18 @@ interpreted and compiled collectors cannot diverge."
 (defun plan-get-space (plan designator)
   (find designator (plan-spaces plan) :key #'space-name))
 
+(defun plan-explicit-space (plan designator)
+  "Resolve a non-:DEFAULT keyword space designator, if it names a space.
+
+  Specialized plans choose a different allocating space for :DEFAULT (for
+  example a nursery), so they must not dispatch through DEFAULT-SPACE when an
+  explicit space name was supplied.  Returning NIL for :DEFAULT (or an
+  unknown/non-keyword designator) lets each plan retain its existing default
+  and allocation-escalation policy."
+  (and (keywordp designator)
+       (not (eq designator :default))
+       (plan-get-space plan designator)))
+
 (defgeneric plan-nursery (plan)
   (:documentation "Return the currently allocating nursery, if PLAN has one."))
 
@@ -327,9 +339,18 @@ failure.  The escalation tail shared by every plan's failure handler."
   (:method ((p plan) size space-designator)
     (let* ((vm (plan-vm p))
            (los (plan-los p))
-           (space (if (and los (> (* size +word-bytes+) (constraints-max-non-los-bytes (plan-constraints p))))
-                      los
-                      (or (and (keywordp space-designator) (plan-get-space p space-designator))
+           ;; A named space is an explicit request.  In particular, a large
+           ;; request for :mature/:public/etc. must not be silently redirected
+           ;; to LOS; LOS escalation belongs only to the default path.
+           (explicit (plan-explicit-space p space-designator))
+           (default-p (or (eq space-designator :default)
+                          (null space-designator)))
+           (space (or explicit
+                      (if (and default-p los
+                               (> (* size +word-bytes+)
+                                  (constraints-max-non-los-bytes
+                                   (plan-constraints p))))
+                          los
                           (default-space p)))))
       (declare (ignore vm))
       (if (null space)

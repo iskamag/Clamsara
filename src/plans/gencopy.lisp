@@ -42,17 +42,27 @@
     (make-stratum :age (vm-min-alignment-words vm) :u4 (vm-heap-size vm))))
 
 (defmethod plan-allocate ((p generational-plan) size space-designator)
-  (declare (ignore space-designator))
-  ;; LOS objects (heap.tex §2) bypass the nursery: whole-page allocations in
-  ;; the large-object space.
-  (let* ((los (plan-los p)))
-    (when (and los (> (* size +word-bytes+)
-                      (constraints-max-non-los-bytes (plan-constraints p))))
-      (return-from plan-allocate
-        (or (plan-allocate-in p size los)
-            (plan-handle-allocation-failure p size los)))))
-  (or (plan-allocate-in p size (gen-nursery p))
-      (plan-handle-allocation-failure p size (gen-nursery p))))
+  (let ((explicit (plan-explicit-space p space-designator)))
+    (if explicit
+        ;; Explicit names (for example :mature or :los) bypass the nursery
+        ;; and automatic LOS policy.
+        (or (plan-allocate-in p size explicit)
+            (plan-handle-allocation-failure p size explicit))
+        (progn
+          ;; LOS objects (heap.tex §2) bypass the nursery: whole-page
+          ;; allocations in the large-object space.  This is only an automatic
+          ;; policy for the default request; explicit names are authoritative.
+          (let ((los (plan-los p)))
+            (when (and (or (eq space-designator :default)
+                           (null space-designator))
+                       los (> (* size +word-bytes+)
+                              (constraints-max-non-los-bytes
+                               (plan-constraints p))))
+              (return-from plan-allocate
+                (or (plan-allocate-in p size los)
+                    (plan-handle-allocation-failure p size los)))))
+          (or (plan-allocate-in p size (gen-nursery p))
+              (plan-handle-allocation-failure p size (gen-nursery p)))))))
 
 (defmethod plan-handle-allocation-failure ((p generational-plan) size space)
   ;; try minor; retry; try major; retry; signal.

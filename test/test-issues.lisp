@@ -194,6 +194,47 @@
                                  (plan-space-for-address
                                   *clamsara-plan* big)))))))))
 
+;; Explicit designators must win over specialized plans' default nursery or
+;; from-space policy.  The large mature request also guards against the
+;; automatic LOS threshold being applied to an explicit destination.
+(deftest specialized-plan-explicit-space-designators ()
+  (dolist (spec '((:semispace :to)
+                  (:gencopy :mature)
+                  (:genms :mature)
+                  (:genimmix :mature)
+                  (:iso :public)
+                  (:zgcish :to)
+                  (:claimore :mature)))
+    (destructuring-bind (plan-type designator) spec
+      (with-clamsara (:plan-type plan-type :heap-size 65536)
+        (let* ((space (plan-get-space *clamsara-plan* designator))
+               ;; gencopy's mature destination is deliberately larger than
+               ;; the non-LOS threshold; it must still remain in :mature.
+               (size (if (and (eq plan-type :gencopy)
+                             (eq designator :mature))
+                         1024
+                         1))
+               (address (plan-allocate *clamsara-plan* size designator)))
+          (unless (and space address (space-contains-p space address))
+            (return-from specialized-plan-explicit-space-designators
+              (values nil
+                      (format nil "~a ~a allocated ~a, expected ~a"
+                              plan-type designator address
+                              (and space (space-name space))))))))))
+  (values t "ok"))
+
+(deftest explicit-los-designator-allocates-in-los ()
+  (with-clamsara (:plan-type :gencopy :heap-size 65536)
+    (let* ((los (plan-get-space *clamsara-plan* :los))
+           (address (plan-allocate *clamsara-plan* 1024 :los)))
+      (if (and los address (space-contains-p los address))
+          (values t "ok")
+          (values nil (format nil "explicit :los allocation landed in ~a"
+                              (and address
+                                   (space-name
+                                    (plan-space-for-address
+                                     *clamsara-plan* address)))))))))
+
 ;; ---- R2: reviewer round-2 regressions --------------------------------------
 
 (deftest medium-object-survives-full-gc ()

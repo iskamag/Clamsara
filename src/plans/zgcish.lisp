@@ -18,15 +18,23 @@
     (make-stratum :mark (vm-min-alignment-words vm) :bit (vm-heap-size vm))))
 
 (defmethod plan-allocate ((p zgc-plan) size space-designator)
-  (declare (ignore space-designator))
-  (let* ((los (plan-los p)))
-    (when (and los (> (* size +word-bytes+)
-                      (constraints-max-non-los-bytes (plan-constraints p))))
-      (return-from plan-allocate
-        (or (plan-allocate-in p size los)
-            (plan-handle-allocation-failure p size los)))))
-  (or (plan-allocate-in p size (z-from p))
-      (plan-handle-allocation-failure p size (z-from p))))
+  (let ((explicit (plan-explicit-space p space-designator)))
+    (if explicit
+        ;; Explicit names (including :from, :to, and :los) are authoritative.
+        (or (plan-allocate-in p size explicit)
+            (plan-handle-allocation-failure p size explicit))
+        (progn
+          (let ((los (plan-los p)))
+            (when (and (or (eq space-designator :default)
+                           (null space-designator))
+                       los (> (* size +word-bytes+)
+                              (constraints-max-non-los-bytes
+                               (plan-constraints p))))
+              (return-from plan-allocate
+                (or (plan-allocate-in p size los)
+                    (plan-handle-allocation-failure p size los)))))
+          (or (plan-allocate-in p size (z-from p))
+              (plan-handle-allocation-failure p size (z-from p)))))))
 
 (defmethod plan-handle-allocation-failure ((p zgc-plan) size space)
   (plan-retry-after p size space :full))

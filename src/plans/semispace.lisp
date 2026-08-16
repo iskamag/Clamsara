@@ -9,15 +9,24 @@
   (:metaclass plan-metaclass))
 
 (defmethod plan-allocate ((p semispace-plan) size space-designator)
-  (declare (ignore space-designator))
-  (let* ((los (plan-los p)))
-    (when (and los (> (* size +word-bytes+)
-                      (constraints-max-non-los-bytes (plan-constraints p))))
-      (return-from plan-allocate
-        (or (plan-allocate-in p size los)
-            (plan-handle-allocation-failure p size los)))))
-  (or (plan-allocate-in p size (sp-from p))
-      (plan-handle-allocation-failure p size (sp-from p))))
+  (let ((explicit (plan-explicit-space p space-designator)))
+    (if explicit
+        ;; Explicit names (including :from, :to, and :los) bypass the
+        ;; default-space nursery/LOS policy and allocate in that space.
+        (or (plan-allocate-in p size explicit)
+            (plan-handle-allocation-failure p size explicit))
+        (let ((los (plan-los p)))
+          ;; Automatic LOS escalation applies only to the default request.
+          (when (and (or (eq space-designator :default)
+                         (null space-designator))
+                     los (> (* size +word-bytes+)
+                            (constraints-max-non-los-bytes
+                             (plan-constraints p))))
+            (return-from plan-allocate
+              (or (plan-allocate-in p size los)
+                  (plan-handle-allocation-failure p size los))))
+          (or (plan-allocate-in p size (sp-from p))
+              (plan-handle-allocation-failure p size (sp-from p)))))))
 
 (defmethod plan-handle-allocation-failure ((p semispace-plan) size space)
   (plan-retry-after p size space :full))

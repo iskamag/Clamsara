@@ -249,6 +249,14 @@ interpreted and compiled collectors cannot diverge."
 (defun plan-cons-space (plan)
   (find :cons (plan-spaces plan) :key #'space-name))
 
+;; A VM binding has no headerless objects unless its plan explicitly installs
+;; a cons-space.  Keep this sole VM-BINDING method after PLAN-CONS-SPACE so the
+;; ASDF serial load order also makes the dependency explicit.
+(defmethod vm-address-cons-p ((vm vm-binding) address)
+  (let ((plan (vm-plan vm)))
+    (and plan (plan-cons-space plan)
+         (space-contains-p (plan-cons-space plan) address))))
+
 (defun plan-los (plan)
   (find-if (lambda (s) (typep s 'los-space)) (plan-spaces plan)))
 

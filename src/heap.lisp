@@ -625,11 +625,6 @@ into the evacuated blocks and must be rewritten too."
 
 ;; ---- cons-space: headerless, off-heap forwarding -------------------------
 
-(defmethod vm-address-cons-p ((vm vm-binding) address)
-  (let ((plan (vm-plan vm)))
-    (and plan (plan-cons-space plan)
-         (space-contains-p (plan-cons-space plan) address))))
-
 (defmethod space-trace-object ((s cons-space) vm ref tracer &key trace-kind)
   (declare (ignore trace-kind))
   (let* ((addr (ref-strip-or-self vm ref))

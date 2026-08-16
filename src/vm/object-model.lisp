@@ -25,8 +25,8 @@
 ;; ---- cons detection (headerless cells in a cons-space) ------------------
 
 (defgeneric vm-address-cons-p (vm address)
-  (:documentation "Is ADDRESS a headerless cons cell?  Default no.")
-  (:method ((vm vm-binding) address) (declare (ignore address)) nil))
+  (:documentation "Is ADDRESS a headerless cons cell?  The VM binding method
+returns true only for addresses in the plan's configured cons-space."))
 
 ;; ---- object model protocol ----------------------------------------------
 

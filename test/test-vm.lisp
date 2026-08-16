@@ -23,6 +23,24 @@
                (vm-object-start-p vm a))
           (values t "obj ok") (values nil "obj wrong")))))
 
+(deftest vm-address-cons-p-default-and-configured ()
+  ;; A bare VM has no headerless cells.  Installing a plan with a named
+  ;; cons-space enables the predicate only for addresses in that space.
+  (let ((bare (make-simulator-vm 4096)))
+    (if (vm-address-cons-p bare 512)
+        (values nil "bare VM reported a cons address")
+        (let* ((vm (make-simulator-vm 4096))
+               (space (make-instance 'cons-space :vm vm :start-page 1
+                                     :page-count 2 :name :cons))
+               (plan (make-instance 'plan :name :cons-test :vm vm
+                                    :spaces (list space))))
+          (declare (ignore plan))
+          (if (and (not (vm-address-cons-p vm 511))
+                   (vm-address-cons-p vm 512)
+                   (not (vm-address-cons-p vm 1536)))
+              (values t "cons-space address predicate ok")
+              (values nil "cons-space address predicate wrong"))))))
+
 (deftest coloured-pointers ()
   ;; axis 2: in-pointer colour.  A plain address is already "good" (remapped).
   (let ((vm (make-simulator-vm 4096)))

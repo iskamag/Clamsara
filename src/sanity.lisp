@@ -23,8 +23,10 @@
                                     reachable errors visits heap-size)))))
   errors)
 
+
 (defun sanity-check (plan &key (check-mark t) (check-dlg t)
-                              (check-rc t) (check-fwd t))
+                              (check-rc t) (check-fwd t)
+                              (check-hierarchy t))
   "Return a list of invariant-violation strings (empty = heap consistent)."
   (let* ((vm (plan-vm plan))
          (heap-size (vm-heap-size vm))
@@ -70,42 +72,42 @@
                                    "forwarding table not clear @ ~a -> ~a"
                                    addr destination)
                            errors)))))
-    (when check-rc
-      ;; testing.tex §1: for a :refcount-policy space, reference counts equal
-      ;; the actual in-degree, by a verification trace.  Hierarchical spaces
-      ;; keep this count per superblock, not in each object's dense RC slot.
+    (when check-hierarchy
       (let ((hierarchical
               (find-if (lambda (s) (eq (space-policy s) :hierarchical))
                        (plan-spaces plan))))
-        (cond
-          (hierarchical
-           (setf errors
-                 (%sanity-check-hierarchical-space plan vm hierarchical errors)))
-          ((some (lambda (s) (eq (space-policy s) :refcount))
-                 (plan-spaces plan))
-           (let ((rc (vm-rc-table vm)))
-             (when rc
-               (let ((in-degree (make-hash-table :test 'eql)))
-                 (maphash
-                  (lambda (src _)
-                    (declare (ignore _))
-                    (vm-map-reference-slots
-                     vm src
-                     (lambda (c)
-                       (when (vm-reference-p vm c)
-                         (let ((bare (ref-strip-or-self vm c)))
-                           (incf (gethash bare in-degree 0)))))))
-                  reachable)
-                 ;; Check every table cell, including zero cells, so a stale
-                 ;; count with no currently reachable incoming edge is found.
-                 (loop for addr fixnum below (length rc)
-                       for actual = (aref rc addr)
-                       for expected = (gethash addr in-degree 0)
-                       unless (eql expected actual)
-                         do (push
-                             (format nil "RC mismatch @ ~a: table ~a, in-degree ~a"
-                                     addr actual expected)
-                             errors)))))))))
+        (when hierarchical
+          (setf errors
+                (%sanity-check-hierarchical-space plan vm hierarchical errors)))))
+    (when check-rc
+      ;; testing.tex §1: for a :refcount-policy space, reference counts equal
+      ;; the actual in-degree, by a verification trace.  Hierarchical spaces
+      ;; are checked above against their per-superblock counts.
+      (when (some (lambda (s) (eq (space-policy s) :refcount))
+                  (plan-spaces plan))
+        (let ((rc (vm-rc-table vm)))
+          (when rc
+            (let ((in-degree (make-hash-table :test 'eql)))
+              (maphash
+               (lambda (src _)
+                 (declare (ignore _))
+                 (vm-map-reference-slots
+                  vm src
+                  (lambda (c)
+                    (when (vm-reference-p vm c)
+                      (let ((bare (ref-strip-or-self vm c)))
+                        (incf (gethash bare in-degree 0)))))))
+               reachable)
+              ;; Check every table cell, including zero cells, so a stale
+              ;; count with no currently reachable incoming edge is found.
+              (loop for addr fixnum below (length rc)
+                    for actual = (aref rc addr)
+                    for expected = (gethash addr in-degree 0)
+                    unless (eql expected actual)
+                      do (push
+                          (format nil "RC mismatch @ ~a: table ~a, in-degree ~a"
+                                  addr actual expected)
+                          errors)))))))
     (nreverse errors)))
 
 (defun sanity-errors (plan) (sanity-check plan))
@@ -163,10 +165,34 @@ custom hierarchical allocators too."
     (and (typep allocator 'hierarchical-allocator)
          (hierarchical-block-in-use-p allocator block))))
 
+(defun %sanity-check-matrix-regions (matrix expected label live-p errors)
+  (cond
+    ((not (matrix-stratum-p matrix))
+     (push (format nil "hierarchical ~a matrix is missing" label) errors))
+    ((or (/= (matrix-regions matrix) expected)
+         (not (arrayp (matrix-bits matrix)))
+         (/= (length (matrix-bits matrix)) (* expected expected)))
+     (push (format nil "hierarchical ~a matrix has wrong shape" label) errors))
+    (t
+     (dotimes (i expected)
+       (dotimes (j expected)
+         (when (eql 1 (matrix-ref matrix i j))
+           (if (= i j)
+               (push (format nil "hierarchical ~a matrix has diagonal edge ~a"
+                             label i)
+                     errors)
+               (unless (and (funcall live-p i) (funcall live-p j))
+                 (push (format nil
+                               "hierarchical ~a matrix edge ~a[~a,~a] targets unused region"
+                               label label i j)
+                       errors))))))))
+  errors)
+
 (defun %sanity-check-hierarchy-matrices (space vm errors)
   "Validate the shape and referents of Claimore's per-SB/per-MB matrices.
 Relations are remembered sets and may legitimately be stale after a slot is
 rewritten; they must not, however, point at a freed/foreign region."
+  (declare (ignore vm))
   (let* ((mps (sb-mbs-per-superblock space))
          (bpm (sb-blocks-per-metablock space))
          (nmb (sb-mb-count space))
@@ -174,75 +200,38 @@ rewritten; they must not, however, point at a freed/foreign region."
          (nsb (sb-count space))
          (mb-matrices (sb-mb-matrices space))
          (block-matrices (sb-block-matrices space)))
-    (unless (and mb-matrices (= (length mb-matrices) nsb))
+    (unless (and (arrayp mb-matrices) (= (length mb-matrices) nsb))
       (push (format nil "hierarchical MB matrix table has wrong size: ~a (expected ~a)"
-                    (if mb-matrices (length mb-matrices) 0) nsb)
+                    (if (arrayp mb-matrices) (length mb-matrices) 0) nsb)
             errors))
-    (when mb-matrices
+    (when (arrayp mb-matrices)
       (dotimes (sb (min nsb (length mb-matrices)))
-        (let ((matrix (aref mb-matrices sb)))
-          (unless (matrix-stratum-p matrix)
-            (push (format nil "hierarchical MB matrix ~a is missing" sb) errors))
-          (when (matrix-stratum-p matrix)
-            (let ((regions (matrix-regions matrix)))
-              (unless (= regions mps)
-                (push (format nil "hierarchical MB matrix ~a has ~a regions (expected ~a)"
-                              sb regions mps) errors))
-              (dotimes (i regions)
-                (dotimes (j regions)
-                  (when (eql 1 (matrix-ref matrix i j))
-                    (cond
-                      ((= i j)
-                       (push (format nil "hierarchical MB matrix ~a has diagonal edge ~a"
-                                     sb i) errors))
-                      (t
-                       (let ((src (+ (* sb mps) i))
-                             (dst (+ (* sb mps) j))))
-                         (unless (and (< src nmb) (< dst nmb)
-                                      (loop for b below bpm
-                                            thereis
-                                            (%sanity-hierarchical-block-in-use-p
-                                             space (+ (* src bpm) b)))
-                                      (loop for b below bpm
-                                            thereis
-                                            (%sanity-hierarchical-block-in-use-p
-                                             space (+ (* dst bpm) b))))
-                           (push
-                            (format nil "hierarchical MB matrix edge ~a[~a,~a] targets unused metablock"
-                                    sb i j)
-                            errors)))))))))))))
-    (unless (and block-matrices (= (length block-matrices) nmb))
+        (setf errors
+              (%sanity-check-matrix-regions
+               (aref mb-matrices sb) mps (format nil "MB matrix ~a" sb)
+               (lambda (local)
+                 (let ((global (+ (* sb mps) local)))
+                   (and (< global nmb)
+                        (loop for block below bpm
+                              thereis
+                              (%sanity-hierarchical-block-in-use-p
+                               space (+ (* global bpm) block))))))
+               errors))))
+    (unless (and (arrayp block-matrices) (>= (length block-matrices) nmb))
       (push (format nil "hierarchical block matrix table has wrong size: ~a (expected ~a)"
-                    (if block-matrices (length block-matrices) 0) nmb)
+                    (if (arrayp block-matrices) (length block-matrices) 0) nmb)
             errors))
-    (when block-matrices
-      (dotimes (mb (min nmb (length block-matrices)))
-        (let ((matrix (aref block-matrices mb)))
-          (unless (matrix-stratum-p matrix)
-            (push (format nil "hierarchical block matrix ~a is missing" mb) errors))
-          (when (matrix-stratum-p matrix)
-            (let ((regions (matrix-regions matrix)))
-              (unless (= regions bpm)
-                (push (format nil "hierarchical block matrix ~a has ~a regions (expected ~a)"
-                              mb regions bpm) errors))
-              (dotimes (i regions)
-                (dotimes (j regions)
-                  (when (eql 1 (matrix-ref matrix i j))
-                    (cond
-                      ((= i j)
-                       (push (format nil "hierarchical block matrix ~a has diagonal edge ~a"
-                                     mb i) errors))
-                      (t
-                       (let ((src (+ (* mb bpm) i))
-                             (dst (+ (* mb bpm) j))))
-                         (unless (and (< src nblocks) (< dst nblocks)
-                                      (%sanity-hierarchical-block-in-use-p space src)
-                                      (%sanity-hierarchical-block-in-use-p space dst))
-                           (push
-                            (format nil "hierarchical block matrix edge ~a[~a,~a] targets unused block"
-                                    mb i j)
-                            errors))))))))))))
-  errors)
+    (when (arrayp block-matrices)
+      (dotimes (mb (length block-matrices))
+        (setf errors
+              (%sanity-check-matrix-regions
+               (aref block-matrices mb) bpm (format nil "block matrix ~a" mb)
+               (lambda (local)
+                 (let ((global (+ (* mb bpm) local)))
+                   (and (< global nblocks)
+                        (%sanity-hierarchical-block-in-use-p space global))))
+               errors))))
+  errors))
 
 (defun %sanity-check-hierarchy-escape (space vm errors)
   "Ensure escape metadata is confined to live blocks and has only the three

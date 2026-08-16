@@ -336,9 +336,9 @@
            :spaces (list (make-instance 'immix-space
                                          :vm vm :start-page 1 :page-count 6
                                          :name :bad-read :default-space t))
-           :barrier (make-instance 'barrier :rules (list (lvb-barrier-rule)))
+           :barrier (make-instance 'barrier :rules nil)
            :constraints (make-instance 'plan-constraints
-                                        :read-barrier '(:lvb :missing))))
+                                        :read-barrier :missing))))
       (plan-incompatible () (setf caught-p t)))
     (if caught-p
         (values t "ok")

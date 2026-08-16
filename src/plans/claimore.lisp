@@ -122,23 +122,24 @@
                     nursery vm referent (plan-tracer plan))))))))))))
 
 (defun claimore-apply-rc-log (plan)
-  "Drain the RC delta buffer, folding each object-level delta up to the
-  per-superblock reference count of its containing superblock (paper-v8
-  heap.tex §7.6).  The mature space's refcounts are per-superblock, so two
-  references to objects in the same superblock contribute one count.
-  Increments for published objects are logged against the public copy by the
-  publication barrier rule, so only mature-space targets are counted here."
+  "Drain the RC delta buffer, folding external edges into per-SB counts.
+  Each entry carries its source superblock, target, and delta.  Edges within a
+  single superblock are not external in-degree and are ignored even if an old
+  producer left such an entry in the buffer."
   (let ((buf (barrier-rc-buffer (plan-barrier plan)))
         (mature (cl-mature plan)))
     (when (and (sb-refcounts mature) buf)
       (let ((counts (sb-refcounts mature)))
-        (loop for i from 0 below (length buf) by 2
-              for ref = (aref buf i)
-              for delta = (aref buf (1+ i))
+        (loop for i from 0 below (length buf) by 3
+              for source-sb = (aref buf i)
+              for ref = (aref buf (+ i 1))
+              for delta = (aref buf (+ i 2))
               when (and (plusp ref) (space-contains-p mature ref))
-              do (let* ((sb (sb-index mature ref))
-                        (cur (aref counts sb)))
-                   (setf (aref counts sb) (max 0 (+ cur delta)))))))
+              do (let ((target-sb (sb-index mature ref)))
+                   (when (/= source-sb target-sb)
+                     (let ((cur (aref counts target-sb)))
+                       (setf (aref counts target-sb)
+                             (max 0 (+ cur delta)))))))))
     (setf (fill-pointer buf) 0)))
 
 (defun make-claimore-plan (vm heap-size)

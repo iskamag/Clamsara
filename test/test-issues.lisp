@@ -24,19 +24,24 @@
 
 ;; ---- B3: Claimore must install the RC write-barrier rule -----------------
 
-(deftest claimore-rc-barrier-logs-deltas ()
+(deftest claimore-rc-barrier-skips-internal-edges ()
+  ;; RC counts are external superblock in-degrees.  A mature-space edge whose
+  ;; endpoints share an SB must not be logged, even when a mutator writes it.
   (with-clamsara (:plan-type :claimore :heap-size 65536)
     (let* ((barrier (plan-barrier *clamsara-plan*))
            (rc-buf (barrier-rc-buffer barrier)))
       (unless (find :rc (barrier-rules barrier) :key #'barrier-rule-name)
-        (return-from claimore-rc-barrier-logs-deltas
+        (return-from claimore-rc-barrier-skips-internal-edges
           (values nil "no :rc rule in Claimore barrier")))
-      (let ((a (clamsara-allocate-object 1))
-            (b (clamsara-allocate-object 0)))
+      (let* ((mature (cl-mature *clamsara-plan*))
+             (a (alloc (space-allocator mature) 1))
+             (b (alloc (space-allocator mature) 1)))
+        (vm-write-header *clamsara-vm* a +tag-object+ 1)
+        (vm-write-header *clamsara-vm* b +tag-object+ 1)
         (clamsara-write a 0 b)
-        (if (plusp (fill-pointer rc-buf))
+        (if (zerop (fill-pointer rc-buf))
             (values t "ok")
-            (values nil "RC buffer stayed empty after a barrier write"))))))
+            (values nil "internal RC edge was logged as external"))))))
 
 ;; ---- Claimore RC granularity is per-superblock (paper-v8 heap.tex §7.6) --
 

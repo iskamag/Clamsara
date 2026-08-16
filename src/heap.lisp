@@ -1047,8 +1047,8 @@ into the evacuated blocks and must be rewritten too."
               (dotimes (b bpm)
                 (let ((bi (the fixnum (+ mb-base b))))
                   (when (< bi nblocks)
-                    (hierarchical-free-block a vm bi))))))))
-    s)))
+                    (hierarchical-free-block a vm bi)))))))))
+    s))
 
 (defun superblock-root-mbs (s vm)
   "Seed bits per SB: metablocks containing root references or nursery-edge
@@ -1139,14 +1139,13 @@ into the evacuated blocks and must be rewritten too."
                 unless added-p return nil))))
     s))
 (defun superblock-sweep (s vm)
-  "Stage 3: after the precise trace (marks set), free every block in a live
-  superblock with zero marked objects.  The sweep is bounded by the search
-  results: only metablocks reached by the closure are examined, and within a
-  reached metablock the per-MB block points-to matrix skips blocks the
-  closure could not reach (strata.tex §5.1 search).  Superblock 0 is the
-  persistent root set and is never swept.  This block-level sweep is the
-  periodic full-trace backup that reclaims cycle garbage inside a
-  still-counted superblock."
+  "Stage 3: after the precise trace (marks set), free every dead block.
+  Non-root superblocks are bounded by the search results: only metablocks
+  reached by the closure are examined.  Superblock 0 is never released
+  wholesale, but its individual dead blocks are swept too; otherwise an
+  unreachable cycle allocated beside the persistent root set would survive
+  forever.  This block-level sweep is the periodic full-trace backup that
+  reclaims cycle garbage inside a still-counted superblock."
   (let* ((a (space-allocator s))
          (mark (vm-stratum vm :mark))
          (os (vm-object-start vm))
@@ -1155,10 +1154,13 @@ into the evacuated blocks and must be rewritten too."
          (mps (%sb-mps s)))
     (when (and mark os)
       (dotimes (sb nsb)
-        (unless (zerop sb)
-          (let ((reached (aref (%sb-reached-mbs s) sb)))
-            (dotimes (m mps)
-              (when (and reached (eql 1 (sbit reached m)))
+        ;; SB0 is protected from whole-superblock RC release, not from
+        ;; precise block sweep.  For it, inspect every metablock so cycles
+        ;; with no root-seeded closure are reclaimable.
+        (let ((reached (aref (%sb-reached-mbs s) sb)))
+          (dotimes (m mps)
+            (when (or (zerop sb)
+                      (and reached (eql 1 (sbit reached m))))
                 ;; within a reached metablock the mark stratum is the
                 ;; authority for liveness, but a span (multi-block) run is
                 ;; reclaimed atomically: tail blocks inherit their root
@@ -1183,7 +1185,7 @@ into the evacuated blocks and must be rewritten too."
                                     do (setf live-p t) (return))
                             (unless live-p
                               (hierarchical-free-block
-                               a vm bi))))))))))))))))
+                               a vm bi)))))))))))))))
 
 (defun superblock-compact (s vm)
   "Block compaction (heap.tex §6, the expensive last resort): move the live

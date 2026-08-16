@@ -632,6 +632,27 @@
 (defmethod gc-phase :release ((p %probe-plan-2) k)
   (declare (ignore k)) (push :release %probe-order))
 
+(deftest gc-phase-most-specific-primary-only ()
+  ;; A phase qualifier selects the most-specific primary method.  The generic
+  ;; PLAN fallback must not run after the %PROBE-PLAN MARK method: leave its
+  ;; tracer uninitialized so an accidental fall-through is observable.
+  (let ((vm (make-simulator-vm 32768)))
+    (let ((p (make-instance '%probe-plan
+                            :name :probe :vm vm :spaces nil
+                            :constraints (make-instance 'plan-constraints))))
+      (let ((%probe-order nil))
+        (handler-case
+            (progn
+              (gc-phase p :full)
+              (if (equal %probe-order
+                         '(:around-done :release :reclaim :mark :prologue :around))
+                  (values t "ok")
+                  (values nil (format nil "phase order/methods wrong: ~a"
+                                      %probe-order))))
+          (error (condition)
+            (values nil (format nil "specialized phase fell through: ~a"
+                                condition))))))))
+
 (deftest gc-phase-method-combination-runs-all-phases ()
   ;; plans.tex §3: collection proceeds through the gc-phase combination in
   ;; declaration order; :around wraps the assembled primary.

@@ -212,6 +212,11 @@
   object model (vm-object-total-words = 2), so a walker scanning it cannot run
   off into the heap."
   (setf (vm-object-header vm original) (pack-header 1 +error-tag+))
+  ;; Slot 0 is now a strong trap redirect, not a weak referent.  Clear the
+  ;; copied object's weak metadata or the private collector will omit the
+  ;; redirect and can reclaim the public incarnation it names.
+  (let ((weak (vm-stratum vm :weak)))
+    (when weak (s-clear-bit weak original)))
   (setf (vm-object-reference vm original 0) copy))
 
 (defun error-object-p (vm reference)

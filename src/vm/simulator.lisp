@@ -40,7 +40,8 @@
   (declare (ignore vm feature))
   t)
 
-(defun %make-simulator-vm (class heap-words plan)
+(defun %make-simulator-vm (class heap-words plan &key
+                              (work-packets (max 1 heap-words)))
   (when (>= heap-words (ash 1 +colour-pos+))
     (error 'clamsara-error
            :message "simulator heap does not fit below the colour bits"))
@@ -56,11 +57,21 @@
     ;; object-start stratum at the VM's minimum alignment (1 word here).
     (setf (vm-object-start vm)
           (make-stratum :object-start (vm-min-alignment-words vm) :bit heap-words))
+    ;; Work packets and the one-worker scheduler are immortal VM storage: they
+    ;; must exist before any plan or collector can enqueue work.
+    (initialize-vm-scheduler vm :capacity work-packets)
     ;; Every advertised software-MMU capability is ready before booted
     ;; collector code can run; MMU-ENSURE will not allocate on first use.
     (mmu-init vm)
     vm))
 
-(defun make-simulator-vm (heap-words &key plan)
-  "Allocate a fresh heap of HEAP-WORDS words and a simulator VM over it."
-  (%make-simulator-vm 'simulator-vm heap-words plan))
+(defun make-simulator-vm (heap-words &key plan
+                             (work-packets (max 1 heap-words))
+                             work-packet-count scheduler-capacity)
+  "Allocate a fresh heap and a simulator VM over it.
+WORK-PACKETS (also accepted as WORK-PACKET-COUNT or SCHEDULER-CAPACITY)
+is the fixed capacity of the VM's packet pool and scheduler queue."
+  (%make-simulator-vm 'simulator-vm heap-words plan
+                      :work-packets (or scheduler-capacity
+                                         work-packet-count
+                                         work-packets)))

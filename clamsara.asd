@@ -24,6 +24,7 @@
      (:module "vm"
       :serial t
       :components ((:file "binding")
+                   (:file "scheduler")
                    (:file "software-mmu")
                    (:file "object-model")
                    (:file "simulator")))

@@ -78,3 +78,48 @@
                  (= (length conservative) 2)))
           (values t "ok")
           (values nil (format nil "precise scan wrong: ~a" seen))))))
+
+
+(deftest simulator-scheduler-protocol ()
+  ;; Work packets are VM-owned records.  The one-worker simulator still
+  ;; exposes steal, while drain executes FIFO work and returns packets to the
+  ;; preallocated pool.
+  (let* ((vm (make-simulator-vm 4096 :work-packets 4))
+         (p1 (make-work-packet vm :function nil :region-start 1 :region-end 2))
+         (p2 (make-work-packet vm :function nil :region-start 3 :region-end 4))
+         (p3 (make-work-packet vm :function nil :region-start 5 :region-end 6))
+         (seen nil))
+    (scheduler-enqueue vm p1)
+    (scheduler-enqueue (vm-scheduler vm) p2)
+    (scheduler-enqueue vm p3)
+    (let ((stolen (scheduler-steal vm)))
+      (unless (eq stolen p3)
+        (return-from simulator-scheduler-protocol
+          (values nil "steal did not take the back packet")))
+      (release-work-packet stolen))
+    (let ((n (scheduler-drain vm (lambda (packet)
+                                   (push (work-packet-region-start packet) seen))))
+          (reused (vm-allocate-work-packet vm)))
+      (unwind-protect
+           (if (and (= n 2) (= (scheduler-queue-size (vm-scheduler vm)) 0)
+                    (equal (sort seen #'<) '(1 3))
+                    (eq (work-packet-state reused) :detached))
+               (values t "scheduler enqueue/steal/drain ok")
+               (values nil (format nil "scheduler protocol wrong: ~a" seen)))
+        (release-work-packet reused)))))
+
+(deftest plan-mutator-context-ownership ()
+  ;; Contexts are plan-owned, even though their VM is the simulator VM.  A
+  ;; second context extends the plan's storage rather than a VM-global list.
+  (let* ((vm (make-simulator-vm 4096 :work-packets 2))
+         (p (make-instance 'plan :name :context-test :vm vm :spaces nil
+                           :constraints (make-instance 'plan-constraints)))
+         (first (plan-mutator-context p))
+         (second (make-mutator-context p)))
+    (if (and first second
+             (eq (mutator-context-plan first) p)
+             (eq (mutator-context-plan second) p)
+             (eq (mutator-context-vm second) vm)
+             (= (length (plan-mutator-contexts p)) 2))
+        (values t "mutator context ownership ok")
+        (values nil "mutator context ownership wrong"))))

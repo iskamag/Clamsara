@@ -94,6 +94,12 @@ has one source of truth.")
    ;; Mutable state for allocation-free root/drain callbacks. A concurrent
    ;; backend replaces this per-plan slot with per-worker collector state.
    (active-trace-kind :accessor plan-active-trace-kind :initform nil)
+   ;; Mutator contexts belong to the plan, not to the VM.  The simulator starts
+   ;; with one preallocated context (the one-worker default); additional worker
+   ;; contexts are explicitly registered in this adjustable vector.
+   (mutator-context :accessor plan-mutator-context :initform nil)
+   (mutator-contexts :accessor plan-mutator-contexts
+                     :initform (make-array 1 :adjustable t :fill-pointer 0))
    (booted-p :accessor plan-booted-p :initform nil)
    (sticky-p :initarg :sticky :initform nil :reader plan-sticky-p)
    ;; finalization trait (weak.tex §2): known/pending finalizer vectors, plus
@@ -107,7 +113,14 @@ has one source of truth.")
 
 (defmethod shared-initialize :after ((p plan) slot-names &key)
   (declare (ignore slot-names))
-  (setf (vm-plan (plan-vm p)) p))
+  (setf (vm-plan (plan-vm p)) p)
+  ;; Context state is plan-owned.  Keeping the default context in the plan's
+  ;; vector makes ownership explicit and avoids a VM-global mutable context.
+  (unless (plan-mutator-context p)
+    (let ((context (%new-mutator-context
+                    p :vm (plan-vm p) :barrier (plan-barrier p))))
+      (setf (plan-mutator-context p) context)
+      (vector-push-extend context (plan-mutator-contexts p)))))
 
 ;; ---- default phase methods ----------------------------------------------
 

@@ -31,6 +31,12 @@
    (persistence-log :accessor vm-persistence-log :initform nil)
    (cow-pages   :accessor vm-cow-pages :initform nil) ; bit-vector, page -> armed
    (cow-images  :accessor vm-cow-images :initform nil) ; page -> frozen words
+   ;; The simulator scheduler and packet pool are VM-owned immortal storage.
+   ;; They are initialized once at VM creation and never grow on a collector
+   ;; or mutator path.
+   (scheduler :accessor vm-scheduler :initform nil)
+   (work-packet-pool :accessor vm-work-packet-pool :initform nil)
+   (work-packet-free-stack :accessor vm-work-packet-free-stack :initform nil)
    (plan        :initarg :plan :accessor vm-plan :initform nil)))
 
 (defclass virtual-memory-mixin ()           ; T1

@@ -223,6 +223,22 @@
                               (and space (space-name space))))))))))
   (values t "ok"))
 
+(deftest allocate-object-explicit-space-designators ()
+  ;; Exercise the headered allocation API, not just PLAN-ALLOCATE directly.
+  (dolist (spec '((:semispace :to) (:gencopy :mature) (:claimore :mature)))
+    (destructuring-bind (plan-type designator) spec
+      (with-clamsara (:plan-type plan-type :heap-size 65536)
+        (let* ((space (plan-get-space *clamsara-plan* designator))
+               (address (allocate-object *clamsara-plan* 0
+                                         :space designator)))
+          (unless (and space (space-contains-p space address))
+            (return-from allocate-object-explicit-space-designators
+              (values nil
+                      (format nil "~a :~a allocated ~a, expected ~a"
+                              plan-type designator address
+                              (and space (space-name space))))))))))
+  (values t "ok"))
+
 (deftest explicit-los-designator-allocates-in-los ()
   (with-clamsara (:plan-type :gencopy :heap-size 65536)
     (let* ((los (plan-get-space *clamsara-plan* :los))

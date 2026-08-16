@@ -1305,7 +1305,8 @@ into the evacuated blocks and must be rewritten too."
 
 (declaim (inline hierarchical-block-in-use-p hierarchical-block-cursor
                  hierarchical-block-base hierarchical-fresh-available-p
-                 hierarchical-clear-relations))
+                 hierarchical-clear-relations
+                 hierarchical-clear-empty-metablock-relations))
 
 (defun hierarchical-block-in-use-p (a block-index)
   (and (< block-index (hierarchical-allocator-block-count a))
@@ -1365,6 +1366,10 @@ into the evacuated blocks and must be rewritten too."
                     (hierarchical-clear-relations a vm bi)
                     (setf (aref (hierarchical-allocator-cursors a) bi) -1
                           (aref (hierarchical-allocator-span-root a) bi) -1)
+                    ;; A metablock relation remains valid while another
+                    ;; block in the MB is in use.  Once this block was the
+                    ;; last one, remove the parent SB's MB row/column too.
+                    (hierarchical-clear-empty-metablock-relations a bi)
                     (unless (vector-push bi (hierarchical-allocator-free-blocks a))
                       (error 'heap-exhausted :requested-size 1
                              :space :block-free-list))
@@ -1377,6 +1382,8 @@ into the evacuated blocks and must be rewritten too."
           (the fixnum (+ (hierarchical-block-base a block-index) bw)))
          (hierarchical-clear-relations a vm block-index)
          (setf (aref (hierarchical-allocator-cursors a) block-index) -1)
+         ;; Keep the MB-level remembered set until its final block dies.
+         (hierarchical-clear-empty-metablock-relations a block-index)
          (unless (vector-push block-index (hierarchical-allocator-free-blocks a))
            (error 'heap-exhausted :requested-size 1 :space :block-free-list))
          (when (eql (hierarchical-allocator-current a) block-index)
@@ -1399,6 +1406,42 @@ into the evacuated blocks and must be rewritten too."
               (matrix-clear bm local-block j)
               (matrix-clear bm j local-block)))
           (setf (sb-escape-value s vm block-index) 0)))))
+  block-index)
+
+(defun hierarchical-clear-empty-metablock-relations (a block-index)
+  "Clear the parent SB MB row/column when BLOCK-INDEX emptied its MB.
+
+The final MB in a space can be partial, so only blocks below the allocator's
+actual block count participate in the emptiness check.  MB matrices are local
+to their parent SB; the matrix for that SB is therefore the only one that can
+contain this MB's same-SB relations."
+  (declare (type hierarchical-allocator a) (type fixnum block-index)
+           (optimize (speed 3) (safety 0)))
+  (let ((s (hierarchical-allocator-space a)))
+    (when (typep s 'superblock-space)
+      (let* ((bpm (%sb-bpm s))
+             (mb (floor block-index bpm))
+             (base (* mb bpm))
+             (nblocks (%sb-block-count s))
+             (empty-p t))
+        ;; Do not treat the unused tail of a partial final MB as live.
+        (dotimes (b bpm)
+          (let ((bi (+ base b)))
+            (when (and (< bi nblocks)
+                       (hierarchical-block-in-use-p a bi))
+              (setf empty-p nil)
+              (return))))
+        (when empty-p
+          (let* ((mps (%sb-mps s))
+                 (sb (floor mb mps))
+                 (local-mb (mod mb mps))
+                 (matrices (%sb-mb-matrices s)))
+            (when (and matrices (< sb (length matrices)))
+              (let ((matrix (aref matrices sb)))
+                (when matrix
+                  (dotimes (j mps)
+                    (matrix-clear matrix local-mb j)
+                    (matrix-clear matrix j local-mb))))))))))
   block-index)
 
 (defun hierarchical-sb-in-use-p (a sb)

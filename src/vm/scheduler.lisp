@@ -305,11 +305,14 @@ Returns the number drained.  Drained VM-owned packets return to the pool."))
 
 The initial context is made by PLAN construction.  Additional contexts are
 kept in PLAN-MUTATOR-CONTEXTS; no VM-global context slot is used."
-  (let* ((actual-vm (or vm (plan-vm plan)))
-         (context (%new-mutator-context
-                   plan :vm actual-vm :allocator allocator
-                   :barrier (or barrier (plan-barrier plan))
-                   :tlab-cursor tlab-cursor :tlab-limit tlab-limit))
-         (contexts (plan-mutator-contexts plan)))
-    (vector-push-extend context contexts)
-    context))
+  (let ((actual-vm (or vm (plan-vm plan))))
+    (unless (eq actual-vm (plan-vm plan))
+      (error 'clamsara-error
+             :message "mutator context belongs to another VM"))
+    (let* ((context (%new-mutator-context
+                     plan :vm actual-vm :allocator allocator
+                     :barrier (or barrier (plan-barrier plan))
+                     :tlab-cursor tlab-cursor :tlab-limit tlab-limit))
+           (contexts (plan-mutator-contexts plan)))
+      (vector-push-extend context contexts)
+      context)))

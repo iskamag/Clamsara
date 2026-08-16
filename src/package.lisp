@@ -145,7 +145,8 @@
            #:persistence-log-base-checksum #:persistence-log-segments
            #:persistence-segment #:write-segment #:verify-segment
            #:collector-dirty-set #:collector-clear-dirty
-           #:mark-pages-cow #:persistent-plan #:checkpoint-heap
+           #:mark-pages-cow #:persistent-plan #:plan-persistence-log
+           #:checkpoint-heap
            #:replay-segment #:replay-segments #:replay-log
            #:replay-persistence-log #:recover-last-intact-snapshot)
   ;; public api

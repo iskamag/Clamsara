@@ -196,19 +196,23 @@
         (let ((dirty (mmu-dirty vm)))
           (when dirty
             (dotimes (p (length dirty))
-              (when (eql 1 (sbit dirty p)) (push p pages)))))
+              (when (eql 1 (sbit dirty p))
+                (push p pages)))))
         (let ((card (vm-stratum vm :card)))
           (when card
+            ;; Keep the LET binding form limited to PAGE-STRATUM.  In
+            ;; particular, S-PROJECT is body work, not another binding spec.
             (let ((page-stratum
                     (or (vm-stratum vm :page-dirty)
                         (vm-register-stratum
                          vm :page-dirty
                          (make-stratum :page-dirty +page-words+ :bit
-                                       (vm-heap-size vm)))))
+                                       (vm-heap-size vm))))))
               (s-clear page-stratum)
               (s-project card page-stratum :any)
               (s-for-set-cells page-stratum nil
-                (lambda (addr) (push (address-page addr) pages))))))))
+                (lambda (addr)
+                  (push (address-page addr) pages)))))))
     (sort (remove-duplicates pages) #'<)))
 
 (defun collector-clear-dirty (plan)

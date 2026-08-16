@@ -70,6 +70,25 @@
            #:vm-allocate-object #:vm-root-set
            #:vm-reference-slots #:vm-map-reference-slots
            #:vm-heal-reference-slots
+           ;; scheduler / work-packet / mutator-context protocol
+           #:scheduler #:make-scheduler
+           #:scheduler-vm #:scheduler-queue #:scheduler-head #:scheduler-tail
+           #:scheduler-queue-size #:scheduler-capacity
+           #:scheduler-enqueue #:scheduler-steal #:scheduler-drain
+           #:work-packet #:make-work-packet
+           #:work-packet-function #:work-packet-fn
+           #:work-packet-region #:work-packet-region-start #:work-packet-start
+           #:work-packet-region-end #:work-packet-end #:work-packet-data
+           #:work-packet-owner #:work-packet-pool-index #:work-packet-state
+           #:vm-scheduler #:vm-work-packet-pool #:vm-work-packet-free-stack
+           #:initialize-vm-scheduler #:vm-work-packet-pool-size
+           #:vm-work-packet #:vm-allocate-work-packet #:vm-make-work-packet
+           #:release-work-packet
+           #:mutator-context #:make-mutator-context
+           #:mutator-context-plan #:mutator-context-vm
+           #:mutator-context-tlab-cursor #:mutator-context-tlab-limit
+           #:mutator-context-allocator #:mutator-context-barrier
+           #:plan-mutator-context #:plan-mutator-contexts
            #:slot-map #:register-slot-map #:slot-map-for
             #:vm-add-root #:vm-remove-root #:vm-remove-root-at-index #:vm-clear-roots
            #:vm-set-reference)

@@ -46,6 +46,7 @@
          (source (space-base-address mature))
          (target 17))
     (setf (barrier-plan barrier) plan)
+    (initialize-barrier-buffers barrier vm)
     (s-set-bit (vm-object-start vm) source)
     (s-set-bit (vm-object-start vm) target)
     (barrier-note-write vm barrier source (1+ source) target)

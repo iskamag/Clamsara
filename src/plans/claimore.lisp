@@ -161,23 +161,24 @@
                                    :metablocks-per-superblock 4
                                    :policy :hierarchical))
            (publication (make-instance 'trap-error-copy-a :public-region mature))
+           ;; The relocation LVB runs before the publication trap/read rule,
+           ;; matching the paper's declared read-barrier order.
+           (lvb-rule (lvb-barrier-rule))
            (read-rule (make-barrier-rule
-                       :name :publication-heal :trigger :ref-read
+                       :name :trap :trigger :ref-read
                        :transfer (publication-read-rule publication)))
            (barrier (make-instance 'barrier
                       :rules (list (publication-barrier-rule)
                                    (rc-barrier-rule)
+                                   lvb-rule
                                    read-rule)))
            (p (make-instance 'claimore-plan :name :claimore :vm vm
                             :spaces (list nursery mature) :barrier barrier
                             :constraints (make-instance 'plan-constraints
                                           :scope :thread :write-barrier '(:publication :rc)
-                                          ;; The fused rule is named
-                                          ;; :publication-heal; declarations name
-                                          ;; barrier rules, not strategies.
-                                          :read-barrier :publication-heal
+                                          :read-barrier '(:lvb :trap)
                                           :forwarding :off-heap
-                                          :concurrency :stw
+                                          :concurrency :concurrent-relocate
                                           :requires-tier :t2))))
       (setf (cl-nursery p) nursery (cl-mature p) mature (barrier-plan barrier) p
             (plan-publication p) publication)

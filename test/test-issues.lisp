@@ -308,14 +308,41 @@
           (values nil "partnerless copying space not rejected"))))
     (values t "ok")))
 
-(deftest claimore-concurrency-matches-implementation ()
+(deftest claimore-plan-metadata-matches-paper ()
   (with-clamsara (:plan-type :claimore :heap-size 65536)
-    (let ((conc (constraints-concurrency (plan-constraints *clamsara-plan*))))
-      ;; The simulator performs no concurrent relocation; declaring it would
-      ;; misrepresent the moving model (mature is non-moving mark-sweep).
-      (if (eq conc :concurrent-relocate)
-          (values nil "claims concurrent-relocate but never relocates")
-          (values t "ok")))))
+    (let* ((constraints (plan-constraints *clamsara-plan*))
+           (read-barriers (constraints-read-barrier constraints)))
+      (if (and (eq (constraints-requires-tier constraints) :t2)
+               (eq (constraints-concurrency constraints) :concurrent-relocate)
+               (eq (constraints-forwarding constraints) :off-heap)
+               (equal read-barriers '(:lvb :trap)))
+          (values t "ok")
+          (values nil
+                  (format nil "unexpected Claimore metadata: tier=~a concurrency=~a forwarding=~a reads=~s"
+                          (constraints-requires-tier constraints)
+                          (constraints-concurrency constraints)
+                          (constraints-forwarding constraints)
+                          read-barriers))))))
+
+(deftest plan-validation-rejects-undeclared-read-barrier ()
+  ;; Read-barrier declarations, like write-barrier declarations, must name
+  ;; concrete rules installed on the plan's barrier.
+  (let ((vm (make-simulator-vm 4096))
+        (caught-p nil))
+    (handler-case
+        (finalize-plan
+         (make-instance 'plan
+           :vm vm :name :bad-read
+           :spaces (list (make-instance 'immix-space
+                                         :vm vm :start-page 1 :page-count 6
+                                         :name :bad-read :default-space t))
+           :barrier (make-instance 'barrier :rules (list (lvb-barrier-rule)))
+           :constraints (make-instance 'plan-constraints
+                                        :read-barrier '(:lvb :missing))))
+      (plan-incompatible () (setf caught-p t)))
+    (if caught-p
+        (values t "ok")
+        (values nil "undeclared read barrier was not rejected"))))
 
 ;; ---- B15: vm-object-copy must carry the mark bit to the destination ------
 

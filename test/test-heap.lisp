@@ -49,6 +49,29 @@
         (values t "ok")
         (values nil "nonzero-superblock metablock was not reached"))))
 
+(deftest superblock-release-zero-count-covers-all-metablocks ()
+  ;; A zero-count SB must release blocks in every metablock, not only the
+  ;; first one.  Block 6 is SB 1's second metablock with this small geometry.
+  (let* ((vm (make-simulator-vm 65536))
+         (space (make-instance 'superblock-space :vm vm :start-page 1
+                               :page-count 64 :name :hierarchy
+                               :blocks-per-metablock 2
+                               :metablocks-per-superblock 2))
+         (a (space-allocator space))
+         (counts (sb-refcounts space))
+         (block 6)
+         (address (sb-block-base space block)))
+    (setf (aref counts 1) 0
+          (aref (hierarchical-allocator-cursors a) block) (+ address 2))
+    (vm-write-header vm address +tag-object+ 1)
+    (superblock-release-zero-count space vm)
+    (if (and (= (sb-index space address) 1)
+             (= (sb-mb-index space address) 3)
+             (minusp (aref (hierarchical-allocator-cursors a) block))
+             (not (s-test-bit (vm-object-start vm) address)))
+        (values t "ok")
+        (values nil "zero-count release skipped a later metablock"))))
+
 (deftest mature-source-hierarchy-rejects-foreign-target ()
   ;; A mature source may point into the nursery; that edge must not be fed to
   ;; mature-space block/metablock matrices as if the target were mature.

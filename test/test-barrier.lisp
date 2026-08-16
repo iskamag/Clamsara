@@ -38,18 +38,9 @@
                                 :block-words 512
                                 :blocks-per-metablock 2
                                 :metablocks-per-superblock 2))
-         (barrier (make-barrier (rc-barrier-rule)))
-         (plan (make-instance 'plan :name :barrier-test :vm vm
-                              :spaces (list nursery mature)
-                              :barrier barrier
-                              :constraints (make-instance 'plan-constraints)))
          (source (space-base-address mature))
-         (target 17))
-    (setf (barrier-plan barrier) plan)
-    (initialize-barrier-buffers barrier vm)
-    (s-set-bit (vm-object-start vm) source)
-    (s-set-bit (vm-object-start vm) target)
-    (barrier-note-write vm barrier source (1+ source) target)
+         (target (+ (space-base-address nursery) 17)))
+    (superblock-note-write mature vm source target)
     (if (and (notany #'plusp (matrix-bits (aref (sb-mb-matrices mature) 0)))
              (notany #'plusp (matrix-bits (aref (sb-block-matrices mature) 0)))
              (zerop (sb-escape-value mature vm (sb-block-index mature source))))

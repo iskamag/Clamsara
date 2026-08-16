@@ -208,8 +208,8 @@
               (s-clear page-stratum)
               (s-project card page-stratum :any)
               (s-for-set-cells page-stratum nil
-                (lambda (addr) (push (address-page addr) pages)))))))
-    (sort (remove-duplicates pages) #'<))))
+                (lambda (addr) (push (address-page addr) pages))))))))
+    (sort (remove-duplicates pages) #'<)))
 
 (defun collector-clear-dirty (plan)
   "Reset the dirty signal the collector handed persistence."

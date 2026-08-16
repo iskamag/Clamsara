@@ -206,16 +206,23 @@ interpreted and compiled collectors cannot diverge."
     (funcall (sb-mop:method-function method) (list plan cycle-kind) nil)))
 
 (defmethod plan-collect-phase ((p plan) cycle-kind)
+  ;; Any phase may signal (including a backend fault).  Keep the VM out of a
+  ;; permanently stopped state while preserving the original condition.
   (if (eq cycle-kind :checkpoint)
       ;; persistence.tex §4: a checkpoint is a snapshot, not a collection.
       ;; Only the checkpoint phase (plus the stop/resume safepoint) runs.
       (progn
         (vm-stop-mutators (plan-vm p))
-        (let ((*gc-phase-selection* :checkpoint))
-          (gc-phase p cycle-kind))
-        (vm-resume-mutators (plan-vm p)))
-      (let ((*gc-phase-selection* :collection))
-        (gc-phase p cycle-kind))))
+        (unwind-protect
+             (let ((*gc-phase-selection* :checkpoint))
+               (gc-phase p cycle-kind))
+          (vm-resume-mutators (plan-vm p))))
+      (unwind-protect
+           (let ((*gc-phase-selection* :collection))
+             (gc-phase p cycle-kind))
+        ;; The normal epilogue already resumes, but the protocol is idempotent
+        ;; and this also covers errors before the epilogue is reached.
+        (vm-resume-mutators (plan-vm p)))))
 
 (defmethod plan-collect-phase :around ((p plan) cycle-kind)
   (let ((t0 (get-internal-run-time)))

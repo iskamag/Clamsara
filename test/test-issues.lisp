@@ -699,6 +699,28 @@
 (defmethod gc-phase :release ((p %probe-plan-2) k)
   (declare (ignore k)) (push :release %probe-order))
 
+(defclass %error-phase-plan (plan) ()
+  (:metaclass plan-metaclass))
+
+(defmethod gc-phase :mark ((p %error-phase-plan) k)
+  (declare (ignore p k))
+  (error "intentional phase failure"))
+
+(deftest gc-phase-error-resumes-mutators ()
+  ;; A failed backend phase must not strand the simulator in its stopped
+  ;; state; the original error remains observable to the caller.
+  (let* ((vm (make-simulator-vm 4096))
+         (p (make-instance '%error-phase-plan
+                           :name :error-phase :vm vm :spaces nil
+                           :constraints (make-instance 'plan-constraints)))
+         (caught nil))
+    (handler-case (plan-collect-phase p :full)
+      (error () (setf caught t)))
+    (if (and caught (not (vm-stopped-p vm))
+             (not (vm-stop-requested-p vm)))
+        (values t "phase failure resumed mutators")
+        (values nil "phase failure left VM stopped"))))
+
 (deftest gc-phase-most-specific-primary-only ()
   ;; A phase qualifier selects the most-specific primary method.  The generic
   ;; PLAN fallback must not run after the %PROBE-PLAN MARK method: leave its

@@ -225,29 +225,29 @@ on the first live VM-OBJECT-REFERENCE after boot."
   allocator)
 
 #+sbcl
-(defun selected-primary-method-function (generic-function arguments)
-  "Resolve one phase method at boot. The returned function uses SBCL's
-(arguments next-methods) MOP calling convention."
+(defun selected-phase-method-function (plan cycle-kind phase)
+  "Resolve the most-specific GC-PHASE method qualified PHASE for PLAN.
+The returned function uses SBCL's (arguments next-methods) MOP calling
+convention."
   (let ((method
           (find-if
            (lambda (candidate)
-             (null (sb-mop:method-qualifiers candidate)))
-           (compute-applicable-methods generic-function arguments))))
+             (equal (sb-mop:method-qualifiers candidate) (list phase)))
+           (compute-applicable-methods
+            (fdefinition 'gc-phase) (list plan cycle-kind)))))
     (unless method
-      (error "No primary method for ~S with ~S"
-             generic-function arguments))
+      (error "No ~a gc-phase method for ~S" phase (type-of plan)))
     (sb-mop:method-function method)))
 
 #+sbcl
 (defun direct-phase-forms (plan cycle-kind)
-  "Resolve the ordered phase generics and prebuild their argument lists."
-  (loop for name in '(phase-prologue phase-mark phase-weak phase-reclaim
-                      phase-compact phase-checkpoint phase-release
-                      phase-epilogue)
-        for arguments = (list plan cycle-kind)
-        for method-function =
-          (selected-primary-method-function (fdefinition name) arguments)
-        collect `(funcall ,method-function ',arguments nil)))
+  "Resolve the ordered gc-phase methods and prebuild their argument lists.
+The resolution is identical to the combination's dispatch, so compiled and
+interpreted collectors cannot diverge."
+  (let ((arguments (list plan cycle-kind)))
+    (loop for phase in +gc-phase-order+
+          for method-function = (selected-phase-method-function plan cycle-kind phase)
+          collect `(funcall ,method-function ',arguments nil))))
 
 (defun compiled-plan-collect-form (plan)
   #+sbcl
@@ -257,13 +257,7 @@ on the first live VM-OBJECT-REFERENCE after boot."
         ;; persistence.tex §4: a checkpoint is a SNAPSHOT, not a collection.
         ;; The compiled arm runs only the checkpoint phase (plus the
         ;; stop/resume safepoint), never prologue/mark/reclaim/compact.
-        (checkpoint-form
-          (loop for name in '(phase-checkpoint)
-                for arguments = (list plan :checkpoint)
-                for method-function =
-                  (selected-primary-method-function (fdefinition name)
-                                                    arguments)
-                collect `(funcall ,method-function ',arguments nil))))
+        (checkpoint-form (first (direct-phase-forms plan :checkpoint))))
     `(lambda (ignored-plan cycle-kind)
        (declare (ignore ignored-plan))
        (let ((started (get-internal-run-time)))
@@ -273,7 +267,7 @@ on the first live VM-OBJECT-REFERENCE after boot."
            (:full ,@full)
            (:checkpoint
             (vm-stop-mutators (plan-vm ',plan))
-            ,@checkpoint-form
+            ,checkpoint-form
             (vm-resume-mutators (plan-vm ',plan))))
          (let ((statistics (slot-value ',plan 'stats)))
            (when statistics

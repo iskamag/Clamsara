@@ -49,21 +49,21 @@
                             (when os (s-set-bit os a2))) a2)
                    (error 'heap-exhausted :requested-size size :space :private)))))))
 
-(defmethod phase-prologue ((p iso-plan) k)
+(defmethod gc-phase :prologue ((p iso-plan) k)
   (vm-stop-mutators (plan-vm p))
   (if (eq k :minor)
       (space-prepare (iso-private p) (plan-vm p))
       (prepare-spaces p k)))
 
-(defmethod phase-mark ((p iso-plan) k)
+(defmethod gc-phase :mark ((p iso-plan) k)
   (if (eq k :minor) (iso-minor-mark p) (mark-roots p (plan-tracer p))))
 
-(defmethod phase-reclaim ((p iso-plan) k)
+(defmethod gc-phase :reclaim ((p iso-plan) k)
   (if (eq k :minor)
       (space-reclaim (iso-private p) (plan-vm p) :cycle-kind k)
       (reclaim-spaces p k)))
 
-(defmethod phase-release ((p iso-plan) k)
+(defmethod gc-phase :release ((p iso-plan) k)
   (declare (ignore k))
   (let ((mark (vm-stratum (plan-vm p) :mark))) (when mark (s-clear mark)))
   (when (plan-stats p) (stats-event (plan-stats p) :gc-cycles 1)))

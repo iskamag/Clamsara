@@ -540,3 +540,84 @@
               (values nil (format nil "~a: LOS->nursery edge lost: slot=~a"
                                   plan-type slot))))))))
   (values t "ok"))
+
+;; ---- G9a: the gc-phase combination is the phase machine ------------------
+
+(defclass %probe-plan (plan) ()
+  (:metaclass plan-metaclass))
+
+(defclass %probe-plan-2 (plan) ()
+  (:metaclass plan-metaclass))
+
+(defvar %probe-order nil)
+
+(defmethod gc-phase :prologue ((p %probe-plan) k)
+  (declare (ignore k)) (push :prologue %probe-order))
+(defmethod gc-phase :mark ((p %probe-plan) k)
+  (declare (ignore k)) (push :mark %probe-order))
+(defmethod gc-phase :reclaim ((p %probe-plan) k)
+  (declare (ignore k)) (push :reclaim %probe-order))
+(defmethod gc-phase :release ((p %probe-plan) k)
+  (declare (ignore k)) (push :release %probe-order))
+(defmethod gc-phase :around ((p %probe-plan) k)
+  (push :around %probe-order)
+  (call-next-method)
+  (push :around-done %probe-order))
+
+(defmethod gc-phase :prologue ((p %probe-plan-2) k)
+  (declare (ignore k)) (push :prologue %probe-order))
+(defmethod gc-phase :mark ((p %probe-plan-2) k)
+  (declare (ignore k)) (push :mark %probe-order))
+(defmethod gc-phase :reclaim ((p %probe-plan-2) k)
+  (declare (ignore k)) (push :reclaim %probe-order))
+(defmethod gc-phase :release ((p %probe-plan-2) k)
+  (declare (ignore k)) (push :release %probe-order))
+
+(deftest gc-phase-method-combination-runs-all-phases ()
+  ;; plans.tex §3: collection proceeds through the gc-phase combination in
+  ;; declaration order; :around wraps the assembled primary.
+  (let ((vm (make-simulator-vm 32768)))
+    (let ((p (make-instance '%probe-plan
+                            :name :probe :vm vm
+                            :spaces (list (make-instance 'mark-sweep-space
+                                                         :vm vm :start-page 1
+                                                         :page-count 60
+                                                         :name :default
+                                                         :default-space t))
+                            :constraints (make-instance 'plan-constraints))))
+      (finalize-plan p)
+      (let ((%probe-order nil))
+        (let ((a (allocate-object p 1)))
+          (vm-add-root vm a)
+          (gc-phase p :full))
+        (if (equal %probe-order '(:around-done :release :reclaim :mark :prologue :around))
+            (values t "ok")
+            (values nil (format nil "phase order wrong: ~a" %probe-order)))))))
+
+(deftest compiled-collector-matches-combination ()
+  ;; compilation.tex §3: the boot-emitted plan-collect resolves the same
+  ;; most-specific gc-phase methods the combination dispatches to.
+  (let ((vm (make-simulator-vm 32768)))
+    (let ((p (make-instance '%probe-plan-2
+                            :name :probe2 :vm vm
+                            :spaces (list (make-instance 'mark-sweep-space
+                                                         :vm vm :start-page 1
+                                                         :page-count 60
+                                                         :name :default
+                                                         :default-space t))
+                            :constraints (make-instance 'plan-constraints))))
+      (finalize-plan p)
+      (let ((%probe-order nil))
+        (let ((a (allocate-object p 1)))
+          (vm-add-root vm a)
+          (plan-collect p :cycle-kind :full))
+        (let ((interpreted (reverse %probe-order)))
+          (setf %probe-order nil)
+          (boot-gc p)                   ; emits the compiled arm + runs warm-ups
+          (setf %probe-order nil)       ; discard warm-up noise
+          (plan-collect p :cycle-kind :full)
+          (let ((compiled (reverse %probe-order)))
+            (if (equal interpreted compiled)
+                (values t "ok")
+                (values nil (format nil "compiled ~a != interpreted ~a"
+                                    compiled interpreted)))))))))

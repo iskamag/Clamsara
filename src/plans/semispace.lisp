@@ -31,7 +31,7 @@
                  (when os (s-set-bit os addr))) addr)
         (error 'heap-exhausted :requested-size size :space (space-name space)))))
 
-(defmethod phase-prologue ((p semispace-plan) k)
+(defmethod gc-phase :prologue ((p semispace-plan) k)
   (declare (ignore k))
   (let ((vm (plan-vm p)))
     (vm-stop-mutators vm)
@@ -39,7 +39,7 @@
     (space-prepare (sp-to p) vm)
     (allocator-reset (space-allocator (sp-to p)))))
 
-(defmethod phase-release ((p semispace-plan) k)
+(defmethod gc-phase :release ((p semispace-plan) k)
   (declare (ignore k))
   (let ((vm (plan-vm p)))
     (s-clear (vm-stratum vm :mark))

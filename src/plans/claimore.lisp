@@ -60,16 +60,16 @@
                             (when os (s-set-bit os a2))) a2)
                    (error 'heap-exhausted :requested-size size :space :nursery)))))))
 
-(defmethod phase-prologue ((p claimore-plan) k)
+(defmethod gc-phase :prologue ((p claimore-plan) k)
   (vm-stop-mutators (plan-vm p))
   (if (eq k :minor)
       (space-prepare (cl-nursery p) (plan-vm p))
       (prepare-spaces p k)))
 
-(defmethod phase-mark ((p claimore-plan) k)
+(defmethod gc-phase :mark ((p claimore-plan) k)
   (if (eq k :minor) (claimore-minor-mark p) (mark-roots p (plan-tracer p))))
 
-(defmethod phase-reclaim ((p claimore-plan) k)
+(defmethod gc-phase :reclaim ((p claimore-plan) k)
   (let ((vm (plan-vm p)))
     (if (eq k :minor)
         (space-reclaim (cl-nursery p) vm :cycle-kind k)
@@ -79,12 +79,12 @@
           ;; backup trace reclaims cycles: mark from roots, sweep unmarked
           (reclaim-spaces p k)))))
 
-(defmethod phase-checkpoint ((p claimore-plan) k)
+(defmethod gc-phase :checkpoint ((p claimore-plan) k)
   (declare (ignore k))
   ;; persistence stub: a real plan would capture the dirty set and mark CoW.
   (when (plan-stats p) (stats-event (plan-stats p) :checkpoints 1)))
 
-(defmethod phase-release ((p claimore-plan) k)
+(defmethod gc-phase :release ((p claimore-plan) k)
   (let ((vm (plan-vm p)))
     (let ((mark (vm-stratum vm :mark))) (when (and mark (eq k :major)) (s-clear mark)))
     (let ((card (vm-stratum vm :card))) (when card (s-clear card))))

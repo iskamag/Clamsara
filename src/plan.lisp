@@ -21,19 +21,57 @@
   (:documentation "The axis coordinates of a plan (plans.tex)."))
 
 ;; ---- ordered phases (paper-v8 ch. plans) ---------------------------------
-;;;; Implemented as explicit per-phase generic functions rather than a custom
-;;;; method-combination: the same ordered semantics (prologue mark reclaim
-;;;; compact checkpoint release epilogue), robust and easy to override.  A
-;;;; plan overrides the individual phase generic it needs.
+;;;;
+;;;; Collection proceeds through the gc-phase method combination: one generic
+;;;; function, one qualified method per phase, phases run in declaration order
+;;;; (prologue mark weak reclaim compact checkpoint release epilogue).
+;;;; :around methods wrap the assembled primary, so plan-wide wrappers (e.g.
+;;;; timing) survive compilation.  The boot assembler (compile.lisp) resolves
+;;;; the most-specific method per phase through the MOP and emits one compiled
+;;;; plan-collect body; the combination and the compiler share this ordering
+;;;; constant, so the two can never diverge.
+;;;;
+;;;; gc-phase methods take (plan cycle-kind) as arguments; the combination is
+;;;; an ordered long-form method combination (the phases are qualifiers).
 
-(defgeneric phase-prologue (plan cycle-kind))
-(defgeneric phase-mark (plan cycle-kind))
-(defgeneric phase-weak (plan cycle-kind))
-(defgeneric phase-reclaim (plan cycle-kind))
-(defgeneric phase-compact (plan cycle-kind))
-(defgeneric phase-checkpoint (plan cycle-kind))
-(defgeneric phase-release (plan cycle-kind))
-(defgeneric phase-epilogue (plan cycle-kind))
+(defparameter +gc-phase-order+
+  '(:prologue :mark :weak :reclaim :compact :checkpoint :release :epilogue)
+  "The ordered gc-phase qualifiers, in execution order (plans.tex §3).  The
+combination and the boot assembler both read this list, so the phase machine
+has one source of truth.")
+
+(define-method-combination gc-phase ()
+  ;; One qualifier per phase; the combination assembles the most-specific
+  ;; method of each phase in +gc-phase-order+, wrapped by :around methods.
+  ;; The group list below must mirror +gc-phase-order+ (both are literal in
+  ;; this file so they cannot drift silently; compile-time asserts follow).
+  ((around (:around))
+   (prologue (:prologue))
+   (mark (:mark))
+   (weak (:weak))
+   (reclaim (:reclaim))
+   (compact (:compact))
+   (checkpoint (:checkpoint))
+   (release (:release))
+   (epilogue (:epilogue)))
+  (let ((primary
+          `(progn
+             ,@(mapcan (lambda (phase-group)
+                         (mapcar (lambda (m) `(call-method ,m ()))
+                                 phase-group))
+                       (list prologue mark weak reclaim compact
+                             checkpoint release epilogue)))))
+    (if around
+        `(call-method ,(first around)
+                      (,@(rest around)
+                       (make-method ,primary)))
+        primary)))
+
+(defgeneric gc-phase (plan cycle-kind)
+  (:documentation "The ordered collection phase machine.  Methods carry one
+  phase qualifier from +gc-phase-order+; the combination assembles them in
+  declaration order, each phase running its most-specific method.")
+  (:method-combination gc-phase))
 
 (defgeneric plan-collect-phase (plan cycle-kind)
   (:documentation "Run the ordered collection phases.  Wrapped by :around for
@@ -91,15 +129,15 @@
     (dolist (space (plan-spaces plan))
       (space-release space vm :cycle-kind cycle-kind))))
 
-(defmethod phase-prologue ((p plan) k)
+(defmethod gc-phase :prologue ((p plan) k)
   (vm-stop-mutators (plan-vm p))
   (prepare-spaces p k))
 
-(defmethod phase-mark ((p plan) k)
+(defmethod gc-phase :mark ((p plan) k)
   (declare (ignore k))
   (mark-roots p (plan-tracer p)))
 
-(defmethod phase-weak ((p plan) k)
+(defmethod gc-phase :weak ((p plan) k)
   ;; weak.tex: weak-pointer processing after the transitive closure and
   ;; BEFORE reclamation (liveness data must still be readable).  Finalizer
   ;; deadness is snapshotted here for the same reason: reclaim/release clear
@@ -109,24 +147,38 @@
     (setf (plan-pending-finalizer-freeze p)
           (snapshot-finalizer-deadness p (plan-vm p) k))))
 
-(defmethod phase-reclaim ((p plan) k)
+(defmethod gc-phase :reclaim ((p plan) k)
   (reclaim-spaces p k))
 
-(defmethod phase-compact ((p plan) k) (declare (ignore p k)) nil)
-(defmethod phase-checkpoint ((p plan) k) (declare (ignore p k)) nil)
+(defmethod gc-phase :compact ((p plan) k) (declare (ignore p k)) nil)
+(defmethod gc-phase :checkpoint ((p plan) k) (declare (ignore p k)) nil)
 
-(defmethod phase-release ((p plan) k)
+(defmethod gc-phase :release ((p plan) k)
   (release-spaces p k)
   (when (plan-stats p) (stats-event (plan-stats p) :gc-cycles 1)))
 
-(defmethod phase-epilogue ((p plan) k)
+(defmethod gc-phase :epilogue ((p plan) k)
   (vm-resume-mutators (plan-vm p))
   ;; weak.tex §2: dead objects with registered finalizers move known->pending
-  ;; in the EPILOGUE, from the snapshot taken in phase-weak; finalizers
+  ;; in the EPILOGUE, from the snapshot taken in the weak phase; finalizers
   ;; themselves run on a mutator after the pause, never inside it.
   (when (plan-pending-finalizer-freeze p)
     (process-finalizers p (plan-pending-finalizer-freeze p))
     (setf (plan-pending-finalizer-freeze p) nil)))
+
+(defun call-gc-phase-method (plan cycle-kind phase)
+  "Resolve the most-specific GC-PHASE method qualified PHASE for PLAN and
+invoke its method function (MOP calling convention: (method-function args
+next-methods)).  Boot compilation (compile.lisp) uses the same resolution, so
+interpreted and compiled collectors cannot diverge."
+  (let* ((gf (fdefinition 'gc-phase))
+         (methods (compute-applicable-methods gf (list plan cycle-kind)))
+         (method (find-if (lambda (m)
+                            (equal (sb-mop:method-qualifiers m) (list phase)))
+                          methods)))
+    (unless method
+      (error "No ~a method for ~s" phase (type-of plan)))
+    (funcall (sb-mop:method-function method) (list plan cycle-kind) nil)))
 
 (defmethod plan-collect-phase ((p plan) cycle-kind)
   (if (eq cycle-kind :checkpoint)
@@ -134,17 +186,9 @@
       ;; Only the checkpoint phase (plus the stop/resume safepoint) runs.
       (progn
         (vm-stop-mutators (plan-vm p))
-        (phase-checkpoint p cycle-kind)
+        (call-gc-phase-method p cycle-kind :checkpoint)
         (vm-resume-mutators (plan-vm p)))
-      (progn
-        (phase-prologue p cycle-kind)
-        (phase-mark p cycle-kind)
-        (phase-weak p cycle-kind)
-        (phase-reclaim p cycle-kind)
-        (phase-compact p cycle-kind)
-        (phase-checkpoint p cycle-kind)
-        (phase-release p cycle-kind)
-        (phase-epilogue p cycle-kind))))
+      (gc-phase p cycle-kind)))
 
 (defmethod plan-collect-phase :around ((p plan) cycle-kind)
   (let ((t0 (get-internal-run-time)))

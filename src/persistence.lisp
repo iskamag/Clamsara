@@ -172,7 +172,7 @@
 (defclass persistent-plan (plan) ()
   (:metaclass plan-metaclass))
 
-(defmethod phase-checkpoint ((p persistent-plan) cycle-kind)
+(defmethod gc-phase :checkpoint ((p persistent-plan) cycle-kind)
   (declare (ignore cycle-kind))
   (let* ((vm (plan-vm p))
          (pages (collector-dirty-set p)))

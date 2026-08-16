@@ -37,20 +37,20 @@
     (make-stratum :log (vm-min-alignment-words vm)
                   :bit (vm-heap-size vm))))
 
-(defmethod phase-prologue ((p sticky-immix-plan) k)
+(defmethod gc-phase :prologue ((p sticky-immix-plan) k)
   (vm-stop-mutators (plan-vm p))
   (when (eq k :major) (s-clear (vm-stratum (plan-vm p) :mark))))
 
-(defmethod phase-mark ((p sticky-immix-plan) k)
+(defmethod gc-phase :mark ((p sticky-immix-plan) k)
   (mark-roots p (plan-tracer p))
   (if (eq k :minor)
       (sticky-rescan-dirty p)
       (s-clear (vm-stratum (plan-vm p) :log))))
 
-(defmethod phase-reclaim ((p sticky-immix-plan) k)
+(defmethod gc-phase :reclaim ((p sticky-immix-plan) k)
   (reclaim-spaces p k))
 
-(defmethod phase-release ((p sticky-immix-plan) k)
+(defmethod gc-phase :release ((p sticky-immix-plan) k)
   (declare (ignore k))
   (when (plan-stats p) (stats-event (plan-stats p) :gc-cycles 1)))
 

@@ -122,7 +122,7 @@
            #:constraints-max-non-los-bytes
            #:plan-collect #:plan-allocate #:plan-get-space
            #:plan-handle-allocation-failure #:plan-collect-phase
-           #:gc-phase #:phase-weak
+           #:gc-phase #:+gc-phase-order+
            #:weak-phase #:weak-pointer-p #:register-weak-pointer
            #:finalization-trait #:initialize-finalization
            #:register-finalizer #:process-finalizers

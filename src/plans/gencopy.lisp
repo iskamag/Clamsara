@@ -74,7 +74,7 @@
 
 ;; ---- phases -------------------------------------------------------------
 
-(defmethod phase-prologue ((p generational-plan) k)
+(defmethod gc-phase :prologue ((p generational-plan) k)
   (let ((vm (plan-vm p)))
     (vm-stop-mutators vm)
     ;; A minor traces the allocating nursery into its empty partner.  A major
@@ -87,16 +87,16 @@
       (when (gen-mature-to p)
         (allocator-reset (space-allocator (gen-mature-to p)))))))
 
-(defmethod phase-mark ((p generational-plan) k)
+(defmethod gc-phase :mark ((p generational-plan) k)
   (if (eq k :minor)
       (minor-mark p)
       (mark-roots p (plan-tracer p) :trace-kind :major)))
 
-(defmethod phase-reclaim ((p generational-plan) k)
+(defmethod gc-phase :reclaim ((p generational-plan) k)
   (unless (eq k :minor)
     (space-reclaim (gen-mature p) (plan-vm p) :cycle-kind k)))
 
-(defmethod phase-release ((p generational-plan) k)
+(defmethod gc-phase :release ((p generational-plan) k)
   (let ((vm (plan-vm p)))
     ;; The old nursery contains forwarding headers.  Forget it only after all
     ;; roots and slots have been healed by the trace.

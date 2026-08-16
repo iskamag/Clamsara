@@ -40,7 +40,7 @@
                  (when os (s-set-bit os addr))) addr)
         (error 'heap-exhausted :requested-size size :space :from))))
 
-(defmethod phase-prologue ((p zgc-plan) k)
+(defmethod gc-phase :prologue ((p zgc-plan) k)
   (declare (ignore k))
   (vm-stop-mutators (plan-vm p))
   (let ((vm (plan-vm p)))
@@ -49,7 +49,7 @@
     (fwd-clear vm)))
 
 ;; mark: precise trace + drain the SATB snapshot buffer (remark)
-(defmethod phase-mark ((p zgc-plan) k)
+(defmethod gc-phase :mark ((p zgc-plan) k)
   (declare (ignore k))
   (mark-roots p (plan-tracer p))
   (let ((vm (plan-vm p))
@@ -67,13 +67,13 @@
 
 ;; Relocation consumes the mark set. Generic Immix reclaim would clear it
 ;; before PHASE-COMPACT and silently relocate nothing.
-(defmethod phase-reclaim ((p zgc-plan) k)
+(defmethod gc-phase :reclaim ((p zgc-plan) k)
   (declare (ignore p k))
   nil)
 
 ;; relocate: copy every live (marked) object into the 'to' region, recording
 ;; old->new in the off-heap forwarding table.
-(defmethod phase-compact ((p zgc-plan) k)
+(defmethod gc-phase :compact ((p zgc-plan) k)
   (declare (ignore k))
   (let* ((vm (plan-vm p))
          (mark (vm-stratum vm :mark))
@@ -93,7 +93,7 @@
       ;; (a LOS object may hold an edge into a relocated 'from' object)
       (heal-every-space p fwd))))
 
-(defmethod phase-release ((p zgc-plan) k)
+(defmethod gc-phase :release ((p zgc-plan) k)
   (declare (ignore k))
   (let ((vm (plan-vm p)))
     (s-clear (vm-stratum vm :mark))

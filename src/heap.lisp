@@ -632,8 +632,7 @@ into the evacuated blocks and must be rewritten too."
     (cond
       ((vm-object-is-forwarded-p vm addr) (vm-object-forwarding-pointer vm addr))
       (t (let ((dst (alloc (space-allocator to) 2)))
-           (setf (ref-u64 vm dst) (ref-u64 vm addr))
-           (setf (ref-u64 vm (+ dst 1)) (ref-u64 vm (+ addr 1)))
+           (vm-object-copy vm addr dst)
            (setf (vm-object-forwarding-pointer vm addr) dst)
            (tracer-enqueue tracer dst)
            dst)))))

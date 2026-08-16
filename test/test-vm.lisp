@@ -229,3 +229,78 @@
                                       "safepoint state wrong: ~s ~s ~s ~s"
                                       idle-ok requested-ok resumed-ok
                                       next-epoch))))))))))
+
+
+(deftest slot-layout-api-regressions ()
+  ;; Layout ids are carried in the spare field by both allocation entry points,
+  ;; including ids above the old fixed 64-entry registry limit.
+  (with-clamsara (:plan-type :nogc :heap-size 4096)
+    (let ((a (allocate-object *clamsara-plan* 1 :layout-id 511)))
+      (unless (= (header-spare (vm-object-header *clamsara-vm* a)) 511)
+        (return-from slot-layout-api-regressions
+          (values nil "allocate-object did not retain layout id")))))
+  (let ((vm (make-simulator-vm 4096))
+        (slots (make-array 1 :initial-contents '(0))))
+    (register-slot-map vm +tag-object+ 511 slots)
+    ;; Registration copies vectors, so mutating the caller's vector cannot
+    ;; alter the collector's map.
+    (setf (aref slots 0) 3)
+    (vm-write-header vm 512 +tag-object+ 4 511)
+    (setf (vm-object-reference vm 512 0) 700)
+    (setf (vm-object-reference vm 512 3) 701)
+    (let ((seen nil))
+      (vm-scan-object-references vm 512 (lambda (r) (push r seen)))
+      (unless (equal seen '(700))
+        (return-from slot-layout-api-regressions
+          (values nil (format nil "slot vector was not copied: ~a" seen)))))
+    ;; Two type tags may use the same layout id without colliding.
+    (register-slot-map vm +tag-array+ 9 #(1))
+    (register-slot-map vm +tag-function+ 9 #(0))
+    (vm-write-header vm 800 +tag-array+ 2 9)
+    (vm-write-header vm 900 +tag-function+ 2 9)
+    (setf (vm-object-reference vm 800 1) 901
+          (vm-object-reference vm 900 0) 801)
+    (let ((array-seen nil) (function-seen nil))
+      (vm-scan-object-references vm 800 (lambda (r) (push r array-seen)))
+      (vm-scan-object-references vm 900 (lambda (r) (push r function-seen)))
+      (if (and (equal array-seen '(901)) (equal function-seen '(801)))
+          (values t "slot-layout API regressions ok")
+          (values nil (format nil "shared layout id collided: ~a / ~a"
+                               array-seen function-seen))))))
+
+(deftest slot-map-invalid-indices ()
+  (let ((vm (make-simulator-vm 4096)) (ok t))
+    (labels ((rejects-p (thunk)
+               (handler-case (progn (funcall thunk) nil)
+                 (clamsara-error () t)
+                 (error () (setf ok nil) nil))))
+      (unless (and (rejects-p (lambda ()
+                                (register-slot-map vm +tag-object+ 0 #(-1))))
+                   (rejects-p (lambda ()
+                                (register-slot-map vm +tag-object+ 0 #(16777216))))
+                   (rejects-p (lambda ()
+                                (register-slot-map vm +tag-object+ 0 #(1 0))))
+                   (rejects-p (lambda ()
+                                (register-slot-map vm +tag-object+ 0 #(1 1))))
+                   ;; Layout ids are exactly the 16 bits provided by
+                   ;; header-spare.
+                   (rejects-p (lambda ()
+                                (register-slot-map vm +tag-object+ 65536 #(0)))))
+        (setf ok nil)))
+    (if ok (values t "invalid slot/layout indices rejected")
+        (values nil "invalid slot/layout index was accepted"))))
+
+
+(deftest mutator-context-rejects-foreign-vm ()
+  ;; Context ownership is part of the scheduler protocol: a context from a
+  ;; different VM must never enter the plan's preallocated participant set.
+  (with-clamsara (:plan-type :marksweep :heap-size 4096)
+    (let* ((plan *clamsara-plan*)
+           (foreign (make-simulator-vm 4096))
+           (before (length (plan-mutator-contexts plan)))
+           (caught nil))
+      (handler-case (make-mutator-context plan :vm foreign)
+        (clamsara-error () (setf caught t)))
+      (if (and caught (= before (length (plan-mutator-contexts plan))))
+          (values t "foreign mutator context rejected")
+          (values nil "foreign mutator context was registered")))))

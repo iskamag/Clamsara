@@ -146,10 +146,13 @@
     (when (and (eq access-kind :write) (%cow-page-p vm page))
       (let ((images (vm-cow-images vm)))
         (unless (gethash page images)
-          (setf (gethash page images) (%copy-page-image vm page))))
-      (when (and (typep vm 'virtual-memory-mixin) (mmu-cow-copied vm))
-        (setf (gethash page (mmu-cow-copied vm))
-              (gethash page images)))
+          (setf (gethash page images) (%copy-page-image vm page)))
+        ;; Keep the MMU-facing table as an alias of the VM table.  This is
+        ;; deliberately inside the binding above: a write fault must publish
+        ;; the actual frozen vector, not an unbound/NIL value.
+        (when (and (typep vm 'virtual-memory-mixin) (mmu-cow-copied vm))
+          (setf (gethash page (mmu-cow-copied vm))
+                (gethash page images))))
       ;; The frozen image is now independent of the live physical page.
       (vm-mprotect vm page 1 :read-write)))
   vm)

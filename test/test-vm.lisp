@@ -2,6 +2,18 @@
 
 (in-package #:clamsara)
 
+(deftest simulator-vm-capabilities ()
+  ;; Capability mixins are sibling superclasses, so verify the simulator's
+  ;; explicit contract rather than relying on CLOS superclass ordering.
+  (let ((vm (make-simulator-vm 4096)))
+    (if (and (eq (vm-tier vm) :t2)
+             (vm-has-feature-p vm :t2)
+             (vm-has-feature-p vm :ring0)
+             (vm-has-feature-p vm :virtual-memory)
+             (vm-has-feature-p vm :coloured-pointers))
+        (values t "simulator capabilities ok")
+        (values nil "simulator capabilities wrong"))))
+
 (deftest object-model ()
   (let ((vm (make-simulator-vm 4096)))
     (let ((a (vm-write-header vm 512 +tag-object+ 3)))

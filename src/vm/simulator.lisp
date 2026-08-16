@@ -11,6 +11,31 @@
   (:documentation "The reference VM.  Advertises T0/T1/T2 + coloured pointers,
   all implemented in software via the software MMU."))
 
+;;; The simulator inherits several capability mixins.  Since those mixins are
+;;; sibling direct superclasses, their inherited primary methods can lose to
+;;; the vm-binding defaults under CLOS method ordering.  Keep the simulator's
+;;; advertised capability contract explicit rather than relying on that
+;;; ordering.
+(defmethod vm-tier ((vm simulator-vm))
+  (declare (ignore vm))
+  :t2)
+
+(defmethod vm-has-feature-p ((vm simulator-vm) (feature (eql :t2)))
+  (declare (ignore vm feature))
+  t)
+
+(defmethod vm-has-feature-p ((vm simulator-vm) (feature (eql :ring0)))
+  (declare (ignore vm feature))
+  t)
+
+(defmethod vm-has-feature-p ((vm simulator-vm) (feature (eql :virtual-memory)))
+  (declare (ignore vm feature))
+  t)
+
+(defmethod vm-has-feature-p ((vm simulator-vm) (feature (eql :coloured-pointers)))
+  (declare (ignore vm feature))
+  t)
+
 (defun %make-simulator-vm (class heap-words plan)
   (when (>= heap-words (ash 1 +colour-pos+))
     (error 'clamsara-error

@@ -98,8 +98,16 @@
   must retain them in the append-only published-roots set just as it does the
   original publication edge."
   (when pr
-    (dotimes (slot (vm-object-reference-count vm object))
-      (record-published-edge pr object slot)))
+    ;; A declared layout names the slots that may carry references.  Keep the
+    ;; conservative payload walk only for objects whose layout is unknown;
+    ;; publication metadata must not mistake raw payload words for guarded
+    ;; edges.  This direct index walk avoids allocating a callback closure.
+    (let ((slots (vm-reference-slots vm object)))
+      (if slots
+          (loop for i below (length slots)
+                do (record-published-edge pr object (aref slots i)))
+          (dotimes (slot (vm-object-reference-count vm object))
+            (record-published-edge pr object slot)))))
   object)
 
 (defun published-edge-recorded-p (pr vm object referent)

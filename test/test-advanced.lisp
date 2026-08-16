@@ -63,6 +63,32 @@
                 (values nil "lazy child edges were not recorded")))
           (values nil "lazy root edge was not recorded")))))
 
+(deftest lazy-publication-honors-sparse-layout ()
+  ;; Publication edges follow a declared layout rather than treating every
+  ;; payload word as a pointer.  Slot 1 aliases the live child but is raw data,
+  ;; so only mapped slot 0 belongs in the published-roots set.
+  (let ((vm (make-simulator-vm 4096))
+        (strategy (make-instance 'lazy-read-barrier)))
+    (initialize-publication-work strategy vm)
+    (vm-write-header vm 512 +tag-object+ 2)
+    (vm-write-header vm 700 +tag-object+ 0)
+    (setf (vm-object-reference vm 512 0) 700
+          (vm-object-reference vm 512 1) 700)
+    (register-slot-map vm +tag-object+ 7 #(0))
+    (setf (vm-object-header vm 512)
+          (dpb 7 (byte 16 48) (vm-object-header vm 512)))
+    (publish strategy vm 512)
+    (let ((pr (strategy-published-roots strategy))
+          (slots nil))
+      (drain-published-roots
+       pr (lambda (object slot)
+            (declare (ignore object))
+            (push slot slots)))
+      (if (and (= (published-roots-count pr) 1)
+               (equal slots '(0)))
+          (values t "ok")
+          (values nil (format nil "sparse layout recorded slots ~a" slots))))))
+
 (deftest trap-a-exhaustion-rolls-back-closure ()
   ;; A root fits but its child does not: no copied object or public bit may
   ;; survive the failed transactional closure publication.

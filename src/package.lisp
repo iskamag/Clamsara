@@ -88,8 +88,7 @@
            #:los-allocator #:cons-allocator #:monotone-allocator
            #:hierarchical-allocator
            #:plan-build-sft #:plan-space-for-address
-           #:page-index #:page-start-address #:address-page
-           #:immortal-alloc #:with-immortal-allocator)
+           #:page-index #:page-start-address #:address-page)
   ;; tracer
   (:export #:tracer #:make-tracer #:tracer-enqueue #:tracer-drain
            #:tracer-reset #:tracer-empty-p #:tracer-size)
@@ -140,8 +139,6 @@
   (:export #:plan-stats #:make-stats #:stats-event #:stats-get #:stats-reset
            #:stats-snapshot
            #:sanity-check #:sanity-errors
-           #:gc-event-pre-collection #:gc-event-post-collection
-           #:gc-event-object-forwarded #:gc-event-pages-released
            #:gc-event-checkpoint
            #:persistent-allocator #:persistence-log #:make-persistence-log
            #:persistence-segment #:write-segment #:verify-segment

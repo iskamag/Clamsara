@@ -7,14 +7,24 @@ named in the paper is implemented.
 
 | Question | Current answer |
 |---|---|
-| Does the simulator exercise real reachability and movement? | Yes for headered objects and the optional Maclina cons subset. Copying roots/slots, promotion, remembered sets, Immix evacuation, and ZGC-style relocation are now asserted by tests. |
+| Does the simulator exercise real reachability and movement? | Yes for headered objects and the optional Maclina cons subset. Copying roots/slots, promotion, remembered sets, Immix evacuation, ZGC-style relocation, weak-pointer copying, and LOS-edge healing are now asserted by tests. |
 | Does collection allocate in the host Lisp heap? | The first live post-boot collections measure zero SBCL allocation for every collecting plan, including fragmented Immix evacuation, after forcibly closing SBCL's thread allocation region. Boot is outside that boundary. This is still an empirical backend result, not a structural guarantee: inner VM/space operations use CLOS and a cache invalidation or new specialization could allocate an effective method. |
-| Is this the paper's no-CLOS compiled collector? | No. SBCL boot compilation resolves the seven outer phase methods to direct method-function calls, but their inner component and VM protocol calls remain generic. |
+| Is this the paper's no-CLOS compiled collector? | No. The ordered phase machine now IS the `gc-phase` method combination (plans.tex §3), and the boot assembler resolves the same most-specific phase methods through `compute-applicable-methods` + `method-function`, so the compiled and interpreted collectors cannot diverge. Inner component and VM protocol calls remain generic (G9). |
 | Is there a Lisp workload rather than only hand-built headers? | Yes, optionally. `clamsara/maclina` evaluates a CL subset and redirects `cons`, `car`, `cdr`, `consp`, `rplaca`, `rplacd`, and `list` to the simulated heap. Maclina stack, values, and closure environments participate in root rewriting. Maclina itself still allocates host compiler/interpreter objects. |
 | Does the simulator validate concurrent collectors? | No. Mutator stop/resume, safepoints, faults, and concurrent phases are single-threaded simulations. The software MMU is preallocated but collectors do not run an adversarial scheduler or real races. |
 
 ## Defects fixed in this pass
 
+- Weak-pointer bit survives copying collectors (semispace/generational);
+  `vm-object-copy` preserves the `:weak` stratum bit, and `vm-forget-object` /
+  range clears reset it.
+- LOS objects are healed by Immix defrag, ZGC relocation, and superblock
+  compaction: `heal-every-space` rewrites roots and every plan space's slots,
+  so an edge held by a LOS object can no longer dangle.
+- Generational card barrier/scan/rebuild cover LOS objects: LOS->nursery
+  edges are carded and rescanned, so the nursery referent survives minors.
+- Finalizer deadness is snapshotted in the weak phase (marks valid) and moved
+  known->pending in the epilogue, per weak.tex §2.
 - Generational plans now use a copying nursery, survivor ages, promotion, and
   healed remembered-set edges. Previously a "minor" was effectively an
   in-place mark/sweep. Remembered sets are rebuilt after evacuation so healed
@@ -33,10 +43,14 @@ named in the paper is implemented.
 - Tracer, roots, forwarding, RC, barriers, publication, free lists, Immix
   blocks, strata, and software-MMU tables are fixed-capacity/preallocated.
 - Collection scans no longer allocate capturing closures or temporary range
-  conses. Root callbacks receive collector state explicitly.
-- `plan-collect` is an ordinary compiled entry point; boot resolves the outer
-  phase methods directly on SBCL and resolves the observed post-reset
-  `vm-object-reference` cache miss before mutators run.
+  conses. Root callbacks receive collector state explicitly. The shared
+  trace/allocate paths (`trace-root-in`, `trace-object-children`,
+  `plan-allocate-in`, `plan-retry-after`) have replaced the per-plan copies.
+- The ordered phase machine is the real `gc-phase` long-form method
+  combination; `plan-collect` resolves the same most-specific phase methods
+  through the MOP as the combination, so the compiled and interpreted
+  collectors cannot diverge (replacing the qualifier-dropping boot hack).
+  Structural tests prove combination order and compiled/interpreted agreement.
 - The optional v7-era Maclina workload seam has been restored and tested across
   semispace flips.
 
@@ -45,6 +59,8 @@ named in the paper is implemented.
 1. Finish compilation below the phase boundary. VM access, object-model,
    space trace/reclaim, barriers, and allocator operations must be spliced or
    otherwise directly called so correctness cannot depend on CLOS cache state.
+   The phase machine itself is already the `gc-phase` combination; G9 is now
+   only the inner protocols.
 2. Make object and root scanning precise. The core simulator currently treats
    every payload slot as a possible reference instead of delegating to
    per-type layouts/pointer maps as the VM protocol requires. Maclina references

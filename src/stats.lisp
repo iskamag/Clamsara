@@ -33,16 +33,7 @@
            (stats-events from))
   into)
 
-;; ---- GC event protocol (persistence.tex); default no-op hooks -----------
+;; ---- GC event protocol (persistence.tex); checkpoint is the live hook ----
 
-(defgeneric gc-event-pre-collection (plan vm)
-  (:method ((p plan) vm) (declare (ignore vm)) nil))
-(defgeneric gc-event-post-collection (plan vm)
-  (:method ((p plan) vm)
-    (when (plan-stats p) (stats-event (plan-stats p) :gc-cycles 1))))
-(defgeneric gc-event-object-forwarded (vm old new)
-  (:method (vm old new) (declare (ignore vm old new)) nil))
-(defgeneric gc-event-pages-released (vm page-start count)
-  (:method (vm page-start count) (declare (ignore vm page-start count)) nil))
 (defgeneric gc-event-checkpoint (plan vm dirty-pages)
   (:method (plan vm dirty-pages) (declare (ignore plan vm dirty-pages)) nil))

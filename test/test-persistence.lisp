@@ -118,6 +118,7 @@
       (let ((frozen (gethash 1 (mmu-cow-copied vm))))
         (let ((segment (write-segment vm '(1) 7)))
           (if (and armed
+                   (eq (mmu-cow-copied vm) (vm-cow-images vm))
                    (vm-page-dirty-p vm 1)
                    (vectorp frozen)
                    (= (aref frozen 11) 55)

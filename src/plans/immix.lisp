@@ -14,15 +14,8 @@
   ;; a full collect recycles dead blocks; if that doesn't free enough, a
   ;; :major defrags (opportunistic compaction) -- the anti-fragmentation path.
   (plan-collect p :cycle-kind :full)
-  (let ((addr (alloc (space-allocator space) size)))
-    (cond (addr (let ((os (vm-object-start (plan-vm p))))
-                 (when os (s-set-bit os addr))) addr)
-          (t (plan-collect p :cycle-kind :major)
-             (let ((a2 (alloc (space-allocator space) size)))
-               (if a2
-                   (progn (let ((os (vm-object-start (plan-vm p))))
-                            (when os (s-set-bit os a2))) a2)
-                   (error 'heap-exhausted :requested-size size :space :default)))))))
+  (or (plan-allocate-in p size space)
+      (plan-retry-after p size space :major)))
 
 (defun make-immix-plan (vm heap-size)
   (declare (ignore heap-size))

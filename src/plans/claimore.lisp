@@ -39,26 +39,15 @@
     (when (and los (> (* size +word-bytes+)
                       (constraints-max-non-los-bytes (plan-constraints p))))
       (return-from plan-allocate
-        (let ((addr (alloc (space-allocator los) size)))
-          (cond (addr (let ((os (vm-object-start (plan-vm p))))
-                        (when os (s-set-bit os addr))) addr)
-                (t (plan-handle-allocation-failure p size los)))))))
-  (let ((addr (alloc (space-allocator (cl-nursery p)) size)))
-    (cond (addr (let ((os (vm-object-start (plan-vm p))))
-                 (when os (s-set-bit os addr))) addr)
-          (t (plan-handle-allocation-failure p size (cl-nursery p))))))
+        (or (plan-allocate-in p size los)
+            (plan-handle-allocation-failure p size los)))))
+  (or (plan-allocate-in p size (cl-nursery p))
+      (plan-handle-allocation-failure p size (cl-nursery p))))
 
 (defmethod plan-handle-allocation-failure ((p claimore-plan) size space)
   (plan-collect p :cycle-kind :minor)
-  (let ((addr (alloc (space-allocator space) size)))
-    (cond (addr (let ((os (vm-object-start (plan-vm p))))
-                 (when os (s-set-bit os addr))) addr)
-          (t (plan-collect p :cycle-kind :major)
-             (let ((a2 (alloc (space-allocator space) size)))
-               (if a2
-                   (progn (let ((os (vm-object-start (plan-vm p))))
-                            (when os (s-set-bit os a2))) a2)
-                   (error 'heap-exhausted :requested-size size :space :nursery)))))))
+  (or (plan-allocate-in p size space)
+      (plan-retry-after p size space :major)))
 
 (defmethod gc-phase :prologue ((p claimore-plan) k)
   (vm-stop-mutators (plan-vm p))
@@ -91,37 +80,12 @@
   (when (plan-stats p) (stats-event (plan-stats p) :gc-cycles 1)))
 
 (defun claimore-minor-root-reference (plan ref)
-  (let* ((vm (plan-vm plan))
-         (nursery (cl-nursery plan))
-         (addr (ref-strip-or-self vm ref)))
-    (if (and (vm-reference-p vm ref)
-             (space-contains-p nursery addr))
-        (space-trace-object nursery vm ref (plan-tracer plan))
-        ref)))
+  (trace-root-in plan ref (cl-nursery plan) :trace-kind :minor))
 
 (defun claimore-minor-grey-reference (plan ref)
-  (let* ((vm (plan-vm plan))
-         (tracer (plan-tracer plan))
-         (nursery (cl-nursery plan))
-         (addr (ref-strip-or-self vm ref)))
-    (claimore-trace-nursery-children vm addr nursery tracer)
-    ref))
-
-(defun claimore-trace-nursery-children (vm address nursery tracer)
-  "Trace every reference slot of the object at ADDRESS whose target lives in
-  NURSERY.  Top-level with explicit state: no host closure per object."
-  (let ((slots (vm-reference-slots vm address)))
-    (flet ((process-slot (i)
-             (let ((child (vm-object-reference vm address i)))
-               (when (and (vm-reference-p vm child)
-                          (space-contains-p
-                           nursery (ref-strip-or-self vm child)))
-                 (space-trace-object nursery vm child tracer)))))
-      (if slots
-          (loop for i across slots do (process-slot i))
-          (dotimes (i (vm-object-reference-count vm address))
-            (process-slot i)))))
-  address)
+  (trace-object-children plan ref
+                         :target-space (cl-nursery plan)
+                         :trace-kind :minor))
 
 (defun claimore-minor-mark (plan)
   "Private nursery collection: trace the request's roots + published objects

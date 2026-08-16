@@ -285,6 +285,24 @@ interpreted and compiled collectors cannot diverge."
 
 ;; ---- allocation + escalation (plans.tex §5) -----------------------------
 
+(defun plan-allocate-in (plan size space)
+  "Allocate SIZE words from SPACE, install the object-start bit, and return
+the address, or NIL.  The one shared alloc-and-install step: every allocator
+path (nursery, mature, LOS) uses it, so object identity is never forgotten."
+  (let ((vm (plan-vm plan))
+        (addr (alloc (space-allocator space) size)))
+    (when addr
+      (let ((os (vm-object-start vm)))
+        (when os (s-set-bit os addr))))
+    addr))
+
+(defun plan-retry-after (plan size space cycle-kind)
+  "Run CYCLE-KIND, retry allocation from SPACE, and signal heap-exhausted on
+failure.  The escalation tail shared by every plan's failure handler."
+  (plan-collect plan :cycle-kind cycle-kind)
+  (or (plan-allocate-in plan size space)
+      (error 'heap-exhausted :requested-size size :space (space-name space))))
+
 (defgeneric plan-allocate (plan size space-designator)
   (:method ((p plan) size space-designator)
     (let* ((vm (plan-vm p))
@@ -292,20 +310,17 @@ interpreted and compiled collectors cannot diverge."
            (space (if (and los (> (* size +word-bytes+) (constraints-max-non-los-bytes (plan-constraints p))))
                       los
                       (or (and (keywordp space-designator) (plan-get-space p space-designator))
-                          (default-space p))))
-           (addr (when space (alloc (space-allocator space) size))))
-      (cond
-        (addr (let ((os (vm-object-start vm))) (when os (s-set-bit os addr))) addr)
-        (t (plan-handle-allocation-failure p size space))))))
+                          (default-space p)))))
+      (declare (ignore vm))
+      (if (null space)
+          (error 'heap-exhausted :requested-size size :space :no-space)
+          (or (plan-allocate-in p size space)
+              (plan-handle-allocation-failure p size space))))))
 
 (defgeneric plan-handle-allocation-failure (plan size space)
   (:method ((p plan) size space)
     ;; non-generational: try alloc; full collect; try alloc; signal.
-    (plan-collect p :cycle-kind :full)
-    (let ((addr (alloc (space-allocator space) size)))
-      (if addr
-          (progn (let ((os (vm-object-start (plan-vm p)))) (when os (s-set-bit os addr))) addr)
-          (error 'heap-exhausted :requested-size size :space (space-name space))))))
+    (plan-retry-after p size space :full)))
 
 (defun allocate-object (plan slot-count &key (type-tag +tag-object+) (space :default))
   "Allocate a headered object of SLOT-COUNT slots; return its address."

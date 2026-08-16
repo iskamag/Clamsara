@@ -23,22 +23,13 @@
     (when (and los (> (* size +word-bytes+)
                       (constraints-max-non-los-bytes (plan-constraints p))))
       (return-from plan-allocate
-        (let ((addr (alloc (space-allocator los) size)))
-          (cond (addr (let ((os (vm-object-start (plan-vm p))))
-                        (when os (s-set-bit os addr))) addr)
-                (t (plan-handle-allocation-failure p size los)))))))
-  (let ((addr (alloc (space-allocator (z-from p)) size)))
-    (cond (addr (let ((os (vm-object-start (plan-vm p))))
-                 (when os (s-set-bit os addr))) addr)
-          (t (plan-handle-allocation-failure p size (z-from p))))))
+        (or (plan-allocate-in p size los)
+            (plan-handle-allocation-failure p size los)))))
+  (or (plan-allocate-in p size (z-from p))
+      (plan-handle-allocation-failure p size (z-from p))))
 
 (defmethod plan-handle-allocation-failure ((p zgc-plan) size space)
-  (plan-collect p :cycle-kind :full)
-  (let ((addr (alloc (space-allocator space) size)))
-    (if addr
-        (progn (let ((os (vm-object-start (plan-vm p))))
-                 (when os (s-set-bit os addr))) addr)
-        (error 'heap-exhausted :requested-size size :space :from))))
+  (plan-retry-after p size space :full))
 
 (defmethod gc-phase :prologue ((p zgc-plan) k)
   (declare (ignore k))

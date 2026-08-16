@@ -49,28 +49,16 @@
     (when (and los (> (* size +word-bytes+)
                       (constraints-max-non-los-bytes (plan-constraints p))))
       (return-from plan-allocate
-        (let ((addr (alloc (space-allocator los) size)))
-          (cond (addr (let ((os (vm-object-start (plan-vm p))))
-                        (when os (s-set-bit os addr))) addr)
-                (t (plan-handle-allocation-failure p size los)))))))
-  (let ((addr (alloc (space-allocator (gen-nursery p)) size)))
-    (cond (addr (let ((os (vm-object-start (plan-vm p))))
-                  (when os (s-set-bit os addr))) addr)
-          (t (plan-handle-allocation-failure p size (gen-nursery p))))))
+        (or (plan-allocate-in p size los)
+            (plan-handle-allocation-failure p size los)))))
+  (or (plan-allocate-in p size (gen-nursery p))
+      (plan-handle-allocation-failure p size (gen-nursery p))))
 
 (defmethod plan-handle-allocation-failure ((p generational-plan) size space)
   ;; try minor; retry; try major; retry; signal.
   (plan-collect p :cycle-kind :minor)
-  (let ((addr (alloc (space-allocator space) size)))
-    (cond
-      (addr (let ((os (vm-object-start (plan-vm p))))
-              (when os (s-set-bit os addr))) addr)
-      (t (plan-collect p :cycle-kind :major)
-         (let ((addr2 (alloc (space-allocator space) size)))
-           (if addr2
-               (progn (let ((os (vm-object-start (plan-vm p))))
-                       (when os (s-set-bit os addr2))) addr2)
-               (error 'heap-exhausted :requested-size size :space :nursery)))))))
+  (or (plan-allocate-in p size space)
+      (plan-retry-after p size space :major)))
 
 ;; ---- phases -------------------------------------------------------------
 
@@ -154,35 +142,12 @@
 ;; ---- minor marking: nursery only, seeded from roots + remembered set ----
 
 (defun minor-root-reference (plan ref)
-  (let* ((vm (plan-vm plan))
-         (nursery (gen-nursery plan))
-         (addr (ref-strip-or-self vm ref)))
-    (if (and (vm-reference-p vm ref)
-             (space-contains-p nursery addr))
-        (space-trace-object
-         nursery vm ref (plan-tracer plan) :trace-kind :minor)
-        ref)))
+  (trace-root-in plan ref (gen-nursery plan) :trace-kind :minor))
 
 (defun minor-grey-reference (plan ref)
-  (let* ((vm (plan-vm plan))
-         (tr (plan-tracer plan))
-         (nursery (gen-nursery plan))
-         (addr (ref-strip-or-self vm ref))
-         (slots (vm-reference-slots vm addr)))
-    (flet ((process-slot (k)
-             (let ((child (vm-object-reference vm addr k)))
-               (when (vm-reference-p vm child)
-                 (let ((caddr (ref-strip-or-self vm child)))
-                   (when (space-contains-p nursery caddr)
-                     (let ((new
-                             (space-trace-object
-                              nursery vm child tr :trace-kind :minor)))
-                       (unless (eql new child)
-                         (setf (vm-object-reference vm addr k) new)))))))))
-      (if slots
-          (loop for k across slots do (process-slot k))
-          (dotimes (k (vm-object-reference-count vm addr)) (process-slot k))))
-    ref))
+  (trace-object-children plan ref
+                         :target-space (gen-nursery plan)
+                         :trace-kind :minor))
 
 (defun minor-mark (plan)
   (let* ((vm (plan-vm plan))

@@ -68,31 +68,54 @@
               ref))
         ref)))
 
-(defun mark-grey-reference (plan ref)
+(defun trace-root-in (plan ref target-space &key trace-kind)
+  "Trace the root REF if it lives in TARGET-SPACE; return the (possibly
+forwarded) reference.  Shared by every minor/private collector's root seeder."
+  (let ((vm (plan-vm plan)))
+    (if (and (vm-reference-p vm ref)
+             (space-contains-p target-space (ref-strip-or-self vm ref)))
+        (space-trace-object target-space vm ref (plan-tracer plan)
+                            :trace-kind trace-kind)
+        ref)))
+
+(defun trace-object-children (plan ref
+                              &key target-space trace-kind
+                                (exclude-weak-referent t))
+  "Trace every reference slot of the object at REF, routing each child
+through its owning space's space-trace-object (restricted to TARGET-SPACE
+when given), writing back forwarded references.  Returns REF.
+Top-level with explicit state: no host closure per object.  Weak pointers'
+referent slot 0 is excluded by default (weak.tex §1); healing paths pass
+:exclude-weak-referent nil so a moved referent is resolved in the slot too."
   (let* ((vm (plan-vm plan))
          (tracer (plan-tracer plan))
          (addr (ref-strip-or-self vm ref))
          (slots (vm-reference-slots vm addr))
-         (weak-p (weak-pointer-p vm addr)))
-    (flet ((process-slot (i)
-             ;; weak.tex §1: a weak pointer's referent slot is not scanned
-             ;; during normal tracing; the weak phase processes it.
-             (when (or (not weak-p) (not (zerop i)))
-               (let ((child (vm-object-reference vm addr i)))
-                 (when (vm-reference-p vm child)
-                   (let* ((caddr (ref-strip-or-self vm child))
-                          (space (plan-space-for-address plan caddr)))
-                     (when space
-                       (let ((new
-                               (space-trace-object
-                                space vm child tracer
-                                :trace-kind (plan-active-trace-kind plan))))
-                         (unless (eql new child)
-                           (setf (vm-object-reference vm addr i) new))))))))))
+         (weak-p (and exclude-weak-referent (weak-pointer-p vm addr))))
+    (labels ((process (i)
+               (when (or (not weak-p) (not (zerop i)))
+                 (let ((child (vm-object-reference vm addr i)))
+                   (when (vm-reference-p vm child)
+                     (let* ((caddr (ref-strip-or-self vm child))
+                            (space (plan-space-for-address plan caddr)))
+                       (when (and space
+                                  (or (null target-space)
+                                      (eq space target-space)))
+                         (let ((new
+                                 (space-trace-object
+                                  space vm child tracer
+                                  :trace-kind trace-kind)))
+                           (unless (eql new child)
+                             (setf (vm-object-reference vm addr i)
+                                   new))))))))))
       (if slots
-          (loop for i across slots do (process-slot i))
-          (dotimes (i (vm-object-reference-count vm addr)) (process-slot i))))
+          (loop for i across slots do (process i))
+          (dotimes (i (vm-object-reference-count vm addr)) (process i))))
     ref))
+
+(defun mark-grey-reference (plan ref)
+  (trace-object-children
+   plan ref :trace-kind (plan-active-trace-kind plan)))
 
 (defun mark-roots (plan tracer &key trace-kind)
   "Seed the mark queue from roots, then drain to fixpoint.  Policy-agnostic:

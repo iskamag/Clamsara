@@ -56,15 +56,8 @@
 
 (defmethod plan-handle-allocation-failure ((p sticky-immix-plan) size space)
   (plan-collect p :cycle-kind :minor)
-  (let ((addr (alloc (space-allocator space) size)))
-    (cond (addr (let ((os (vm-object-start (plan-vm p))))
-                 (when os (s-set-bit os addr))) addr)
-          (t (plan-collect p :cycle-kind :major)
-             (let ((a2 (alloc (space-allocator space) size)))
-               (if a2
-                   (progn (let ((os (vm-object-start (plan-vm p))))
-                            (when os (s-set-bit os a2))) a2)
-                   (error 'heap-exhausted :requested-size size :space :default)))))))
+  (or (plan-allocate-in p size space)
+      (plan-retry-after p size space :major)))
 
 (defun make-stickyimmix-plan (vm heap-size)
   (declare (ignore heap-size))

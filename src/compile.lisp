@@ -104,6 +104,20 @@ on the first live VM-OBJECT-REFERENCE after boot."
          (address (and space (space-base-address space))))
     (when (and address (< (1+ address) (vm-heap-size vm)))
       (vm-object-reference vm address 0)))
+  ;; Barrier accessors are on the mutator fast path.  Resolve them before
+  ;; returning from boot so the first RC/publication store cannot construct a
+  ;; CLOS effective method or allocate host storage.
+  (let ((barrier (plan-barrier plan)))
+    (when barrier
+      (barrier-plan barrier)
+      (barrier-rules barrier)
+      (barrier-rc-buffer barrier)
+      (barrier-satb-buffer barrier)
+      (dolist (rule (barrier-rules barrier))
+        (barrier-rule-name rule)
+        (barrier-rule-metadatum rule)
+        (barrier-rule-trigger rule)
+        (barrier-rule-transfer rule))))
   ;; Every stratum registered on the VM resolves its slot accessors on the
   ;; collection path (s-get/s-set read stratum-cells, stratum-log-gran,
   ;; stratum-storage, ...).  Warm them all so no effective method is
@@ -170,6 +184,10 @@ on the first live VM-OBJECT-REFERENCE after boot."
   (sb-local-block space 0)
   (sb-local-mb space 0)
   (sb-block-base space 0)
+  ;; RC barriers classify source/target addresses through SPACE-CONTAINS-P;
+  ;; resolve that effective method during boot rather than on the first
+  ;; mutator store (which must remain allocation-free).
+  (space-contains-p space (space-base-address space))
   (let ((a (space-allocator space)))
     (when (typep a 'hierarchical-allocator)
       (%warm-hierarchical-allocator a vm space)))

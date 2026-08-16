@@ -179,6 +179,23 @@
         (values nil "mutator context ownership wrong"))))
 
 
+(deftest plan-mutator-context-rejects-foreign-vm ()
+  ;; A plan's contexts must all use the VM that owns the plan.  Reject a
+  ;; foreign VM before extending the plan-owned context vector.
+  (let* ((vm (make-simulator-vm 4096 :work-packets 2))
+         (foreign-vm (make-simulator-vm 4096 :work-packets 2))
+         (p (make-instance 'plan :name :context-vm-test :vm vm :spaces nil
+                           :constraints (make-instance 'plan-constraints)))
+         (before (length (plan-mutator-contexts p)))
+         (caught nil))
+    (handler-case
+        (make-mutator-context p :vm foreign-vm)
+      (clamsara-error () (setf caught t)))
+    (if (and caught (= (length (plan-mutator-contexts p)) before))
+        (values t "foreign mutator context VM rejected")
+        (values nil "foreign mutator context VM accepted"))))
+
+
 (deftest simulator-safepoint-protocol ()
   ;; Coordination is a VM-owned record, not temporary collector state.  The
   ;; simulator acknowledges a stop immediately; repeated requests are

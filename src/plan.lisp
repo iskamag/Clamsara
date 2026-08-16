@@ -385,10 +385,16 @@ failure.  The escalation tail shared by every plan's failure handler."
     ;; non-generational: try alloc; full collect; try alloc; signal.
     (plan-retry-after p size space :full)))
 
-(defun allocate-object (plan slot-count &key (type-tag +tag-object+) (space :default))
-  "Allocate a headered object of SLOT-COUNT slots; return its address."
+(defun allocate-object (plan slot-count &key (type-tag +tag-object+)
+                                      (layout-id 0) (space :default))
+  "Allocate a headered object of SLOT-COUNT slots; return its address.
+LAYOUT-ID is recorded in the header spare field and defaults to zero."
+  (unless (%valid-layout-id-p layout-id)
+    (error 'clamsara-error
+           :message (format nil "invalid layout id ~s (expected 0..~d)"
+                            layout-id (1- +layout-id-limit+))))
   (let ((addr (plan-allocate plan (1+ slot-count) space)))
-    (vm-write-header (plan-vm plan) addr type-tag slot-count)
+    (vm-write-header (plan-vm plan) addr type-tag slot-count layout-id)
     addr))
 
 ;; ---- finalization / boot hooks ------------------------------------------

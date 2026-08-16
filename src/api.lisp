@@ -35,8 +35,10 @@
      (let ((*clamsara-plan* plan) (*clamsara-vm* vm))
        ,@body)))
 
-(defun clamsara-allocate-object (slot-count &key (type-tag +tag-object+))
-  (allocate-object *clamsara-plan* slot-count :type-tag type-tag))
+(defun clamsara-allocate-object (slot-count &key (type-tag +tag-object+)
+                                             (layout-id 0))
+  (allocate-object *clamsara-plan* slot-count
+                   :type-tag type-tag :layout-id layout-id))
 
 (defun clamsara-register-root (address)
   "Register ADDRESS as a root; return its index in the root vector (a copying

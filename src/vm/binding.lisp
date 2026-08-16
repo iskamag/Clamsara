@@ -219,6 +219,30 @@ any indices they hold."
 ;; VM-REFERENCE-SLOTS; treating every payload slot as a reference is the
 ;; conservative fallback when no map is declared.
 
+(defconstant +layout-id-bits+ 16)
+(defconstant +layout-id-limit+ (ash 1 +layout-id-bits+))
+(defconstant +slot-index-bits+ 24)
+(defconstant +slot-index-limit+ (ash 1 +slot-index-bits+))
+
+(defun %valid-layout-id-p (layout-id)
+  (and (integerp layout-id)
+       (<= 0 layout-id)
+       (< layout-id +layout-id-limit+)))
+
+(defun %valid-slot-index-p (slot)
+  ;; Slot indices are payload offsets and must fit the header's 24-bit size
+  ;; field.  Rejecting malformed indices at registration keeps all scan/heal
+  ;; paths allocation-free and prevents a map from naming outside an object.
+  (and (integerp slot)
+       (<= 0 slot)
+       (< slot +slot-index-limit+)))
+
+(defun %slot-map-key (type-tag layout-id)
+  "Return an allocation-free hash key for a TYPE-TAG/LAYOUT-ID pair.
+  Both fields are validated before this helper is called, so the bit packing
+  is injective and the result remains a fixnum on supported hosts."
+  (logior (ash type-tag +layout-id-bits+) layout-id))
+
 (defstruct (slot-map (:constructor %make-slot-map))
   (type-tag 0 :type fixnum)
   (ref-slots nil :type (or simple-vector null)))
@@ -226,11 +250,43 @@ any indices they hold."
 (defun register-slot-map (vm type-tag layout-id ref-slots)
   "Declare that objects with type-tag TYPE-TAG and header spare LAYOUT-ID
   have reference slots REF-SLOTS (a vector of slot indices, ascending).
-  Returns the layout id."
-  (unless (vm-slot-maps vm)
-    (setf (vm-slot-maps vm) (make-array 64 :initial-element nil)))
-  (setf (aref (vm-slot-maps vm) layout-id)
-        (%make-slot-map :type-tag type-tag :ref-slots ref-slots))
+  The map's vector is copied so later mutations by the caller cannot change
+  collector traversal.  Registration is the only operation that may allocate;
+  lookup uses an integer key and a stable hash table.  Returns the layout id."
+  (unless (and (integerp type-tag) (<= 0 type-tag) (< type-tag 256))
+    (error 'clamsara-error
+           :message (format nil "invalid slot-map type tag ~s (expected 0..255)"
+                            type-tag)))
+  (unless (%valid-layout-id-p layout-id)
+    (error 'clamsara-error
+           :message (format nil "invalid slot-map layout id ~s (expected 0..~d)"
+                            layout-id (1- +layout-id-limit+))))
+  (unless (or (null ref-slots) (vectorp ref-slots))
+    (error 'clamsara-error
+           :message "slot-map reference slots must be a vector or NIL"))
+  (let ((slots (and ref-slots (make-array (length ref-slots))))
+        (previous nil))
+    (dotimes (i (length ref-slots))
+      (let ((slot (aref ref-slots i)))
+        (unless (%valid-slot-index-p slot)
+          (error 'clamsara-error
+                 :message
+                 (format nil "invalid slot-map slot index ~s (expected 0..~d)"
+                         slot (1- +slot-index-limit+))))
+        ;; Maps are documented as ascending.  Enforce strict ordering: a
+        ;; duplicate would otherwise cause duplicate visits during tracing.
+        (when (and previous (<= slot previous))
+          (error 'clamsara-error
+                 :message "slot-map slot indices must be strictly ascending"))
+        (setf (aref slots i) slot
+              previous slot)))
+    ;; The registry is intentionally created/resized by registration, never by
+    ;; slot-map-for on a collector path.  Integer keys avoid consing a pair at
+    ;; every lookup while still distinguishing tags that share a layout id.
+    (unless (vm-slot-maps vm)
+      (setf (vm-slot-maps vm) (make-hash-table :test #'eql)))
+    (setf (gethash (%slot-map-key type-tag layout-id) (vm-slot-maps vm))
+          (%make-slot-map :type-tag type-tag :ref-slots slots)))
   layout-id)
 
 (defun slot-map-for (vm address)
@@ -239,9 +295,8 @@ any indices they hold."
          (layout-id (if (eql tag +tag-cons+)
                         0
                         (header-spare (vm-object-header vm address)))))
-    (and maps (< layout-id (length maps))
-         (let ((m (aref maps layout-id)))
-           (and m (eql (slot-map-type-tag m) tag) m)))))
+    (and maps
+         (gethash (%slot-map-key tag layout-id) maps))))
 
 (defun vm-reference-slots (vm address)
   "The reference-bearing slot indices of the object at ADDRESS, per its

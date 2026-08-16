@@ -15,6 +15,42 @@
         (values t "simulator capabilities ok")
         (values nil "simulator capabilities wrong"))))
 
+(deftest software-mmu-alias-range ()
+  ;; T1 aliases may be outside the physical heap's identity-mapped range.  A
+  ;; grown VPT must retain the original mapping/protection and still dispatch
+  ;; a protection fault through the ordinary T2 handler path.
+  (let* ((vm (make-simulator-vm 4096))
+         (physical-page 1)
+         (original-page physical-page)
+         (alias-page (vm-page-count vm))
+         (original-address (+ (page-start-address original-page) 7))
+         (alias-address (+ (page-start-address alias-page) 7))
+         (faults 0))
+    (setf (ref-u64 vm original-address) #x1234)
+    (vm-mprotect vm original-page 1 :read)
+    (let ((alias (vm-map-alias vm physical-page alias-page 1)))
+      (vm-install-fault-handler
+       vm (lambda (address access-kind)
+           (declare (ignore access-kind))
+           (incf faults)
+           (vm-mprotect vm (address-page address) 1 :read-write)))
+      (mmu-arm vm)
+      (if (and (= alias alias-page)
+               (= (ref-u64 vm original-address) #x1234)
+               (= (ref-u64 vm alias-address) #x1234)
+               (eq (cdr (aref (mmu-vpt vm) original-page)) :read)
+               (eq (cdr (aref (mmu-vpt vm) alias-page)) :read-write))
+          (progn
+            ;; The original's read-only protection remains effective after
+            ;; alias creation, and the handler can make it writable.
+            (setf (ref-u64 vm original-address) #x5678)
+            (if (and (= faults 1)
+                     (= (ref-u64 vm alias-address) #x5678)
+                     (= (ref-u64 vm original-address) #x5678))
+                (values t "software MMU alias range/fault path ok")
+                (values nil "software MMU alias fault path wrong")))
+          (values nil "software MMU alias mapping lost the original")))))
+
 (deftest object-model ()
   (let ((vm (make-simulator-vm 4096)))
     (let ((a (vm-write-header vm 512 +tag-object+ 3)))

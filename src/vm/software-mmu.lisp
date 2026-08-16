@@ -23,6 +23,35 @@
 (defun mmu-ensure (vm)
   (unless (mmu-vpt vm) (mmu-init vm)))
 
+(defun %mmu-ensure-capacity (vm required-pages)
+  "Ensure that the virtual page table and dirty bits cover REQUIRED-PAGES.
+
+The initial table is sized to the physical heap, but T1 permits virtual ranges
+outside that identity-mapped window (in particular, aliases).  Replacing both
+vectors together keeps their indices in lockstep, while copying the old
+entries/bits makes growing the address space invisible to existing mappings.  A
+newly exposed virtual page is an unmapped, protected page rather than an
+accidental identity mapping; this also gives the normal fault path a chance to
+resolve it."
+  (mmu-ensure vm)
+  (let* ((vpt (mmu-vpt vm))
+         (dirty (mmu-dirty vm))
+         (target (max required-pages (length vpt) (length dirty)))
+         (old-vpt-length (length vpt)))
+    (when (< (length vpt) target)
+      (let ((grown (make-array target :initial-element nil)))
+        (replace grown vpt)
+        ;; Do not use one shared CONS as INITIAL-ELEMENT: vm-mprotect and
+        ;; vm-map-alias mutate each entry's CAR/CDR independently.
+        (loop for page from old-vpt-length below target
+              do (setf (aref grown page) (cons 0 :none)))
+        (setf (mmu-vpt vm) grown)))
+    (when (< (length dirty) target)
+      (let ((grown (make-array target :element-type 'bit :initial-element 0)))
+        (replace grown dirty)
+        (setf (mmu-dirty vm) grown)))
+    vm))
+
 (defun mmu-arm (vm &key (clear-dirty t))
   "Enable software-MMU accesses and page dirty-bit tracking for VM.
 
@@ -107,7 +136,10 @@ when the caller has just captured a collector-owned dirty set."
 
 (defgeneric vm-map-alias (vm phys-page virt-page count)
   (:method ((vm virtual-memory-mixin) phys-page virt-page count)
-    (mmu-ensure vm)
+    ;; An alias commonly lives immediately after the heap's identity-mapped
+    ;; range.  Grow the VPT first so this never overwrites an existing range
+    ;; or indexes past the original, physical-sized table.
+    (%mmu-ensure-capacity vm (+ virt-page count))
     (loop for k below count
           for entry = (aref (mmu-vpt vm) (+ virt-page k))
           do (setf (car entry) (+ phys-page k)

@@ -72,7 +72,8 @@
                  (:file "test-advanced")
                  (:file "test-sanity")
                  (:file "test-persistence")
-                 (:file "test-issues")))))
+                 (:file "test-issues")
+                 (:file "test-workloads")))))
 
 ;;; Optional Maclina workload driver. EXTRINSICL must be loaded before its
 ;;; maclina adapter (the upstream subsystem omits that dependency), hence the

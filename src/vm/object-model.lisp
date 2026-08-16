@@ -77,6 +77,13 @@ returns true only for addresses in the plan's configured cons-space."))
   (:documentation "Copy payload words and preserve relocatable side metadata.")
   (:method ((vm vm-binding) src dst)
     (let ((n (vm-object-total-words vm src)))
+      ;; Object-copy is the common relocation/publication seam.  Count both
+      ;; units here so every collector path (including publication and
+      ;; compaction) reports the same event, without allocating per object.
+      (let ((stats (%stats-for-vm vm)))
+        (when stats
+          (stats-event stats :objects-copied 1)
+          (stats-event stats :words-copied n)))
       (loop for k below n do (setf (ref-u64 vm (+ dst k)) (ref-u64 vm (+ src k)))))
     (let ((os (vm-object-start vm)))
       (when os (s-set-bit os dst)))

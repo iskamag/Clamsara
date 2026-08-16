@@ -57,6 +57,11 @@ when the caller has just captured a collector-owned dirty set."
   (let* ((vp (address-page virt-addr))
          (entry (aref (mmu-vpt vm) vp)))
     (when (mmu-access-violates-p (cdr entry) access-kind)
+      ;; A fault is an event even when no handler is installed and the access
+      ;; raises.  Keep the increment before dispatch so handler work cannot
+      ;; accidentally hide the hardware-visible fault.
+      (let ((stats (%stats-for-vm vm)))
+        (when stats (stats-event stats :mmu-faults 1)))
       (if (mmu-handler vm)
           (funcall (mmu-handler vm) virt-addr access-kind)
           (error 'clamsara-error
@@ -70,6 +75,8 @@ when the caller has just captured a collector-owned dirty set."
   (let* ((vp (address-page virt-addr))
          (entry (aref (mmu-vpt vm) vp)))
     (when (mmu-access-violates-p (cdr entry) access-kind)
+      (let ((stats (%stats-for-vm vm)))
+        (when stats (stats-event stats :mmu-faults 1)))
       (if (mmu-handler vm)
           (funcall (mmu-handler vm) virt-addr access-kind)
           (error 'clamsara-error

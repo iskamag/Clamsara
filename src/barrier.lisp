@@ -17,7 +17,8 @@
    (plan :initarg :plan :accessor barrier-plan :initform nil)
    (satb-buffer :accessor barrier-satb-buffer
                 :initform (make-array 0 :fill-pointer 0))
-   ;; Interleaved REF, DELTA fixnums; no cons cells on the mutator path.
+   ;; Interleaved SOURCE-SUPERBLOCK, REF, DELTA fixnums; no cons cells on
+   ;; the mutator path.  SOURCE-SUPERBLOCK is -1 for a non-mature source.
    (rc-buffer :accessor barrier-rc-buffer
               :initform (make-array 0 :fill-pointer 0)))
   (:metaclass barrier-metaclass))
@@ -34,11 +35,24 @@
           (make-array n :element-type 'fixnum :initial-element 0
                       :fill-pointer 0)
           (barrier-rc-buffer barrier)
-          (make-array (* 2 n) :element-type 'fixnum :initial-element 0
+          ;; Each deferred edge carries its source superblock, target, and
+          ;; delta.  Keeping these as fixnums preserves the allocation-free
+          ;; mutator barrier while allowing per-superblock RC folding.
+          (make-array (* 3 n) :element-type 'fixnum :initial-element 0
                       :fill-pointer 0)))
   barrier)
 
 ;; ---- fused note-write / note-read ---------------------------------------
+
+(declaim (inline %barrier-record-transfer))
+(defun %barrier-record-transfer (vm barrier)
+  ;; BARrier transfers are counted at the fused dispatch point, where a
+  ;; compiler can emit the same increment without allocating a per-rule
+  ;; closure.  A barrier may be used by a small stand-alone VM in tests before
+  ;; it is attached to a plan, in which case there is simply no counter.
+  (let* ((plan (or (barrier-plan barrier) (and vm (vm-plan vm))))
+         (stats (and plan (plan-stats plan))))
+    (when stats (stats-event stats :barrier-transfers 1))))
 
 (declaim (inline barrier-note-write))
 (defun barrier-note-write (vm barrier src slot new)
@@ -49,7 +63,9 @@
     (when rules
       (loop for r in rules
             when (eq (barrier-rule-trigger r) :ref-write)
-            do (setf new (funcall (barrier-rule-transfer r) vm barrier src slot new))))
+            do (progn
+                 (%barrier-record-transfer vm barrier)
+                 (setf new (funcall (barrier-rule-transfer r) vm barrier src slot new)))))
     new))
 
 (declaim (inline barrier-note-read))
@@ -60,7 +76,9 @@
     (if rules
         (loop for r in rules
               when (eq (barrier-rule-trigger r) :ref-read)
-              do (setf reference (funcall (barrier-rule-transfer r) vm slot-addr reference))
+              do (progn
+                   (%barrier-record-transfer vm barrier)
+                   (setf reference (funcall (barrier-rule-transfer r) vm slot-addr reference)))
               finally (return reference))
         reference)))
 
@@ -68,18 +86,40 @@
   (unless (vector-push ref (barrier-satb-buffer barrier))
     (error 'heap-exhausted :requested-size 1 :space :satb-buffer))
   ref)
-(defun rc-log-decrement (barrier ref)
+(declaim (inline rc-log-delta))
+(defun rc-log-delta (barrier source-superblock ref delta)
+  "Append one SOURCE-SUPERBLOCK/REF/DELTA triple without mutator allocation.
+SOURCE-SUPERBLOCK is -1 when the source is outside Claimore's mature space."
   (let ((buf (barrier-rc-buffer barrier)))
-    (unless (and (vector-push ref buf) (vector-push -1 buf))
-      (error 'heap-exhausted :requested-size 2 :space :rc-buffer)))
+    (unless (and (vector-push source-superblock buf)
+                 (vector-push ref buf)
+                 (vector-push delta buf))
+      (error 'heap-exhausted :requested-size 3 :space :rc-buffer)))
   ref)
-(defun rc-log-increment (barrier ref)
-  (let ((buf (barrier-rc-buffer barrier)))
-    (unless (and (vector-push ref buf) (vector-push +1 buf))
-      (error 'heap-exhausted :requested-size 2 :space :rc-buffer)))
-  ref)
+(defun rc-log-decrement (barrier ref &optional (source-superblock -1))
+  (rc-log-delta barrier source-superblock ref -1))
+(defun rc-log-increment (barrier ref &optional (source-superblock -1))
+  (rc-log-delta barrier source-superblock ref +1))
 
 ;; ---- rule constructors --------------------------------------------------
+
+(defun %rc-superblock-for (barrier vm reference)
+  "Return REFERENCE's mature superblock index, or -1 for foreign objects.
+This lookup is deliberately scalar and cons-free: the RC barrier records only
+fixnums in its preallocated field log."
+  (let* ((plan (barrier-plan barrier))
+         (address (ref-strip-or-self vm reference)))
+    (if (and plan (integerp address) (plusp address))
+        (dolist (space (plan-spaces plan) -1)
+          (when (and (typep space 'superblock-space)
+                     (space-contains-p space address))
+            (return (sb-index space address))))
+        -1)))
+
+(defun %rc-external-edge-p (source-superblock target-superblock)
+  "Whether a mature TARGET edge contributes to its external in-degree."
+  (and (>= target-superblock 0)
+       (/= source-superblock target-superblock)))
 
 (defun card-barrier-rule (&optional (name :card))
   "Mark the source's card dirty when a reference from OUTSIDE the nursery
@@ -130,9 +170,20 @@ vm-object-old-p misses LOS objects, whose age stratum stays 0."
   (make-barrier-rule
    :name name :trigger :ref-write
    :transfer (lambda (vm barrier src slot new)
-               (let ((old (vm-object-reference vm src slot)))
-                 (when (vm-reference-p vm old) (rc-log-decrement barrier old))
-                 (when (vm-reference-p vm new) (rc-log-increment barrier new))
+               (let* ((old (vm-object-reference vm src slot))
+                      ;; Superblock counts are external in-degrees.  A mature
+                      ;; object pointing within its own SB must not contribute;
+                      ;; the source index is captured in the fixed-size log so
+                      ;; the deferred apply path cannot lose this distinction.
+                      (source-superblock (%rc-superblock-for barrier vm src))
+                      (old-superblock (%rc-superblock-for barrier vm old))
+                      (new-superblock (%rc-superblock-for barrier vm new)))
+                 (when (and (vm-reference-p vm old)
+                            (%rc-external-edge-p source-superblock old-superblock))
+                   (rc-log-decrement barrier old source-superblock))
+                 (when (and (vm-reference-p vm new)
+                            (%rc-external-edge-p source-superblock new-superblock))
+                   (rc-log-increment barrier new source-superblock))
                  ;; hierarchy bookkeeping (heap.tex §6): a store whose source
                  ;; or target lives in a superblock space updates the
                  ;; per-SB/per-MB points-to matrices and the block escape bits

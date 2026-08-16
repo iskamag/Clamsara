@@ -34,6 +34,11 @@
   (when (>= (tr-tail tr) (tr-capacity tr))
     ;; One queue entry per heap word is a strict upper bound on the number of
     ;; distinct marked objects. Reaching it means a tracer invariant failed.
+    ;; Keep the event visible even though this simulator reports exhaustion
+    ;; rather than linking a target-side immortal spill chunk.
+    (incf (tr-spills tr))
+    (let ((stats (%stats-for-vm (tr-vm tr))))
+      (when stats (stats-event stats :queue-spills 1)))
     (error 'heap-exhausted :requested-size 1 :space :tracer-queue))
   (setf (aref (tr-queue tr) (tr-tail tr)) ref)
   (incf (tr-tail tr))
@@ -50,6 +55,12 @@
 
 (defun tracer-drain (tr fn collector-state)
   "Invoke FN as (FN COLLECTOR-STATE REF) until the preallocated queue is empty."
+  ;; A drain is one transitive-closure pass.  Keep this outside the loop: it
+  ;; is one fixpoint operation, not one event per object, and does not cons.
+  (let ((stats (or (and (typep collector-state 'plan)
+                        (plan-stats collector-state))
+                   (%stats-for-vm (tr-vm tr)))))
+    (when stats (stats-event stats :closure-passes 1)))
   (loop until (tracer-empty-p tr)
         do (funcall fn collector-state (tracer-dequeue tr))))
 

@@ -219,6 +219,11 @@
                          (%copy-page-words vm page copy buffer)
                          copy))))
         (setf (gethash page images) words)))
+    ;; A page in SORTED corresponds to one persistence write in this segment.
+    ;; Count after deduplication so a page reported by both MMU and cards is
+    ;; not charged twice.
+    (let ((stats (%stats-for-vm vm)))
+      (when stats (stats-event stats :pages-written (length sorted))))
     (let ((segment (%make-segment :timestamp timestamp :pages sorted
                                   :images images
                                   :checksum (%segment-checksum
@@ -256,7 +261,10 @@
           (s-for-set-cells page-stratum nil
             (lambda (addr)
               (push (address-page addr) pages))))))
-    (sort (remove-duplicates pages) #'<)))
+    (let ((result (sort (remove-duplicates pages) #'<)))
+      (let ((stats (%stats-for-plan plan)))
+        (when stats (stats-event stats :dirty-pages (length result))))
+      result)))
 
 (defun collector-clear-dirty (plan)
   "Reset the dirty signal the collector handed persistence."

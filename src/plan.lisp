@@ -380,6 +380,9 @@ heap-sized capacity so registration and collection never grow them."
       (plan-build-sft plan)
       (setf (plan-tracer plan) (make-tracer vm)
             (plan-stats plan) (or (plan-stats plan) (make-stats)))
+      ;; Warm every standard event slot before collector code can run.  The
+      ;; counters are then just fixnum hash updates on the hot paths.
+      (stats-prepare (plan-stats plan))
       (when (plan-barrier plan)
         (initialize-barrier-buffers (plan-barrier plan) vm)
         (barrier-check (plan-barrier plan) plan))

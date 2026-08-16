@@ -73,6 +73,33 @@
                                   mature-copy sb (aref counts sb)
                                   (vm-object-rc vm mature-copy)))))))))
 
+;; ---- Claimore cycles need the trace backup, not self-counted RC -----------
+
+(deftest claimore-unreachable-cycle-is-reclaimed ()
+  ;; Both objects start in mature SB0, whose whole-superblock release is
+  ;; reserved for the persistent root set.  The precise backup sweep must
+  ;; nevertheless release their now-dead block after the last root vanishes.
+  (with-clamsara (:plan-type :claimore :heap-size 65536)
+    (let* ((vm *clamsara-vm*)
+           (plan *clamsara-plan*)
+           (mature (cl-mature plan))
+           (a (alloc (space-allocator mature) 1))
+           (b (alloc (space-allocator mature) 1)))
+      (vm-write-header vm a +tag-object+ 1)
+      (vm-write-header vm b +tag-object+ 1)
+      ;; These are intra-superblock edges.  They must not create an external
+      ;; RC count, but the cycle itself must still be trace-reclaimable.
+      (clamsara-write a 0 b)
+      (clamsara-write b 0 a)
+      (unless (zerop (fill-pointer (barrier-rc-buffer (plan-barrier plan))))
+        (return-from claimore-unreachable-cycle-is-reclaimed
+          (values nil "intra-superblock cycle was logged as external RC")))
+      (clamsara-gc :cycle-kind :major)
+      (if (and (not (vm-object-start-p vm a))
+               (not (vm-object-start-p vm b)))
+          (values t "ok")
+          (values nil "unreachable Claimore cycle survived backup sweep")))))
+
 ;; ---- B5: healing a forwarded root must preserve the pointer colour -------
 
 (deftest heal-forwarded-root-preserves-colour ()
@@ -648,3 +675,83 @@
                 (values t "ok")
                 (values nil (format nil "compiled ~a != interpreted ~a"
                                     compiled interpreted)))))))))
+
+
+;; ---- paper testing event counters ----------------------------------------
+
+(deftest stats-count-barrier-transfers-and-object-copy ()
+  ;; Barrier events are charged at the fused transfer seam, while copies are
+  ;; charged by VM-OBJECT-COPY so publication and relocation use one metric.
+  (with-clamsara (:plan-type :zgcish :heap-size 32768)
+    (let* ((plan *clamsara-plan*)
+           (vm *clamsara-vm*)
+           (stats (plan-stats plan))
+           (source (clamsara-allocate-object 1))
+           (destination (clamsara-allocate-object 1)))
+      (stats-reset stats)
+      (clamsara-write source 0 0)
+      (vm-object-copy vm source destination)
+      (if (and (plusp (stats-get stats :barrier-transfers))
+               (= 1 (stats-get stats :objects-copied))
+               (= 2 (stats-get stats :words-copied)))
+          (values t "ok")
+          (values nil
+                  (format nil "events: barriers=~a objects=~a words=~a"
+                          (stats-get stats :barrier-transfers)
+                          (stats-get stats :objects-copied)
+                          (stats-get stats :words-copied)))))))
+
+(deftest stats-count-tracer-closure-and-spill ()
+  (with-clamsara (:plan-type :marksweep :heap-size 32768)
+    (let* ((plan *clamsara-plan*)
+           (vm *clamsara-vm*)
+           (stats (plan-stats plan))
+           (root (clamsara-allocate-object 1)))
+      (clamsara-register-root root)
+      (stats-reset stats)
+      (clamsara-gc)
+      ;; Exercise the simulator's bounded queue failure explicitly. A target
+      ;; backend would spill here; the simulator records the attempted spill
+      ;; before reporting exhaustion.
+      (let ((tr (make-instance 'tracer :vm vm :capacity 0
+                               :queue (make-array 0 :element-type 'fixnum))))
+        (handler-case (tracer-enqueue tr root)
+          (heap-exhausted () nil)))
+      (if (and (plusp (stats-get stats :closure-passes))
+               (= 1 (stats-get stats :queue-spills)))
+          (values t "ok")
+          (values nil
+                  (format nil "events: closures=~a spills=~a"
+                          (stats-get stats :closure-passes)
+                          (stats-get stats :queue-spills)))))))
+
+(deftest stats-count-dirty-and-written-pages ()
+  (with-clamsara (:plan-type :claimore :heap-size 32768)
+    (let* ((plan *clamsara-plan*)
+           (vm *clamsara-vm*)
+           (stats (plan-stats plan))
+           (card (vm-stratum vm :card)))
+      (stats-reset stats)
+      (s-set-bit card +page-words+)
+      (checkpoint-heap plan :timestamp 17)
+      (if (and (= 1 (stats-get stats :dirty-pages))
+               (= 1 (stats-get stats :pages-written)))
+          (values t "ok")
+          (values nil
+                  (format nil "events: dirty=~a written=~a"
+                          (stats-get stats :dirty-pages)
+                          (stats-get stats :pages-written)))))))
+
+(deftest stats-count-mmu-faults ()
+  (with-clamsara (:plan-type :claimore :heap-size 32768)
+    (let* ((plan *clamsara-plan*)
+           (vm *clamsara-vm*)
+           (stats (plan-stats plan))
+           (address (+ (page-start-address 1) 3)))
+      (stats-reset stats)
+      (mark-pages-cow vm '(1))
+      (setf (ref-u64 vm address) 99)
+      (if (= 1 (stats-get stats :mmu-faults))
+          (values t "ok")
+          (values nil
+                  (format nil "faults=~a" (stats-get stats :mmu-faults)))))))

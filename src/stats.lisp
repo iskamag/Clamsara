@@ -6,10 +6,36 @@
 
 (in-package #:clamsara)
 
+;; Keep the event vocabulary in one place.  Counters are deliberately plain
+;; fixnums in a hash table: the table is warmed at plan boot, so recording an
+;; event on a collector path never has to resize it or cons a key/value pair.
+(defparameter +stats-event-names+
+  '(:barrier-transfers :words-copied :objects-copied :queue-spills
+    :closure-passes :pages-written :dirty-pages :mmu-faults
+    ;; Existing clients use this general cycle counter; retain it alongside
+    ;; the paper metrics.
+    :gc-cycles :gc-time :checkpoints)
+  "Event names preallocated in every plan's statistics table.")
+
 (defclass stats ()
   ((events :accessor stats-events :initform (make-hash-table :test 'eq))))
 
 (defun make-stats () (make-instance 'stats))
+
+(defun %stats-for-plan (plan)
+  (and plan (plan-stats plan)))
+
+(defun %stats-for-vm (vm)
+  (and vm (vm-plan vm) (plan-stats (vm-plan vm))))
+
+(defun stats-prepare (stats)
+  "Preallocate the standard event slots in STATS.
+
+This is called during plan finalization, before a collector can run.  It is
+separate from MAKE-STATS to preserve the historical empty SNAPSHOT result for
+stand-alone statistics objects." 
+  (dolist (name +stats-event-names+ stats)
+    (setf (gethash name (stats-events stats)) 0)))
 
 (defun stats-event (stats name delta)
   "Add DELTA to the event counter NAME (a keyword)."
@@ -19,7 +45,12 @@
   (gethash name (stats-events stats) 0))
 
 (defun stats-reset (stats)
-  (clrhash (stats-events stats))
+  ;; Retain the warmed keys: resetting a live plan must not make its next
+  ;; collector event resize the hash table on the hot path.
+  (maphash (lambda (name value)
+             (declare (ignore value))
+             (setf (gethash name (stats-events stats)) 0))
+           (stats-events stats))
   stats)
 
 (defun stats-snapshot (stats)

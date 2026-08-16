@@ -23,6 +23,23 @@
 (defun mmu-ensure (vm)
   (unless (mmu-vpt vm) (mmu-init vm)))
 
+(defun mmu-arm (vm &key (clear-dirty t))
+  "Enable software-MMU accesses and page dirty-bit tracking for VM.
+
+Arming is explicit rather than a simulator-wide default: normal collector
+traffic remains T0 direct access, while a checkpoint can fence the VM and then
+observe every mutator write through the same MMU path.  CLEAR-DIRTY is false
+when the caller has just captured a collector-owned dirty set."
+  (mmu-ensure vm)
+  (when clear-dirty (fill (mmu-dirty vm) 0))
+  (setf (mmu-armed vm) t)
+  vm)
+
+(defun mmu-disarm (vm)
+  "Disable software-MMU routing (the page table and dirty bits are retained)."
+  (setf (mmu-armed vm) nil)
+  vm)
+
 (declaim (inline mmu-access-violates-p))
 (defun mmu-access-violates-p (prot access-kind)
   (ecase access-kind

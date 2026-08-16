@@ -24,12 +24,25 @@
    (object-start :accessor vm-object-start :initform nil)
    (slot-maps   :accessor vm-slot-maps :initform nil)  ; per-type layout registry
    (stats       :accessor vm-stats :initform nil)
+   ;; Persistence state is VM-owned so a checkpoint made through the plain
+   ;; PLAN API can still accumulate a base image and subsequent deltas.  The
+   ;; COW table is deliberately host-side metadata: it is only the simulator
+   ;; implementation of the VM's protected-page/frozen-copy bookkeeping.
+   (persistence-log :accessor vm-persistence-log :initform nil)
+   (cow-pages   :accessor vm-cow-pages :initform nil) ; bit-vector, page -> armed
+   (cow-images  :accessor vm-cow-images :initform nil) ; page -> frozen words
    (plan        :initarg :plan :accessor vm-plan :initform nil)))
 
 (defclass virtual-memory-mixin ()           ; T1
   ((vpt        :accessor mmu-vpt :initform nil)       ; virt-page -> (phys . prot)
    (dirty      :accessor mmu-dirty :initform nil)     ; bit-vector
-   (mmu-armed  :accessor mmu-armed :initform nil)))
+   ;; The simulator arms this table explicitly for checkpoint dirty tracking.
+   ;; COW state is kept beside the table so a write fault can freeze a page
+   ;; before the mutator store, then restore the previous handler afterwards.
+   (mmu-armed  :accessor mmu-armed :initform nil)
+   (cow-pages  :accessor mmu-cow-pages :initform nil)
+   (cow-copied :accessor mmu-cow-copied :initform nil)
+   (cow-previous-handler :accessor mmu-cow-previous-handler :initform nil)))
 
 (defclass ring0-mixin ()                     ; T2
   ((handler    :accessor mmu-handler :initform nil)))

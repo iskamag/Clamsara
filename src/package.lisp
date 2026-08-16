@@ -48,7 +48,7 @@
            #:coloured-pointer-mixin
            #:ref-u64 #:ref-word
            #:cas #:cas128 #:atomic-incf #:memory-fence
-           #:vm-mprotect #:vm-map-alias #:vm-unmap
+           #:vm-mprotect #:vm-map-alias #:vm-unmap #:mmu-arm #:mmu-disarm
            #:vm-page-dirty-p #:vm-clear-page-dirty
            #:vm-install-fault-handler #:vm-remap #:vm-flush-tlb
            #:vm-safepoint #:vm-scan-roots #:vm-scan-object-references
@@ -141,10 +141,13 @@
            #:sanity-check #:sanity-errors
            #:gc-event-checkpoint
            #:persistent-allocator #:persistence-log #:make-persistence-log
+           #:persistence-log-base-image #:persistence-log-base-timestamp
+           #:persistence-log-base-checksum #:persistence-log-segments
            #:persistence-segment #:write-segment #:verify-segment
            #:collector-dirty-set #:collector-clear-dirty
            #:mark-pages-cow #:persistent-plan #:checkpoint-heap
-           #:replay-segment #:recover-last-intact-snapshot)
+           #:replay-segment #:replay-segments #:replay-log
+           #:replay-persistence-log #:recover-last-intact-snapshot)
   ;; public api
   (:export #:with-clamsara #:clamsara-allocate-object
            #:clamsara-register-root #:clamsara-gc #:clamsara-write

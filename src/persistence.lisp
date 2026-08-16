@@ -1,21 +1,9 @@
 ;;;; persistence.lisp -- persistence as a first-class concern, coupled to the
 ;;;; allocator and the collector (paper-v8 ch. persistence).
-;;;;
-;;;; The collector already tracks which pages are dirty and already moves
-;;;; objects; the allocator already knows what was just created.  A
-;;;; persistence layer that reuses those facts writes only modified state and
-;;;; needs no separate heap walk.  Snapshots are delta-encoded and
-;;;; log-structured: a base image once, then segments of (timestamp, page
-;;;; numbers, contents) with a trailing checksum.  Recovery reads forward to
-;;;; the last intact snapshot and stops: a torn segment is truncated, and
-;;;; writes after it are correctly lost.
 
 (in-package #:clamsara)
 
 ;; ---- the persistent allocator (persistence.tex §3) -----------------------
-;; A persistence-aware allocator wraps a base allocator and logs allocations.
-;; Because it is just another allocator, any space can opt into persistence
-;; by composing it; no collector changes are required.
 
 (defclass persistent-allocator ()
   ((base :initarg :base :reader pa-base)
@@ -39,14 +27,28 @@
   (allocator-reset (pa-base a)))
 
 ;; ---- the log (persistence.tex §1, §3) ------------------------------------
+;;
+;; A log has one complete base image and then an ordered list of page deltas.
+;; Keeping this state separate from the segment object is important: the first
+;; checkpoint must make an image from *all* pages, otherwise replaying a heap
+;; with an untouched page would silently turn that page into zeroes.
 
 (defclass persistence-log ()
-  ((segments :accessor plog-segments :initform nil)  ; list of segments
+  ((base-image :accessor plog-base-image :initform nil)
+   (base-timestamp :accessor plog-base-timestamp :initform nil)
+   (base-checksum :accessor plog-base-checksum :initform nil)
+   (segments :accessor plog-segments :initform nil)  ; chronological order
    (allocations :accessor plog-allocations :initform nil)
    (alloc-count :accessor plog-alloc-count :initform 0)))
 
 (defun make-persistence-log ()
   (make-instance 'persistence-log))
+
+;; Friendly names for clients that do not use the historical PLOG prefix.
+(defun persistence-log-base-image (log) (plog-base-image log))
+(defun persistence-log-base-timestamp (log) (plog-base-timestamp log))
+(defun persistence-log-base-checksum (log) (plog-base-checksum log))
+(defun persistence-log-segments (log) (plog-segments log))
 
 (defun plog-record-alloc (log addr size)
   "Record an allocation: the base allocator's address/size pair is appended
@@ -54,6 +56,33 @@
   (setf (plog-allocations log)
         (cons (cons addr size) (plog-allocations log)))
   (incf (plog-alloc-count log))
+  log)
+
+(defun %heap-image (vm)
+  (let ((image (make-array (vm-heap-size vm)
+                           :element-type '(unsigned-byte 64)
+                           :initial-element 0)))
+    (replace image (vm-heap vm))
+    image))
+
+(defun %base-image-checksum (image timestamp)
+  (let ((sum timestamp))
+    (dotimes (i (length image) sum)
+      (setf sum (logxor sum (+ (aref image i) i))))))
+
+(defun plog-record-base (log vm timestamp)
+  "Capture the complete heap image once, before the first delta segment."
+  (unless (plog-base-image log)
+    (let ((image (%heap-image vm)))
+      (setf (plog-base-image log) image
+            (plog-base-timestamp log) timestamp
+            (plog-base-checksum log) (%base-image-checksum image timestamp))))
+  log)
+
+(defun plog-record-segment (log segment)
+  "Append SEGMENT after the base image, preserving checkpoint order."
+  (setf (plog-segments log)
+        (nconc (plog-segments log) (list segment)))
   log)
 
 ;; ---- the segment writer (persistence.tex §1) -----------------------------
@@ -65,68 +94,122 @@
   (checksum 0 :type fixnum))
 
 (defun page-checksum-of-image (words timestamp page-index)
-  "A position-dependent fold over a FROZEN page image; a torn segment's
-  trailing checksum mismatch is how recovery detects the truncation point.
-  The checksum must fold over the stored image, never the live heap: a
-  snapshot verifies after later mutation by definition (recovery reads a
-  heap that has moved on)."
+  "A position-dependent fold over a frozen page image."
   (let ((sum timestamp))
     (dotimes (k +page-words+ sum)
       (setf sum (logxor sum (+ (aref words k) k page-index))))))
 
+(defun %copy-page-image (vm page)
+  (let ((words (make-array +page-words+
+                           :element-type '(unsigned-byte 64)
+                           :initial-element 0))
+        (base (page-start-address page)))
+    (dotimes (k +page-words+ words)
+      (let ((address (+ base k)))
+        (when (< address (vm-heap-size vm))
+          (setf (aref words k) (ref-u64 vm address)))))))
+
+;; ---- simulator COW/MMU support ------------------------------------------
+;;
+;; The software MMU normally only supplies page protection and dirty bits.  A
+;; checkpoint adds a protected-page set and a frozen-image table.  On the first
+;; write fault the handler copies the old page, then makes the live mapping
+;; writable.  The segment writer also freezes pages that were never written;
+;; this models a concurrent writer which reaches a quiet page before a fault.
+
+(defun %ensure-cow-tables (vm)
+  (unless (vm-cow-pages vm)
+    (setf (vm-cow-pages vm)
+          (make-array (vm-page-count vm) :element-type 'bit :initial-element 0)))
+  (unless (vm-cow-images vm)
+    (setf (vm-cow-images vm) (make-hash-table :test 'eql)))
+  vm)
+
+(defun %cow-page-p (vm page)
+  (and (vm-cow-pages vm)
+       (<= 0 page) (< page (length (vm-cow-pages vm)))
+       (eql 1 (sbit (vm-cow-pages vm) page))))
+
+(defun persistence-cow-page-fault (vm address access-kind)
+  "Service a simulator COW write fault.  The function is intentionally a
+  plain handler target (rather than a closure allocating per fault)."
+  (let ((page (address-page address)))
+    (when (and (eq access-kind :write) (%cow-page-p vm page))
+      (let ((images (vm-cow-images vm)))
+        (unless (gethash page images)
+          (setf (gethash page images) (%copy-page-image vm page))))
+      ;; The frozen image is now independent of the live physical page.
+      (vm-mprotect vm page 1 :read-write)))
+  vm)
+
+(defun %finish-cow (vm)
+  (when (vm-cow-pages vm)
+    (dotimes (page (length (vm-cow-pages vm)))
+      (when (eql 1 (sbit (vm-cow-pages vm) page))
+        ;; The segment is frozen and durable in the simulator, so no page
+        ;; needs to remain write-protected after this point.
+        (when (typep vm 'virtual-memory-mixin)
+          (vm-mprotect vm page 1 :read-write))))
+    (fill (vm-cow-pages vm) 0)
+    (when (vm-cow-images vm) (clrhash (vm-cow-images vm))))
+  vm)
+
 (defun write-segment (vm dirty-pages timestamp)
-  "Write a delta segment: TIMESTAMP, the modified page numbers, and their
-  contents (frozen at the pause), page-aligned.  Returns the segment."
-  (let* ((sorted (sort (copy-list dirty-pages) #'<))
+  "Write a delta segment.  If MARK-PAGES-COW armed the simulator, consume its
+  frozen images; otherwise freeze the current page (the T0/T1 pause path)."
+  (let* ((sorted (sort (remove-duplicates (copy-list dirty-pages)) #'<))
          (images (make-hash-table :test 'eql))
-         (checksum timestamp))
+         (checksum timestamp)
+         (buffer (vm-stratum vm :snapshot-buffer)))
     (dolist (page sorted)
       (let* ((base (page-start-address page))
-             (words (make-array +page-words+
-                                :element-type '(unsigned-byte 64)
-                                :initial-element 0)))
-        ;; read from the snapshot buffer when the T0/T1 pause materialised
-        ;; one, else from the live heap (armed-MMU/T2 path)
-        (let ((buffer (vm-stratum vm :snapshot-buffer)))
-          (dotimes (k +page-words+)
-            (setf (aref words k)
-                  (if buffer
-                      (s-get buffer (+ base k))
-                      (ref-u64 vm (+ base k))))))
+             (words (or (and (vm-cow-images vm)
+                             (gethash page (vm-cow-images vm)))
+                        (let ((copy (make-array +page-words+
+                                                :element-type '(unsigned-byte 64)
+                                                :initial-element 0)))
+                          (dotimes (k +page-words+)
+                            (let ((address (+ base k)))
+                              (when (< address (vm-heap-size vm))
+                                (setf (aref copy k)
+                                      (if buffer
+                                          (s-get buffer address)
+                                          (ref-u64 vm address))))))
+                          copy))))
         (setf (gethash page images) words)
         (setf checksum
               (logxor checksum
                       (page-checksum-of-image words checksum page)))))
-    (%make-segment :timestamp timestamp :pages sorted
-                   :images images :checksum checksum)))
+    (let ((segment (%make-segment :timestamp timestamp :pages sorted
+                                  :images images :checksum checksum)))
+      (%finish-cow vm)
+      segment)))
 
 ;; ---- dirty-set capture (persistence.tex §2 step 4) -----------------------
 
 (defun collector-dirty-set (plan)
-  "The set of pages dirtied since the last snapshot, consumed from whatever
-  the collector already maintains: the MMU dirty bits when the MMU is ARMED,
-  else the plan's card stratum projected to page granularity."
+  "The set of pages dirtied since the last snapshot, consumed from the MMU
+  when it is armed, else from the plan's card stratum projected to pages."
   (let* ((vm (plan-vm plan))
          (pages nil))
     (if (and (typep vm 'virtual-memory-mixin) (mmu-armed vm))
         (let ((dirty (mmu-dirty vm)))
-          (dotimes (p (length dirty))
-            (when (eql 1 (sbit dirty p)) (push p pages))))
+          (when dirty
+            (dotimes (p (length dirty))
+              (when (eql 1 (sbit dirty p)) (push p pages)))))
         (let ((card (vm-stratum vm :card)))
           (when card
-            ;; page-dirty derivation for persistence is s-project from the
-            ;; card stratum to the page stratum (barriers.tex §2)
             (let ((page-stratum
                     (or (vm-stratum vm :page-dirty)
                         (vm-register-stratum
                          vm :page-dirty
                          (make-stratum :page-dirty +page-words+ :bit
-                                       (vm-heap-size vm))))))
+                                       (vm-heap-size vm)))))
               (s-clear page-stratum)
               (s-project card page-stratum :any)
               (s-for-set-cells page-stratum nil
                 (lambda (addr) (push (address-page addr) pages)))))))
-    pages))
+    (sort (remove-duplicates pages) #'<))))
 
 (defun collector-clear-dirty (plan)
   "Reset the dirty signal the collector handed persistence."
@@ -142,101 +225,158 @@
 ;; ---- copy-on-write marking (persistence.tex §2 step 5) -------------------
 
 (defun mark-pages-cow (vm pages)
-  "Protect the dirty pages for copy-on-write (T2) or copy them now (T0/T1:
-  the same protocol, a longer pause).  On T0/T1 the pause copies the page's
-  words into the segment buffer directly: WRITE-SEGMENT reads them before
-  resume, so this function materialises the frozen copy into a preallocated
-  WORD-granular snapshot buffer."
-  (when (and pages
-             (not (vm-has-feature-p vm :t2)))
-    ;; Materialise the frozen copies now (T0/T1): copy each dirty page into
-    ;; the segment buffer so the segment writer reads the snapshot, not the
-    ;; live page that mutators will resume writing to.
-    (let ((buffer (or (vm-stratum vm :snapshot-buffer)
-                      (vm-register-stratum
-                       vm :snapshot-buffer
-                       (make-stratum :snapshot-buffer
-                                     (vm-min-alignment-words vm) :ref
-                                     (vm-heap-size vm))))))
-      (dolist (page pages)
-        (let ((base (page-start-address page)))
-          (dotimes (k +page-words+)
-            (s-set buffer (+ base k) (ref-u64 vm (+ base k))))))))
-  (dolist (page pages)
-    (when (vm-has-feature-p vm :t2)
-      (vm-mprotect vm page 1 :read)))
+  "Protect dirty pages for COW.  T2 uses the simulator fault handler and T0/T1
+  materialise frozen words during the pause.  Arming the MMU even for an empty
+  dirty set is deliberate: writes after the first checkpoint must set MMU dirty
+  bits for the next delta."
+  (if (and (typep vm 'virtual-memory-mixin)
+           (vm-has-feature-p vm :t2))
+      (progn
+        (%ensure-cow-tables vm)
+        (vm-install-fault-handler
+         vm (lambda (address access-kind)
+             (persistence-cow-page-fault vm address access-kind)))
+        ;; MMU-ARM is the simulator's explicit T1/T2 routing hook.  Keep the
+        ;; fallback SETF for VM backends predating that helper.
+        (if (fboundp 'mmu-arm)
+            (mmu-arm vm :clear-dirty nil)
+            (setf (mmu-armed vm) t))
+        (dolist (page pages)
+          (when (and (<= 0 page) (< page (vm-page-count vm)))
+            (setf (sbit (vm-cow-pages vm) page) 1)
+            (vm-mprotect vm page 1 :read))))
+      (when pages
+        ;; T0/T1: no write fault path, so materialise the frozen copy now.
+        (let ((buffer (or (vm-stratum vm :snapshot-buffer)
+                          (vm-register-stratum
+                           vm :snapshot-buffer
+                           (make-stratum :snapshot-buffer
+                                         (vm-min-alignment-words vm) :ref
+                                         (vm-heap-size vm))))))
+          (dolist (page pages)
+            (let ((base (page-start-address page)))
+              (dotimes (k +page-words+)
+                (let ((address (+ base k)))
+                  (when (< address (vm-heap-size vm))
+                    (s-set buffer address (ref-u64 vm address))))))))))
   vm)
 
 ;; ---- checkpoint as a collection phase (persistence.tex §4) ---------------
 
-(defclass persistent-plan (plan) ()
+(defclass persistent-plan (plan)
+  ((log :initarg :log :accessor plan-persistence-log :initform nil))
   (:metaclass plan-metaclass))
 
 (defmethod gc-phase :checkpoint ((p persistent-plan) cycle-kind)
   (declare (ignore cycle-kind))
-  (let* ((vm (plan-vm p))
-         (pages (collector-dirty-set p)))
-    (mark-pages-cow vm pages)
-    (write-segment vm pages (get-universal-time))
-    (collector-clear-dirty p)
-    (gc-event-checkpoint p vm pages)))
+  (let ((segment (checkpoint-heap p :timestamp (get-universal-time))))
+    (gc-event-checkpoint p (plan-vm p)
+                         (persistence-segment-pages segment))))
 
 ;; ---- recovery (persistence.tex §1 crash consistency) ---------------------
-
-(defun recover-last-intact-snapshot (segments &optional vm)
-  "Read forward to the last intact snapshot and stop.  A segment torn by a
-  crash (trailing checksum mismatch) is truncated; everything after it is
-  discarded.  Verification uses the segments' stored images, so VM is only
-  needed for hosts that persist segments externally.  Returns (values
-  intact-segments torn-p)."
-  (declare (ignore vm))
-  (let ((intact nil)
-        (torn-p nil))
-    (dolist (segment segments)
-      (if (verify-segment segment nil)
-          (push segment intact)
-          (progn (setf torn-p t) (return))))
-    (values (nreverse intact) torn-p)))
 
 (defun verify-segment (segment vm)
   "Recompute SEGMENT's checksum against its STORED page images (not the live
   heap); NIL means torn."
   (declare (ignore vm))
-  (let ((checksum (persistence-segment-timestamp segment)))
-    (dolist (page (persistence-segment-pages segment))
-      (let ((words (gethash page (persistence-segment-images segment))))
-        (unless words (return-from verify-segment nil))
-        (setf checksum
-              (logxor checksum
-                      (page-checksum-of-image
-                       words checksum page)))))
-    (eql checksum (persistence-segment-checksum segment))))
+  (handler-case
+      (let ((checksum (persistence-segment-timestamp segment)))
+        (dolist (page (persistence-segment-pages segment))
+          (let ((words (gethash page (persistence-segment-images segment))))
+            (unless (and (arrayp words) (>= (length words) +page-words+))
+              (return-from verify-segment nil))
+            (setf checksum
+                  (logxor checksum
+                          (page-checksum-of-image words checksum page)))))
+        (eql checksum (persistence-segment-checksum segment)))
+    (error () nil)))
 
-;; ---- simulation (persistence.tex §5) -------------------------------------
-;; A test can checkpoint, mutate, crash (discard non-persisted state), and
-;; replay, verifying that the persisted image reconstructs a consistent heap.
+(defun %segment-list (segments)
+  (if (typep segments 'persistence-log)
+      (plog-segments segments)
+      segments))
 
-(defun checkpoint-heap (plan &key (timestamp 0))
-  "Fence work: capture the dirty set, write a segment, clear the dirty
-  signal.  Returns the segment."
+(defun recover-last-intact-snapshot (segments &optional vm)
+  "Read forward to the last intact segment.  A torn segment and all following
+  segments are discarded.  Returns (values intact-segments torn-p)."
+  (declare (ignore vm))
+  (let ((intact nil)
+        (torn-p nil))
+    (dolist (segment (%segment-list segments))
+      (if (verify-segment segment nil)
+          (push segment intact)
+          (progn (setf torn-p t) (return))))
+    (values (nreverse intact) torn-p)))
+
+(defun %heap-from-base (vm base)
+  (let ((heap (make-array (vm-heap-size vm)
+                          :element-type '(unsigned-byte 64)
+                          :initial-element 0)))
+    (when (arrayp base)
+      (replace heap base :end1 (min (length heap) (length base))))
+    heap))
+
+(defun %apply-segment (heap segment)
+  (dolist (page (persistence-segment-pages segment) heap)
+    (let ((base (page-start-address page))
+          (words (gethash page (persistence-segment-images segment))))
+      (when (and words (< base (length heap)))
+        (dotimes (k (min +page-words+ (- (length heap) base)))
+          (setf (aref heap (+ base k)) (aref words k)))))))
+
+(defun replay-segments (segments vm &optional base)
+  "Replay an ordered list of delta segments over BASE (or a zero heap).
+  Recovery stops at the first torn segment; the second value reports tearing."
+  (multiple-value-bind (intact torn-p)
+      (recover-last-intact-snapshot segments vm)
+    (let ((heap (%heap-from-base vm base)))
+      (dolist (segment intact) (%apply-segment heap segment))
+      (values heap torn-p))))
+
+(defun verify-base-image (log)
+  (let ((image (plog-base-image log)))
+    (and image
+         (eql (plog-base-checksum log)
+              (%base-image-checksum image (plog-base-timestamp log))))))
+
+(defun replay-persistence-log (log vm)
+  "Replay LOG's complete base and all intact deltas into a fresh heap."
+  (when (or (null (plog-base-image log)) (verify-base-image log))
+    (replay-segments (plog-segments log) vm (plog-base-image log))))
+
+(defun replay-log (log vm)
+  (replay-persistence-log log vm))
+
+(defun replay-segment (segment vm &optional base)
+  "Replay one SEGMENT, or a list of segments, into a fresh heap.  BASE is an
+  optional complete heap image and is useful for explicit base-plus-delta
+  recovery; the historical two-argument form remains unchanged."
+  (if (listp segment)
+      (replay-segments segment vm base)
+      (when (verify-segment segment vm)
+        (let ((heap (%heap-from-base vm base)))
+          (%apply-segment heap segment)
+          heap))))
+
+;; ---- checkpoint simulation ------------------------------------------------
+
+(defun checkpoint-heap (plan &key (timestamp 0) log)
+  "Fence work: capture dirty pages, append one delta segment, and clear the
+  dirty signal.  The first call records a complete base image in LOG."
   (let* ((vm (plan-vm plan))
-         (pages (collector-dirty-set plan)))
-    (mark-pages-cow vm pages)
-    (prog1 (write-segment vm pages timestamp)
-      (collector-clear-dirty plan))))
-
-(defun replay-segment (segment vm)
-  "Reconstruct the segment's pages into a fresh heap vector (host-side
-  recovery model).  Reads the segment's STORED images, never the live heap.
-  Returns the reconstructed heap or NIL if torn."
-  (when (verify-segment segment vm)
-    (let ((heap (make-array (vm-heap-size vm)
-                            :element-type '(unsigned-byte 64)
-                            :initial-element 0)))
-      (dolist (page (persistence-segment-pages segment))
-        (let ((base (page-start-address page))
-              (words (gethash page (persistence-segment-images segment))))
-          (when words
-            (dotimes (k +page-words+)
-              (setf (aref heap (+ base k)) (aref words k))))))
-      heap)))
+         (persistent-log
+           (or log
+               (and (typep plan 'persistent-plan)
+                    (plan-persistence-log plan))
+               (vm-persistence-log vm)
+               (make-persistence-log))))
+    (setf (vm-persistence-log vm) persistent-log)
+    (when (typep plan 'persistent-plan)
+      (setf (plan-persistence-log plan) persistent-log))
+    (plog-record-base persistent-log vm timestamp)
+    (let ((pages (collector-dirty-set plan)))
+      (mark-pages-cow vm pages)
+      (let ((segment (write-segment vm pages timestamp)))
+        (plog-record-segment persistent-log segment)
+        (collector-clear-dirty plan)
+        segment))))

@@ -59,15 +59,15 @@
       (vm-object-forwarding-pointer vm referent)
       referent))
 
-(defun weak-phase (plan)
+(defun weak-phase (plan &optional cycle-kind)
   "Process every registered weak pointer after the transitive closure and
-  before reclamation: resolve forwarding, then clear dead referents.
-  Referents of weak pointers registered against a thread-local space are
-  processed during that space's private collection; a published referent is
-  treated as live (DLG guarantees it is reachable elsewhere)."
+before reclamation: resolve forwarding, then clear dead referents.  A minor
+collection only collects PLAN's nursery; mature referents therefore remain
+untouched, even though they are not marked by the minor trace."
   (let* ((vm (plan-vm plan))
          (weak (vm-stratum vm :weak))
-         (os (vm-object-start vm)))
+         (os (vm-object-start vm))
+         (nursery (and (eq cycle-kind :minor) (plan-nursery plan))))
     (when (and weak os)
       (s-for-set-cells weak nil
         (lambda (address)
@@ -78,6 +78,10 @@
               (cond
                 ((null-ref-p referent) nil)  ; already cleared
                 ((not stripped) nil)          ; not a reference (raw payload)
+                ;; A minor has no liveness information for mature objects and
+                ;; does not reclaim them.  Leave their weak slots alone rather
+                ;; than treating an unmarked mature object as dead.
+                ((and nursery (not (space-contains-p nursery stripped))) nil)
                 (t
                  (let ((resolved (resolve-weak-forwarding vm stripped)))
                    ;; heal the slot before the liveness test
@@ -96,16 +100,8 @@
 
 (defun initialize-finalization (plan vm)
   "Preallocate the known/pending finalizer vectors at boot (immortal storage
-  on a target; fixed-capacity vectors on the simulator)."
-  (let ((capacity (vm-heap-size vm)))
-    (unless (plan-known-finalizers plan)
-      (setf (plan-known-finalizers plan)
-            (make-array capacity :element-type 'fixnum
-                        :initial-element 0 :fill-pointer 0)
-            (plan-pending-finalizers plan)
-            (make-array capacity :element-type 'fixnum
-                        :initial-element 0 :fill-pointer 0))))
-  plan)
+on a target; fixed-capacity vectors on the simulator)."
+  (%initialize-finalization-vectors plan vm))
 
 (defun register-finalizer (plan address)
   "Register the object at ADDRESS for finalization."
@@ -117,16 +113,20 @@
 (defun snapshot-finalizer-deadness (plan vm cycle-kind)
   "Snapshot liveness of registered finalizers BEFORE reclaim/release phases
 clear the mark stratum.  Dead ones move to a collector-private freeze list;
-EPILOGUE moves them to pending.  Only cycles that TRACE all spaces (:full,
-:major) have complete liveness data; a :minor (or any non-tracing kind)
-judges only the nursery, and objects outside it are kept."
+EPILOGUE moves them to pending.  If tracing forwarded a live object, update its
+known finalizer address before the old copy is released."
   (let ((known (plan-known-finalizers plan))
         (os (vm-object-start vm))
         (dead nil))
     (when (and known os)
       (let ((survivors 0))
         (loop for i from 0 below (length known)
-              for address = (aref known i)
+              for old-address = (aref known i)
+              for address =
+                (if (and (s-test-bit os old-address)
+                         (vm-object-is-forwarded-p vm old-address))
+                    (vm-object-forwarding-pointer vm old-address)
+                    old-address)
               do (if (or (not (s-test-bit os address))
                          (and (finalizer-dead-p plan vm address cycle-kind)
                               (not (vm-object-is-marked-p vm address))
@@ -134,6 +134,9 @@ judges only the nursery, and objects outside it are kept."
                               (zerop (vm-object-rc vm address))))
                      (push address dead)
                      (progn
+                       ;; A copying trace may have replaced OLD-ADDRESS with a
+                       ;; live destination.  Keep the vector in the post-GC
+                       ;; address space; otherwise the next cycle loses it.
                        (setf (aref known survivors) address)
                        (incf survivors))))
         (setf (fill-pointer known) survivors)))

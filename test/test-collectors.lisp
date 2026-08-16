@@ -271,3 +271,72 @@
                             "fragmented Immix major consed ~D host bytes"
                             bytes)))))))
   (values t "ok"))
+
+
+;; ---- generational weak/finalizer regressions ------------------------------
+
+(deftest generational-weak-minor-semantics ()
+  ;; A minor traces only the nursery.  Mature weak referents must therefore
+  ;; remain untouched, while a dead nursery referent must not be promoted by
+  ;; the remembered-set scan (the weak phase clears it).
+  (dolist (plan-type '(:gencopy :genms :genimmix))
+    (with-clamsara (:plan-type plan-type :heap-size 65536)
+      (let* ((weak (clamsara-allocate-object 1))
+             (target (clamsara-allocate-object 0)))
+        (register-weak-pointer *clamsara-vm* weak)
+        (setf (%slot weak 0) target)
+        (let ((weak-index (clamsara-register-root weak))
+              (target-index (clamsara-register-root target)))
+          ;; Keep both objects alive long enough to promote them.
+          (plan-collect *clamsara-plan* :cycle-kind :minor)
+          (plan-collect *clamsara-plan* :cycle-kind :minor)
+          (let ((weak2 (clamsara-root weak-index))
+                (target2 (clamsara-root target-index)))
+            (unless (and (space-contains-p (gen-mature *clamsara-plan*) weak2)
+                         (space-contains-p (gen-mature *clamsara-plan*) target2))
+              (return-from generational-weak-minor-semantics
+                (values nil (format nil "~A: setup did not promote weak pair"
+                                    plan-type))))
+            ;; Remove the strong target root: a minor must not clear the
+            ;; mature target merely because it is absent from minor marks.
+            (clamsara-remove-root target-index)
+            (plan-collect *clamsara-plan* :cycle-kind :minor)
+            (unless (= (%slot (clamsara-root weak-index) 0) target2)
+              (return-from generational-weak-minor-semantics
+                (values nil (format nil
+                                    "~A: mature weak referent cleared by minor"
+                                    plan-type))))
+            ;; A young dead target is a real weak-phase candidate.  It must not
+            ;; be copied from the old-to-young remembered card first.
+            (let ((dead-young (clamsara-allocate-object 0)))
+              (clamsara-write (clamsara-root weak-index) 0 dead-young)
+              (plan-collect *clamsara-plan* :cycle-kind :minor)
+              (unless (zerop (%slot (clamsara-root weak-index) 0))
+                (return-from generational-weak-minor-semantics
+                  (values nil (format nil
+                                      "~A: dead nursery weak referent survived"
+                                      plan-type))))))))))
+  (values t "ok"))
+
+(deftest generational-finalizer-follows-forwarding ()
+  ;; Finalizer registrations are heap references too: a nursery object that is
+  ;; copied must update its known registration before the old address resets.
+  (dolist (plan-type '(:gencopy :genms :genimmix))
+    (with-clamsara (:plan-type plan-type :heap-size 65536)
+      (unless (and (vectorp (plan-known-finalizers *clamsara-plan*))
+                   (vectorp (plan-pending-finalizers *clamsara-plan*)))
+        (return-from generational-finalizer-follows-forwarding
+          (values nil (format nil "~A: finalizer vectors not initialized"
+                              plan-type))))
+      (let* ((object (clamsara-allocate-object 0))
+             (index (clamsara-register-root object)))
+        (register-finalizer *clamsara-plan* object)
+        (plan-collect *clamsara-plan* :cycle-kind :minor)
+        (let ((moved (clamsara-root index))
+              (known (plan-known-finalizers *clamsara-plan*)))
+          (unless (and (= (length known) 1) (= (aref known 0) moved))
+            (return-from generational-finalizer-follows-forwarding
+              (values nil (format nil
+                                  "~A: finalizer stayed at old address"
+                                  plan-type))))))))
+  (values t "ok"))

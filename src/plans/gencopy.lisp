@@ -181,7 +181,10 @@ space."
                                       plan object-address
                                       :target-space nursery
                                       :trace-kind :minor
-                                      :exclude-weak-referent nil)))))
+                                      ;; The weak referent is not a strong
+                                      ;; remembered edge.  It is handled by
+                                      ;; the weak phase after tracing.
+                                      :exclude-weak-referent t)))))
         (scan-range (space-base-address mature) (space-end-address mature))
         (when los
           (scan-range (space-base-address los) (space-end-address los)))))))
@@ -211,13 +214,17 @@ the next minor's scan-remset re-checks."
   plan)
 
 (defun object-has-nursery-ref-p (vm address nursery)
-  "True if any reference slot of the object at ADDRESS points into NURSERY."
-  (let ((slots (vm-reference-slots vm address)))
+  "True if a strong reference slot of ADDRESS points into NURSERY.
+Weak referents do not make a remembered edge: the weak phase owns their
+liveness decision."
+  (let ((slots (vm-reference-slots vm address))
+        (weak-p (weak-pointer-p vm address)))
     (flet ((slot-p (i)
-             (let ((child (vm-object-reference vm address i)))
-               (and (vm-reference-p vm child)
-                    (space-contains-p nursery
-                                      (ref-strip-or-self vm child))))))
+             (when (or (not weak-p) (not (zerop i)))
+               (let ((child (vm-object-reference vm address i)))
+                 (and (vm-reference-p vm child)
+                      (space-contains-p nursery
+                                        (ref-strip-or-self vm child)))))))
       (if slots
           (loop for i across slots thereis (slot-p i))
           (dotimes (i (vm-object-reference-count vm address))

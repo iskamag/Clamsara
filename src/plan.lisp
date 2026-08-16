@@ -142,7 +142,7 @@ has one source of truth.")
   ;; BEFORE reclamation (liveness data must still be readable).  Finalizer
   ;; deadness is snapshotted here for the same reason: reclaim/release clear
   ;; the mark stratum before the epilogue.
-  (weak-phase p)
+  (weak-phase p k)
   (when (plan-known-finalizers p)
     (setf (plan-pending-finalizer-freeze p)
           (snapshot-finalizer-deadness p (plan-vm p) k))))
@@ -330,11 +330,29 @@ failure.  The escalation tail shared by every plan's failure handler."
 
 ;; ---- finalization / boot hooks ------------------------------------------
 
+(defun %initialize-finalization-vectors (plan vm)
+  "Ensure PLAN's finalizer vectors exist before any mutator can register.
+The vectors model immortal target storage; the simulator gives them a fixed
+heap-sized capacity so registration and collection never grow them."
+  (let ((capacity (vm-heap-size vm)))
+    (unless (plan-known-finalizers plan)
+      (setf (plan-known-finalizers plan)
+            (make-array capacity :element-type 'fixnum
+                        :initial-element 0 :fill-pointer 0)))
+    (unless (plan-pending-finalizers plan)
+      (setf (plan-pending-finalizers plan)
+            (make-array capacity :element-type 'fixnum
+                        :initial-element 0 :fill-pointer 0))))
+  plan)
+
 (defun finalize-plan (plan)
   "Wire spaces, SFT, strata, barrier, then validate.  Idempotent."
   (unless (plan-booted-p plan)
     (let ((vm (plan-vm plan)))
       (plan-install-strata plan vm)
+      ;; Finalization storage is part of normal plan setup, not an optional
+      ;; mutator-side initialization step (weak.tex §2).
+      (%initialize-finalization-vectors plan vm)
       (dolist (s (plan-spaces plan))
         (setf (space-vm s) vm)
         (%ensure-allocator s vm))

@@ -29,6 +29,12 @@
 (defun initialize-publication-work (strategy vm)
   "Allocate the eager-closure queue (and any published-roots set) at boot,
   standing in for immortal storage."
+  ;; Publication metadata is part of the strategy contract.  Plans normally
+  ;; install :public in PLAN-INSTALL-STRATA, but direct strategy users and
+  ;; custom Iso plans must get the same invariant before the first publish.
+  (unless (vm-stratum vm :public)
+    (vm-register-stratum vm :public
+      (make-stratum :public (vm-min-alignment-words vm) :bit (vm-heap-size vm))))
   (setf (publication-work strategy)
         (make-array (vm-heap-size vm) :element-type 'fixnum
                     :initial-element 0 :fill-pointer 0)

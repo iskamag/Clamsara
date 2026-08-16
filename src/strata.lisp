@@ -2,7 +2,8 @@
 ;;;;
 ;;;; A stratum is a dense, typed metadata layer over the heap address space:
 ;;;;   stratum := (name, granularity, cell-type, default, storage)
-;;;; cell-index(addr) = floor(addr / granularity).  Granularity is a power of
+;;;; cell-index(addr) = floor((addr - heap-base) / granularity).  Granularity
+;;;; is a power of
 ;;;; two in WORDS.  Storage policy is invisible to consumers: s-get/s-set
 ;;;; dispatch on it. The simulator uses host bit-vectors. Besides matching
 ;;;; paper-v8 chapter 6, this avoids boxing a host bignum whenever bit 63 of an
@@ -10,9 +11,12 @@
 
 (in-package #:clamsara)
 
-(declaim (inline %log2-gran %cell-index %cell-count))
+(declaim (inline %log2-gran %cell-index %cell-address %cell-count))
 (defun %log2-gran (s) (stratum-log-gran s))
-(defun %cell-index (s addr) (ash addr (- (%log2-gran s))))
+(defun %cell-index (s addr)
+  (ash (- addr (stratum-heap-base s)) (- (%log2-gran s))))
+(defun %cell-address (s idx)
+  (+ (stratum-heap-base s) (ash idx (%log2-gran s))))
 (defun %cell-count (s) (ceiling (stratum-heap-words s) (stratum-granularity s)))
 
 (defclass stratum ()
@@ -21,6 +25,10 @@
    (cell-type   :initarg :cell-type   :reader stratum-cell-type)
    (default     :initarg :default     :initform 0 :reader stratum-default)
    (storage     :initarg :storage     :initform :contiguous :reader stratum-storage)
+   ;; Absolute address of the first word covered by this stratum.  VM-backed
+   ;; strata must copy VM-HEAP-BASE here; keeping it on the stratum makes all
+   ;; consumers (including bulk operations) use the same address transform.
+   (heap-base   :initarg :heap-base   :initform 0 :reader stratum-heap-base)
    (heap-words  :initarg :heap-words  :reader stratum-heap-words)
    (log-gran    :reader stratum-log-gran)
    (cells       :accessor stratum-cells)    ; backing store (type-specific)
@@ -33,6 +41,20 @@
 
 (defmethod shared-initialize :after ((s stratum) slot-names &key)
   (declare (ignore slot-names))
+  (unless (and (integerp (stratum-heap-base s))
+               (not (minusp (stratum-heap-base s))))
+    (error 'clamsara-error :message
+           (format nil "stratum ~a heap base ~a is not a non-negative integer"
+                   (stratum-name s) (stratum-heap-base s))))
+  ;; An active-set side table is a collector-private optimization.  It has no
+  ;; atomic update protocol, so it cannot be shared by mutators and a
+  ;; concurrent collector.  Reject this at construction rather than silently
+  ;; accepting a racy metadata configuration.
+  (when (and (stratum-concurrent-p s)
+             (eq (stratum-storage s) :contiguous-with-active-set))
+    (error 'clamsara-error :message
+           (format nil "concurrent stratum ~a cannot use contiguous-with-active-set storage"
+                   (stratum-name s))))
   (unless (slot-boundp s 'log-gran)
     (let ((g (stratum-granularity s)))
       (unless (power-of-two-p g)
@@ -97,12 +119,15 @@ stratum with a non-zero default (an inverted stratum) is consistent from boot."
                        :initial-element default))))
 
 (defun make-stratum (name granularity cell-type heap-words
-                     &key (default 0) (storage :contiguous) concurrent)
-  "Construct and allocate a stratum.  GRANULARITY is words/cell (power of two)."
+                     &key (default 0) (storage :contiguous) concurrent
+                       (heap-base 0))
+  "Construct and allocate a stratum.  GRANULARITY is words/cell (power of two).
+HEAP-BASE is the absolute address of the first heap word; VM-backed strata
+should pass (VM-HEAP-BASE VM)."
   (make-instance 'stratum
                  :name name :granularity granularity :cell-type cell-type
                  :default default :storage storage :heap-words heap-words
-                 :concurrent concurrent))
+                 :heap-base heap-base :concurrent concurrent))
 
 (defun stratum-p (x) (typep x 'stratum))
 
@@ -207,7 +232,7 @@ stratum with a non-zero default (an inverted stratum) is consistent from boot."
   (let ((def (stratum-default s)))
     (loop for idx from (%cell-index s start-addr)
           below (%cell-index s end-addr)
-          do (s-set s (ash idx (%log2-gran s)) def)))
+          do (s-set s (%cell-address s idx) def)))
   s)
 
 (defun s-clear (s &optional range)
@@ -229,7 +254,8 @@ stratum with a non-zero default (an inverted stratum) is consistent from boot."
       (t
        (if range
            (s-clear-range s (car range) (cdr range))
-           (s-clear-range s 0 (stratum-heap-words s)))
+           (s-clear-range s (stratum-heap-base s)
+                          (+ (stratum-heap-base s) (stratum-heap-words s))))
        (when (stratum-active s)
          (setf (fill-pointer (stratum-active s)) 0))))))
 
@@ -238,7 +264,7 @@ stratum with a non-zero default (an inverted stratum) is consistent from boot."
   (multiple-value-bind (start end) (%range-bounds s range)
     (let ((shift (%log2-gran s)))
       (loop for idx from start below end
-            for addr = (ash idx shift)
+            for addr = (%cell-address s idx)
             do (setf acc (funcall fn (s-get s addr) acc)))
       acc)))
 
@@ -274,15 +300,16 @@ stratum with a non-zero default (an inverted stratum) is consistent from boot."
                 (set-bit (if (zerop (stratum-default s)) 1 0)))
             (loop for idx from start below end
                   when (eql set-bit (sbit vec idx))
-                  do (funcall fn (ash idx shift)))))
+                  do (funcall fn (%cell-address s idx)))))
         ((stratum-active s)
          (loop for idx across (stratum-active s)
                when (and (>= idx start) (< idx end)
-                         (not (eql (s-get s (ash idx shift)) (stratum-default s))))
-               do (funcall fn (ash idx shift))))
+                         (not (eql (s-get s (%cell-address s idx))
+                                   (stratum-default s))))
+               do (funcall fn (%cell-address s idx))))
         (t
          (loop for idx from start below end
-               for addr = (ash idx shift)
+               for addr = (%cell-address s idx)
                unless (eql (s-get s addr) (stratum-default s))
                do (funcall fn addr)))))))
 
@@ -301,14 +328,14 @@ stratum with a non-zero default (an inverted stratum) is consistent from boot."
               for all-p = t
               for sum = 0
               do (loop for k below factor
-                       for v = (s-get src (ash (+ (* j factor) k) sg-log))
+                       for v = (s-get src (%cell-address src (+ (* j factor) k)))
                        do (setf any-p (or any-p (not (eql v (stratum-default src)))))
                           (setf all-p (and all-p (not (eql v (stratum-default src)))))
                           (incf sum v))
               do (ecase reduce
-                   (:any (when any-p (s-set dst (ash j dg-log) 1)))
-                   (:all (when all-p (s-set dst (ash j dg-log) 1)))
-                   (:sum (s-set dst (ash j dg-log) sum)))))))
+                   (:any (when any-p (s-set dst (%cell-address dst j) 1)))
+                   (:all (when all-p (s-set dst (%cell-address dst j) 1)))
+                   (:sum (s-set dst (%cell-address dst j) sum)))))))
 
 (defun s-refine (src dst)
   "Inverse hint: a set coarse src cell marks its fine dst cells suspect."
@@ -318,9 +345,9 @@ stratum with a non-zero default (an inverted stratum) is consistent from boot."
     (assert (= (* factor dg) sg) () "s-refine: granularities must nest")
     (let ((src-count (ceiling (stratum-heap-words src) sg)))
       (loop for i below src-count
-            when (not (eql (s-get src (ash i (log2-int sg))) (stratum-default src)))
+            when (not (eql (s-get src (%cell-address src i)) (stratum-default src)))
             do (loop for k below factor
-                     do (s-set dst (ash (+ (* i factor) k) (log2-int dg)) 1))))))
+                     do (s-set dst (%cell-address dst (+ (* i factor) k)) 1))))))
 
 ;; ---- matrix stratum (remembered sets, closure) ---------------------------
 ;;

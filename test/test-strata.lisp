@@ -8,6 +8,30 @@
     (if (= (s-popcount s) 3) (values t "scalar ok")
         (values nil "popcount wrong"))))
 
+(deftest strata-rejects-concurrent-active-set ()
+  (let ((caught nil))
+    (handler-case
+        (make-stratum :unsafe (g-word) :bit 32
+                      :storage :contiguous-with-active-set
+                      :concurrent t)
+      (clamsara-error () (setf caught t)))
+    (if caught
+        (values t "concurrent active-set rejected")
+        (values nil "concurrent active-set accepted"))))
+
+(deftest strata-heap-base-indexing ()
+  (let ((s (make-stratum :base (g-card) :bit 256 :heap-base 128)) got)
+    (s-set-bit s 128)
+    (s-set-bit s (+ 128 (g-card)))
+    (s-for-set-cells s nil (lambda (address) (push address got)))
+    (s-clear-range s 128 (+ 128 (g-card)))
+    (if (and (= (s-get s 128) 0)
+             (= (s-get s (+ 128 (g-card))) 1)
+             (= (s-popcount s) 1)
+             (equal (sort got #'<) (list 128 (+ 128 (g-card)))))
+        (values t "heap-base indexing ok")
+        (values nil "heap-base indexing wrong"))))
+
 (deftest strata-u4 ()
   (let ((s (make-stratum :age (g-word) :u4 65536)))
     (s-set s 8 7) (s-set s 9 15)

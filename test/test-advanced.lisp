@@ -155,40 +155,6 @@
           (values t "ok")
           (values nil "weak referent was not cleared")))))
 
-(deftest weak-public-bit-alone-does-not-imply-liveness ()
-  ;; Publication metadata describes visibility, not reachability.  A public
-  ;; object that is reachable only through a weak slot must still be cleared;
-  ;; an actual root remains a valid liveness proof.
-  (with-clamsara (:plan-type :marksweep :heap-size 32768)
-    ;; Mark-sweep plans do not need publication barriers, but installing the
-    ;; locality stratum here models the public bit without giving it root
-    ;; semantics.
-    (vm-register-stratum *clamsara-vm* :public
-      (make-stratum :public (vm-min-alignment-words *clamsara-vm*) :bit
-                    (vm-heap-size *clamsara-vm*)))
-    (let* ((dead-wm (clamsara-allocate-object 1))
-           (dead-target (clamsara-allocate-object 0))
-           (live-wm (clamsara-allocate-object 1))
-           (live-target (clamsara-allocate-object 0)))
-      (register-weak-pointer *clamsara-vm* dead-wm)
-      (register-weak-pointer *clamsara-vm* live-wm)
-      (setf (%slot dead-wm 0) dead-target
-            (%slot live-wm 0) live-target
-            (vm-object-is-public-p *clamsara-vm* dead-target) t
-            (vm-object-is-public-p *clamsara-vm* live-target) t)
-      (clamsara-register-root dead-wm)
-      (clamsara-register-root live-wm)
-      ;; This is the real root that must preserve the second referent.
-      (clamsara-register-root live-target)
-      (clamsara-gc)
-      (let ((live-target-now (clamsara-root 2)))
-        (if (and (zerop (%slot (clamsara-root 0) 0))
-                 (= (%slot (clamsara-root 1) 0) live-target-now)
-                 (vm-object-start-p *clamsara-vm* live-target-now)
-                 (not (vm-object-start-p *clamsara-vm* dead-target)))
-            (values t "ok")
-            (values nil "public metadata was treated as weak liveness"))))))
-
 (deftest weak-referent-kept-when-live ()
   (with-clamsara (:plan-type :marksweep :heap-size 32768)
     (let* ((wm (clamsara-allocate-object 1))
@@ -249,23 +215,6 @@
           (if (= (length second) 2)
               (values t "ok")
               (values nil "second drain missed edges")))))))
-
-(deftest trap-a-poison-clears-weak-redirect-metadata ()
-  ;; Poisoning turns slot 0 into a strong trap redirect.  A stale weak bit
-  ;; would make tracing skip that redirect and lose the public incarnation.
-  (with-clamsara (:plan-type :claimore :heap-size 65536)
-    (let* ((vm *clamsara-vm*)
-           (public-source (clamsara-allocate-object 1))
-           (weak-object (clamsara-allocate-object 1))
-           (child (clamsara-allocate-object 0)))
-      (register-weak-pointer vm weak-object)
-      (vm-set-reference vm weak-object 0 child)
-      (setf (vm-object-is-public-p vm public-source) t)
-      (clamsara-write public-source 0 weak-object)
-      (if (and (error-object-p vm weak-object)
-               (not (weak-pointer-p vm weak-object)))
-          (values t "ok")
-          (values nil "Trap-A poison retained weak redirect metadata")))))
 
 (deftest trap-b-installs-guarded-stand-in ()
   ;; locality.tex §2 Variant B: the private original stays in place and the

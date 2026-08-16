@@ -66,9 +66,17 @@ Loading is deliberately deferred until the benchmark is invoked.  Thus
         (let ((package (find-package :clamsara-maclina)))
           (unless package
             (error "loading :clamsara/maclina did not create CLAMSARA-MACLINA"))
-          (values package
-                  (%maclina-symbol package "WITH-CLAMSARA-MACLINA")
-                  (%maclina-symbol package "CLAMSARA-MACLINA-EVAL-STRING"))))
+          (let ((with-macro (%maclina-symbol package "WITH-CLAMSARA-MACLINA"))
+                (eval-string (%maclina-symbol package
+                                              "CLAMSARA-MACLINA-EVAL-STRING")))
+            ;; ASDF can leave a package behind if an earlier component failed;
+            ;; reject that partial load with the same actionable condition.
+            (unless (macro-function with-macro)
+              (error "CLAMSARA-MACLINA:WITH-CLAMSARA-MACLINA is not loaded"))
+            (unless (fboundp eval-string)
+              (error
+               "CLAMSARA-MACLINA:CLAMSARA-MACLINA-EVAL-STRING is not loaded"))
+            (values package with-macro eval-string))))
     (maclina-benchmark-unavailable (condition)
       (error condition))
     (error (condition)

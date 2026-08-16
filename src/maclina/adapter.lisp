@@ -186,23 +186,38 @@ are rejected instead of smuggling host pointers into the simulated heap."
        vm address slot encoded))
     object))
 
+(defun %read-cons-slot (vm plan object slot)
+  "Read a simulated cons slot through PLAN's fused read barrier.
+
+Maclina's CAR/CDR overrides are mutator reads just like CLAMSARA-READ.  In
+particular, the heap stores bare addresses, so checking pointer colour in the
+caller cannot replace the barrier: an old bare address must first consult the
+forwarding table and be written back to the slot."
+  (let* ((address (%reference-address vm object))
+         (raw (clamsara:vm-object-reference vm address slot))
+         (barrier (clamsara:plan-barrier plan)))
+    (if barrier
+        (let ((healed
+                (clamsara:barrier-note-read
+                 vm barrier (+ address slot) raw)))
+          ;; A read transfer is allowed to return a healed value without
+          ;; knowing the object model.  Mirror CLAMSARA-READ's writeback here
+          ;; so every Maclina load has the same self-healing semantics.
+          (setf (clamsara:vm-object-reference vm address slot) healed)
+          healed)
+        raw)))
+
 (defun install-clamsara-maclina-overrides (client environment)
   (let* ((plan (maclina-client-plan client))
          (vm (clamsara:plan-vm plan)))
     (labels ((cons* (car cdr) (%allocate-cons client car cdr))
              (car* (object)
                (if (%simulated-cons-p vm object)
-                   (%decode-heap-value
-                    vm
-                    (clamsara:vm-object-reference
-                     vm (%reference-address vm object) 0))
+                   (%decode-heap-value vm (%read-cons-slot vm plan object 0))
                    (cl:car object)))
              (cdr* (object)
                (if (%simulated-cons-p vm object)
-                   (%decode-heap-value
-                    vm
-                    (clamsara:vm-object-reference
-                     vm (%reference-address vm object) 1))
+                   (%decode-heap-value vm (%read-cons-slot vm plan object 1))
                    (cl:cdr object)))
              (consp* (object)
                (or (%simulated-cons-p vm object) (cl:consp object)))

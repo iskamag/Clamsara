@@ -64,4 +64,30 @@
              (clamsara:stats-get
               (clamsara:plan-stats clamsara:*clamsara-plan*)
               :gc-cycles))))
+    ;; CAR/CDR are mutator reads too.  A bare stale child (good colour 0)
+    ;; must pass through the ZGC read barrier and heal the parent slots.
+    (with-clamsara-maclina (:plan-type :zgcish :heap-size 4096)
+      (let* ((vm clamsara:*clamsara-vm*)
+             (plan clamsara:*clamsara-plan*)
+             (client *clamsara-maclina-client*)
+             (environment *clamsara-maclina-environment*)
+             (parent (clamsara-maclina-eval-string
+                      "(cons (cons 10 20) (cons 30 40))"))
+             (parent-address (%reference-address vm parent))
+             (old-car (clamsara:vm-object-reference vm parent-address 0))
+             (old-cdr (clamsara:vm-object-reference vm parent-address 1))
+             (new-car (clamsara::allocate-object
+                       plan 2 :type-tag clamsara:+tag-cons+))
+             (new-cdr (clamsara::allocate-object
+                       plan 2 :type-tag clamsara:+tag-cons+))
+             (car-fn (clostrum:fdefinition client environment 'cl:car))
+             (cdr-fn (clostrum:fdefinition client environment 'cl:cdr)))
+        (clamsara:vm-object-copy vm old-car new-car)
+        (clamsara:vm-object-copy vm old-cdr new-cdr)
+        (setf (aref (clamsara::vm-fwd-table vm) old-car) new-car
+              (aref (clamsara::vm-fwd-table vm) old-cdr) new-cdr)
+        (assert (= new-car (%reference-address vm (funcall car-fn parent))))
+        (assert (= new-cdr (%reference-address vm (funcall cdr-fn parent))))
+        (assert (= new-car (clamsara:vm-object-reference vm parent-address 0)))
+        (assert (= new-cdr (clamsara:vm-object-reference vm parent-address 1)))))
   t)

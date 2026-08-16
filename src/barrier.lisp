@@ -176,27 +176,45 @@ vm-object-old-p misses LOS objects, whose age stratum stays 0."
                      new)))))
 
 (defun lvb-barrier-rule (&optional (name :lvb))
-  "Self-healing load-value barrier: test colour; if stale, heal via forwarding."
+  "Self-healing load-value barrier: resolve forwarding and stale colours.
+
+The colour check alone is not sufficient here.  Heap slots are deliberately
+bare addresses, and a bare old address has the good colour (zero) even while
+its off-heap forwarding entry is live.  Always try the forwarding lookup first;
+HEAL-REFERENCE cheaply rejects non-references and out-of-heap immediates."
   (make-barrier-rule
    :name name :trigger :ref-read
    :transfer (lambda (vm slot-addr reference)
-               (if (ref-good-colour-p vm reference)
-                   reference
-                   (let ((healed (heal-reference vm reference)))
-                     (setf (ref-u64 vm slot-addr) healed)
-                     healed)))))
+               (let ((healed (heal-reference vm reference)))
+                 ;; Write back only when forwarding changed the reference.
+                 ;; In particular, do not call the colour predicate here:
+                 ;; T0 VMs have bare references and no colour protocol.
+                 (unless (eql healed reference)
+                   (setf (ref-u64 vm slot-addr) healed))
+                 healed))))
 
 ;; ---- healing (off-heap forwarding table) --------------------------------
 
 (defun heal-reference (vm reference)
-  "Follow the off-heap forwarding table and recolour to good.  Idempotent."
-  (let* ((addr (ref-strip vm reference))
-         (dst (fwd-get vm addr)))
-    (if (plusp dst)
-        (if (typep vm 'coloured-pointer-mixin)
-            (ref-set-colour vm dst (vm-good-colour vm))
-            dst)
-        reference)))
+  "Follow forwarding and recolour the result to good.  Idempotent.
+
+The forwarding table is indexed by heap words, not arbitrary mutator values:
+ordinary payload integers (including Maclina's tagged immediates) must not be
+used as indices.  A forwarding entry is itself sufficient evidence that an
+old object address is stale; this also lets the barrier heal a reference after
+its old object-start bit has been cleared during relocation."
+  (if (and (integerp reference) (vm-fwd-table vm))
+      (let ((addr (ref-strip-or-self vm reference)))
+        (if (and (integerp addr) (plusp addr)
+                 (< addr (vm-heap-size vm)))
+            (let ((dst (fwd-get vm addr)))
+              (if (plusp dst)
+                  (if (typep vm 'coloured-pointer-mixin)
+                      (ref-set-colour vm dst (vm-good-colour vm))
+                      dst)
+                  reference))
+            reference))
+      reference))
 
 ;; ---- barrier-metaclass coherence checks (barriers.tex) -----------------
 

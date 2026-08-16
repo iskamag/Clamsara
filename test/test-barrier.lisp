@@ -26,6 +26,35 @@
     (barrier-note-write (make-simulator-vm 1024) b 0 0 1)
     (if (= hits 2) (values t "ok") (values nil "fusion wrong"))))
 
+(deftest rc-barrier-ignores-non-mature-target ()
+  ;; A mature object may point into the nursery.  Such an edge is not part of
+  ;; the mature hierarchy matrices (and must not be converted to a negative
+  ;; mature block index).
+  (let* ((vm (make-simulator-vm 4096))
+         (nursery (make-instance 'immix-space :vm vm :start-page 0
+                                 :page-count 1 :name :nursery))
+         (mature (make-instance 'superblock-space :vm vm :start-page 1
+                                :page-count 6 :name :mature
+                                :block-words 512
+                                :blocks-per-metablock 2
+                                :metablocks-per-superblock 2))
+         (barrier (make-barrier (rc-barrier-rule)))
+         (plan (make-instance 'plan :name :barrier-test :vm vm
+                              :spaces (list nursery mature)
+                              :barrier barrier
+                              :constraints (make-instance 'plan-constraints)))
+         (source (space-base-address mature))
+         (target 17))
+    (setf (barrier-plan barrier) plan)
+    (s-set-bit (vm-object-start vm) source)
+    (s-set-bit (vm-object-start vm) target)
+    (barrier-note-write vm barrier source (1+ source) target)
+    (if (and (notany #'plusp (matrix-bits (aref (sb-mb-matrices mature) 0)))
+             (notany #'plusp (matrix-bits (aref (sb-block-matrices mature) 0)))
+             (zerop (sb-escape-value mature vm (sb-block-index mature source))))
+        (values t "ok")
+        (values nil "nursery target polluted mature hierarchy metadata"))))
+
 (deftest lvb-heals-forwarded-bare-t0-reference ()
   ;; A T0 VM has no colour protocol.  LVB must still consult the off-heap
   ;; forwarding table for a bare heap address.

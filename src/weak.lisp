@@ -87,11 +87,12 @@ untouched, even though they are not marked by the minor trace."
                    ;; heal the slot before the liveness test
                    (unless (eql resolved stripped)
                      (setf (vm-object-reference vm address 0) resolved))
-                   (let ((live-p
-                           (or (weak-referent-live-p vm resolved)
-                               (vm-object-is-public-p vm resolved))))
-                     (unless live-p
-                       (setf (vm-object-reference vm address 0) 0))))))))))))
+                   ;; Publication is not itself a liveness proof.  A public
+                   ;; bit describes locality/visibility, not reachability; a
+                   ;; public object with no marked/forwarded/RC or root/pin
+                   ;; must still be cleared as a weak referent.
+                   (unless (weak-referent-live-p vm resolved)
+                     (setf (vm-object-reference vm address 0) 0)))))))))))
   plan)
 
 ;; ---- finalization trait (weak.tex §2) ------------------------------------

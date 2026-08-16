@@ -340,3 +340,24 @@
                                   "~A: finalizer stayed at old address"
                                   plan-type))))))))
   (values t "ok"))
+
+
+(deftest public-bit-does-not-keep-unreachable-weak-referent ()
+  ;; Publication/locality metadata is not a liveness proof.  A public mature
+  ;; object reachable only through a weak slot must still be cleared by a full
+  ;; cycle before the mature space is reclaimed.
+  (with-clamsara (:plan-type :claimore :heap-size 65536)
+    (let* ((plan *clamsara-plan*)
+           (vm *clamsara-vm*)
+           (weak (clamsara-allocate-object 1))
+           (target (plan-allocate-in
+                    plan 1 (cl-mature plan))))
+      (vm-write-header vm target +tag-object+ 0)
+      (register-weak-pointer vm weak)
+      (setf (%slot weak 0) target
+            (vm-object-is-public-p vm target) t)
+      (clamsara-register-root weak)
+      (clamsara-gc :cycle-kind :full)
+      (if (zerop (%slot (clamsara-root 0) 0))
+          (values t "ok")
+          (values nil "public bit kept unreachable weak referent")))))

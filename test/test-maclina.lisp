@@ -2,6 +2,22 @@
 
 (in-package #:clamsara-maclina)
 
+(defun %load-maclina-source-file (pathname)
+  "Evaluate each top-level form through Maclina, preserving source semantics."
+  ;; ASDF may invoke TEST-OP with *PACKAGE* bound to an implementation
+  ;; package.  Source symbols must nevertheless resolve in Maclina's package,
+  ;; exactly as they do for an interactive source load.
+  (let ((*package* (find-package '#:clamsara-maclina)))
+    (with-open-file (stream pathname)
+      (loop for form = (read stream nil :eof)
+          until (eq form :eof)
+            do (clamsara-maclina-eval form))))
+  t)
+
+(defun %boehm-fixture-path ()
+  (asdf:system-relative-pathname
+   :clamsara/maclina/test "test/fixtures/boehm-gc.lisp"))
+
 (defun run-maclina-tests ()
   (with-clamsara-maclina (:plan-type :semispace :heap-size 4096)
     (assert (= 42 (clamsara-maclina-eval-string "(+ 20 22)")))
@@ -94,4 +110,15 @@
         (assert (= new-cdr (%reference-address vm (funcall cdr-fn parent))))
         (assert (= new-car (clamsara:vm-object-reference vm parent-address 0)))
         (assert (= new-cdr (clamsara:vm-object-reference vm parent-address 1)))))
+  ;; Load the real Boehm benchmark source, not a translated workload.  The
+  ;; reduced depth keeps this optional test bounded while exercising simulated
+  ;; structs, keyword constructors, arrays/floats, macros, cons allocation,
+  ;; moving collections, and liveness assertions.
+  (with-clamsara-maclina (:plan-type :semispace :heap-size 32768)
+    (%load-maclina-source-file (%boehm-fixture-path))
+    (assert (clamsara-maclina-eval '(gcbench 8)))
+    (assert (plusp
+             (clamsara:stats-get
+              (clamsara:plan-stats clamsara:*clamsara-plan*)
+              :gc-cycles))))
   t)

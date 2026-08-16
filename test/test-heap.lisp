@@ -72,6 +72,35 @@
         (values t "ok")
         (values nil "zero-count release skipped a later metablock"))))
 
+(deftest superblock-rebuilds-relations-from-live-payloads ()
+  ;; Relocation copies payloads without mutator barriers; rebuilding from live
+  ;; layouts must restore both block- and metablock-level edges.
+  (let* ((vm (make-simulator-vm 8192))
+         (space (make-instance 'superblock-space :vm vm :start-page 1
+                               :page-count 5 :name :hierarchy
+                               :block-words +g-block+
+                               :blocks-per-metablock 2
+                               :metablocks-per-superblock 2))
+         (a (space-allocator space))
+         (source (sb-block-base space 0))
+         (target (sb-block-base space 1))
+         (foreign-target (sb-block-base space 3)))
+    (setf (aref (hierarchical-allocator-cursors a) 0) (+ source 2)
+          (aref (hierarchical-allocator-cursors a) 1) (+ target 1)
+          (aref (hierarchical-allocator-cursors a) 3) (+ foreign-target 1))
+    (vm-write-header vm source +tag-object+ 2)
+    (vm-write-header vm target +tag-object+ 0)
+    (vm-write-header vm foreign-target +tag-object+ 0)
+    (setf (vm-object-reference vm source 0) target
+          (vm-object-reference vm source 1) foreign-target)
+    (superblock-rebuild-relations space vm)
+    (let ((bm (aref (%sb-block-matrices space) 0))
+          (mm (aref (%sb-mb-matrices space) 0)))
+      (if (and (= 1 (matrix-ref bm 0 1))
+               (= 1 (matrix-ref mm 0 1)))
+          (values t "relations rebuilt from payload")
+          (values nil "relation rebuild omitted a live payload edge")))))
+
 (deftest hierarchical-free-clears-empty-metablock-parent-edge ()
   ;; The MB matrix is a parent-SB remembered set.  Once the final block in a
   ;; target MB dies, both directions of that MB's parent row/column must be

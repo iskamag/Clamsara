@@ -976,6 +976,46 @@ into the evacuated blocks and must be rewritten too."
 ;; cross-region store; newgc.txt §3/§6: per-block direction bits, and the
 ;; pointed-to-by-older bit when the source metablock is older.
 
+(defun superblock-rebuild-relations (s vm)
+  "Rebuild hierarchy matrices after relocation copied object payloads.
+VM-OBJECT-COPY moves slots without invoking the mutator write barrier, so a
+compaction destination can otherwise have stale/empty block and metablock
+relations.  This boot-warmed direct walk is allocation-free and uses declared
+layout maps; weak referent slot zero is not a strong hierarchy edge."
+  (let ((mb-matrices (%sb-mb-matrices s))
+        (block-matrices (%sb-block-matrices s))
+        (escape (or (%sb-escape s) (vm-stratum vm :block-escape)))
+        (os (vm-object-start vm)))
+    (when mb-matrices
+      (dotimes (i (length mb-matrices))
+        (let ((matrix (aref mb-matrices i)))
+          (when matrix (matrix-clear-all matrix)))))
+    (when block-matrices
+      (dotimes (i (length block-matrices))
+        (let ((matrix (aref block-matrices i)))
+          (when matrix (matrix-clear-all matrix)))))
+    (when escape (s-clear escape))
+    (when os
+      (loop for address from (space-base-address s)
+            below (space-end-address s)
+            when (s-test-bit os address)
+              do (let ((slots (vm-reference-slots vm address))
+                       (weak-p (weak-pointer-p vm address)))
+                   (if slots
+                       (loop for slot across slots
+                             when (or (not weak-p) (not (zerop slot)))
+                               do (superblock-note-write
+                                   s vm address
+                                   (ref-strip-or-self
+                                    vm (vm-object-reference vm address slot))))
+                       (dotimes (slot (vm-object-reference-count vm address))
+                         (when (or (not weak-p) (not (zerop slot)))
+                           (superblock-note-write
+                            s vm address
+                            (ref-strip-or-self
+                             vm (vm-object-reference vm address slot))))))))))
+  s)
+
 (defun superblock-note-write (s vm src new)
   "Maintain hierarchy relations for a mature-space store SRC<-NEW.
    Both endpoints must belong to S: a mature source can point to a nursery
@@ -1244,6 +1284,9 @@ also keeps the hierarchy's root set consistent with the tracing root set."
             ;; Healing covers every plan space: nursery, LOS, and mature.
             (heal-every-space (vm-plan vm) fwd)
             (hierarchical-free-block a vm source)
+            ;; Recompute relations after source metadata is cleared and all
+            ;; destination payloads have been healed.
+            (superblock-rebuild-relations s vm)
             (fill fwd 0))))))
   s)
 

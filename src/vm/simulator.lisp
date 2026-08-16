@@ -20,6 +20,10 @@
   (declare (ignore vm))
   :t2)
 
+(defmethod vm-has-feature-p ((vm simulator-vm) (feature (eql :t1)))
+  (declare (ignore vm feature))
+  t)
+
 (defmethod vm-has-feature-p ((vm simulator-vm) (feature (eql :t2)))
   (declare (ignore vm feature))
   t)

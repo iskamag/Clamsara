@@ -7,6 +7,7 @@
   ;; explicit contract rather than relying on CLOS superclass ordering.
   (let ((vm (make-simulator-vm 4096)))
     (if (and (eq (vm-tier vm) :t2)
+             (vm-has-feature-p vm :t1)
              (vm-has-feature-p vm :t2)
              (vm-has-feature-p vm :ring0)
              (vm-has-feature-p vm :virtual-memory)

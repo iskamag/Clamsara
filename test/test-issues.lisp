@@ -766,6 +766,19 @@
         (values t "compiled phase failures resumed mutators")
         (values nil "compiled checkpoint failure left VM stopped"))))
 
+(deftest external-root-registration-publishes-object ()
+  ;; An API root is externally reachable, so publication must happen before it
+  ;; enters the root vector; this is the DLG boundary, not a mutator field store.
+  (with-clamsara (:plan-type :iso :heap-size 32768)
+    (let* ((vm *clamsara-vm*)
+           (object (clamsara-allocate-object 0))
+           (index (clamsara-register-root object))
+           (published (clamsara-root index)))
+      (if (and (vm-object-start-p vm published)
+               (vm-object-is-public-p vm published))
+          (values t "external root was published")
+          (values nil "external root bypassed publication")))))
+
 (deftest checkpoint-event-increments-statistic ()
   (with-clamsara (:plan-type :semispace :heap-size 4096)
     (let ((stats (plan-stats *clamsara-plan*)))

@@ -41,8 +41,24 @@
                    :type-tag type-tag :layout-id layout-id))
 
 (defun clamsara-register-root (address)
-  "Register ADDRESS as a root; return its index in the root vector (a copying
-GC may update the entry in place, so callers track the INDEX, not the address)."
+  "Register ADDRESS as an external root and return its root-vector index.
+When the plan has a publication strategy, publishing first preserves the DLG
+invariant that externally reachable objects do not retain private edges.  A
+copying strategy may return a replacement address; the root vector stores that
+address and callers track the INDEX, not the original address."
+  (let ((publication (and *clamsara-plan*
+                          (plan-publication *clamsara-plan*))))
+    ;; A weak-pointer object has no strong outgoing edge to publish; sending it
+    ;; through a trap/copy strategy would also invalidate its weak metadata.
+    (when (and publication
+               (not (weak-pointer-p *clamsara-vm* address))
+               ;; Trap/error-copy strategies require their publication edge to
+               ;; be represented by a heap stand-in.  An external root is
+               ;; already a root, not such a heap edge; publishing it here
+               ;; would poison/copy the root and lose weak/finalizer metadata.
+               ;; Eager/lazy strategies can publish the root directly.
+               (typep publication '(or eager-closure lazy-read-barrier)))
+      (setf address (publish publication *clamsara-vm* address))))
   (vm-add-root *clamsara-vm* address)
   (1- (length (vm-root-vector *clamsara-vm*))))
 

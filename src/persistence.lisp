@@ -381,7 +381,14 @@
   optional complete heap image and is useful for explicit base-plus-delta
   recovery; the historical two-argument form remains unchanged."
   (if (listp segment)
-      (replay-segments segment vm base)
+      ;; A list obtained from the VM's persistence log carries the complete
+      ;; base implicitly; retain the explicit BASE override for callers
+      ;; replaying an externally supplied log.
+      (replay-segments
+       segment vm
+       (or base
+           (and (vm-persistence-log vm)
+                (plog-base-image (vm-persistence-log vm)))))
       (when (verify-segment segment vm)
         (let ((heap (%heap-from-base vm base)))
           (%apply-segment heap segment)

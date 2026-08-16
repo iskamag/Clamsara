@@ -177,31 +177,14 @@ space."
                        do (loop for object-address from card-address
                                 below (min (+ card-address (g-card)) end)
                                 when (s-test-bit os object-address)
-                                  do (remset-heal-object
-                                      vm object-address nursery tr)))))
+                                  do (trace-object-children
+                                      plan object-address
+                                      :target-space nursery
+                                      :trace-kind :minor
+                                      :exclude-weak-referent nil)))))
         (scan-range (space-base-address mature) (space-end-address mature))
         (when los
           (scan-range (space-base-address los) (space-end-address los)))))))
-
-(defun remset-heal-object (vm object-address nursery tr)
-  "Trace (and heal) the reference slots of OBJECT-ADDRESS that point into
-  NURSERY.  Top-level with explicit state: no host closure per object."
-  (let ((slots (vm-reference-slots vm object-address)))
-    (flet ((process-slot (slot)
-             (let ((child (vm-object-reference vm object-address slot)))
-               (when (and (vm-reference-p vm child)
-                          (space-contains-p nursery
-                                            (ref-strip-or-self vm child)))
-                 (let ((new (space-trace-object
-                             nursery vm child tr :trace-kind :minor)))
-                   (unless (eql new child)
-                     (setf (vm-object-reference vm object-address slot)
-                           new)))))))
-      (if slots
-          (loop for slot across slots do (process-slot slot))
-          (dotimes (slot (vm-object-reference-count vm object-address))
-            (process-slot slot)))))
-  object-address)
 
 (defun rebuild-remset (plan)
   "Recompute out-of-nursery -> nursery cards after evacuation and space

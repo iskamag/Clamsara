@@ -137,23 +137,6 @@
           (dotimes (i (vm-object-reference-count vm address)) (heal-slot i))))
     address))
 
-(defun vm-map-reference-slots-writeback (vm address fn)
-  "Like VM-MAP-REFERENCE-SLOTS, but FN returns the replacement to store back
-  into the slot.  Diagnostic/utility only: FN is a caller-supplied closure, so
-  the collection path must use VM-HEAL-REFERENCE-SLOTS instead.  Returns
-  ADDRESS."
-  (let ((slots (vm-reference-slots vm address)))
-    (flet ((heal-slot (i)
-             (let ((child (vm-object-reference vm address i)))
-               (when (vm-reference-p vm child)
-                 (let ((new (funcall fn child)))
-                   (unless (eql new child)
-                     (setf (vm-object-reference vm address i) new)))))))
-      (if slots
-          (loop for i across slots do (heal-slot i))
-          (dotimes (i (vm-object-reference-count vm address)) (heal-slot i))))
-    address))
-
 (defun vm-valid-reference-p (vm reference)
   (and (integerp reference) (plusp reference)
        (< (ref-strip-or-self vm reference) (vm-heap-size vm))))

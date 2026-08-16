@@ -197,9 +197,19 @@ forwarding table and be written back to the slot."
          (raw (clamsara:vm-object-reference vm address slot))
          (barrier (clamsara:plan-barrier plan)))
     (if barrier
-        (let ((healed
-                (clamsara:barrier-note-read
-                 vm barrier (+ address slot) raw)))
+        (let* ((slot-address
+                 ;; BARRIER-NOTE-READ writes a healed value through the raw
+                 ;; VM slot address.  Headered objects keep slot 0 at ADDRESS
+                 ;; + 1; using ADDRESS itself would overwrite the header and
+                 ;; make the tagged cons look like an ordinary host value on
+                 ;; the next CAR/CDR call.  Keep this in lockstep with
+                 ;; CLAMSARA-READ's object-model-aware address calculation.
+                 (if (clamsara::vm-address-cons-p vm address)
+                     (+ address slot)
+                     (+ address 1 slot)))
+               (healed
+                 (clamsara:barrier-note-read
+                  vm barrier slot-address raw)))
           ;; A read transfer is allowed to return a healed value without
           ;; knowing the object model.  Mirror CLAMSARA-READ's writeback here
           ;; so every Maclina load has the same self-healing semantics.

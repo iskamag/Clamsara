@@ -87,6 +87,10 @@
         (setf (aref (clamsara::vm-fwd-table vm) old-car) new-car
               (aref (clamsara::vm-fwd-table vm) old-cdr) new-cdr)
         (assert (= new-car (%reference-address vm (funcall car-fn parent))))
+        ;; A headered object passes slot 0 at ADDRESS + 1 to the read
+        ;; barrier; this diagnostic guards against clobbering its type word.
+        (assert (= clamsara:+tag-cons+
+                   (clamsara:vm-object-type-tag vm parent-address)))
         (assert (= new-cdr (%reference-address vm (funcall cdr-fn parent))))
         (assert (= new-car (clamsara:vm-object-reference vm parent-address 0)))
         (assert (= new-cdr (clamsara:vm-object-reference vm parent-address 1)))))

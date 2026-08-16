@@ -44,6 +44,9 @@ has one source of truth.")
   (remove :checkpoint +gc-phase-order+)
   "GC phases run by ordinary collections; checkpoint is a separate fence.")
 
+(defvar *gc-phase-selection* :all
+  "Internal selection: :ALL for direct phase calls, :COLLECTION for GC, or :CHECKPOINT.")
+
 (define-method-combination gc-phase ()
   ;; One qualifier per phase; the combination assembles the most-specific
   ;; method of each phase in +gc-phase-order+, wrapped by :around methods.
@@ -60,10 +63,16 @@ has one source of truth.")
    (epilogue (:epilogue)))
   (let ((primary
           `(progn
-             ,@(mapcar (lambda (phase-group)
-                         `(call-method ,(first phase-group) ()))
-                       (list prologue mark weak reclaim compact
-                             checkpoint release epilogue)))))
+             ,@(mapcar
+                (lambda (phase phase-group)
+                  (if (eq phase :checkpoint)
+                      `(unless (eq *gc-phase-selection* :collection)
+                         (call-method ,(first phase-group) ()))
+                      `(unless (eq *gc-phase-selection* :checkpoint)
+                         (call-method ,(first phase-group) ()))))
+                +gc-phase-order+
+                (list prologue mark weak reclaim compact
+                      checkpoint release epilogue)))))
     (if around
         `(call-method ,(first around)
                       (,@(rest around)
@@ -202,9 +211,11 @@ interpreted and compiled collectors cannot diverge."
       ;; Only the checkpoint phase (plus the stop/resume safepoint) runs.
       (progn
         (vm-stop-mutators (plan-vm p))
-        (call-gc-phase-method p cycle-kind :checkpoint)
+        (let ((*gc-phase-selection* :checkpoint))
+          (gc-phase p cycle-kind))
         (vm-resume-mutators (plan-vm p)))
-      (gc-phase p cycle-kind)))
+      (let ((*gc-phase-selection* :collection))
+        (gc-phase p cycle-kind))))
 
 (defmethod plan-collect-phase :around ((p plan) cycle-kind)
   (let ((t0 (get-internal-run-time)))

@@ -103,3 +103,24 @@
   :perform (asdf:test-op (operation component)
              (declare (ignore operation component))
              (uiop:symbol-call :clamsara-maclina :run-maclina-tests)))
+
+
+;;; Optional, deliberately small Gabriel-style Maclina benchmark subset.  This
+;;; system depends only on the core system: invoking its test operation loads
+;;; :clamsara/maclina dynamically so a missing optional installation gets a
+;;; clear benchmark-specific error rather than becoming a core dependency.
+(asdf:defsystem :clamsara/bench/gabriel
+  :version "8.0.0"
+  :description "Small optional Gabriel-style workloads over Maclina."
+  :depends-on (:clamsara)
+  :serial t
+  :components
+  ((:module "bench/gabriel"
+    :serial t
+    :components ((:file "package")
+                 (:file "forms")
+                 (:file "runner"))))
+  :perform (asdf:test-op (operation component)
+             (declare (ignore operation component))
+             (uiop:symbol-call :clamsara-gabriel-bench
+                               :run-gabriel-bench)))

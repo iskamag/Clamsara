@@ -1050,6 +1050,21 @@ into the evacuated blocks and must be rewritten too."
                     (hierarchical-free-block a vm bi)))))))))
     s))
 
+(defun superblock-seed-root-reference (s ref)
+  "Seed the hierarchy for one root and return it unchanged.
+Explicit root regions are already filtered by VM-SCAN-ROOTS, so this helper
+also keeps the hierarchy's root set consistent with the tracing root set."
+  (let ((vm (space-vm s)))
+    (when (and (integerp ref) (plusp ref)
+               (space-contains-p s (ref-strip-or-self vm ref)))
+      (let* ((address (ref-strip-or-self vm ref))
+             (mi (sb-mb-index s address))
+             (sb (floor mi (%sb-mps s))))
+        (when (< sb (%sb-count s))
+          (setf (sbit (aref (%sb-mb-root-bits s) sb)
+                      (sb-local-mb s mi)) 1))))
+  ref))
+
 (defun superblock-root-mbs (s vm)
   "Seed bits per SB: metablocks containing root references or nursery-edge
   targets.  A superset of the trace seeds keeps the closure a valid bound."
@@ -1057,21 +1072,15 @@ into the evacuated blocks and must be rewritten too."
          (nursery (and plan (plan-nursery plan)))
          (nsb (%sb-count s)))
     (dotimes (i nsb) (fill (aref (%sb-mb-root-bits s) i) 0))
-    (flet ((seed (ref)
-             (when (and (plusp ref) (space-contains-p s ref))
-               (let* ((mi (sb-mb-index s ref))
-                      (sb (floor mi (%sb-mps s))))
-                 (when (< sb nsb)
-                   (setf (sbit (aref (%sb-mb-root-bits s) sb)
-                               (sb-local-mb s mi)) 1))))))
-      (let ((roots (vm-root-vector vm)))
-        (dotimes (i (length roots)) (seed (aref roots i))))
-      (when (and nursery (vm-object-start vm))
-        (let ((os (vm-object-start vm)))
-          (loop for address from (space-base-address nursery)
-                below (space-end-address nursery)
-                when (s-test-bit os address)
-                  do (superblock-seed-nursery-object s vm address)))))
+    ;; This includes the legacy root vector and every explicit
+    ;; simulator/backend root region, applying each region's map.
+    (vm-scan-roots vm s #'superblock-seed-root-reference)
+    (when (and nursery (vm-object-start vm))
+      (let ((os (vm-object-start vm)))
+        (loop for address from (space-base-address nursery)
+              below (space-end-address nursery)
+              when (s-test-bit os address)
+                do (superblock-seed-nursery-object s vm address))))
     s))
 
 (defun superblock-seed-nursery-object (s vm address)

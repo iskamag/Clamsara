@@ -15,6 +15,48 @@
         (values t "simulator capabilities ok")
         (values nil "simulator capabilities wrong"))))
 
+(deftest simulator-explicit-root-region-map ()
+  ;; Explicit simulator/backend maps are not native stack maps: only the
+  ;; selected entry is a root.  The unmapped slot deliberately contains the
+  ;; raw integer address of another object, which must not keep that object
+  ;; alive while the mapped object is forwarded.
+  (let* ((vm (make-simulator-vm 4096 :root-region-capacity 2))
+         (region (make-array 2 :initial-element 0))
+         (plan (make-collector :semispace vm 4096)))
+    (register-root-region vm region 0 2 #(0))
+    (boot-gc plan)
+    (let ((live (allocate-object plan 0))
+          (raw (allocate-object plan 0)))
+      (setf (aref region 0) live
+            (aref region 1) raw)
+      (plan-collect plan :cycle-kind :full)
+      (let ((forwarded (aref region 0)))
+        (if (and (/= forwarded live)
+                 (vm-object-start-p vm forwarded)
+                 (= (aref region 1) raw)
+                 (not (vm-object-start-p vm live))
+                 (not (vm-object-start-p vm raw)))
+            (values t "explicit mapped root forwarded; unmapped raw value ignored")
+            (values nil "explicit root map scanned or failed to rewrite the wrong entry"))))))
+
+(deftest simulator-root-region-invalid-ranges ()
+  (let ((vm (make-simulator-vm 4096 :root-region-capacity 1))
+        (vector (make-array 4))
+        (ok t))
+    (labels ((rejects-p (thunk)
+               (handler-case (progn (funcall thunk) nil)
+                 (clamsara-error () t)
+                 (error () (setf ok nil) nil))))
+      (unless (and (rejects-p (lambda () (register-root-region vm vector -1 2 nil)))
+                   (rejects-p (lambda () (register-root-region vm vector 3 2 nil)))
+                   (rejects-p (lambda () (register-root-region vm vector 0 5 nil)))
+                   (rejects-p (lambda () (register-root-region vm vector 0 2 #(2))))
+                   (rejects-p (lambda () (register-root-region vm vector 0 2 '(0)))))
+        (setf ok nil)))
+    (if ok
+        (values t "invalid root-region ranges/maps rejected")
+        (values nil "invalid root-region range/map was accepted"))))
+
 (deftest software-mmu-alias-range ()
   ;; T1 aliases may be outside the physical heap's identity-mapped range.  A
   ;; grown VPT must retain the original mapping/protection and still dispatch

@@ -21,6 +21,15 @@
   (stopped nil :type boolean)
   (epoch 0 :type fixnum))
 
+;; Explicit root regions are a simulator/backend hook.  They are not native
+;; stack maps: a backend registers stable vectors and (optionally) the mapped
+;; entries at boot, and collection only rewrites those entries.
+(defstruct (root-region (:constructor %make-root-region))
+  vector
+  (start 0 :type fixnum)
+  (end 0 :type fixnum)
+  mapped-indices)
+
 ;; ---- capability mixins (markers + their state) --------------------------
 
 (defclass vm-binding ()
@@ -28,6 +37,14 @@
    (heap-size   :initarg :heap-size :reader vm-heap-size :initform 0)
    (roots       :initarg :roots :accessor vm-root-vector
                 :initform (make-array 0 :fill-pointer 0))
+   ;; Fixed-capacity descriptors are allocated with the VM, never by a
+   ;; collection.  Registration fills an unused descriptor at boot.
+   (root-regions :initarg :root-regions :accessor vm-root-regions
+                 :initform #())
+   (root-region-count :initarg :root-region-count
+                      :accessor vm-root-region-count :initform 0)
+   (root-region-capacity :initarg :root-region-capacity
+                         :accessor vm-root-region-capacity :initform 0)
    (strata      :accessor vm-strata-table :initform (make-hash-table :test 'eq))
    (locations   :accessor vm-locations :initform (make-hash-table :test 'eq))
    ;; Dense simulator tables are the off-heap address-keyed tables of paper-v8.
@@ -304,16 +321,81 @@ any indices they hold."
   (let ((m (slot-map-for vm address)))
     (if m (slot-map-ref-slots m) nil)))
 
+(defun register-root-region (vm vector start end mapped-indices-or-nil)
+  "Register a stable VECTOR root region for the simulator/backend hook.
+START and END are absolute vector bounds, with END exclusive.  A non-NIL
+index vector names exactly the entries to rewrite; NIL scans every entry in
+[START,END).  Registration copies the index vector and consumes one of the
+VM's fixed-capacity boot-time descriptors."
+  (unless (vectorp vector)
+    (error 'clamsara-error :message "root region storage must be a vector"))
+  (unless (and (integerp start) (integerp end)
+               (<= 0 start) (<= start end) (<= end (length vector)))
+    (error 'clamsara-error
+           :message (format nil "invalid root region range [~s,~s) for vector length ~d"
+                            start end (length vector))))
+  (unless (or (null mapped-indices-or-nil)
+              (vectorp mapped-indices-or-nil))
+    (error 'clamsara-error
+           :message "root region map must be a vector or NIL"))
+  ;; Validate and copy before consuming a descriptor, so rejected input leaves
+  ;; the VM registration state unchanged.
+  (let ((mapped (and mapped-indices-or-nil
+                     (make-array (length mapped-indices-or-nil)))))
+    (when mapped
+      (dotimes (i (length mapped-indices-or-nil))
+        (let ((index (aref mapped-indices-or-nil i)))
+          (unless (and (integerp index) (<= start index) (< index end))
+            (error 'clamsara-error
+                   :message (format nil
+                                    "root region mapped index ~s outside [~s,~s)"
+                                    index start end)))
+          (setf (aref mapped i) index))))
+    (let* ((regions (vm-root-regions vm))
+           (count (vm-root-region-count vm)))
+      (when (or (not (vectorp regions)) (>= count (length regions)))
+        (error 'heap-exhausted :requested-size 1 :space :root-regions))
+      (let ((descriptor (aref regions count)))
+        ;; Descriptors are preallocated at simulator creation.  A malformed
+        ;; backend VM gets a clear boot-time error rather than allocating one.
+        (unless (root-region-p descriptor)
+          (error 'clamsara-error :message "VM root-region descriptor storage is not preallocated"))
+        (setf (root-region-vector descriptor) vector
+              (root-region-start descriptor) start
+              (root-region-end descriptor) end
+              (root-region-mapped-indices descriptor) mapped
+              (vm-root-region-count vm) (1+ count)))))
+  vector)
+
 (defgeneric vm-scan-roots (vm collector-state fn)
   (:documentation "Invoke FN as (FN COLLECTOR-STATE REF) on each root and
 replace the root with its returned reference. VM backends extend this method
 for stacks and registers. Passing state explicitly avoids allocating a
-capturing closure during collection.")
+capturing closure during collection. Explicit root regions are a simulator /
+backend hook, not native stack maps: mapped entries are rewritten, while NIL
+maps conservatively scan the complete registered range.")
   (:method ((vm vm-binding) collector-state fn)
     (let ((roots (vm-root-vector vm)))
+      ;; Preserve the original root-vector protocol and its conservative scan.
       (dotimes (i (length roots))
         (setf (aref roots i)
-              (funcall fn collector-state (aref roots i)))))))
+              (funcall fn collector-state (aref roots i))))
+      ;; Descriptors and copied maps are VM-owned boot storage.  No host
+      ;; allocation is needed while walking them during collection.
+      (let ((regions (vm-root-regions vm)))
+        (dotimes (r (vm-root-region-count vm))
+          (let* ((descriptor (aref regions r))
+                 (vector (root-region-vector descriptor))
+                 (mapped (root-region-mapped-indices descriptor)))
+            (if mapped
+                (dotimes (i (length mapped))
+                  (let ((index (aref mapped i)))
+                    (setf (aref vector index)
+                          (funcall fn collector-state (aref vector index)))))
+                (loop for index from (root-region-start descriptor)
+                      below (root-region-end descriptor)
+                      do (setf (aref vector index)
+                               (funcall fn collector-state (aref vector index)))))))))))
 
 ;; ---- coordination --------------------------------------------------------
 

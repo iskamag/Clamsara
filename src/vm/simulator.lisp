@@ -41,19 +41,30 @@
   t)
 
 (defun %make-simulator-vm (class heap-words plan &key
-                              (work-packets (max 1 heap-words)))
+                              (work-packets (max 1 heap-words))
+                              (root-region-capacity 16))
   (when (>= heap-words (ash 1 +colour-pos+))
     (error 'clamsara-error
            :message "simulator heap does not fit below the colour bits"))
+  (unless (and (integerp root-region-capacity) (<= 0 root-region-capacity))
+    (error 'clamsara-error :message "root-region-capacity must be a non-negative integer"))
   (let* ((heap (make-array heap-words :element-type '(unsigned-byte 64)
                           :initial-element 0))
          (roots (make-array heap-words :element-type 'fixnum
                             :initial-element 0 :fill-pointer 0))
          (fwd (make-array heap-words :element-type 'fixnum :initial-element 0))
          (rc (make-array heap-words :element-type 'fixnum :initial-element 0))
+         ;; Descriptors themselves are immortal VM storage.  Registration only
+         ;; fills these records and copies its map during boot.
+         (root-regions (make-array root-region-capacity))
          (vm (make-instance class
                             :heap heap :heap-size heap-words :roots roots
-                            :fwd-table fwd :rc-table rc :plan plan)))
+                            :fwd-table fwd :rc-table rc
+                            :root-regions root-regions
+                            :root-region-capacity root-region-capacity
+                            :plan plan)))
+    (dotimes (i root-region-capacity)
+      (setf (aref root-regions i) (%make-root-region)))
     ;; object-start stratum at the VM's minimum alignment (1 word here).
     (setf (vm-object-start vm)
           (make-stratum :object-start (vm-min-alignment-words vm) :bit heap-words))
@@ -67,11 +78,15 @@
 
 (defun make-simulator-vm (heap-words &key plan
                              (work-packets (max 1 heap-words))
-                             work-packet-count scheduler-capacity)
+                             work-packet-count scheduler-capacity
+                             (root-region-capacity 16))
   "Allocate a fresh heap and a simulator VM over it.
 WORK-PACKETS (also accepted as WORK-PACKET-COUNT or SCHEDULER-CAPACITY)
-is the fixed capacity of the VM's packet pool and scheduler queue."
+is the fixed capacity of the VM's packet pool and scheduler queue.
+ROOT-REGION-CAPACITY is the fixed number of explicit root-region descriptors
+reserved at boot."
   (%make-simulator-vm 'simulator-vm heap-words plan
                       :work-packets (or scheduler-capacity
                                          work-packet-count
-                                         work-packets)))
+                                         work-packets)
+                      :root-region-capacity root-region-capacity))

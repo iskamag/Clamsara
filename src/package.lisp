@@ -66,6 +66,8 @@
            #:colour-remapped #:colour-marked0 #:colour-marked1
            #:colour-finalizable #:colour-good
            #:vm-heap-base #:vm-min-alignment-words
+           #:vm-root-regions #:vm-root-region-count #:vm-root-region-capacity
+           #:register-root-region
            #:vm-register-stratum #:vm-stratum
            #:vm-object-header #:vm-object-reference #:vm-object-reference-count
            #:vm-object-total-words #:vm-object-type-tag #:vm-object-start-p

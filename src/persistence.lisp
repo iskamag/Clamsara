@@ -123,6 +123,15 @@
           (make-array (vm-page-count vm) :element-type 'bit :initial-element 0)))
   (unless (vm-cow-images vm)
     (setf (vm-cow-images vm) (make-hash-table :test 'eql)))
+  ;; virtual-memory-mixin carries the same state slots for VM backends that
+  ;; expose COW metadata through their MMU protocol.  Keep the simulator's
+  ;; frozen-image table mirrored there rather than leaving those protocol
+  ;; slots inert.
+  (when (typep vm 'virtual-memory-mixin)
+    (unless (mmu-cow-pages vm)
+      (setf (mmu-cow-pages vm) (vm-cow-pages vm)))
+    (unless (mmu-cow-copied vm)
+      (setf (mmu-cow-copied vm) (vm-cow-images vm))))
   vm)
 
 (defun %cow-page-p (vm page)
@@ -138,6 +147,9 @@
       (let ((images (vm-cow-images vm)))
         (unless (gethash page images)
           (setf (gethash page images) (%copy-page-image vm page))))
+      (when (and (typep vm 'virtual-memory-mixin) (mmu-cow-copied vm))
+        (setf (gethash page (mmu-cow-copied vm))
+              (gethash page images)))
       ;; The frozen image is now independent of the live physical page.
       (vm-mprotect vm page 1 :read-write)))
   vm)
@@ -151,7 +163,13 @@
         (when (typep vm 'virtual-memory-mixin)
           (vm-mprotect vm page 1 :read-write))))
     (fill (vm-cow-pages vm) 0)
-    (when (vm-cow-images vm) (clrhash (vm-cow-images vm))))
+    (when (vm-cow-images vm) (clrhash (vm-cow-images vm)))
+    (when (typep vm 'virtual-memory-mixin)
+      (when (mmu-cow-pages vm) (fill (mmu-cow-pages vm) 0))
+      (when (mmu-cow-copied vm) (clrhash (mmu-cow-copied vm)))
+      (when (typep vm 'ring0-mixin)
+        (setf (mmu-handler vm) (mmu-cow-previous-handler vm)))
+      (setf (mmu-cow-previous-handler vm) nil)))
   vm)
 
 (defun write-segment (vm dirty-pages timestamp)
@@ -239,6 +257,8 @@
            (vm-has-feature-p vm :t2))
       (progn
         (%ensure-cow-tables vm)
+        (when (typep vm 'ring0-mixin)
+          (setf (mmu-cow-previous-handler vm) (mmu-handler vm)))
         (vm-install-fault-handler
          vm (lambda (address access-kind)
              (persistence-cow-page-fault vm address access-kind)))
@@ -250,6 +270,9 @@
         (dolist (page pages)
           (when (and (<= 0 page) (< page (vm-page-count vm)))
             (setf (sbit (vm-cow-pages vm) page) 1)
+            (when (and (typep vm 'virtual-memory-mixin)
+                       (mmu-cow-pages vm))
+              (setf (sbit (mmu-cow-pages vm) page) 1))
             (vm-mprotect vm page 1 :read))))
       (when pages
         ;; T0/T1: no write fault path, so materialise the frozen copy now.

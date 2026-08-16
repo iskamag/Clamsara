@@ -51,7 +51,7 @@
            #:vm-mprotect #:vm-map-alias #:vm-unmap #:mmu-arm #:mmu-disarm
            #:vm-page-dirty-p #:vm-clear-page-dirty
            #:vm-install-fault-handler #:vm-remap #:vm-flush-tlb
-           #:vm-safepoint #:vm-scan-roots #:vm-scan-object-references
+           #:vm-safepoint #:vm-mutator-poll #:vm-scan-roots #:vm-scan-object-references
            #:vm-stop-mutators #:vm-resume-mutators
            #:coordination-state #:coordination-state-p
            #:coordination-state-requested #:coordination-state-stopped

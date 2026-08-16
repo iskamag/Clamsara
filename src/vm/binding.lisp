@@ -352,6 +352,15 @@ acknowledged synchronously.  A parallel VM supplies an atomic implementation.")
         (setf (coordination-state-stopped state) t)))
     vm))
 
+(defgeneric vm-mutator-poll (vm)
+  (:documentation "Poll the VM stop request at a mutator safepoint.
+The simulator acknowledges synchronously; a concurrent backend may park the
+calling context until VM-RESUME-MUTATORS." )
+  (:method ((vm vm-binding))
+    (when (vm-safepoint-requested-p vm)
+      (vm-safepoint vm :reason :mutator-poll))
+    vm))
+
 (defgeneric vm-stop-mutators (vm)
   (:documentation "Request a mutator stop and synchronously acknowledge it in
  the single-threaded simulator.  Repeated requests in one epoch are idempotent." )

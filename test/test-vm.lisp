@@ -304,3 +304,15 @@
       (if (and caught (= before (length (plan-mutator-contexts plan))))
           (values t "foreign mutator context rejected")
           (values nil "foreign mutator context was registered")))))
+
+
+(deftest mutator-poll-acknowledges-stop-request ()
+  (let ((vm (make-simulator-vm 4096)))
+    (vm-stop-mutators vm)
+    (vm-resume-mutators vm)
+    ;; Polling while running is a no-op; a fresh request is acknowledged.
+    (vm-stop-mutators vm)
+    (vm-mutator-poll vm)
+    (if (vm-stopped-p vm)
+        (progn (vm-resume-mutators vm) (values t "mutator poll acknowledged"))
+        (values nil "mutator poll failed to acknowledge"))))

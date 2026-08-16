@@ -40,6 +40,10 @@
 combination and the boot assembler both read this list, so the phase machine
 has one source of truth.")
 
+(defparameter +gc-collection-phase-order+
+  (remove :checkpoint +gc-phase-order+)
+  "GC phases run by ordinary collections; checkpoint is a separate fence.")
+
 (define-method-combination gc-phase ()
   ;; One qualifier per phase; the combination assembles the most-specific
   ;; method of each phase in +gc-phase-order+, wrapped by :around methods.

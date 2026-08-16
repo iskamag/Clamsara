@@ -352,6 +352,16 @@
               (values t "ok")
               (values nil "small object co-located in a dead span block")))))))
 
+(deftest claimore-checkpoint-captures-persistence-log ()
+  ;; Cla(i)more's checkpoint phase must execute the real persistence fence,
+  ;; not merely increment a statistics counter.
+  (with-clamsara (:plan-type :claimore :heap-size 4096)
+    (plan-collect *clamsara-plan* :cycle-kind :checkpoint)
+    (let ((log (vm-persistence-log *clamsara-vm*)))
+      (if (and log (plusp (length (plog-segments log))))
+          (values t "ok")
+          (values nil "Cla(i)more checkpoint did not append a segment")))))
+
 (deftest checkpoint-cycle-kind-admitted ()
   ;; persistence.tex §4: a checkpoint is an extra plan phase; the compiled
   ;; collector must admit :checkpoint (previously fell through the ecase).

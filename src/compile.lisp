@@ -103,7 +103,10 @@ on the first live VM-OBJECT-REFERENCE after boot."
          (space (default-space plan))
          (address (and space (space-base-address space))))
     (when (and address (< (1+ address) (vm-heap-size vm)))
-      (vm-object-reference vm address 0)))
+      (vm-object-reference vm address 0)
+      ;; Publication's RC write barrier tests this side-stratum accessor;
+      ;; warm it before the first mutator store as well.
+      (vm-object-is-public-p vm address)))
   ;; Barrier accessors are on the mutator fast path.  Resolve them before
   ;; returning from boot so the first RC/publication store cannot construct a
   ;; CLOS effective method or allocate host storage.
@@ -258,24 +261,27 @@ convention."
     (sb-mop:method-function method)))
 
 #+sbcl
-(defun direct-phase-forms (plan cycle-kind)
-  "Resolve the ordered gc-phase methods and prebuild their argument lists.
+(defun direct-phase-forms (plan cycle-kind
+                           &optional (phase-order +gc-phase-order+))
+  "Resolve PHASE-ORDER methods and prebuild their argument lists.
 The resolution is identical to the combination's dispatch, so compiled and
-interpreted collectors cannot diverge."
+interpreted collectors cannot diverge.  Checkpoint is deliberately excluded
+from ordinary collection phase lists: it is a fence, not a GC sub-phase."
   (let ((arguments (list plan cycle-kind)))
-    (loop for phase in +gc-phase-order+
+    (loop for phase in phase-order
           for method-function = (selected-phase-method-function plan cycle-kind phase)
           collect `(funcall ,method-function ',arguments nil))))
 
 (defun compiled-plan-collect-form (plan)
   #+sbcl
-  (let ((minor (direct-phase-forms plan :minor))
-        (major (direct-phase-forms plan :major))
-        (full (direct-phase-forms plan :full))
+  (let ((minor (direct-phase-forms plan :minor +gc-collection-phase-order+))
+        (major (direct-phase-forms plan :major +gc-collection-phase-order+))
+        (full (direct-phase-forms plan :full +gc-collection-phase-order+))
         ;; persistence.tex §4: a checkpoint is a SNAPSHOT, not a collection.
         ;; The compiled arm runs only the checkpoint phase (plus the
         ;; stop/resume safepoint), never prologue/mark/reclaim/compact.
-        (checkpoint-form (first (direct-phase-forms plan :checkpoint))))
+        (checkpoint-form (first (direct-phase-forms plan :checkpoint
+                                                     '(:checkpoint)))))
     `(lambda (ignored-plan cycle-kind)
        (declare (ignore ignored-plan))
        (let ((started (get-internal-run-time)))

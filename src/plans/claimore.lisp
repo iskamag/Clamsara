@@ -79,8 +79,12 @@
 
 (defmethod gc-phase :checkpoint ((p claimore-plan) k)
   (declare (ignore k))
-  ;; persistence stub: a real plan would capture the dirty set and mark CoW.
-  (when (plan-stats p) (stats-event (plan-stats p) :checkpoints 1)))
+  ;; Cla(i)more participates in the same persistence fence as other plans:
+  ;; capture dirty pages, arm COW/materialize T0 snapshots, append the segment,
+  ;; and clear the dirty signal before publishing the checkpoint event.
+  (let ((segment (checkpoint-heap p :timestamp (get-universal-time))))
+    (gc-event-checkpoint p (plan-vm p)
+                         (persistence-segment-pages segment))))
 
 (defmethod gc-phase :release ((p claimore-plan) k)
   (let ((vm (plan-vm p)))

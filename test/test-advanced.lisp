@@ -255,3 +255,67 @@
                (s-test-bit (vm-stratum vm :card) 512))
           (values t "ok")
           (values nil "card rule did not dirty the source card")))))
+
+
+(deftest claimore-read-declaration-matches-fused-rules ()
+  ;; The plan declaration names concrete read rules.  In particular, the
+  ;; publication strategy is not itself a barrier rule.
+  (with-clamsara (:plan-type :claimore :heap-size 65536)
+    (let* ((p *clamsara-plan*)
+           (c (plan-constraints p))
+           (names (constraints-read-barrier c))
+           (rules (barrier-rules (plan-barrier p))))
+      (if (and (eq (constraints-requires-tier c) :t2)
+               (listp names)
+               (every (lambda (name)
+                       (find name rules :key #'barrier-rule-name))
+                      names))
+          (values t "ok")
+          (values nil (format nil "read declaration ~a does not match rules ~a"
+                              names (mapcar #'barrier-rule-name rules)))))))
+
+(deftest claimore-foreign-edge-needs-two-mature-endpoints ()
+  ;; A mature source may point into the nursery.  Such an edge must not index
+  ;; the nursery address as a mature block and set bogus escape metadata.
+  (with-clamsara (:plan-type :claimore :heap-size 65536)
+    (let* ((vm *clamsara-vm*)
+           (p *clamsara-plan*)
+           (mature (cl-mature p))
+           (source (alloc (space-allocator mature) 1))
+           (young (clamsara-allocate-object 0))
+           (barrier (plan-barrier p))
+           (rule (find :rc (barrier-rules barrier)
+                       :key #'barrier-rule-name))
+           (block (sb-block-index mature source)))
+      (vm-write-header vm source +tag-object+ 0)
+      (s-set-bit (vm-object-start vm) source)
+      (funcall (barrier-rule-transfer rule) vm barrier source 0 young)
+      (if (zerop (sb-escape-value mature vm block))
+          (values t "ok")
+          (values nil "nursery target polluted mature hierarchy metadata")))))
+
+(deftest claimore-search-cross-superblock-foreign-closure ()
+  ;; SB1's root points into SB2.  The foreign target bit is the only metadata
+  ;; edge between those per-SB matrices; search must seed SB2 as well as SB1.
+  (with-clamsara (:plan-type :claimore :heap-size 65536)
+    (let* ((vm *clamsara-vm*)
+           (s (cl-mature *clamsara-plan*))
+           (a (space-allocator s))
+           (bpm (%sb-bpm s))
+           (mps (%sb-mps s))
+           (src-block (* 1 mps bpm))
+           (dst-block (* 2 mps bpm))
+           (src (sb-block-base s src-block))
+           (dst (sb-block-base s dst-block)))
+      ;; Search only visits in-use superblocks; reserve one block in each.
+      (setf (aref (hierarchical-allocator-cursors a) src-block) (+ src 1)
+            (aref (hierarchical-allocator-cursors a) dst-block) (+ dst 1))
+      (vm-add-root vm src)
+      (superblock-note-write s vm src dst)
+      (superblock-search s vm)
+      (let ((sb1-reached (aref (%sb-reached-mbs s) 1))
+            (sb2-reached (aref (%sb-reached-mbs s) 2)))
+        (if (and (= 1 (sbit sb1-reached 0))
+                 (= 1 (sbit sb2-reached 0)))
+            (values t "ok")
+            (values nil "foreign target was not traversed by search"))))))

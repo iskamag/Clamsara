@@ -191,14 +191,14 @@ on the first live VM-OBJECT-REFERENCE after boot."
   (sb-local-block space 0)
   (sb-local-mb space 0)
   (sb-block-base space 0)
-  ;; Mature-space references exercise the public-bit path at a different
-  ;; address range from the nursery; warm that path before mutator stores.
-  (vm-object-is-public-p vm (space-base-address space))
   ;; RC/publication barriers classify mature source addresses through these
   ;; side-stratum accessors; warm the mature base after stratum dispatch so a
   ;; first publication store remains allocation-free.
   (space-contains-p space (space-base-address space))
   (vm-object-is-public-p vm (space-base-address space))
+  ;; The mutator write path finally stores through this object-reference
+  ;; setter; resolve it for mature addresses during boot too.
+  (setf (vm-object-reference vm (space-base-address space) 0) 0)
   (let ((a (space-allocator space)))
     (when (typep a 'hierarchical-allocator)
       (%warm-hierarchical-allocator a vm space)))

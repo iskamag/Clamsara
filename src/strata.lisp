@@ -439,6 +439,14 @@ collection path uses MATRIX-ROW-INTO with the preallocated scratch."
   (matrix-column-into m j (make-array (matrix-regions m)
                                       :element-type 'bit :initial-element 0)))
 
+(defun %matrix-neighbors-into (m i vec)
+  "Copy region I's outgoing neighbors into the preallocated VEC.
+For a POINTS-TO matrix this is row I; for a POINTED-BY matrix it is column I.
+This is shared by the closure and peel collection paths and never allocates."
+  (if (eq (matrix-direction m) :pointed-by)
+      (matrix-column-into m i vec)
+      (matrix-row-into m i vec)))
+
 (defun matrix-clear-all (m) (fill (matrix-bits m) 0))
 
 (defun matrix-closure (m roots &optional (max-passes nil))
@@ -456,7 +464,6 @@ the C reference calls DENSE_PASS), and stops when scratch-a stops growing."
          (live (matrix-scratch-a m))
          (prev (matrix-scratch-b m))
          (row  (matrix-scratch-row m))
-         (pointed-by-p (eq (matrix-direction m) :pointed-by))
          (nroots (min (length roots) r)))
     (fill live 0)
     (replace live roots :end1 nroots :end2 nroots)
@@ -465,9 +472,7 @@ the C reference calls DENSE_PASS), and stops when scratch-a stops growing."
           do (replace prev live)                  ; snapshot pre-pass seed
              (dotimes (i r)
                (when (eql 1 (sbit prev i))
-                 (if pointed-by-p
-                     (matrix-column-into m i row)
-                     (matrix-row-into m i row))
+                 (%matrix-neighbors-into m i row)
                  (bit-ior row live live)))        ; live |= neighbors[i]
              (when (null (mismatch live prev))
                (return)))                         ; fixpoint: nothing grew
@@ -494,7 +499,6 @@ into scratch-a); scratch-c holds the pre-pass snapshot for fixpoint detection."
          (acc    (matrix-scratch-b m))
          (prev   (matrix-scratch-c m))
          (row    (matrix-scratch-row m))
-         (pointed-by-p (eq (matrix-direction m) :pointed-by))
          (nroots (min (length roots) r)))
     (fill active 1)                               ; everyone starts alive
     (loop for passes fixnum from 0
@@ -503,9 +507,7 @@ into scratch-a); scratch-c holds the pre-pass snapshot for fixpoint detection."
              (fill acc 0)
              (dotimes (i r)
                (when (eql 1 (sbit active i))
-                 (if pointed-by-p
-                     (matrix-column-into m i row)
-                     (matrix-row-into m i row))
+                 (%matrix-neighbors-into m i row)
                  (bit-ior row acc acc)))         ; acc |= neighbors[i]
              (when nroots                        ; pin roots alive
                (dotimes (k nroots)

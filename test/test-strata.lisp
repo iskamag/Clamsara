@@ -136,6 +136,20 @@
             (values t "peel ok")
             (values nil "peel wrong"))))))
 
+(deftest matrix-peel-pointed-by ()
+  ;; PEEL must use the same outgoing-neighbor orientation as CLOSURE when
+  ;; the matrix stores the transposed (pointed-by) relation.
+  (let ((m (make-matrix-stratum (g-block) 8 :direction :pointed-by)))
+    (matrix-set m 1 0) (matrix-set m 2 1) (matrix-set m 4 2)
+    (let ((roots (make-array 8 :element-type 'bit :initial-element 0)))
+      (setf (sbit roots 0) 1)
+      (let ((live (matrix-peel m roots)))
+        (if (and (eql 1 (sbit live 0)) (eql 1 (sbit live 1))
+                 (eql 1 (sbit live 2)) (eql 1 (sbit live 4))
+                 (eql 0 (sbit live 3)) (eql 0 (sbit live 5)))
+            (values t "pointed-by peel ok")
+            (values nil "pointed-by peel traversed rows"))))))
+
 (deftest matrix-peel-agrees-with-closure ()
   ;; A greatest-fixpoint peel with roots pinned converges to the same live set
   ;; as the least-fixpoint forward closure from those roots.

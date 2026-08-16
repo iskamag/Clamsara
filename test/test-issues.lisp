@@ -338,7 +338,7 @@
                                          :name :bad-read :default-space t))
            :barrier (make-instance 'barrier :rules nil)
            :constraints (make-instance 'plan-constraints
-                                        :read-barrier :missing))))
+                                        :read-barrier :missing)))
       (plan-incompatible () (setf caught-p t)))
     (if caught-p
         (values t "ok")

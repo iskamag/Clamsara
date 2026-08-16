@@ -45,6 +45,8 @@
   ;; outgoing edges in the append-only set.
   (let ((vm (make-simulator-vm 4096))
         (strategy (make-instance 'lazy-read-barrier)))
+    (vm-register-stratum vm :public
+      (make-stratum :public (vm-min-alignment-words vm) :bit (vm-heap-size vm)))
     (initialize-publication-work strategy vm)
     (vm-write-header vm 512 +tag-object+ 1)
     (vm-write-header vm 514 +tag-object+ 1)
@@ -73,6 +75,8 @@
          (plan (make-instance 'plan :name :trap-test :vm vm
                               :spaces (list region)
                               :publication strategy)))
+    (vm-register-stratum vm :public
+      (make-stratum :public (vm-min-alignment-words vm) :bit (vm-heap-size vm)))
     (initialize-publication-work strategy vm)
     (vm-write-header vm 512 +tag-object+ 1)
     (vm-write-header vm 514 +tag-object+ 511)

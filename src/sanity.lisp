@@ -217,12 +217,18 @@ rewritten; they must not, however, point at a freed/foreign region."
                               (%sanity-hierarchical-block-in-use-p
                                space (+ (* global bpm) block))))))
                errors))))
-    (unless (and (arrayp block-matrices) (>= (length block-matrices) nmb))
-      (push (format nil "hierarchical block matrix table has wrong size: ~a (expected ~a)"
-                    (if (arrayp block-matrices) (length block-matrices) 0) nmb)
+    ;; A trailing matrix slot is reserved for a partially-filled final
+    ;; metablock in the simulator.  It is not a real metablock relation.
+    (unless (and (arrayp block-matrices)
+                 (or (= (length block-matrices) nmb)
+                     (= (length block-matrices) (1+ nmb))))
+      (push (format nil
+                    "hierarchical block matrix table has wrong size: ~a (expected ~a or ~a)"
+                    (if (arrayp block-matrices) (length block-matrices) 0)
+                    nmb (1+ nmb))
             errors))
     (when (arrayp block-matrices)
-      (dotimes (mb (length block-matrices))
+      (dotimes (mb (min nmb (length block-matrices)))
         (setf errors
               (%sanity-check-matrix-regions
                (aref block-matrices mb) bpm (format nil "block matrix ~a" mb)

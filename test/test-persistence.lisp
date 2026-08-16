@@ -127,3 +127,36 @@
                       55))
               (values t "ok")
               (values nil "MMU COW write did not preserve old value")))))))
+
+(deftest persistence-t0-snapshot-buffer-page-copy ()
+  ;; T0/T1 materialise a page in the preallocated snapshot buffer.  The
+  ;; writer must use that frozen source even after the live page changes.
+  (let* ((vm (make-simulator-vm 4096))
+         (page 1)
+         (offset 11)
+         (address (+ (page-start-address page) offset)))
+    (setf (ref-u64 vm address) 55)
+    (mark-pages-cow vm (list page))
+    (setf (ref-u64 vm address) 99)
+    (let* ((segment (write-segment vm (list page) 7))
+           (image (gethash page (persistence-segment-images segment))))
+      (if (and (= (aref image offset) 55)
+               (= (ref-u64 vm address) 99)
+               (verify-segment segment vm))
+          (values t "ok")
+          (values nil "T0 snapshot buffer was not used for the frozen page")))))
+
+(deftest persistence-segment-checksum-follows-frozen-images ()
+  ;; Verification must fold the persisted image, not the live heap or a stale
+  ;; checksum captured before a stored image mutation.
+  (let* ((vm (make-simulator-vm 4096))
+         (page 1)
+         (address (+ (page-start-address page) 3)))
+    (setf (ref-u64 vm address) 123)
+    (let* ((segment (write-segment vm (list page) 9))
+           (image (gethash page (persistence-segment-images segment)))
+           (intact (verify-segment segment vm)))
+      (incf (aref image 3))
+      (if (and intact (not (verify-segment segment vm)))
+          (values t "ok")
+          (values nil "segment checksum did not track its frozen image")))))

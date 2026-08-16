@@ -99,15 +99,44 @@
     (dotimes (k +page-words+ sum)
       (setf sum (logxor sum (+ (aref words k) k page-index))))))
 
-(defun %copy-page-image (vm page)
-  (let ((words (make-array +page-words+
-                           :element-type '(unsigned-byte 64)
-                           :initial-element 0))
-        (base (page-start-address page)))
+(defun %segment-checksum (pages images timestamp)
+  "Fold the stored page images in checkpoint order.
+
+  The caller owns IMAGES and PAGES; this helper only updates local scalar
+  state, so it introduces no list, closure, or temporary image allocation."
+  (let ((checksum timestamp))
+    (dolist (page pages checksum)
+      (setf checksum
+            (logxor checksum
+                    (page-checksum-of-image (gethash page images)
+                                            checksum page))))))
+
+(defun %copy-page-words (vm page words &optional buffer)
+  "Copy PAGE into the caller-owned WORDS vector.
+
+  Supplying WORDS keeps the page-copy loop allocation-free, which matters for
+  T0/T1 snapshot buffers and for the COW fault's plain handler path.  BUFFER,
+  when present, is the pre-materialised T0/T1 snapshot; otherwise the live VM
+  is read (the T2 fault path)."
+  (let ((base (page-start-address page)))
     (dotimes (k +page-words+ words)
       (let ((address (+ base k)))
         (when (< address (vm-heap-size vm))
-          (setf (aref words k) (ref-u64 vm address)))))))
+          (setf (aref words k)
+                (if buffer
+                    (s-get buffer address)
+                    (ref-u64 vm address))))))))
+
+(defun %copy-page-image (vm page)
+  "Return a newly allocated frozen image for PAGE.
+
+  The allocation belongs to the image owner (the COW table); the actual copy
+  is shared with the allocation-free destination helper above."
+  (let ((words (make-array +page-words+
+                           :element-type '(unsigned-byte 64)
+                           :initial-element 0)))
+    (%copy-page-words vm page words)
+    words))
 
 ;; ---- simulator COW/MMU support ------------------------------------------
 ;;
@@ -180,29 +209,20 @@
   frozen images; otherwise freeze the current page (the T0/T1 pause path)."
   (let* ((sorted (sort (remove-duplicates (copy-list dirty-pages)) #'<))
          (images (make-hash-table :test 'eql))
-         (checksum timestamp)
          (buffer (vm-stratum vm :snapshot-buffer)))
     (dolist (page sorted)
-      (let* ((base (page-start-address page))
-             (words (or (and (vm-cow-images vm)
-                             (gethash page (vm-cow-images vm)))
-                        (let ((copy (make-array +page-words+
-                                                :element-type '(unsigned-byte 64)
-                                                :initial-element 0)))
-                          (dotimes (k +page-words+)
-                            (let ((address (+ base k)))
-                              (when (< address (vm-heap-size vm))
-                                (setf (aref copy k)
-                                      (if buffer
-                                          (s-get buffer address)
-                                          (ref-u64 vm address))))))
-                          copy))))
-        (setf (gethash page images) words)
-        (setf checksum
-              (logxor checksum
-                      (page-checksum-of-image words checksum page)))))
+      (let ((words (or (and (vm-cow-images vm)
+                            (gethash page (vm-cow-images vm)))
+                       (let ((copy (make-array +page-words+
+                                               :element-type '(unsigned-byte 64)
+                                               :initial-element 0)))
+                         (%copy-page-words vm page copy buffer)
+                         copy))))
+        (setf (gethash page images) words)))
     (let ((segment (%make-segment :timestamp timestamp :pages sorted
-                                  :images images :checksum checksum)))
+                                  :images images
+                                  :checksum (%segment-checksum
+                                             sorted images timestamp))))
       (%finish-cow vm)
       segment)))
 
@@ -312,15 +332,17 @@
   heap); NIL means torn."
   (declare (ignore vm))
   (handler-case
-      (let ((checksum (persistence-segment-timestamp segment)))
-        (dolist (page (persistence-segment-pages segment))
-          (let ((words (gethash page (persistence-segment-images segment))))
+      (let ((pages (persistence-segment-pages segment))
+            (images (persistence-segment-images segment)))
+        ;; Keep malformed-image rejection here so the shared fold can remain a
+        ;; tight, allocation-free checksum loop for trusted segment images.
+        (dolist (page pages)
+          (let ((words (gethash page images)))
             (unless (and (arrayp words) (>= (length words) +page-words+))
-              (return-from verify-segment nil))
-            (setf checksum
-                  (logxor checksum
-                          (page-checksum-of-image words checksum page)))))
-        (eql checksum (persistence-segment-checksum segment)))
+              (return-from verify-segment nil))))
+        (eql (%segment-checksum
+              pages images (persistence-segment-timestamp segment))
+             (persistence-segment-checksum segment)))
     (error () nil)))
 
 (defun %segment-list (segments)

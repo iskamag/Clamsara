@@ -112,11 +112,17 @@
     (mark-pages-cow vm '(1))
     (let ((armed (mmu-armed vm)))
       (setf (ref-u64 vm address) 99)
-      (let ((segment (write-segment vm '(1) 7)))
-        (if (and armed
-                 (vm-page-dirty-p vm 1)
-                 (= (ref-u64 vm address) 99)
-                 (= (aref (gethash 1 (persistence-segment-images segment)) 11)
-                    55))
-            (values t "ok")
-            (values nil "MMU COW write did not preserve old value"))))))
+      ;; The MMU protocol's copied-image table must expose the same frozen
+      ;; vector as the VM-owned table before the fence consumes it.  A missing
+      ;; mirror previously surfaced as "NIL is not a VECTOR" during recovery.
+      (let ((frozen (gethash 1 (mmu-cow-copied vm))))
+        (let ((segment (write-segment vm '(1) 7)))
+          (if (and armed
+                   (vm-page-dirty-p vm 1)
+                   (vectorp frozen)
+                   (= (aref frozen 11) 55)
+                   (= (ref-u64 vm address) 99)
+                   (= (aref (gethash 1 (persistence-segment-images segment)) 11)
+                      55))
+              (values t "ok")
+              (values nil "MMU COW write did not preserve old value")))))))

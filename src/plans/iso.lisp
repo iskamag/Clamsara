@@ -114,7 +114,7 @@
 (defun make-iso-plan (vm heap-size)
   (declare (ignore heap-size))
   (destructuring-bind (pr pu) (partition-pages (vm-page-count vm) '(1/2 1/2))
-    (let* ((private (make-instance 'immix-space :vm vm
+    (let* ((private (make-instance 'private-immix-space :vm vm
                                     :start-page (car pr) :page-count (cdr pr)
                                     :name :private :default-space t))
            (public (make-instance 'immix-space :vm vm

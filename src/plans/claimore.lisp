@@ -148,10 +148,12 @@
   ;; are shrunk so a small heap still contains several of each.  Superblock 0
   ;; holds the persistent root set and is never freed.
   (destructuring-bind (nu ma) (partition-pages (vm-page-count vm) '(1/3 2/3))
-    (let* ((nursery (make-instance 'immix-space :vm vm
+    (let* ((nursery (make-instance 'private-immix-space :vm vm
                                     :start-page (car nu) :page-count (cdr nu)
                                     :name :nursery :default-space t
-                                    :moving :opportunistic))
+                                    :moving :opportunistic
+                                    :constraints (make-instance 'space-constraints
+                                                                 :scope :thread)))
            (mature (make-instance 'superblock-space :vm vm
                                    :start-page (car ma) :page-count (cdr ma)
                                    :name :mature :default-space nil

@@ -442,20 +442,21 @@ collection path uses MATRIX-ROW-INTO with the preallocated scratch."
 (defun matrix-clear-all (m) (fill (matrix-bits m) 0))
 
 (defun matrix-closure (m roots &optional (max-passes nil))
-  "Least-fixpoint forward closure from ROOTS over the points-to matrix
-(strata.md §5).  Returns the reached-regions bit-vector, which is shared
-preallocated scratch — copy it if you must keep it across another call.
-MAX-PASSES bounds the diameter (NIL = run to fixpoint).
+  "Least-fixpoint forward closure from ROOTS over the matrix relation
+(strata.md §5).  For :POINTS-TO, row I names the regions reached from I;
+for :POINTED-BY, column I names the regions reached from I.  Returns the
+reached-regions bit-vector, which is shared preallocated scratch — copy it if
+you must keep it across another call.  MAX-PASSES bounds the diameter (NIL =
+run to fixpoint).
 
 Allocation-free: each pass snapshots the seed into scratch-b, ORs every live
-row into scratch-a via destructive BIT-IOR (the SIMD-able bulk step the C
-reference calls DENSE_PASS), and stops when scratch-a stops growing."
+neighbor set into scratch-a via destructive BIT-IOR (the SIMD-able bulk step
+the C reference calls DENSE_PASS), and stops when scratch-a stops growing."
   (let* ((r (matrix-regions m))
-         (bits (matrix-bits m))
-         (wpr (matrix-words-per-row m))
          (live (matrix-scratch-a m))
          (prev (matrix-scratch-b m))
          (row  (matrix-scratch-row m))
+         (pointed-by-p (eq (matrix-direction m) :pointed-by))
          (nroots (min (length roots) r)))
     (fill live 0)
     (replace live roots :end1 nroots :end2 nroots)
@@ -464,9 +465,10 @@ reference calls DENSE_PASS), and stops when scratch-a stops growing."
           do (replace prev live)                  ; snapshot pre-pass seed
              (dotimes (i r)
                (when (eql 1 (sbit prev i))
-                 (let ((base (* i wpr)))
-                   (replace row bits :start2 base :end2 (+ base wpr))
-                   (bit-ior row live live))))     ; live |= row[i]  (destructive)
+                 (if pointed-by-p
+                     (matrix-column-into m i row)
+                     (matrix-row-into m i row))
+                 (bit-ior row live live)))        ; live |= neighbors[i]
              (when (null (mismatch live prev))
                (return)))                         ; fixpoint: nothing grew
     live))
@@ -477,21 +479,22 @@ reference calls DENSE_PASS), and stops when scratch-a stops growing."
 
 (defun matrix-peel (m roots &optional (max-passes nil))
   "Greatest-fixpoint peel (iskamag.com/posts/remsets): start with every region
-alive and, each pass, drop regions that no alive region points to, pinning
-ROOTS alive.  Returns the live-regions bit-vector (shared scratch).
-MAX-PASSES bounds the peel depth (NIL = run to fixpoint); the blog shows a
-bounded peel trades a little over-retention for predictable latency.
+alive and, each pass, drop regions that no alive region reaches, pinning ROOTS
+alive.  For :POINTS-TO, an active row contributes its outgoing edges; for
+:POINTED-BY, its outgoing edges are in the corresponding column.  Returns the
+live-regions bit-vector (shared scratch).  MAX-PASSES bounds the peel depth
+(NIL = run to fixpoint); the blog shows a bounded peel trades a little
+over-retention for predictable latency.
 
-Allocation-free: acc = OR of active rows (destructive BIT-IOR into scratch-b),
-roots pinned into acc, then active &= acc (destructive BIT-AND into
-scratch-a); scratch-c holds the pre-pass snapshot for fixpoint detection."
+Allocation-free: acc = OR of active neighbor sets (destructive BIT-IOR into
+scratch-b), roots pinned into acc, then active &= acc (destructive BIT-AND
+into scratch-a); scratch-c holds the pre-pass snapshot for fixpoint detection."
   (let* ((r (matrix-regions m))
-         (bits (matrix-bits m))
-         (wpr (matrix-words-per-row m))
          (active (matrix-scratch-a m))
          (acc    (matrix-scratch-b m))
          (prev   (matrix-scratch-c m))
          (row    (matrix-scratch-row m))
+         (pointed-by-p (eq (matrix-direction m) :pointed-by))
          (nroots (min (length roots) r)))
     (fill active 1)                               ; everyone starts alive
     (loop for passes fixnum from 0
@@ -500,9 +503,10 @@ scratch-a); scratch-c holds the pre-pass snapshot for fixpoint detection."
              (fill acc 0)
              (dotimes (i r)
                (when (eql 1 (sbit active i))
-                 (let ((base (* i wpr)))
-                   (replace row bits :start2 base :end2 (+ base wpr))
-                   (bit-ior row acc acc))))       ; acc |= row[i]
+                 (if pointed-by-p
+                     (matrix-column-into m i row)
+                     (matrix-row-into m i row))
+                 (bit-ior row acc acc)))         ; acc |= neighbors[i]
              (when nroots                        ; pin roots alive
                (dotimes (k nroots)
                  (when (eql 1 (sbit roots k)) (setf (sbit acc k) 1))))

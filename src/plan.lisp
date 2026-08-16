@@ -414,6 +414,35 @@ heap-sized capacity so registration and collection never grow them."
                             (list (constraints-read-barrier c))))
           (error 'plan-incompatible :plan p
                  :message "read-guarded publication needs a read rule or trap"))))
+    ;; Scope is a plan/space invariant, not merely a plan declaration.  A
+    ;; private space must belong to a private plan with the same ownership
+    ;; scope and therefore use that plan's publication strategy; conversely,
+    ;; a private plan must actually have a private space.  Global companion
+    ;; spaces (for example Iso's public region) remain valid.
+    (let* ((plan-scope (constraints-scope c))
+           (private-spaces
+             (remove-if (lambda (s)
+                          (eq (scope (space-constraints s)) :global))
+                        (plan-spaces p)))
+           (private-plan-p (member plan-scope '(:thread :request))))
+      (unless (member plan-scope '(:global :thread :request))
+        (error 'plan-incompatible :plan p
+               :message (format nil "invalid plan scope ~a" plan-scope)))
+      (when (and private-spaces (not private-plan-p))
+        (error 'plan-incompatible :plan p
+               :message "non-global space requires a matching non-global plan scope"))
+      (when (and private-plan-p (null private-spaces))
+        (error 'plan-incompatible :plan p
+               :message "non-global plan scope requires a non-global space"))
+      (dolist (s private-spaces)
+        (unless (eq (scope (space-constraints s)) plan-scope)
+          (error 'plan-incompatible :plan p
+                 :message (format nil "space ~a scope ~a disagrees with plan scope ~a"
+                                  (space-name s)
+                                  (scope (space-constraints s)) plan-scope))))
+      (when (and private-spaces (null (plan-publication p)))
+        (error 'plan-incompatible :plan p
+               :message "non-global space requires a publication strategy")))
     ;; requires-tier must not exceed the VM's tier (plans.tex §1)
     (let* ((tiers '(:t0 :t1 :t2))
            (vm-pos (position (vm-tier vm) tiers))

@@ -65,6 +65,62 @@
             (values t "closure ok")
             (values nil "closure wrong"))))))
 
+(deftest matrix-closure-pointed-by ()
+  ;; In a pointed-by matrix M[target,source], outgoing edges are columns,
+  ;; rather than rows.  This is the transpose of the points-to representation.
+  (let ((m (make-matrix-stratum (g-block) 8 :direction :pointed-by)))
+    (matrix-set m 1 0) (matrix-set m 2 1) (matrix-set m 4 2)
+    (let ((roots (make-array 8 :element-type 'bit :initial-element 0)))
+      (setf (sbit roots 0) 1)
+      (let ((live (matrix-closure m roots)))
+        (if (and (eql 1 (sbit live 0)) (eql 1 (sbit live 1))
+                 (eql 1 (sbit live 2)) (eql 1 (sbit live 4))
+                 (eql 0 (sbit live 3)))
+            (values t "pointed-by closure ok")
+            (values nil "pointed-by closure traversed rows"))))))
+
+(deftest private-space-defaults-to-request-scope ()
+  ;; The private space class carries ownership in its constraints; a plan
+  ;; cannot accidentally treat it as global merely because no initarg was
+  ;; supplied by its constructor.
+  (let* ((vm (make-simulator-vm 4096))
+         (s (make-instance 'private-immix-space :vm vm
+                           :start-page 1 :page-count 2 :name :private)))
+    (if (eq (scope (space-constraints s)) :request)
+        (values t "private scope ok")
+        (values nil "private space defaulted to global"))))
+
+(deftest plan-rejects-private-space-with-global-scope ()
+  ;; Scope is an invariant across the plan and every non-global space, not
+  ;; just a requirement that a plan publication strategy be non-NIL.
+  (let* ((vm (make-simulator-vm 4096))
+         (s (make-instance 'private-immix-space :vm vm
+                           :start-page 1 :page-count 2 :name :private))
+         (caught nil))
+    (handler-case
+        (finalize-plan
+         (make-instance 'plan :name :bad-scope :vm vm :spaces (list s)))
+      (plan-incompatible () (setf caught t)))
+    (if caught
+        (values t "scope mismatch rejected")
+        (values nil "global plan accepted private space"))))
+
+(deftest plan-rejects-private-scope-without-private-space ()
+  (let* ((vm (make-simulator-vm 4096))
+         (s (make-instance 'immix-space :vm vm
+                           :start-page 1 :page-count 2 :name :global))
+         (caught nil))
+    (handler-case
+        (finalize-plan
+         (make-instance 'plan :name :bad-scope :vm vm :spaces (list s)
+                        :publication (make-instance 'eager-closure)
+                        :constraints (make-instance 'plan-constraints
+                                                    :scope :request)))
+      (plan-incompatible () (setf caught t)))
+    (if caught
+        (values t "missing private space rejected")
+        (values nil "private plan accepted only global spaces"))))
+
 (deftest matrix-peel ()
   ;; Greatest-fixpoint peel (iskamag.com/posts/remsets).  Same graph as the
   ;; closure test; with region 0 as the only root, the peeled live set must

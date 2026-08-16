@@ -56,9 +56,8 @@ has one source of truth.")
    (epilogue (:epilogue)))
   (let ((primary
           `(progn
-             ,@(mapcan (lambda (phase-group)
-                         (mapcar (lambda (m) `(call-method ,m ()))
-                                 phase-group))
+             ,@(mapcar (lambda (phase-group)
+                         `(call-method ,(first phase-group) ()))
                        (list prologue mark weak reclaim compact
                              checkpoint release epilogue)))))
     (if around

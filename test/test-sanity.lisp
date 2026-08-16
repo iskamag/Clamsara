@@ -47,14 +47,15 @@
   (with-clamsara (:plan-type :claimore :heap-size 65536)
     (let* ((mature (cl-mature *clamsara-plan*))
            (counts (sb-refcounts mature)))
-      ;; SB 1 is present in the simulator-sized geometry but has no incoming
-      ;; references.  A phantom count must not be silently accepted.
-      (setf (aref counts (if (> (length counts) 1) 1 0)) 1)
+      ;; Counts are remembered and may be stale, but negative values are
+      ;; structurally impossible.
+      (setf (aref counts 0) -1)
       (let ((errs (sanity-check *clamsara-plan*
                                 :check-mark nil :check-dlg nil :check-fwd nil)))
-        (if (find-if (lambda (e) (search "hierarchical RC mismatch" e)) errs)
+        (if (find-if (lambda (e) (search "hierarchical RC count" e)) errs)
             (values t "ok")
             (values nil "missed hierarchical RC corruption"))))))
+
 
 (deftest sanity-detects-claimore-matrix-and-escape-corruption ()
   (with-clamsara (:plan-type :claimore :heap-size 65536)

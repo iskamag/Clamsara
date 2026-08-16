@@ -53,6 +53,14 @@
            #:vm-install-fault-handler #:vm-remap #:vm-flush-tlb
            #:vm-safepoint #:vm-scan-roots #:vm-scan-object-references
            #:vm-stop-mutators #:vm-resume-mutators
+           #:coordination-state #:coordination-state-p
+           #:coordination-state-requested #:coordination-state-stopped
+           #:coordination-state-epoch #:vm-coordination-state #:vm-coordination
+           #:vm-coordination-requested #:vm-coordination-stopped
+           #:vm-coordination-epoch #:vm-coordination-requested-p
+           #:vm-coordination-stopped-p #:vm-safepoint-requested-p
+           #:vm-mutators-stopped-p #:vm-stop-requested-p #:vm-stopped-p
+           #:vm-safepoint-epoch
            #:ref-colour #:ref-set-colour #:ref-good-colour-p #:ref-strip
            #:software-mmu #:simulator-vm #:make-simulator-vm
            #:colour-remapped #:colour-marked0 #:colour-marked1

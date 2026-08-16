@@ -8,6 +8,19 @@
 
 (in-package #:clamsara)
 
+;; ---- VM coordination state ------------------------------------------------
+;;
+;; A real VM backs these fields with atomics and lets each mutator publish its
+;; arrival at a safepoint.  The simulator has one execution stream, so the
+;; state is an ordinary preallocated record: requesting a stop immediately
+;; reaches the safepoint.  Keeping the record on the VM (rather than in a
+;; collector or a temporary plist) makes the protocol allocation-free on all
+;; collection paths and leaves a stable object for protocol tests.
+(defstruct (coordination-state (:constructor %make-coordination-state))
+  (requested nil :type boolean)
+  (stopped nil :type boolean)
+  (epoch 0 :type fixnum))
+
 ;; ---- capability mixins (markers + their state) --------------------------
 
 (defclass vm-binding ()
@@ -37,6 +50,11 @@
    (scheduler :accessor vm-scheduler :initform nil)
    (work-packet-pool :accessor vm-work-packet-pool :initform nil)
    (work-packet-free-stack :accessor vm-work-packet-free-stack :initform nil)
+   ;; Safepoint coordination is VM-owned and allocated with the VM.  Protocol
+   ;; operations only mutate these three fields; they never lazily allocate.
+   (coordination-state :initarg :coordination-state
+                       :accessor vm-coordination-state
+                       :initform (%make-coordination-state))
    (plan        :initarg :plan :accessor vm-plan :initform nil)))
 
 (defclass virtual-memory-mixin ()           ; T1
@@ -242,11 +260,64 @@ capturing closure during collection.")
         (setf (aref roots i)
               (funcall fn collector-state (aref roots i)))))))
 
-;; ---- coordination (no-ops on the single-threaded simulator) -------------
+;; ---- coordination --------------------------------------------------------
+
+;; VM-facing readers are deliberately tiny.  In addition to the descriptive
+;; names, retain short aliases useful to backends and tests.  The record
+;; accessors (COORDINATION-STATE-*) remain available when a caller wants to
+;; inspect the VM-owned object itself.
+(declaim (inline vm-coordination vm-coordination-requested
+                 vm-coordination-stopped vm-coordination-epoch
+                 vm-coordination-requested-p vm-coordination-stopped-p
+                 vm-safepoint-requested-p vm-mutators-stopped-p
+                 vm-stop-requested-p vm-stopped-p vm-safepoint-epoch))
+(defun vm-coordination (vm) (vm-coordination-state vm))
+(defun vm-coordination-requested (vm)
+  (coordination-state-requested (vm-coordination-state vm)))
+(defun vm-coordination-stopped (vm)
+  (coordination-state-stopped (vm-coordination-state vm)))
+(defun vm-coordination-epoch (vm)
+  (coordination-state-epoch (vm-coordination-state vm)))
+(defun vm-coordination-requested-p (vm) (vm-coordination-requested vm))
+(defun vm-coordination-stopped-p (vm) (vm-coordination-stopped vm))
+(defun vm-safepoint-requested-p (vm) (vm-coordination-requested vm))
+(defun vm-mutators-stopped-p (vm) (vm-coordination-stopped vm))
+(defun vm-stop-requested-p (vm) (vm-coordination-requested vm))
+(defun vm-stopped-p (vm) (vm-coordination-stopped vm))
+(defun vm-safepoint-epoch (vm) (vm-coordination-epoch vm))
 
 (defgeneric vm-safepoint (vm &key reason)
-  (:method ((vm vm-binding) &key reason) (declare (ignore reason))))
+  (:documentation "Publish this execution stream's arrival at a safepoint.
+The simulator has one mutator stream, so an outstanding stop request is
+acknowledged synchronously.  A parallel VM supplies an atomic implementation.")
+  (:method ((vm vm-binding) &key reason)
+    (declare (ignore reason))
+    (let ((state (vm-coordination-state vm)))
+      (when (coordination-state-requested state)
+        (setf (coordination-state-stopped state) t)))
+    vm))
+
 (defgeneric vm-stop-mutators (vm)
-  (:method ((vm vm-binding))))
+  (:documentation "Request a mutator stop and synchronously acknowledge it in
+ the single-threaded simulator.  Repeated requests in one epoch are idempotent." )
+  (:method ((vm vm-binding))
+    (let ((state (vm-coordination-state vm)))
+      (unless (coordination-state-requested state)
+        (setf (coordination-state-requested state) t)
+        ;; EPOCH identifies this stop/resume interval.  Keep it a fixnum even
+        ;; after a very long-running simulator session.
+        (let ((epoch (coordination-state-epoch state)))
+          (setf (coordination-state-epoch state)
+                (if (= epoch most-positive-fixnum) 0 (1+ epoch))))))
+    ;; There are no concurrent mutators in the simulator.  A real backend can
+    ;; leave this as a request and have each worker call VM-SAFEPOINT instead.
+    (vm-safepoint vm :reason :stop-mutators)))
+
 (defgeneric vm-resume-mutators (vm)
-  (:method ((vm vm-binding))))
+  (:documentation "Clear the stop request and release simulator mutators.
+The epoch is retained as the completed stop interval's token." )
+  (:method ((vm vm-binding))
+    (let ((state (vm-coordination-state vm)))
+      (setf (coordination-state-requested state) nil
+            (coordination-state-stopped state) nil))
+    vm))

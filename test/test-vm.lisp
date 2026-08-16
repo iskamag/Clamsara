@@ -177,3 +177,38 @@
              (= (length (plan-mutator-contexts p)) 2))
         (values t "mutator context ownership ok")
         (values nil "mutator context ownership wrong"))))
+
+
+(deftest simulator-safepoint-protocol ()
+  ;; Coordination is a VM-owned record, not temporary collector state.  The
+  ;; simulator acknowledges a stop immediately; repeated requests are
+  ;; idempotent and do not advance the epoch until the next stop interval.
+  (let* ((vm (make-simulator-vm 4096))
+         (coord (vm-coordination vm))
+         (initial-epoch (vm-safepoint-epoch vm)))
+    (vm-safepoint vm :reason :poll)
+    (let ((idle-ok (and (eq coord (vm-coordination vm))
+                        (not (vm-safepoint-requested-p vm))
+                        (not (vm-mutators-stopped-p vm))
+                        (= (vm-safepoint-epoch vm) initial-epoch))))
+      (vm-stop-mutators vm)
+      (let ((epoch (vm-safepoint-epoch vm)))
+        (vm-stop-mutators vm)
+        (let ((requested-ok (and (vm-safepoint-requested-p vm)
+                                 (vm-mutators-stopped-p vm)
+                                 (= epoch (vm-safepoint-epoch vm))
+                                 (eq coord (vm-coordination vm)))))
+          (vm-resume-mutators vm)
+          (let ((resumed-ok (and (not (vm-safepoint-requested-p vm))
+                                 (not (vm-mutators-stopped-p vm))
+                                 (= epoch (vm-safepoint-epoch vm)))))
+            (vm-stop-mutators vm)
+            (let ((next-epoch (vm-safepoint-epoch vm)))
+              (vm-resume-mutators vm)
+              (if (and idle-ok requested-ok resumed-ok
+                       (> next-epoch epoch))
+                  (values t "simulator safepoint protocol ok")
+                  (values nil (format nil
+                                      "safepoint state wrong: ~s ~s ~s ~s"
+                                      idle-ok requested-ok resumed-ok
+                                      next-epoch))))))))))

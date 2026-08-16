@@ -143,7 +143,12 @@ vm-object-old-p misses LOS objects, whose age stratum stays 0."
                                 (vm-reference-p vm new))
                        (let ((saddr (ref-strip-or-self vm src))
                              (naddr (ref-strip-or-self vm new)))
-                         (when (space-contains-p space saddr)
+                         ;; Hierarchy metadata belongs only to mature-space
+                         ;; edges.  A mature source may point into the nursery
+                         ;; or LOS; those references must not be interpreted
+                         ;; as mature block indices.
+                         (when (and (space-contains-p space saddr)
+                                    (space-contains-p space naddr))
                            (superblock-note-write space vm saddr naddr)))))))
                new)))
 

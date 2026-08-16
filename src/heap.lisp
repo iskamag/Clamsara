@@ -46,6 +46,9 @@
       (error 'plan-incompatible :plan s
              :message "concurrent-relocate space needs off-heap forwarding")))
   (let ((constraints (space-constraints s)))
+    (unless (member (scope constraints) '(:global :thread :request))
+      (error 'plan-incompatible :plan s
+             :message (format nil "invalid space scope ~a" (scope constraints))))
     (when (slot-boundp s 'allocator)
       (let ((a (space-allocator s)))
         (when (and (typep s 'immix-space)
@@ -542,7 +545,11 @@ into the evacuated blocks and must be rewritten too."
   (:default-initargs :policy :trace :moving :opportunistic)
   (:metaclass space-metaclass))
 (defclass private-immix-space (immix-space) ()
-  (:default-initargs :policy :trace :moving :opportunistic)
+  ;; Private regions are request-owned by default.  Callers may override the
+  ;; constraints explicitly (Claimore's nursery is thread-owned).
+  (:default-initargs :policy :trace :moving :opportunistic
+                     :constraints (make-instance 'space-constraints
+                                                 :scope :request))
   (:metaclass space-metaclass))
 (defclass los-space (space) ()
   (:default-initargs :policy :trace :moving :none)
@@ -976,33 +983,34 @@ into the evacuated blocks and must be rewritten too."
 ;; pointed-to-by-older bit when the source metablock is older.
 
 (defun superblock-note-write (s vm src new)
-  "Maintain the hierarchy relations for a mature-space store SRC<-NEW
-  (called from the RC write-barrier rule, which runs after publication)."
-  (let* ((src-block (sb-block-index s src))
-         (dst-block (sb-block-index s new))
-         (src-mb (floor src-block (%sb-bpm s)))
-         (dst-mb (floor dst-block (%sb-bpm s)))
-         (src-sb (floor src-mb (%sb-mps s)))
-         (dst-sb (floor dst-mb (%sb-mps s))))
-    (when (/= src-sb dst-sb)
-      ;; to-foreign on the source block, from-foreign on the target block
-      (setf (sb-escape-value s vm src-block)
-            (logior (sb-escape-value s vm src-block) +escape-to-foreign+)
-            (sb-escape-value s vm dst-block)
-            (logior (sb-escape-value s vm dst-block) +escape-from-foreign+)))
-    (cond
-      ((/= src-mb dst-mb)
-       (matrix-set (aref (%sb-mb-matrices s) src-sb)
-                   (sb-local-mb s src-mb) (sb-local-mb s dst-mb)))
-      ((/= src-block dst-block)
-       (matrix-set (aref (%sb-block-matrices s) src-mb)
-                   (sb-local-block s src-block) (sb-local-block s dst-block))))
-    (when (and (= src-sb dst-sb) (< src-mb dst-mb))
-      (setf (sb-escape-value s vm dst-block)
-            (logior (sb-escape-value s vm dst-block)
-                    +escape-pointed-to-by-older+)))
-    nil))
-
+  "Maintain hierarchy relations for a mature-space store SRC<-NEW.
+   Both endpoints must belong to S: a mature source can point to a nursery
+   or LOS object, but that edge has no mature block-matrix representation."
+  (when (and (space-contains-p s src) (space-contains-p s new))
+    (let* ((src-block (sb-block-index s src))
+           (dst-block (sb-block-index s new))
+           (src-mb (floor src-block (%sb-bpm s)))
+           (dst-mb (floor dst-block (%sb-bpm s)))
+           (src-sb (floor src-mb (%sb-mps s)))
+           (dst-sb (floor dst-mb (%sb-mps s))))
+      (when (/= src-sb dst-sb)
+        ;; to-foreign on the source block, from-foreign on the target block
+        (setf (sb-escape-value s vm src-block)
+              (logior (sb-escape-value s vm src-block) +escape-to-foreign+)
+              (sb-escape-value s vm dst-block)
+              (logior (sb-escape-value s vm dst-block) +escape-from-foreign+)))
+      (cond
+        ((/= src-mb dst-mb)
+         (matrix-set (aref (%sb-mb-matrices s) src-sb)
+                     (sb-local-mb s src-mb) (sb-local-mb s dst-mb)))
+        ((/= src-block dst-block)
+         (matrix-set (aref (%sb-block-matrices s) src-mb)
+                     (sb-local-block s src-block) (sb-local-block s dst-block))))
+      (when (and (= src-sb dst-sb) (< src-mb dst-mb))
+        (setf (sb-escape-value s vm dst-block)
+              (logior (sb-escape-value s vm dst-block)
+                      +escape-pointed-to-by-older+)))
+      nil)))
 ;; ---- reclamation: RC release -> search -> precise-trace sweep ------------
 
 (defun superblock-pinned (s vm)
@@ -1088,46 +1096,51 @@ into the evacuated blocks and must be rewritten too."
   address)
 
 (defun superblock-search (s vm)
-  "Stage 2: metablock-granularity search.  For each live superblock, close
-  the MB points-to matrix from the seed bits.  An unreached metablock that a
-  from-foreign escape bit flags as the target of a foreign-superblock edge is
-  added to the seeds and the closure re-run (heap.tex: trusted only where the
-  RC table and escape bits rule out incoming edges from reached regions).
-  The reached sets are retained for the post-collection sanity check: the
-  precise trace's marked set must lie within them."
+  "Stage 2: metablock-granularity search.  Close each live superblock's
+  local matrix from its roots, adding metablocks marked as targets of
+  cross-superblock edges until a fixed point."
   (let* ((nsb (%sb-count s))
          (mps (%sb-mps s))
+         (bpm (%sb-bpm s))
+         (nmb (%sb-mb-count s))
+         (nblocks (%sb-block-count s))
          (a (space-allocator s)))
     (superblock-root-mbs s vm)
     (dotimes (sb nsb)
       (let ((reached (aref (%sb-reached-mbs s) sb))
             (roots (aref (%sb-mb-root-bits s) sb)))
+        (fill reached 0)
         (when (hierarchical-sb-in-use-p a sb)
-          ;; iterate to fixpoint: closure, then fold in from-foreign targets
+          ;; Iterate closure and foreign-target seeding to a fixed point.
+          ;; MB-MATRICES are per-SB and use local indices, while block and
+          ;; escape strata use global indices.  Keep those coordinate systems
+          ;; explicit; using MI directly skips every nonzero superblock.
           (loop repeat mps
                 for added-p = nil
                 do (let ((closure
                            (matrix-closure
                             (aref (%sb-mb-matrices s) sb) roots)))
                      (replace reached closure))
-                   (dotimes (mi (min mps (%sb-mb-count s)))
-                     (when (and (= (floor mi mps) sb)  ; local to this SB
-                                (zerop (sbit reached (sb-local-mb s mi))))
-                       ;; unreached: keep only if a from-foreign block exists
-                       (let ((foreign-p nil))
-                         (dotimes (b (%sb-bpm s))
-                           (let ((bi (+ (* mi (%sb-bpm s))
-                                        b)))
-                             (when (and (< bi (%sb-block-count s))
-                                        (logtest (sb-escape-value s vm bi)
-                                                 +escape-from-foreign+))
-                               (setf foreign-p t) (return))))
-                         (when foreign-p
-                           (setf (sbit roots (sb-local-mb s mi)) 1
-                                 added-p t)))))
+                   (dotimes (local-mi mps)
+                     (let ((global-mi (+ (* sb mps) local-mi)))
+                       (when (and (< global-mi nmb)
+                                  (zerop (sbit reached local-mi)))
+                         ;; A from-foreign target is a root for this SB's
+                         ;; closure.  Its source is in another SB, so no local
+                         ;; matrix row can describe that edge.
+                         (let ((foreign-p nil))
+                           (dotimes (b bpm)
+                             (let ((bi (+ (* global-mi bpm) b)))
+                               (when (and (< bi nblocks)
+                                          (logtest (sb-escape-value s vm bi)
+                                                   +escape-from-foreign+))
+                                 (setf foreign-p t)
+                                 (return))))
+                           (when foreign-p
+                             (setf (sbit roots local-mi) 1
+                                   added-p t))))))
                 unless added-p return nil))))
     s))
-
 (defun superblock-sweep (s vm)
   "Stage 3: after the precise trace (marks set), free every block in a live
   superblock with zero marked objects.  The sweep is bounded by the search

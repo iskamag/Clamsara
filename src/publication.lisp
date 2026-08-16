@@ -84,6 +84,18 @@
 
 (defun published-roots-count (pr) (published-roots-fill pr))
 
+(defun record-published-object-edges (pr vm object)
+  "Record every outgoing edge of newly exposed OBJECT.
+
+  A read-guarded publication may expose a child long after its parent was
+  published.  The child's edges are guarded too, so the private collector
+  must retain them in the append-only published-roots set just as it does the
+  original publication edge."
+  (when pr
+    (dotimes (slot (vm-object-reference-count vm object))
+      (record-published-edge pr object slot)))
+  object)
+
 (defun published-edge-recorded-p (pr vm object referent)
   "True if the published-roots set contains a guarded edge from OBJECT whose
   slot currently holds REFERENT (DLG-r verification: every public-to-private
@@ -109,11 +121,22 @@
 (defclass eager-closure (publication-strategy) ())
 
 (defmethod publish ((s eager-closure) vm root)
-  ;; The public bit is also the visited bit: publication is monotone, so an
-  ;; object can enter this queue at most once over the whole run.
-  (let ((work (publication-work s))
-        (head 0)
-        (root (ref-strip-or-self vm root)))
+  ;; Iso's public space is the preferred home for the published incarnation.
+  ;; Keep the source closure public as well: existing private roots may still
+  ;; point at it, and strong DLG requires that closure to be self-contained.
+  ;; The public-space copy is opportunistic (as in locality.tex); if it cannot
+  ;; be made, the source closure remains a valid public incarnation.
+  (let* ((root (ref-strip-or-self vm root))
+         (region (public-region s))
+         (copy (and region
+                    (space-allocator region)
+                    (not (space-contains-p region root))
+                    (not (vm-object-is-public-p vm root))
+                    (copy-closure-to-public vm root region)))
+         (work (publication-work s))
+         (head 0))
+    ;; The public bit is also the visited bit: publication is monotone, so an
+    ;; object can enter this queue at most once over the whole run.
     (setf (fill-pointer work) 0)
     (unless (vm-object-is-public-p vm root)
       (setf (vm-object-is-public-p vm root) t)
@@ -134,7 +157,7 @@
                       (error 'heap-exhausted :requested-size 1
                              :space :publication-queue)))))))
     (setf (fill-pointer work) 0)
-    root))
+    (or copy root)))
 
 ;; ---- lazy read-barrier (Marlow/Dolan/Filatov-Mikheev lineage) ------------
 ;; Publish only the root; a read barrier promotes children on demand.  The
@@ -147,21 +170,22 @@
 (defmethod strategy-read-guarded-p ((s lazy-read-barrier)) t)
 
 (defmethod publish ((s lazy-read-barrier) vm object)
-  (setf (vm-object-is-public-p vm object) t)
-  ;; record every outgoing slot as a guarded edge: a read of a private child
-  ;; publishes on demand, and the private collection must know all such slots
-  (let ((pr (strategy-published-roots s)))
-    (when pr
-      (dotimes (slot (vm-object-reference-count vm object))
-        (record-published-edge pr object slot))))
-  object)
+  (let ((object (ref-strip-or-self vm object)))
+    (setf (vm-object-is-public-p vm object) t)
+    ;; record every outgoing slot as a guarded edge: a read of a private child
+    ;; publishes on demand, and the private collection must know all such slots
+    (record-published-object-edges (strategy-published-roots s) vm object)
+    object))
 
 (defmethod publication-read-rule ((s lazy-read-barrier))
-  ;; on read of a still-private child of a public object, publish it
+  ;; on read of a still-private child of a public object, publish it.  The
+  ;; newly exposed object's own edges are guarded as well and must be retained
+  ;; for the next private collection (not just the parent edge).
   (lambda (vm slot-addr reference)
     (let ((addr (ref-strip-or-self vm reference)))
       (when (and (vm-reference-p vm addr) (not (vm-object-is-public-p vm addr)))
         (setf (vm-object-is-public-p vm addr) t)
+        (record-published-object-edges (strategy-published-roots s) vm addr)
         (setf (ref-u64 vm slot-addr) reference)))
     reference))
 
@@ -276,6 +300,58 @@
         (make-published-roots (vm-heap-size vm)))
   strategy)
 
+(defun publication-allocator-checkpoint (allocator)
+  "Capture enough allocator state to undo a failed closure copy."
+  (typecase allocator
+    (immix-allocator
+     (list :immix (ix-block-count allocator) (ix-next-base allocator)
+           (ix-current allocator)
+           (map 'vector #'immix-block-cursor (ix-blocks allocator))
+           (copy-seq (ix-span-root allocator))))
+    (hierarchical-allocator
+     (list :hierarchical
+           (copy-seq (hierarchical-allocator-cursors allocator))
+           (copy-seq (hierarchical-allocator-span-root allocator))
+           (hierarchical-allocator-next-fresh allocator)
+           (hierarchical-allocator-current allocator)
+           (fill-pointer (hierarchical-allocator-free-blocks allocator))))
+    (bump-allocator (list :bump (ba-cursor allocator)))
+    (otherwise nil)))
+
+(defun rollback-publication-copies (vm allocator checkpoint work)
+  "Forget every destination and restore ALLOCATOR to CHECKPOINT."
+  ;; Return allocations to allocators that support individual free (the
+  ;; free-list/LOS paths); bump/block allocators are restored below.
+  (loop for i downfrom (1- (fill-pointer work)) to 0
+        for dst = (aref work i)
+        for words = (vm-object-total-words vm dst)
+        do (free allocator dst words)
+           (vm-forget-object vm dst))
+  (when checkpoint
+    (case (first checkpoint)
+      (:immix
+       (destructuring-bind (tag count next current cursors spans) checkpoint
+         (declare (ignore tag))
+         (dotimes (i (length cursors))
+           (setf (immix-block-cursor (aref (ix-blocks allocator) i))
+                 (aref cursors i)))
+         (replace (ix-span-root allocator) spans)
+         (setf (ix-block-count allocator) count
+               (ix-next-base allocator) next
+               (ix-current allocator) current)))
+      (:hierarchical
+       (destructuring-bind (tag cursors spans next current free-fill) checkpoint
+         (declare (ignore tag))
+         (replace (hierarchical-allocator-cursors allocator) cursors)
+         (replace (hierarchical-allocator-span-root allocator) spans)
+         (setf (hierarchical-allocator-next-fresh allocator) next
+               (hierarchical-allocator-current allocator) current
+               (fill-pointer (hierarchical-allocator-free-blocks allocator))
+               free-fill)))
+      (:bump (setf (ba-cursor allocator) (second checkpoint)))))
+  (setf (fill-pointer work) 0)
+  nil)
+
 (defun copy-closure-to-public (vm object public-space)
   "Deep-copy OBJECT and its transitive closure into PUBLIC-SPACE, rewriting
   every slot so the public graph is self-contained (strong DLG).  Children
@@ -283,65 +359,53 @@
   existing public incarnation (each object is published at most once,
   locality.tex §2).  Uses VM-OBJECT-COPY so side metadata is preserved
   (memory.tex §2).  Returns the address of the copied root, or NIL if the
-  public region cannot hold the closure (never a partial copy)."
+  public region cannot hold the closure; failed copies are transactional."
   (if (and public-space (space-allocator public-space))
-      (let ((work (publication-work
-                   (plan-publication (vm-plan vm))))
-            (seen (publication-copy-seen
-                   (plan-publication (vm-plan vm)))))
-        (flet ((copy-one (src)
-                 (let* ((n (vm-object-total-words vm src))
-                        (dst (alloc (space-allocator public-space) n)))
-                   (when dst
-                     (vm-object-copy vm src dst)
-                     (let ((os (vm-object-start vm)))
-                       (when os (s-set-bit os dst)))
-                     (setf (vm-object-is-public-p vm dst) t)
-                     dst))))
+      (let* ((publication (plan-publication (vm-plan vm)))
+             (allocator (space-allocator public-space))
+             (checkpoint (publication-allocator-checkpoint allocator))
+             (work (publication-work publication))
+             (seen (publication-copy-seen publication)))
+        (setf (fill-pointer work) 0)
+        (labels ((abort-copy ()
+                   (rollback-publication-copies vm allocator checkpoint work)
+                   (clrhash seen)
+                   (return-from copy-closure-to-public nil))
+                 (copy-one (src)
+                   (let* ((n (vm-object-total-words vm src))
+                          (dst (alloc allocator n)))
+                     (when dst
+                       (vm-object-copy vm src dst)
+                       (setf (vm-object-is-public-p vm dst) t)
+                       ;; Keep every destination in WORK before it can fail;
+                       ;; this also tracks a destination whose queue push fails.
+                       (unless (vector-push dst work) (abort-copy))
+                       dst))))
+          (clrhash seen)
           (let ((root-copy (copy-one object)))
-            (when (and root-copy work)
-              (clrhash seen)
-              ;; seed the root itself so a cycle back to the root is NOT
-              ;; re-copied: each object is published at most once
-              (setf (gethash object seen) root-copy)
-              (let ((head 0))
-                (setf (fill-pointer work) 0)
-                (vector-push root-copy work)
-                (loop while (< head (length work))
-                      for src = (aref work head)
-                      do (incf head)
-                         ;; rewrite slots: each reference child is copied once
-                         (vm-map-reference-slots
-                          vm src
-                          (lambda (child)
-                            (let ((bare (ref-strip-or-self vm child)))
-                              (if (vm-object-is-public-p vm bare)
-                                  ;; already published: point at the
-                                  ;; existing incarnation, never re-copy
+            (unless root-copy (return-from copy-closure-to-public nil))
+            (setf (gethash object seen) root-copy)
+            (let ((head 0))
+              (loop while (< head (fill-pointer work))
+                    for src = (aref work head)
+                    do (incf head)
+                       (vm-map-reference-slots
+                        vm src
+                        (lambda (child)
+                          (let ((bare (ref-strip-or-self vm child)))
+                            (if (vm-object-is-public-p vm bare)
+                                (setf (vm-object-reference
+                                       vm src (slot-of-child vm src child)) bare)
+                                (progn
+                                  (unless (gethash bare seen)
+                                    (let ((child-copy (copy-one bare)))
+                                      (unless child-copy (abort-copy))
+                                      (setf (gethash bare seen) child-copy)))
                                   (setf (vm-object-reference
-                                         vm src (slot-of-child
-                                                 vm src child))
-                                        bare)
-                                  (progn
-                                    (unless (gethash bare seen)
-                                      (let ((child-copy (copy-one bare)))
-                                        (unless child-copy
-                                          ;; closure cannot fit: abort the
-                                          ;; whole publication, never a
-                                          ;; partial public graph
-                                          (setf (fill-pointer work) 0)
-                                          (return-from
-                                              copy-closure-to-public nil))
-                                        (setf (gethash bare seen)
-                                              child-copy)
-                                        (vector-push child-copy work)))
-                                    (let ((existing (gethash bare seen)))
-                                      (when existing
-                                        (setf (vm-object-reference
-                                               vm src (slot-of-child
-                                                       vm src child))
-                                              existing)))))))))
-                (setf (fill-pointer work) 0)))
+                                         vm src (slot-of-child vm src child))
+                                        (gethash bare seen)))))))))
+            (setf (fill-pointer work) 0)
+            (clrhash seen)
             root-copy)))
       nil))
 

@@ -22,6 +22,71 @@
                  (vm-object-is-public-p (%vm) a2))
             (values t "ok") (values nil "publication/DLG failed"))))))
 
+(deftest iso-eager-public-region-is-used ()
+  ;; Eager Iso publication must return an incarnation allocated in its public
+  ;; region, rather than merely setting a bit on the private object.
+  (with-clamsara (:plan-type :iso :heap-size 65536)
+    (let* ((source (clamsara-allocate-object 1))
+           (child (clamsara-allocate-object 0))
+           (public-source (clamsara-allocate-object 1))
+           (public (iso-public *clamsara-plan*)))
+      (setf (%slot source 0) child
+            (vm-object-is-public-p *clamsara-vm* public-source) t)
+      (clamsara-write public-source 0 source)
+      (let ((copy (%slot public-source 0)))
+        (if (and (space-contains-p public copy)
+                 (space-contains-p public (%slot copy 0))
+                 (vm-object-is-public-p *clamsara-vm* copy))
+            (values t "ok")
+            (values nil "eager publication ignored the public region"))))))
+
+(deftest lazy-publication-records-child-edges ()
+  ;; Both initial publication and read-time child exposure record guarded
+  ;; outgoing edges in the append-only set.
+  (let ((vm (make-simulator-vm 4096))
+        (strategy (make-instance 'lazy-read-barrier)))
+    (initialize-publication-work strategy vm)
+    (vm-write-header vm 512 +tag-object+ 1)
+    (vm-write-header vm 514 +tag-object+ 1)
+    (vm-write-header vm 516 +tag-object+ 0)
+    (setf (vm-object-reference vm 512 0) 514
+          (vm-object-reference vm 514 0) 516)
+    (publish strategy vm 512)
+    (let ((pr (strategy-published-roots strategy)))
+      (if (and (= (published-roots-count pr) 1)
+               (published-edge-recorded-p pr vm 512 514))
+          (progn
+            (funcall (publication-read-rule strategy) vm (+ 512 1) 514)
+            (if (and (= (published-roots-count pr) 2)
+                     (published-edge-recorded-p pr vm 514 516))
+                (values t "ok")
+                (values nil "lazy child edges were not recorded")))
+          (values nil "lazy root edge was not recorded")))))
+
+(deftest trap-a-exhaustion-rolls-back-closure ()
+  ;; A root fits but its child does not: no copied object or public bit may
+  ;; survive the failed transactional closure publication.
+  (let* ((vm (make-simulator-vm 4096))
+         (region (make-instance 'mark-sweep-space :vm vm :start-page 2
+                                :page-count 1 :name :public))
+         (strategy (make-instance 'trap-error-copy-a :public-region region))
+         (plan (make-instance 'plan :name :trap-test :vm vm
+                              :spaces (list region)
+                              :publication strategy)))
+    (initialize-publication-work strategy vm)
+    (vm-write-header vm 512 +tag-object+ 1)
+    (vm-write-header vm 514 +tag-object+ 511)
+    (setf (vm-object-reference vm 512 0) 514)
+    (let ((copy (publish strategy vm 512)))
+      (if (and (null copy)
+               (vm-object-start-p vm 512)
+               (not (error-object-p vm 512))
+               (not (vm-object-start-p vm 1024))
+               (not (vm-object-is-public-p vm 1024))
+               (= (space-occupancy region) 0))
+          (values t "ok")
+          (values nil "trap-A exhaustion leaked copied objects")))))
+
 (deftest zgc-relocate-heal ()
   (with-clamsara (:plan-type :zgcish :heap-size 65536)
     (let ((a (clamsara-allocate-object 3))

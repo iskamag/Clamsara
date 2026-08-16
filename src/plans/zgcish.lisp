@@ -89,13 +89,9 @@
                    (when destination
                      (vm-object-copy vm address destination)
                      (setf (aref fwd address) destination))))
-      ;; remap: heal every root + every 'to' object's slots to forwarded refs
-      (vm-scan-roots vm p #'heal-forwarded-root)
-      (do-immix-blocks (block to)
-        (loop for address from (immix-block-base block)
-              below (+ (immix-block-base block) (ix-block-words to))
-              when (s-test-bit os address)
-                do (vm-heal-reference-slots vm address fwd))))))
+      ;; remap: heal every root + every live object's slots in EVERY space
+      ;; (a LOS object may hold an edge into a relocated 'from' object)
+      (heal-every-space p fwd))))
 
 (defmethod phase-release ((p zgc-plan) k)
   (declare (ignore k))

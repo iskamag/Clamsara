@@ -58,9 +58,12 @@
    (active-trace-kind :accessor plan-active-trace-kind :initform nil)
    (booted-p :accessor plan-booted-p :initform nil)
    (sticky-p :initarg :sticky :initform nil :reader plan-sticky-p)
-   ;; finalization trait (weak.tex §2): known/pending finalizer vectors
+   ;; finalization trait (weak.tex §2): known/pending finalizer vectors, plus
+   ;; a collector-private freeze list (phase-weak snapshot -> epilogue move)
    (known :accessor plan-known-finalizers :initform nil)
-   (pending :accessor plan-pending-finalizers :initform nil))
+   (pending :accessor plan-pending-finalizers :initform nil)
+   (pending-finalizer-freeze :accessor plan-pending-finalizer-freeze
+                             :initform nil))
   (:metaclass plan-metaclass)
   (:default-initargs :constraints (make-instance 'plan-constraints)))
 
@@ -97,14 +100,14 @@
   (mark-roots p (plan-tracer p)))
 
 (defmethod phase-weak ((p plan) k)
-  (declare (ignore k))
   ;; weak.tex: weak-pointer processing after the transitive closure and
-  ;; BEFORE reclamation (liveness data must still be readable); dead
-  ;; finalizers move known->pending only for objects whose space this
-  ;; cycle's liveness data covers (weak.tex §2).
+  ;; BEFORE reclamation (liveness data must still be readable).  Finalizer
+  ;; deadness is snapshotted here for the same reason: reclaim/release clear
+  ;; the mark stratum before the epilogue.
   (weak-phase p)
   (when (plan-known-finalizers p)
-    (process-finalizers p :cycle-kind k)))
+    (setf (plan-pending-finalizer-freeze p)
+          (snapshot-finalizer-deadness p (plan-vm p) k))))
 
 (defmethod phase-reclaim ((p plan) k)
   (reclaim-spaces p k))
@@ -117,8 +120,13 @@
   (when (plan-stats p) (stats-event (plan-stats p) :gc-cycles 1)))
 
 (defmethod phase-epilogue ((p plan) k)
-  (declare (ignore k))
-  (vm-resume-mutators (plan-vm p)))
+  (vm-resume-mutators (plan-vm p))
+  ;; weak.tex §2: dead objects with registered finalizers move known->pending
+  ;; in the EPILOGUE, from the snapshot taken in phase-weak; finalizers
+  ;; themselves run on a mutator after the pause, never inside it.
+  (when (plan-pending-finalizer-freeze p)
+    (process-finalizers p (plan-pending-finalizer-freeze p))
+    (setf (plan-pending-finalizer-freeze p) nil)))
 
 (defmethod plan-collect-phase ((p plan) cycle-kind)
   (if (eq cycle-kind :checkpoint)

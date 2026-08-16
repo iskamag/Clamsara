@@ -197,20 +197,26 @@
     (tracer-drain tr #'minor-grey-reference plan)))
 
 (defun scan-remset (plan vm nursery tr)
-  "For each dirty mature card, seed the tracer with its nursery references."
+  "For each dirty mature card, seed the tracer with its nursery references.
+LOS objects are card-tracked too, but live at page granularity (their cards
+are outside the mature space), so they are scanned alongside the mature
+space."
   (let ((card (vm-stratum vm :card))
         (os (vm-object-start vm))
-        (mature (gen-mature plan)))
+        (mature (gen-mature plan))
+        (los (plan-los plan)))
     (when (and card os mature)
-      (loop for card-address from (space-base-address mature)
-            below (space-end-address mature) by (g-card)
-            when (s-test-bit card card-address)
-              do (loop for object-address from card-address
-                       below (min (+ card-address (g-card))
-                                  (space-end-address mature))
-                       when (s-test-bit os object-address)
-                         do (remset-heal-object
-                             vm object-address nursery tr))))))
+      (flet ((scan-range (base end)
+               (loop for card-address from base below end by (g-card)
+                     when (s-test-bit card card-address)
+                       do (loop for object-address from card-address
+                                below (min (+ card-address (g-card)) end)
+                                when (s-test-bit os object-address)
+                                  do (remset-heal-object
+                                      vm object-address nursery tr)))))
+        (scan-range (space-base-address mature) (space-end-address mature))
+        (when los
+          (scan-range (space-base-address los) (space-end-address los)))))))
 
 (defun remset-heal-object (vm object-address nursery tr)
   "Trace (and heal) the reference slots of OBJECT-ADDRESS that point into
@@ -233,21 +239,27 @@
   object-address)
 
 (defun rebuild-remset (plan)
-  "Recompute mature-to-nursery cards after evacuation and space rotation."
+  "Recompute out-of-nursery -> nursery cards after evacuation and space
+rotation.  LOS objects are included: their edges into the nursery are what
+the next minor's scan-remset re-checks."
   (let* ((vm (plan-vm plan))
          (card (vm-stratum vm :card))
          (os (vm-object-start vm))
          (nursery (gen-nursery plan))
-         (mature (gen-mature plan)))
+         (mature (gen-mature plan))
+         (los (plan-los plan)))
     (when card
       (s-clear card)
       (when (and os nursery mature)
-        (loop for object-address from (space-base-address mature)
-              below (space-end-address mature)
-              when (s-test-bit os object-address)
-                do (when (object-has-nursery-ref-p
-                          vm object-address nursery)
-                     (s-set-bit card object-address))))))
+        (labels ((scan (space)
+                   (loop for object-address from (space-base-address space)
+                         below (space-end-address space)
+                         when (s-test-bit os object-address)
+                           do (when (object-has-nursery-ref-p
+                                     vm object-address nursery)
+                                (s-set-bit card object-address)))))
+          (scan mature)
+          (when los (scan los))))))
   plan)
 
 (defun object-has-nursery-ref-p (vm address nursery)

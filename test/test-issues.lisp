@@ -458,3 +458,85 @@
             (values nil (format nil "poison stand-in malformed: stored ~a poisoned ~a copy ~a words ~a"
                                 stored (error-object-p vm b) copy
                                 (vm-object-total-words vm b))))))))
+
+;; ---- W1: weak-pointer bit survives copying collectors -------------------
+
+(deftest weak-pointer-survives-moving-collection ()
+  ;; vm-object-copy must carry the weak stratum bit (weak.tex: a weak pointer
+  ;; that loses it silently becomes a strong pointer, keeping dead referents).
+  (dolist (plan-type '(:semispace :gencopy :genms :genimmix))
+    (with-clamsara (:plan-type plan-type :heap-size 65536)
+      (let* ((wm (clamsara-allocate-object 1))
+             (target (clamsara-allocate-object 0)))
+        (register-weak-pointer *clamsara-vm* wm)
+        (vm-set-reference *clamsara-vm* wm 0 target)
+        (clamsara-register-root wm)
+        (clamsara-gc)
+        (let ((wm2 (clamsara-root 0)))
+          ;; the copy must still be a weak pointer, so the dead referent's
+          ;; slot is cleared by the weak phase (slot 0 excluded from tracing)
+          (unless (weak-pointer-p *clamsara-vm* wm2)
+            (return-from weak-pointer-survives-moving-collection
+              (values nil (format nil "~a: weak bit lost on copy" plan-type))))
+          (unless (zerop (vm-object-reference *clamsara-vm* wm2 0))
+            (return-from weak-pointer-survives-moving-collection
+              (values nil (format nil "~a: weak copy kept dead referent"
+                                  plan-type))))))))
+  (values t "ok"))
+
+;; ---- W2: LOS edges healed by Immix defrag and ZGC relocation ------------
+
+(deftest los-edges-healed-by-immix-defrag ()
+  ;; A LOS object holding a reference into a defragmented Immix block must be
+  ;; rewritten: healing is heap-wide, not block-only.
+  (with-clamsara (:plan-type :immix :heap-size 65536)
+    (let ((big (clamsara-allocate-object 1024))   ; LOS
+          (dead (clamsara-allocate-object 20))    ; fragmentation bait
+          (small (clamsara-allocate-object 20)))  ; immix block
+      (declare (ignore dead))
+      (clamsara-register-root big)
+      (clamsara-register-root small)
+      (clamsara-write big 0 small)
+      (clamsara-gc :cycle-kind :major)            ; defrag may move small
+      (let* ((big2 (clamsara-root 0))
+             (small2 (clamsara-root 1))
+             (slot (vm-object-reference *clamsara-vm* big2 0)))
+        (if (= slot small2)
+            (values t "ok")
+            (values nil "LOS edge not healed by Immix defrag"))))))
+
+(deftest los-edges-healed-by-zgc-relocation ()
+  (with-clamsara (:plan-type :zgcish :heap-size 65536)
+    (let ((big (clamsara-allocate-object 1024))   ; LOS
+          (small (clamsara-allocate-object 1)))   ; from-space
+      (clamsara-register-root big)
+      (clamsara-write big 0 small)
+      (clamsara-gc)
+      (let* ((big2 (clamsara-root 0))
+             (slot (vm-object-reference *clamsara-vm* big2 0)))
+        (if (and (vm-reference-p *clamsara-vm* slot)
+                 (not (vm-object-start-p *clamsara-vm* small)))
+            (values t "ok")
+            (values nil (format nil "LOS edge not healed: slot=~a" slot)))))))
+
+;; ---- W3: LOS -> nursery edges survive generational minors ---------------
+
+(deftest los-to-nursery-edge-survives-minor ()
+  ;; The card barrier must treat a LOS source as out-of-nursery (it is never
+  ;; "old" via the age stratum), and scan-remset must scan LOS cards, else a
+  ;; nursery referent reachable only through a LOS object is reclaimed.
+  (dolist (plan-type '(:gencopy :genms :genimmix))
+    (with-clamsara (:plan-type plan-type :heap-size 65536)
+      (let ((big (clamsara-allocate-object 1024))  ; LOS
+            (kid (clamsara-allocate-object 1)))    ; nursery
+        (clamsara-register-root big)
+        (clamsara-write big 0 kid)
+        (plan-collect *clamsara-plan* :cycle-kind :minor)
+        (let* ((big2 (clamsara-root 0))
+               (slot (vm-object-reference *clamsara-vm* big2 0)))
+          (unless (and (vm-reference-p *clamsara-vm* slot)
+                       (vm-object-start-p *clamsara-vm* slot))
+            (return-from los-to-nursery-edge-survives-minor
+              (values nil (format nil "~a: LOS->nursery edge lost: slot=~a"
+                                  plan-type slot))))))))
+  (values t "ok"))

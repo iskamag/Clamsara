@@ -82,12 +82,24 @@
 ;; ---- rule constructors --------------------------------------------------
 
 (defun card-barrier-rule (&optional (name :card))
+  "Mark the source's card dirty when a reference from OUTSIDE the nursery
+(mature or LOS) is made to point at a nursery object.  Sources outside the
+nursery are what a minor's remembered-set scan must re-check; requiring
+vm-object-old-p misses LOS objects, whose age stratum stays 0."
   (make-barrier-rule
    :name name :trigger :ref-write
    :transfer (lambda (vm barrier src slot new)
-               (declare (ignore barrier slot))
-               (when (and (vm-reference-p vm new) (vm-object-old-p vm src)
-                          (vm-object-young-p vm new))
+               (declare (ignore slot))
+               (when (and (vm-reference-p vm new)
+                          (vm-object-young-p vm new)
+                          (let* ((plan (barrier-plan barrier))
+                                 (nursery (and plan (plan-nursery plan)))
+                                 (addr (ref-strip-or-self vm src)))
+                            ;; with a plan: outside the nursery (mature or
+                            ;; LOS); without one, fall back to old-vs-young
+                            (if nursery
+                                (not (space-contains-p nursery addr))
+                                (vm-object-old-p vm src))))
                  (let ((card (vm-stratum vm :card)))
                    (when card (s-set-bit card src))))
                new)))

@@ -80,15 +80,21 @@
       (loop for k below n do (setf (ref-u64 vm (+ dst k)) (ref-u64 vm (+ src k)))))
     (let ((os (vm-object-start vm)))
       (when os (s-set-bit os dst)))
-    ;; preserve age + public bit.  A copy of a live (marked) object is itself
+    ;; Preserve side metadata so identity survives relocation: mark, age,
+    ;; public, log, and the weak-pointer bit (weak.tex: a weak pointer that
+    ;; loses its bit on copy silently becomes a strong pointer, keeping a dead
+    ;; referent alive forever).  A copy of a live (marked) object is itself
     ;; live, so the mark bit is carried too; callers that want a fresh mark
     ;; (copy-space tracing an unmarked source) are unaffected because the
     ;; source is unmarked there.
     (let ((age (vm-stratum vm :age)) (pub (vm-stratum vm :public))
-          (mark (vm-stratum vm :mark)))
+          (mark (vm-stratum vm :mark)) (log (vm-stratum vm :log))
+          (weak (vm-stratum vm :weak)))
       (when age (s-set age dst (s-get age src)))
       (when pub (when (s-test-bit pub src) (s-set-bit pub dst)))
-      (when mark (when (s-test-bit mark src) (s-set-bit mark dst))))))
+      (when mark (when (s-test-bit mark src) (s-set-bit mark dst)))
+      (when log (when (s-test-bit log src) (s-set-bit log dst)))
+      (when weak (when (s-test-bit weak src) (s-set-bit weak dst))))))
 
 (defgeneric vm-scan-object-references (vm address fn)
   (:documentation "Invoke FN on each reference slot of the object at ADDRESS.")
@@ -270,7 +276,7 @@
   "Clear object identity and per-object metadata before an address is reused."
   (let ((os (vm-object-start vm)))
     (when os (s-clear-bit os address)))
-  (dolist (name '(:mark :log :public :age))
+  (dolist (name '(:mark :log :public :age :weak))
     (let ((s (vm-stratum vm name)))
       (when s (s-set s address (stratum-default s)))))
   (when (and (vm-fwd-table vm) (< address (length (vm-fwd-table vm))))
@@ -283,7 +289,7 @@
   "Forget every object and per-object datum in [START, END)."
   (let ((os (vm-object-start vm)))
     (when os (s-clear-range os start end)))
-  (dolist (name '(:mark :log :public :age))
+  (dolist (name '(:mark :log :public :age :weak))
     (let ((s (vm-stratum vm name)))
       (when s (s-clear-range s start end))))
   (when (vm-fwd-table vm)

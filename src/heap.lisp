@@ -480,19 +480,6 @@ bounded implementation only compacts when an out-of-place block is available."
                   (ix-current a) destination)
             (fill fwd 0)))))))
 
-(defun immix-heal-references (s vm fwd)
-  "Update root + slot references that point at forwarded objects."
-  (when (notany #'plusp fwd) (return-from immix-heal-references))
-  (vm-scan-roots vm (vm-plan vm) #'heal-forwarded-root)
-  (let ((allocator (space-allocator s))
-        (object-start (vm-object-start vm)))
-    (do-immix-blocks (block allocator)
-      (loop for address from (immix-block-base block)
-            below (+ (immix-block-base block)
-                     (ix-block-words allocator))
-            when (s-test-bit object-start address)
-              do (vm-heal-reference-slots vm address fwd)))))
-
 (defun heal-forwarded-root (plan ref)
   (let ((vm (plan-vm plan)))
     (if (vm-reference-p vm ref)
@@ -506,6 +493,42 @@ bounded implementation only compacts when an out-of-place block is available."
                   destination)
               ref))
         ref)))
+
+(defun heal-every-space (plan fwd)
+  "Heal root references plus the reference slots of every live object in
+every plan space.  Used by defrag/compaction paths: an object in ANY space --
+including a LOS object -- may hold a reference into a block that just moved,
+and every such edge must be rewritten."
+  (let* ((vm (plan-vm plan))
+         (object-start (vm-object-start vm)))
+    (vm-scan-roots vm plan #'heal-forwarded-root)
+    (dolist (space (plan-spaces plan))
+      (let ((allocator (space-allocator space)))
+        ;; immix allocators bound their walk to used blocks; every other
+        ;; allocator heals over the space's full word range (object-start
+        ;; bits tell live from stale).
+        (etypecase allocator
+          (immix-allocator
+           (do-immix-blocks (block allocator)
+             (loop for address from (immix-block-base block)
+                   below (ix-block-end block (ix-block-words allocator))
+                   when (s-test-bit object-start address)
+                     do (vm-heal-reference-slots vm address fwd))))
+          ((or bump-allocator free-list-allocator los-allocator
+               hierarchical-allocator null)
+           (loop for address from (space-base-address space)
+                 below (space-end-address space)
+                 when (s-test-bit object-start address)
+                   do (vm-heal-reference-slots vm address fwd))))))
+    plan))
+
+(defun immix-heal-references (s vm fwd)
+  "Update root + slot references that point at forwarded objects.
+Healing covers EVERY plan space: a LOS (or any other) object may hold an edge
+into the evacuated blocks and must be rewritten too."
+  (declare (ignore s))
+  (when (notany #'plusp fwd) (return-from immix-heal-references))
+  (heal-every-space (vm-plan vm) fwd))
 
 ;; ---- concrete spaces -----------------------------------------------------
 
@@ -1193,24 +1216,12 @@ bounded implementation only compacts when an out-of-place block is available."
                                (aref fwd address) dcur)
                          (incf dcur words)))
             (setf (hierarchical-block-cursor a dest) dcur)
-            ;; heal all live references through the forwarding table —
+            ;; heal all live references through the forwarding table --
             ;; INCLUDING the destination block: vm-object-copy reproduced
             ;; the source payloads, so destination slots still hold the old
             ;; source addresses and must be healed before the source dies.
-            (vm-scan-roots vm (vm-plan vm) #'heal-forwarded-root)
-            (let ((plan (vm-plan vm)))
-              (when (and plan (plan-nursery plan))
-                (let ((nursery (plan-nursery plan)))
-                  (loop for address from (space-base-address nursery)
-                        below (space-end-address nursery)
-                        when (s-test-bit os address)
-                          do (vm-heal-reference-slots vm address fwd)))))
-            (dotimes (bi (%sb-block-count s))
-              (when (hierarchical-block-in-use-p a bi)
-                (loop for address from (sb-block-base s bi)
-                      below (+ (sb-block-base s bi) (%sb-block-words s))
-                      when (s-test-bit os address)
-                        do (vm-heal-reference-slots vm address fwd))))
+            ;; Healing covers every plan space: nursery, LOS, and mature.
+            (heal-every-space (vm-plan vm) fwd)
             (hierarchical-free-block a vm source)
             (fill fwd 0))))))
   s)

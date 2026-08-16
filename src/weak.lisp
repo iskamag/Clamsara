@@ -114,34 +114,41 @@
       (error 'heap-exhausted :requested-size 1 :space :finalizers)))
   address)
 
-(defun process-finalizers (plan &key (cycle-kind nil))
-  "weak.tex §2: dead objects with registered finalizers move from known to
-  pending.  Liveness is judged only for objects whose space the current
-  cycle actually traced: on a partial cycle (e.g. Claimore :minor, which
-  traces only the nursery), finalizers whose object lives outside the
-  traced spaces are skipped, never misclassified as dead."
-  (let* ((vm (plan-vm plan))
-         (known (plan-known-finalizers plan))
-         (pending (plan-pending-finalizers plan))
-         (os (vm-object-start vm)))
-    (when (and known pending os)
+(defun snapshot-finalizer-deadness (plan vm cycle-kind)
+  "Snapshot liveness of registered finalizers BEFORE reclaim/release phases
+clear the mark stratum.  Dead ones move to a collector-private freeze list;
+EPILOGUE moves them to pending.  Only cycles that TRACE all spaces (:full,
+:major) have complete liveness data; a :minor (or any non-tracing kind)
+judges only the nursery, and objects outside it are kept."
+  (let ((known (plan-known-finalizers plan))
+        (os (vm-object-start vm))
+        (dead nil))
+    (when (and known os)
       (let ((survivors 0))
         (loop for i from 0 below (length known)
               for address = (aref known i)
-              do (cond
-                   ((or (not (s-test-bit os address))
-                        (and (finalizer-dead-p plan vm address cycle-kind)
-                             (not (vm-object-is-marked-p vm address))
-                             (not (vm-object-is-forwarded-p vm address))
-                             (zerop (vm-object-rc vm address))))
-                    ;; dead: move to pending
-                    (vector-push address pending))
-                   (t
-                    ;; live: keep in known
-                    (setf (aref known survivors) address)
-                    (incf survivors))))
+              do (if (or (not (s-test-bit os address))
+                         (and (finalizer-dead-p plan vm address cycle-kind)
+                              (not (vm-object-is-marked-p vm address))
+                              (not (vm-object-is-forwarded-p vm address))
+                              (zerop (vm-object-rc vm address))))
+                     (push address dead)
+                     (progn
+                       (setf (aref known survivors) address)
+                       (incf survivors))))
         (setf (fill-pointer known) survivors)))
-    plan))
+    dead))
+
+(defun process-finalizers (plan dead-addresses)
+  "weak.tex §2: move the (pre-computed) dead finalizer addresses known->
+pending.  Runs in the epilogue; finalizers themselves run on a mutator after
+the pause, never inside it."
+  (let ((pending (plan-pending-finalizers plan)))
+    (when pending
+      (dolist (address dead-addresses)
+        (unless (vector-push address pending)
+          (error 'heap-exhausted :requested-size 1 :space :finalizers)))))
+  plan)
 
 (defun finalizer-dead-p (plan vm address cycle-kind)
   "True if the object at ADDRESS is genuinely dead.  Only cycles that TRACE

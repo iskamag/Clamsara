@@ -103,10 +103,7 @@ on the first live VM-OBJECT-REFERENCE after boot."
          (space (default-space plan))
          (address (and space (space-base-address space))))
     (when (and address (< (1+ address) (vm-heap-size vm)))
-      (vm-object-reference vm address 0)
-      ;; Publication's RC write barrier tests this side-stratum accessor;
-      ;; warm it before the first mutator store as well.
-      (vm-object-is-public-p vm address)))
+      (vm-object-reference vm address 0)))
   ;; Barrier accessors are on the mutator fast path.  Resolve them before
   ;; returning from boot so the first RC/publication store cannot construct a
   ;; CLOS effective method or allocate host storage.
@@ -130,6 +127,13 @@ on the first live VM-OBJECT-REFERENCE after boot."
                (declare (ignore name))
                (%warm-stratum stratum))
              (vm-strata-table vm)))
+  ;; Publication's RC write barrier tests this side-stratum accessor.  Warm it
+  ;; after the stratum cell dispatch above so its s-test-bit path is cached too.
+  (let* ((vm (plan-vm plan))
+         (space (default-space plan))
+         (address (and space (space-base-address space))))
+    (when (and address (< (1+ address) (vm-heap-size vm)))
+      (vm-object-is-public-p vm address)))
   ;; Hierarchy accessors used on the collection path must resolve at boot:
   ;; superblock-space slot accessors, the escape stratum, the hierarchical
   ;; allocator's vector operations, and the full release/search path.  The

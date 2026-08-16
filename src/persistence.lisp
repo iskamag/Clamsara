@@ -188,31 +188,33 @@
 ;; ---- dirty-set capture (persistence.tex §2 step 4) -----------------------
 
 (defun collector-dirty-set (plan)
-  "The set of pages dirtied since the last snapshot, consumed from the MMU
-  when it is armed, else from the plan's card stratum projected to pages."
+  "Collect dirty pages from the armed MMU and, when present, the collector's
+  card stratum.  The union is intentional: a collector may continue to report
+  card writes while the simulator MMU is armed, and neither signal should be
+  lost at a checkpoint fence."
   (let* ((vm (plan-vm plan))
          (pages nil))
-    (if (and (typep vm 'virtual-memory-mixin) (mmu-armed vm))
-        (let ((dirty (mmu-dirty vm)))
-          (when dirty
-            (dotimes (p (length dirty))
-              (when (eql 1 (sbit dirty p))
-                (push p pages)))))
-        (let ((card (vm-stratum vm :card)))
-          (when card
-            ;; Keep the LET binding form limited to PAGE-STRATUM.  In
-            ;; particular, S-PROJECT is body work, not another binding spec.
-            (let ((page-stratum
-                    (or (vm-stratum vm :page-dirty)
-                        (vm-register-stratum
-                         vm :page-dirty
-                         (make-stratum :page-dirty +page-words+ :bit
-                                       (vm-heap-size vm))))))
-              (s-clear page-stratum)
-              (s-project card page-stratum :any)
-              (s-for-set-cells page-stratum nil
-                (lambda (addr)
-                  (push (address-page addr) pages)))))))
+    (when (and (typep vm 'virtual-memory-mixin) (mmu-armed vm))
+      (let ((dirty (mmu-dirty vm)))
+        (when dirty
+          (dotimes (p (length dirty))
+            (when (eql 1 (sbit dirty p))
+              (push p pages))))))
+    (let ((card (vm-stratum vm :card)))
+      (when card
+        ;; Keep the LET binding form limited to PAGE-STRATUM.  In particular,
+        ;; S-PROJECT is body work, not another binding spec.
+        (let ((page-stratum
+                (or (vm-stratum vm :page-dirty)
+                    (vm-register-stratum
+                     vm :page-dirty
+                     (make-stratum :page-dirty +page-words+ :bit
+                                   (vm-heap-size vm))))))
+          (s-clear page-stratum)
+          (s-project card page-stratum :any)
+          (s-for-set-cells page-stratum nil
+            (lambda (addr)
+              (push (address-page addr) pages))))))
     (sort (remove-duplicates pages) #'<)))
 
 (defun collector-clear-dirty (plan)

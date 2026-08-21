@@ -300,7 +300,9 @@ liveness decision."
                 (space-partner mto-space) mature)
           (setf (plan-spaces p)
                 (list nursery nursery-to mature mto-space))))
-      (add-los-space p 1/16)
+      ;; The mature pair is a Cheney space set just like the nursery pair:
+      ;; carve the LOS from its joint extent so the two halves stay equal.
+      (add-los-space p 1/16 :balanced t)
       (finalize-plan p) p)))
 
 (defun make-gencopy-plan (vm heap-size)

@@ -85,9 +85,15 @@
             when (s-test-bit mark address)
               do (let* ((words (vm-object-total-words vm address))
                         (destination (alloc to words)))
-                   (when destination
-                     (vm-object-copy vm address destination)
-                     (setf (aref fwd address) destination))))
+                   ;; A live object that cannot move leaves a stranded
+                   ;; reference: the next prologue clears the from-space's
+                   ;; metadata, so silently skipping the copy corrupts the
+                   ;; heap.  Report exhaustion like the Cheney copier.
+                   (unless destination
+                     (error 'heap-exhausted :requested-size words
+                                            :space (space-name (z-to p))))
+                   (vm-object-copy vm address destination)
+                   (setf (aref fwd address) destination)))
       ;; remap: heal every root + every live object's slots in EVERY space
       ;; (a LOS object may hold an edge into a relocated 'from' object)
       (heal-every-space p fwd))))

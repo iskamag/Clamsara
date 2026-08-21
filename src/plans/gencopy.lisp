@@ -65,9 +65,18 @@
               (plan-handle-allocation-failure p size (gen-nursery p)))))))
 
 (defmethod plan-handle-allocation-failure ((p generational-plan) size space)
-  ;; try minor; retry; try major; retry; signal.
+  ;; After a minor the failed NURSERY object is the cleared nursery-to.  A retry
+  ;; must allocate into the CURRENT nursery: allocating into the old space
+  ;; object would place a fresh, live cons in a region the next minor's
+  ;; prologue clears before tracing it, stranding the mutator's reference.
+  ;; Explicit spaces (:mature, :los) never rotate, so their retry keeps SPACE:
+  ;; redirecting them into the nursery would violate the explicit-space
+  ;; contract that PLAN-ALLOCATE's named-space path promises.
   (plan-collect p :cycle-kind :minor)
-  (or (plan-allocate-in p size space)
+  (or (plan-allocate-in p size
+                        (if (eq space (gen-nursery-to p))
+                            (gen-nursery p)
+                            space))
       (plan-retry-after p size space :major)))
 
 ;; ---- phases -------------------------------------------------------------
@@ -152,7 +161,18 @@
 ;; ---- minor marking: nursery only, seeded from roots + remembered set ----
 
 (defun minor-root-reference (plan ref)
-  (trace-root-in plan ref (gen-nursery plan) :trace-kind :minor))
+  ;; A minor's root set must cover BOTH the allocating nursery and the
+  ;; previous nursery (now `gen-nursery-to`).  Between two flips the mutator
+  ;; can keep a reference that points into either space: a freshly allocated
+  ;; cons sits in the current nursery, while a survivor of the previous minor
+  ;; whose addressing the rotate left in the other half must still be traced.
+  ;; TRACE-ROOT-IN re-validates object starts, so scanning the superset is
+  ;; safe: a space that is about to be cleared holds no live objects reachable
+  ;; from roots, and those roots simply resolve to the rotated survivor.
+  (let ((resolved (trace-root-in plan ref (gen-nursery plan) :trace-kind :minor)))
+    (if (eql resolved ref)
+        (trace-root-in plan ref (gen-nursery-to plan) :trace-kind :minor)
+        resolved)))
 
 (defun minor-grey-reference (plan ref)
   (trace-object-children plan ref

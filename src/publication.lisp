@@ -229,7 +229,8 @@
 
 (defun error-object-p (vm reference)
   (let ((addr (ref-strip-or-self vm reference)))
-    (and (vm-object-start-p vm addr)
+    (and (vm-valid-reference-p vm reference)
+         (vm-object-start-p vm addr)
          (eql (vm-object-type-tag vm addr) +error-tag+))))
 
 (defun error-redirect (vm reference)

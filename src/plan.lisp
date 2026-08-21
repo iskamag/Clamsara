@@ -351,11 +351,21 @@ path (nursery, mature, LOS) uses it, so object identity is never forgotten."
     addr))
 
 (defun plan-retry-after (plan size space cycle-kind)
-  "Run CYCLE-KIND, retry allocation from SPACE, and signal heap-exhausted on
-failure.  The escalation tail shared by every plan's failure handler."
-  (plan-collect plan :cycle-kind cycle-kind)
-  (or (plan-allocate-in plan size space)
-      (error 'heap-exhausted :requested-size size :space (space-name space))))
+  "Run CYCLE-KIND, retry allocation, and signal heap-exhausted on failure.
+The escalation tail shared by every plan's failure handler.
+
+SPACE is the object that failed BEFORE the collection.  A copying plan may
+rotate it during CYCLE-KIND: the object then becomes the cleared target
+space, whose contents the NEXT collection's prologue erases before tracing
+them, so a mutator reference placed there by this retry would be stranded.
+Detect that case by comparing against the default space at ENTRY; after the
+collection, allocate into the CURRENT default.  Explicit/named spaces never
+rotate, so their retry keeps using SPACE."
+  (let ((was-default (eq space (default-space plan))))
+    (plan-collect plan :cycle-kind cycle-kind)
+    (or (plan-allocate-in plan size
+                          (if was-default (default-space plan) space))
+        (error 'heap-exhausted :requested-size size :space (space-name space)))))
 
 (defgeneric plan-allocate (plan size space-designator)
   (:method ((p plan) size space-designator)

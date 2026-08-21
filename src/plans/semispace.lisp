@@ -62,5 +62,7 @@
                             :constraints (make-instance 'plan-constraints))))
       (setf (space-partner from) to (space-partner to) from
             (sp-from p) from (sp-to p) to)
-      (add-los-space p 1/16)
+      ;; Balanced carve: the Cheney flip needs equally sized halves, so the
+      ;; LOS space takes its pages from both instead of shrinking only :to.
+      (add-los-space p 1/16 :balanced t)
       (finalize-plan p) p)))

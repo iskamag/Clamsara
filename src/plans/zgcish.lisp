@@ -121,5 +121,7 @@
                                          :forwarding :off-heap
                                          :concurrency :concurrent-relocate))))
       (setf (z-from p) from (z-to p) to (barrier-plan barrier) p)
-      (add-los-space p 1/16)
+      ;; Relocation copies into :to; keep the halves equal so a full :from
+      ;; always fits its destination.
+      (add-los-space p 1/16 :balanced t)
       (finalize-plan p) p)))

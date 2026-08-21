@@ -293,32 +293,66 @@ interpreted and compiled collectors cannot diverge."
 (defun plan-los (plan)
   (find-if (lambda (s) (typep s 'los-space)) (plan-spaces plan)))
 
-(defun add-los-space (plan pages-fraction)
+(defun add-los-space (plan pages-fraction &key balanced)
   "Append a large-object space (heap.tex §2: whole-page, treadmill) to PLAN's
   layout by carving PAGES-FRACTION of the last space's pages.  The last space
   keeps its start page; only its extent shrinks, so other spaces' addresses
   are undisturbed.  LOS allocations are exempt from the plan's nursery
-  overrides via PLAN-ALLOCATE's size check."
+  overrides via PLAN-ALLOCATE's size check.
+
+  BALANCED carves the same total equally from the last TWO spaces instead.
+  Cheney-style plans (SemiSpace, ZGC-like) need it: carving only from the
+  to-space leaves it smaller than the from-space, so a full from-space can
+  never fit into its destination."
   (let ((vm (plan-vm plan))
         (spaces (plan-spaces plan)))
     (when spaces
-      (let* ((last (car (last spaces)))
-             (carve (max 4 (floor (* (space-page-count last) pages-fraction))))
-             (los-count (min carve (max 1 (- (space-page-count last) 2)))))
-        (when (plusp los-count)
-          (decf (slot-value last 'page-count) los-count)
-          ;; The last space's allocator was built against the old extent;
-          ;; rebuild it so its limit matches the shrunk region.
-          (slot-makunbound last 'allocator)
-          (%ensure-allocator last vm)
-          (let* ((los-start (+ (space-start-page last)
-                               (space-page-count last)))
-                 (space (make-instance 'los-space :vm vm
-                                       :start-page los-start
-                                       :page-count los-count
-                                       :name :los :default-space nil)))
-            (setf (plan-spaces plan) (append spaces (list space)))
-            space))))))
+      (if (and balanced (cdr spaces))
+          ;; Cheney-style paired spaces: reserve the LOS at the end, then give
+          ;; both halves an equal share of the remainder.  The pair stays
+          ;; contiguous (prev keeps its start page; last is re-anchored right
+          ;; after it), so the whole region still fits the heap.
+          (let* ((last (car (last spaces)))
+                 (prev (car (last spaces 2)))
+                 (first-start (space-start-page prev))
+                 (region-end (+ (space-start-page last)
+                                (space-page-count last)))
+                 (region-pages (- region-end first-start))
+                 (carve (min (max 4 (floor (* region-pages pages-fraction)))
+                             (max 0 (- region-pages 4))))
+                 (first-half (floor (- region-pages carve) 2))
+                 (second-half (- region-pages carve first-half)))
+            (when (plusp carve)
+              (setf (slot-value prev 'page-count) first-half
+                    (slot-value last 'start-page) (+ first-start first-half)
+                    (slot-value last 'page-count) second-half)
+              (slot-makunbound prev 'allocator)
+              (slot-makunbound last 'allocator)
+              (%ensure-allocator prev vm)
+              (%ensure-allocator last vm)
+              (let* ((los-start (+ first-start first-half second-half))
+                     (space (make-instance 'los-space :vm vm
+                                           :start-page los-start
+                                           :page-count carve
+                                           :name :los :default-space nil)))
+                (setf (plan-spaces plan) (append spaces (list space)))
+                space)))
+          ;; Default: carve from the last space only (existing behavior).
+          (let* ((last (car (last spaces)))
+                 (carve (max 4 (floor (* (space-page-count last) pages-fraction))))
+                 (los-count (min carve (max 1 (- (space-page-count last) 2)))))
+            (when (plusp los-count)
+              (decf (slot-value last 'page-count) los-count)
+              (slot-makunbound last 'allocator)
+              (%ensure-allocator last vm)
+              (let* ((los-start (+ (space-start-page last)
+                                   (space-page-count last)))
+                     (space (make-instance 'los-space :vm vm
+                                           :start-page los-start
+                                           :page-count los-count
+                                           :name :los :default-space nil)))
+                (setf (plan-spaces plan) (append spaces (list space)))
+                space)))))))
 
 ;; ---- SFT (Space Function Table, O(1) address->space) --------------------
 

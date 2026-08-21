@@ -602,6 +602,15 @@ into the evacuated blocks and must be rewritten too."
       ((vm-object-is-marked-p vm addr) addr)   ; already a to-space copy
       (t
        (let ((dst (alloc (space-allocator to) (vm-object-total-words vm addr))))
+         (unless dst
+           ;; The live set does not fit the destination space.  There is no
+           ;; way to complete a Cheney flip with an object that cannot be
+           ;; copied, so report the exhaustion instead of passing NIL to the
+           ;; copy loop (which would clobber slot arithmetic with a type
+           ;; error and leave the heap corrupt).
+           (error 'heap-exhausted
+                  :requested-size (vm-object-total-words vm addr)
+                  :space (space-name to)))
          (vm-object-copy vm addr dst)
          (setf (vm-object-is-marked-p vm dst) t)
          (setf (vm-object-forwarding-pointer vm addr) dst)
@@ -632,6 +641,8 @@ into the evacuated blocks and must be rewritten too."
     (cond
       ((vm-object-is-forwarded-p vm addr) (vm-object-forwarding-pointer vm addr))
       (t (let ((dst (alloc (space-allocator to) 2)))
+           (unless dst
+             (error 'heap-exhausted :requested-size 2 :space (space-name to)))
            (vm-object-copy vm addr dst)
            (setf (vm-object-forwarding-pointer vm addr) dst)
            (tracer-enqueue tracer dst)

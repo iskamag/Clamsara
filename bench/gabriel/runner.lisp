@@ -139,7 +139,7 @@ that want to skip rather than run the benchmark."
     (&key (workloads *gabriel-workloads*)
           (iterations *gabriel-default-iterations*)
           (plan-type :semispace)
-          (heap-size 4096)
+          (heap-size 8192)
           (stack-size 65536)
           (stream *standard-output*)
           (verbose t))

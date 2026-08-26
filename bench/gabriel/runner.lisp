@@ -127,10 +127,9 @@ cons whose CAR accumulates host bytes consed inside plan-collect windows."
                         (declare (ignore pl cycle-kind))
                         (cond
                           ((and (eq phase :enter) (not window-open))
-                           ;; The first close flushes whatever interpreter
-                           ;; churn is still pending; only a further exact
-                           ;; read gives the residue-free baseline.
-                           (%close-region)
+                           ;; Close-region is idempotent and allocation-free;
+                           ;; call it before the baseline read as
+                           ;; belt-and-braces against deferred updates.
                            (%close-region)
                            (setf (car base-cell) (%host-bytes)
                                  window-open t))

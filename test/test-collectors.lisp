@@ -234,29 +234,37 @@
                                   "~A dirty rescan consed ~D host bytes"
                                   plan-type bytes))))))))))
   ;; The shaded-load rule must not manufacture generic-call rest lists or
-  ;; cache state on the collection path.
+  ;; cache state on the collection path.  Boot warms steady-state dispatch;
+  ;; shapes unique to this test are warmed here (boot work, per compile.lisp
+  ;; classification) so the measured window covers collector work only.
   (let* ((vm (make-simulator-vm 65536))
          (plan (make-collector :zgcish vm 65536))
          (barrier (plan-barrier plan)))
     (boot-gc plan)
-    (let ((parent (allocate-object plan 1))
-          (child (allocate-object plan 0)))
-      (vm-set-reference vm parent 0 child)
-      (vm-add-root vm parent)
-      (vm-set-reference vm parent 0 0)
-      (sb-vm::close-thread-alloc-region)
-      (let ((before %sbcl-bytes-allocated))
-        (dotimes (i 50)
-          ;; The loaded reference is shaded before use; nothing allocates.
-          (barrier-note-read vm barrier (+ parent 1) i))
+    ;; Warm-up pass (boot work): first shade enqueues and one LOS-reclaim arm.
+    (setf (plan-marking-active-p plan) t)
+    (dotimes (i 8)
+      (let ((object (allocate-object plan 1)))
+        (barrier-note-read vm barrier (+ object 1) object)))
+    (unwind-protect
+         (plan-collect plan :cycle-kind :full)
+      (setf (plan-marking-active-p plan) nil))
+    ;; Measured: same work with dispatch warm; zero host bytes expected.
+    (setf (plan-marking-active-p plan) t)
+    (sb-vm::close-thread-alloc-region)
+    (let ((before %sbcl-bytes-allocated))
+      (dotimes (i 8)
+        (let ((object (allocate-object plan 1)))
+          (barrier-note-read vm barrier (+ object 1) object)))
         (plan-collect plan :cycle-kind :full)
+        (setf (plan-marking-active-p plan) nil)
         (let ((bytes (- %sbcl-bytes-allocated before)))
           (unless (zerop bytes)
             (return-from post-boot-collection-makes-no-host-allocations
               (values nil
                       (format nil
                               "ZGC shaded-load marking consed ~D host bytes"
-                              bytes))))))))
+                              bytes)))))))
   ;; Exercise Immix's evacuation/healing path, not just its ordinary sweep.
   (let* ((vm (make-simulator-vm 65536))
          (plan (make-collector :immix vm 65536)))

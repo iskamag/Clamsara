@@ -149,6 +149,7 @@
            #:constraints-forwarding #:constraints-concurrency
            #:constraints-requires-tier
            #:constraints-max-non-los-bytes
+           #:plan-marking-active-p
            #:plan-collect #:plan-allocate #:plan-get-space
            #:plan-handle-allocation-failure #:plan-collect-phase
            #:plan-default-cycle-kind

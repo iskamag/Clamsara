@@ -106,6 +106,10 @@ has one source of truth.")
    ;; Mutable state for allocation-free root/drain callbacks. A concurrent
    ;; backend replaces this per-plan slot with per-worker collector state.
    (active-trace-kind :accessor plan-active-trace-kind :initform nil)
+   ;; True while a trace cycle's mark phase can consume grey work.  Load
+   ;; barriers that shade consult this so mutator traffic outside a mark
+   ;; window pays no barrier bookkeeping cost.
+   (marking-active-p :accessor plan-marking-active-p :initform nil)
    ;; Mutator contexts belong to the plan, not to the VM.  The simulator starts
    ;; with one preallocated context (the one-worker default); additional worker
    ;; contexts are explicitly registered in this adjustable vector.

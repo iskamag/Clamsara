@@ -243,12 +243,14 @@ snapshot semantics belong to LXR (SATB), not to this lineage."
    :name name :trigger :ref-read
    :transfer (lambda (vm slot-addr reference)
                (declare (ignore slot-addr))
-               ;; A live in-heap reference that is not yet marked becomes
-               ;; grey work: mark it and enqueue through the plan tracer.
-               (when (vm-reference-p vm reference)
+               ;; Shading is a concurrent-marking duty: it acts only while a
+               ;; trace window can consume the grey work it enqueues.
+               (when (and (vm-reference-p vm reference)
+                          (vm-plan vm)
+                          (plan-marking-active-p (vm-plan vm)))
                  (let* ((addr (ref-strip-or-self vm reference))
-                        (plan (and (typep vm 'vm-binding) (vm-plan vm))))
-                   (when (and plan (not (vm-object-is-marked-p vm addr)))
+                        (plan (vm-plan vm)))
+                   (unless (vm-object-is-marked-p vm addr)
                      (setf (vm-object-is-marked-p vm addr) t)
                      (let ((tracer (plan-tracer plan)))
                        (when tracer (tracer-enqueue tracer addr))))))

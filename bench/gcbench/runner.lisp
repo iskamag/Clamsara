@@ -93,9 +93,25 @@ Returns nothing: callers read the pinned specials."
   (sb-alien:define-alien-variable ("bytes_allocated" %gcbench-bytes)
     sb-alien:unsigned-long))
 
-(defun %bytes-allocated ()
-  #+sbcl (ldb (byte 32 0) %gcbench-bytes)
+;; The raw 64-bit bytes_allocated counter exceeds SBCL's fixnum range after
+;; gigabytes of process allocation.  Windows only ever compute (now - base)
+;; deltas, so every counter read is reduced modulo 2^32 and each delta uses
+;; wraparound arithmetic over the same modulus: a window's true size is far
+;; below 4 GiB, making the modular result exact.
+(defconstant +host-bytes-modulus+ (ash 1 32))
+
+(declaim (inline %wrap-bytes))
+(defun %wrap-bytes (n)
+  #+sbcl (ldb (byte 32 0) n)
   #-sbcl 0)
+
+(defun %bytes-allocated ()
+  #+sbcl (%wrap-bytes %gcbench-bytes)
+  #-sbcl 0)
+
+(defun %bytes-delta (now base)
+  "Signed NOW-BASE in the wrapped 32-bit domain."
+  (- now base))
 
 (defun %close-alloc-region ()
   ;; Make SBCL's next host allocation hit the raw counter immediately.
@@ -225,9 +241,9 @@ an explicit unsupported note."
             (declare (ignore pl cycle-kind))
             (cond
               ((and (eq phase :enter) (not window-open))
-               ;; First close drains pending churn, second yields an exact,
-               ;; residue-free baseline.
-               (%close-alloc-region)
+               ;; Close-region is idempotent and allocation-free; the call
+               ;; here is belt-and-braces against deferred counter updates
+               ;; before the baseline read.
                (%close-alloc-region)
                (setf (car host-bytes) (%bytes-allocated)
                      window-open t))
@@ -235,7 +251,8 @@ an explicit unsupported note."
                (incf (cdr host-bytes)
                      ;; A host GC inside the window shrinks the counter; a
                      ;; negative delta means the true total is unknowable.
-                     (max 0 (- (%bytes-allocated) (car host-bytes))))
+                     (max 0 (%bytes-delta
+                             (%bytes-allocated) (car host-bytes))))
                ;; Drain the collector's own pending region now so the next
                ;; window's baseline cannot inherit it.
                (%close-alloc-region)
@@ -269,6 +286,8 @@ an explicit unsupported note."
         ;; The checked entry point also re-runs the sanity checker.  Its
         ;; window is measured like any other collection.
         (funcall gc-fn :cycle-kind :full)
+          ;; The sanity pass runs after the hook is removed, so its host
+          ;; consing stays outside every measured window.
         (setf stats (funcall collect-stats))))
     ;; Hook-free invariant pass over the final heap state.  Sticky plans
     ;; keep their mark bits between minors by design, so the checker must

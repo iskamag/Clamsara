@@ -51,6 +51,7 @@
 (defmethod gc-phase :prologue ((p zgc-plan) k)
   (declare (ignore k))
   (vm-stop-mutators (plan-vm p))
+  (setf (plan-marking-active-p p) t)
   (let ((vm (plan-vm p)))
     (space-prepare (z-from p) vm)
     (allocator-reset (space-allocator (z-to p)))
@@ -65,11 +66,16 @@
   (declare (ignore k))
   (mark-roots p (plan-tracer p)))
 
-;; Relocation consumes the mark set. Generic Immix reclaim would clear it
-;; before PHASE-COMPACT and silently relocate nothing.
+;; Relocation consumes the mark set: an immix-style reclaim of the from
+;; space would clear marks before :compact and relocate nothing.  The LOS
+;; is not relocated, so it still reclaims dead pages here (heap.tex §2).
 (defmethod gc-phase :reclaim ((p zgc-plan) k)
-  (declare (ignore p k))
-  nil)
+  ;; Mark closed at reclaim entry: shaded grey work has been drained by the
+  ;; trace drain, so later loads are plain reads.
+  (setf (plan-marking-active-p p) nil)
+  (let ((los (plan-los p)))
+    (when los
+      (space-reclaim los (plan-vm p) :cycle-kind k))))
 
 ;; relocate: copy every live (marked) object into the 'to' region, recording
 ;; old->new in the off-heap forwarding table.
@@ -119,14 +125,16 @@
            (to (make-instance 'immix-space :vm vm :start-page (car b)
                               :page-count (cdr b) :name :to :default-space nil
                               :moving :concurrent-relocate))
+           ;; The relocation LVB runs first: a stale reference is healed
+           ;; before any other read rule tests it (barriers.tex).
            (barrier (make-instance 'barrier
-                      :rules (list (shade-mark-barrier-rule)
-                                   (lvb-barrier-rule))))
+                      :rules (list (lvb-barrier-rule)
+                                   (shade-mark-barrier-rule))))
            (p (make-instance 'zgc-plan :name :zgcish :vm vm
                             :spaces (list from to) :barrier barrier
                             :constraints (make-instance 'plan-constraints
                                          :write-barrier :incremental-update
-                                         :read-barrier '(:incremental-update :lvb)
+                                         :read-barrier '(:lvb :incremental-update)
                                          :forwarding :off-heap
                                          :concurrency :concurrent-relocate))))
       (setf (z-from p) from (z-to p) to (barrier-plan barrier) p)

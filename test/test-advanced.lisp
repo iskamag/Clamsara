@@ -129,29 +129,37 @@
                  (not (vm-object-start-p (%vm) b)))
             (values t "ok") (values nil "relocate/heal failed"))))))
 
-;; Incremental update shades references AT LOAD TIME, while marking runs.
-;; The compiled collector resolves primary phase functions at boot (auxiliary
-;; gc-phase methods are deliberately absent from the hot path), so the test
-;; drives PLAN-COLLECT-PHASE -- the interpreted machine -- and installs its
-;; load as a mutator step between MARK and RECLAIM, exactly where a STW pause
-;; would leave the mutator stopped behind its own already-shaded register.
+;; Incremental update shades references at load time.  This is a unit test
+;; of the rule's contract: a white in-heap reference becomes marked before
+;; use, and the returned value is the reference itself.
 (deftest zgc-load-barrier-shades-white-reference ()
-  ;; Incremental update contract: a mutator load shades (marks) a white
-  ;; in-heap reference before use and returns it unchanged.  There is no
-  ;; snapshot write log behind this plan.
+  ;; Incremental update contract: while marking is active, a mutator load
+  ;; shades (marks) a white in-heap reference before use and returns it
+  ;; unchanged.  Loads outside a mark window pay no retention cost.  There
+  ;; is no snapshot write log behind this plan.
   (with-clamsara (:plan-type :zgcish :heap-size 65536)
     (let* ((loaded-child (clamsara-allocate-object 0))
-           (barrier (plan-barrier *clamsara-plan*)))
-      (values
-       (and (not (vm-object-is-marked-p *clamsara-vm* loaded-child))
-            ;; Load through the barrier as a mutator would.
-            (eql (barrier-note-read *clamsara-vm* barrier
-                                    (+ loaded-child 1) loaded-child)
-                 loaded-child)
-            ;; Shaded before use.
-            (vm-object-is-marked-p *clamsara-vm* loaded-child))
-       (if (vm-object-is-marked-p *clamsara-vm* loaded-child)
-           "ok" "shade rule did not mark")))))
+           (plan *clamsara-plan*)
+           (barrier (plan-barrier plan)))
+      ;; Outside marking: the load returns the reference, marks nothing.
+      (unless (and (not (vm-object-is-marked-p *clamsara-vm* loaded-child))
+                   (eql (barrier-note-read *clamsara-vm* barrier
+                                           (+ loaded-child 1) loaded-child)
+                        loaded-child)
+                   (not (vm-object-is-marked-p *clamsara-vm* loaded-child)))
+        (return-from zgc-load-barrier-shades-white-reference
+          (values nil "out-of-window load shaded")))
+      ;; During marking: the same load shades before use.
+      (setf (plan-marking-active-p plan) t)
+      (unwind-protect
+           (unless (and (eql (barrier-note-read *clamsara-vm* barrier
+                                               (+ loaded-child 1)
+                                               loaded-child)
+                             loaded-child)
+                        (vm-object-is-marked-p *clamsara-vm* loaded-child))
+             (error "shade rule did not mark during marking"))
+        (setf (plan-marking-active-p plan) nil)))
+    (values t "ok")))
 
 (deftest zgc-overwritten-white-child-dies ()
   (with-clamsara (:plan-type :zgcish :heap-size 65536)
@@ -172,7 +180,7 @@
         (if (and (= live-count 1)
                  (not (vm-object-start-p *clamsara-vm* white-child)))
             (values t "ok")
-            (values nil "overwritten white child survived without SATB"))))))
+            (values nil "overwritten white child survived without snapshot semantics"))))))
 
 (deftest claimore-major ()
   (with-clamsara (:plan-type :claimore :heap-size 65536)

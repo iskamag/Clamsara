@@ -809,6 +809,18 @@ benchmark-specific pattern matching."
 (defun clamsara-maclina-eval-string (string)
   (clamsara-maclina-eval (read-from-string string)))
 
+(defun load-maclina-source-file (pathname)
+  "Evaluate every top-level form of PATHNAME through Maclina, preserving
+source semantics.  Used by the test suite and the benchmark harness so the
+fixture source resolves in Maclina's package exactly as for an interactive
+source load."
+  (let ((*package* (find-package '#:clamsara-maclina)))
+    (with-open-file (stream pathname)
+      (loop for form = (read stream nil :eof)
+            until (eq form :eof)
+              do (clamsara-maclina-eval form))))
+  t)
+
 (defmacro with-clamsara-maclina
     ((&key (plan-type :marksweep) (heap-size 65536) (stack-size 65536))
      &body body)

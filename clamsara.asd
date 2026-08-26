@@ -125,3 +125,21 @@
              (declare (ignore operation component))
              (uiop:symbol-call :clamsara-gabriel-bench
                                :run-gabriel-bench)))
+
+;;; The upstream Boehm GCBench source translated to Common Lisp, driven
+;;; through Maclina in the simulated heap.  This is a benchmark, not a test:
+;;; the fixture is a data file for the runner.
+(asdf:defsystem :clamsara/bench/gcbench
+  :version "8.0.0"
+  :description "The upstream Boehm GCBench over Maclina and Clamsara."
+  :depends-on (:clamsara)
+  :serial t
+  :components
+  ((:module "bench/gcbench"
+    :serial t
+    :components ((:file "package")
+                 (:file "runner"))))
+  :perform (asdf:test-op (operation component)
+             (declare (ignore operation component))
+             (uiop:symbol-call :clamsara-bench-gcbench
+                               :run-gcbench)))

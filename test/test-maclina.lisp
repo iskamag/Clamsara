@@ -4,15 +4,7 @@
 
 (defun %load-maclina-source-file (pathname)
   "Evaluate each top-level form through Maclina, preserving source semantics."
-  ;; ASDF may invoke TEST-OP with *PACKAGE* bound to an implementation
-  ;; package.  Source symbols must nevertheless resolve in Maclina's package,
-  ;; exactly as they do for an interactive source load.
-  (let ((*package* (find-package '#:clamsara-maclina)))
-    (with-open-file (stream pathname)
-      (loop for form = (read stream nil :eof)
-          until (eq form :eof)
-            do (clamsara-maclina-eval form))))
-  t)
+  (load-maclina-source-file pathname))
 
 (defun %boehm-fixture-path ()
   (asdf:system-relative-pathname

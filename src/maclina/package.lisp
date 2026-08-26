@@ -11,6 +11,7 @@
    #:setup-clamsara-maclina-environment
    #:clamsara-maclina-eval
    #:clamsara-maclina-eval-string
+   #:load-maclina-source-file
    #:with-clamsara-maclina))
 
 (in-package #:clamsara-maclina)

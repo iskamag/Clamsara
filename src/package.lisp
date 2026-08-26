@@ -150,6 +150,9 @@
            #:constraints-max-non-los-bytes
            #:plan-collect #:plan-allocate #:plan-get-space
            #:plan-handle-allocation-failure #:plan-collect-phase
+           #:plan-default-cycle-kind
+           #:plan-collect-hook
+           #:with-plan-collect-hook
            #:gc-phase #:+gc-phase-order+
            #:weak-phase #:weak-pointer-p #:register-weak-pointer
            #:finalization-trait #:initialize-finalization
@@ -180,6 +183,7 @@
            #:replay-persistence-log #:recover-last-intact-snapshot)
   ;; public api
   (:export #:with-clamsara #:clamsara-allocate-object
+           #:make-collector
            #:clamsara-register-root #:clamsara-gc #:clamsara-write
            #:clamsara-read #:clamsara-plan
            #:*clamsara-plan* #:*clamsara-vm*

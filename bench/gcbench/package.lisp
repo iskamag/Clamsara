@@ -3,7 +3,8 @@
 (defpackage #:clamsara-bench-gcbench
   (:use #:cl)
   (:export
-   #:*gcbench-fixture-pathname*
    #:gcbench-dependencies-available-p
    #:run-gcbench
-   #:gcbench-result))
+   #:run-gcbench-suite
+   #:gcbench-result
+   #:*gcbench-suite-heap-size*))

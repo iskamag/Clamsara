@@ -258,6 +258,19 @@ interpreted and compiled collectors cannot diverge."
                (plan-collect-phase plan kind))
         (when hook (funcall hook plan kind :exit))))))
 
+(defmacro with-plan-collect-hook ((plan hook-form) &body body)
+  "Bind PLAN's collection instrumentation seam to HOOK-FORM for BODY.
+HOOK-FORM evaluates to nil or a function of (PLAN CYCLE-KIND PHASE), with
+PHASE = :enter before and :exit after every collection.  The previous hook is
+restored on exit.  This is the measurement entry benchmarks use; it is not on
+any collector path."
+  `(let ((.old-hook. (plan-collect-hook ,plan)))
+     (unwind-protect
+          (progn
+            (setf (plan-collect-hook ,plan) ,hook-form)
+            ,@body)
+       (setf (plan-collect-hook ,plan) .old-hook.))))
+
 ;; ---- space accessors ----------------------------------------------------
 
 (defun default-space (plan)

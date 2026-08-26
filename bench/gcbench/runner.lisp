@@ -223,14 +223,22 @@ an explicit unsupported note."
           ;; pollute the sum.
           (lambda (pl cycle-kind phase)
             (declare (ignore pl cycle-kind))
-            (%close-alloc-region)
             (cond
               ((and (eq phase :enter) (not window-open))
+               ;; First close drains pending churn, second yields an exact,
+               ;; residue-free baseline.
+               (%close-alloc-region)
+               (%close-alloc-region)
                (setf (car host-bytes) (%bytes-allocated)
                      window-open t))
               ((and (eq phase :exit) window-open)
                (incf (cdr host-bytes)
-                     (- (%bytes-allocated) (car host-bytes)))
+                     ;; A host GC inside the window shrinks the counter; a
+                     ;; negative delta means the true total is unknowable.
+                     (max 0 (- (%bytes-allocated) (car host-bytes))))
+               ;; Drain the collector's own pending region now so the next
+               ;; window's baseline cannot inherit it.
+               (%close-alloc-region)
                (setf window-open nil)))))
          (bench-string
           (lambda ()
@@ -245,8 +253,13 @@ an explicit unsupported note."
         (list nil nil plan vm)
       (funcall *setup-symbol* plan :stack-size stack-size)
       (%load-fixture-into-maclina (%fixture-pathname))
-      ;; Warmup iteration: unmeasured.
-      (unless (funcall bench-string) (error "gcbench warmup returned NIL"))
+      ;; Warmup iterations: unmeasured.  Three passes settle the
+      ;; interpreted workload's one-time host costs; a single pass can
+      ;; leave first-contact dispatches inside measured windows.
+      (dotimes (warmup 3)
+        (declare (ignorable warmup))
+        (unless (funcall bench-string)
+          (error "gcbench warmup returned NIL")))
       ;; Measured iterations under the hook.
       (clamsara:with-plan-collect-hook (plan accounting-hook)
         (dotimes (i iterations)

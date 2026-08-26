@@ -243,6 +243,26 @@ implementation may perform a moving transfer while handling the write."
                  object)))
       (setf (fill-pointer (clamsara::vm-root-vector vm)) root-base))))
 
+(defun %simulated-list-length (vm object)
+  "Number of simulated conses from OBJECT before NIL (or an atom).
+The bound is the heap's word count: no chain can be longer than that, so
+this is also the cycle guard.  Iterative: length of a long list must not
+cons host frames or build host lists."
+  ;; %read-cons-slot wants PLAN for its read barrier; here the caller's
+  ;; environment may have none, so look it up through the client.
+  (let* ((client *clamsara-maclina-client*)
+         (plan (and client (maclina-client-plan client)))
+         (count 0))
+    (declare (type fixnum count))
+    (loop for cell = object
+            then (%decode-heap-value
+                  vm (%read-cons-slot vm plan
+                                      (%reference-address vm cell) 1))
+          while (and (%maclina-reference-p vm cell)
+                     (< count (clamsara:vm-heap-size vm)))
+          do (incf count)
+          finally (return count))))
+
 (defun %read-cons-slot (vm plan object slot)
   "Read a simulated cons slot through PLAN's fused read barrier.
 
@@ -741,9 +761,13 @@ benchmark-specific pattern matching."
             (lambda (value object index) (%array-set client value object index))
             (clostrum:fdefinition client environment 'cl:length)
             (lambda (object)
-              (if (%simulated-array-p vm object)
-                  (%array-length vm object)
-                  (cl:length object)))
+              (cond
+                ((%simulated-array-p vm object) (%array-length vm object))
+                ;; A simulated cons chain must be walked in the simulated
+                ;; heap: its cells are tagged references, not host conses.
+                ((%simulated-cons-p vm object)
+                 (%simulated-list-length vm object))
+                (t (cl:length object))))
             (clostrum:fdefinition client environment 'cl:arrayp)
             (lambda (object)
               (or (%simulated-array-p vm object) (cl:arrayp object)))

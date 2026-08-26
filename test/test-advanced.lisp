@@ -1,4 +1,4 @@
-;;;; test/test-advanced.lisp -- Iso (publication/DLG), ZGC (SATB+LVB+relocate),
+;;;; test/test-advanced.lisp -- Iso (publication/DLG), ZGC (LVB shade+relocate),
 ;;;; Claimore (RC+nursery+checkpoint).  Plus barrier unit tests.
 
 (in-package #:clamsara)
@@ -129,14 +129,38 @@
                  (not (vm-object-start-p (%vm) b)))
             (values t "ok") (values nil "relocate/heal failed"))))))
 
-(deftest zgc-satb-remark-retains-snapshot-object ()
+;; Incremental update shades references AT LOAD TIME, while marking runs.
+;; The compiled collector resolves primary phase functions at boot (auxiliary
+;; gc-phase methods are deliberately absent from the hot path), so the test
+;; drives PLAN-COLLECT-PHASE -- the interpreted machine -- and installs its
+;; load as a mutator step between MARK and RECLAIM, exactly where a STW pause
+;; would leave the mutator stopped behind its own already-shaded register.
+(deftest zgc-load-barrier-shades-white-reference ()
+  ;; Incremental update contract: a mutator load shades (marks) a white
+  ;; in-heap reference before use and returns it unchanged.  There is no
+  ;; snapshot write log behind this plan.
+  (with-clamsara (:plan-type :zgcish :heap-size 65536)
+    (let* ((loaded-child (clamsara-allocate-object 0))
+           (barrier (plan-barrier *clamsara-plan*)))
+      (values
+       (and (not (vm-object-is-marked-p *clamsara-vm* loaded-child))
+            ;; Load through the barrier as a mutator would.
+            (eql (barrier-note-read *clamsara-vm* barrier
+                                    (+ loaded-child 1) loaded-child)
+                 loaded-child)
+            ;; Shaded before use.
+            (vm-object-is-marked-p *clamsara-vm* loaded-child))
+       (if (vm-object-is-marked-p *clamsara-vm* loaded-child)
+           "ok" "shade rule did not mark")))))
+
+(deftest zgc-overwritten-white-child-dies ()
   (with-clamsara (:plan-type :zgcish :heap-size 65536)
     (let ((parent (clamsara-allocate-object 1))
-          (snapshot-child (clamsara-allocate-object 0)))
-      (setf (%slot parent 0) snapshot-child)
+          (white-child (clamsara-allocate-object 0)))
+      (setf (%slot parent 0) white-child)
       (clamsara-register-root parent)
-      ;; The SATB barrier records the overwritten child. It is absent from the
-      ;; graph by the time root marking begins and must enter through remark.
+      ;; Without snapshot semantics an overwritten reference that is never
+      ;; loaded cannot be retained: it dies and its slot is reused.
       (clamsara-write parent 0 0)
       (plan-collect *clamsara-plan* :cycle-kind :full)
       (let* ((space (z-from *clamsara-plan*))
@@ -145,10 +169,10 @@
                (loop for address from (space-base-address space)
                      below (space-end-address space)
                      count (s-test-bit object-start address))))
-        (if (and (= live-count 2)
-                 (not (vm-object-start-p *clamsara-vm* snapshot-child)))
+        (if (and (= live-count 1)
+                 (not (vm-object-start-p *clamsara-vm* white-child)))
             (values t "ok")
-            (values nil "SATB remark did not retain/relocate snapshot child"))))))
+            (values nil "overwritten white child survived without SATB"))))))
 
 (deftest claimore-major ()
   (with-clamsara (:plan-type :claimore :heap-size 65536)

@@ -864,6 +864,7 @@
 (deftest stats-count-barrier-transfers-and-object-copy ()
   ;; Barrier events are charged at the fused transfer seam, while copies are
   ;; charged by VM-OBJECT-COPY so publication and relocation use one metric.
+  ;; ZGCish carries read rules only, so its loads drive the counter.
   (with-clamsara (:plan-type :zgcish :heap-size 32768)
     (let* ((plan *clamsara-plan*)
            (vm *clamsara-vm*)
@@ -871,7 +872,8 @@
            (source (clamsara-allocate-object 1))
            (destination (clamsara-allocate-object 1)))
       (stats-reset stats)
-      (clamsara-write source 0 0)
+      (vm-set-reference vm source 0 destination)
+      (clamsara-read source 0)
       (vm-object-copy vm source destination)
       (if (and (plusp (stats-get stats :barrier-transfers))
                (= 1 (stats-get stats :objects-copied))

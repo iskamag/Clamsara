@@ -231,6 +231,29 @@ vm-object-old-p misses LOS objects, whose age stratum stays 0."
                                       :requested-size 1 :space :public))))
                      new)))))
 
+(defun shade-mark-barrier-rule (&optional (name :incremental-update))
+  "Incremental-update marking for C4/ZGC-style plans.
+
+A mutator load can pull a not-yet-marked reference into use while the
+trace is already running, which would let the reclaim miss it.  The rule
+marks (shades) every loaded reference before the mutator consumes it, so
+nothing reachable behind the frontier is missed.  There is no write log:
+snapshot semantics belong to LXR (SATB), not to this lineage."
+  (make-barrier-rule
+   :name name :trigger :ref-read
+   :transfer (lambda (vm slot-addr reference)
+               (declare (ignore slot-addr))
+               ;; A live in-heap reference that is not yet marked becomes
+               ;; grey work: mark it and enqueue through the plan tracer.
+               (when (vm-reference-p vm reference)
+                 (let* ((addr (ref-strip-or-self vm reference))
+                        (plan (and (typep vm 'vm-binding) (vm-plan vm))))
+                   (when (and plan (not (vm-object-is-marked-p vm addr)))
+                     (setf (vm-object-is-marked-p vm addr) t)
+                     (let ((tracer (plan-tracer plan)))
+                       (when tracer (tracer-enqueue tracer addr))))))
+                reference)))
+
 (defun lvb-barrier-rule (&optional (name :lvb))
   "Self-healing load-value barrier: resolve forwarding and stale colours.
 

@@ -1,8 +1,10 @@
 ;;;; plans/zgcish.lisp -- a C4/ZGC-style collector: mark-region / trace /
-;;;; concurrent-relocate / SATB write + LVB read / global / concurrent.
-;;;; Concurrent phases are STW-simulated (the spec's software-MMU seam); the
-;;;; axes exercised are SATB, the self-healing load barrier, off-heap
-;;;; forwarding, and the concurrent-relocate moving model.
+;;;; concurrent-relocate / incremental-update mark through the LVB /
+;;;; global / concurrent.  Concurrent phases are STW-simulated (the spec's
+;;;; software-MMU seam); the axes exercised are the shaded-load marking
+;;;; rule, the self-healing load barrier, off-heap forwarding, and the
+;;;; concurrent-relocate moving model.  No SATB write log exists here:
+;;;; snapshot semantics belong to LXR (collectors.tex, barriers.tex).
 
 (in-package #:clamsara)
 
@@ -54,22 +56,14 @@
     (allocator-reset (space-allocator (z-to p)))
     (fwd-clear vm)))
 
-;; mark: precise trace + drain the SATB snapshot buffer (remark)
+;; mark: precise trace.  Incremental update keeps the graph consistent
+;; through the load barrier: every reference a mutator loads is shaded by
+;; the SHADE-MARK-BARRIER-RULE before use, so no snapshot write log exists.
+;; Concurrent phases are STW-simulated, so mutator traffic cannot interleave
+;; here, but the barrier contract is what the axis requires.
 (defmethod gc-phase :mark ((p zgc-plan) k)
   (declare (ignore k))
-  (mark-roots p (plan-tracer p))
-  (let ((vm (plan-vm p))
-        (tr (plan-tracer p))
-        (buffer (barrier-satb-buffer (plan-barrier p))))
-    (loop for ref across buffer
-          for address = (ref-strip-or-self vm ref)
-          when (and (vm-reference-p vm ref)
-                    (eq (plan-space-for-address p address)
-                        (z-from p)))
-            do (mark-root-reference p ref))
-    ;; SATB entries may introduce previously unseen grey objects.
-    (tracer-drain tr #'mark-grey-reference p)
-    (setf (fill-pointer buffer) 0)))
+  (mark-roots p (plan-tracer p)))
 
 ;; Relocation consumes the mark set. Generic Immix reclaim would clear it
 ;; before PHASE-COMPACT and silently relocate nothing.
@@ -126,11 +120,13 @@
                               :page-count (cdr b) :name :to :default-space nil
                               :moving :concurrent-relocate))
            (barrier (make-instance 'barrier
-                      :rules (list (satb-barrier-rule) (lvb-barrier-rule))))
+                      :rules (list (shade-mark-barrier-rule)
+                                   (lvb-barrier-rule))))
            (p (make-instance 'zgc-plan :name :zgcish :vm vm
                             :spaces (list from to) :barrier barrier
                             :constraints (make-instance 'plan-constraints
-                                         :write-barrier :satb :read-barrier :lvb
+                                         :write-barrier :incremental-update
+                                         :read-barrier '(:incremental-update :lvb)
                                          :forwarding :off-heap
                                          :concurrency :concurrent-relocate))))
       (setf (z-from p) from (z-to p) to (barrier-plan barrier) p)

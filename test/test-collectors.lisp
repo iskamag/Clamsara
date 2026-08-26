@@ -233,7 +233,8 @@
                           (format nil
                                   "~A dirty rescan consed ~D host bytes"
                                   plan-type bytes))))))))))
-  ;; SATB remark must not manufacture generic-call rest lists or cache state.
+  ;; The shaded-load rule must not manufacture generic-call rest lists or
+  ;; cache state on the collection path.
   (let* ((vm (make-simulator-vm 65536))
          (plan (make-collector :zgcish vm 65536))
          (barrier (plan-barrier plan)))
@@ -242,17 +243,19 @@
           (child (allocate-object plan 0)))
       (vm-set-reference vm parent 0 child)
       (vm-add-root vm parent)
-      (barrier-note-write vm barrier parent 0 0)
       (vm-set-reference vm parent 0 0)
       (sb-vm::close-thread-alloc-region)
       (let ((before %sbcl-bytes-allocated))
+        (dotimes (i 50)
+          ;; The loaded reference is shaded before use; nothing allocates.
+          (barrier-note-read vm barrier (+ parent 1) i))
         (plan-collect plan :cycle-kind :full)
         (let ((bytes (- %sbcl-bytes-allocated before)))
           (unless (zerop bytes)
             (return-from post-boot-collection-makes-no-host-allocations
               (values nil
                       (format nil
-                              "ZGC SATB remark consed ~D host bytes"
+                              "ZGC shaded-load marking consed ~D host bytes"
                               bytes))))))))
   ;; Exercise Immix's evacuation/healing path, not just its ordinary sweep.
   (let* ((vm (make-simulator-vm 65536))

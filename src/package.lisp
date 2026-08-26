@@ -137,7 +137,8 @@
            #:copy-closure-to-public
            #:card-barrier-rule #:sticky-dirty-barrier-rule
            #:satb-barrier-rule #:rc-barrier-rule
-           #:publication-barrier-rule)
+           #:publication-barrier-rule
+           #:shade-mark-barrier-rule)
   ;; plan / metaclass / compile
   (:export #:plan #:plan-p #:plan-name #:plan-vm #:plan-spaces #:plan-barrier
            #:plan-publication #:plan-constraints #:plan-page-resource

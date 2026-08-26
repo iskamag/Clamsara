@@ -11,9 +11,13 @@
    #:*gabriel-workloads*
    #:*gabriel-default-iterations*
    #:*gabriel-max-iterations*
+   #:*gabriel-suite-heap-size*
+   #:*gabriel-suite-plans*
    #:maclina-benchmark-unavailable
    #:gabriel-benchmark-failure
    #:maclina-dependencies-available-p
-   #:run-gabriel-bench))
+   #:run-gabriel-bench
+   #:run-gabriel-suite
+   #:run-gabriel-tests))
 
 (in-package #:clamsara-gabriel-bench)

@@ -11,6 +11,12 @@
   "Iterations used by RUN-GABRIEL-BENCH when none is supplied.")
 (defparameter *gabriel-max-iterations* +gabriel-hard-max-iterations+
   "Optional lower bound for one invocation; never raises the hard ceiling.")
+(defparameter *gabriel-suite-heap-size* 8192
+  "Starting heap size for each plan in RUN-GABRIEL-SUITE.")
+(defparameter *gabriel-suite-plans*
+  '(:semispace :marksweep :immix :gencopy :genms :genimmix
+    :stickyimmix :stickyms :zgcish)
+  "Collector plans exercised by RUN-GABRIEL-SUITE.")
 
 (define-condition maclina-benchmark-unavailable (error)
   ((reason :initarg :reason :reader maclina-benchmark-unavailable-reason))
@@ -97,13 +103,22 @@ that want to skip rather than run the benchmark."
     (maclina-benchmark-unavailable (condition)
       (values nil (princ-to-string condition)))))
 
+(defun %assert-plan-sane (plan workload cycle-kind)
+  "Signal when a completed workload collection leaves invalid simulator state."
+  (let ((errors (clamsara:sanity-check
+                 plan :check-mark (not (clamsara::plan-sticky-p plan)))))
+    (when errors
+      (error "Gabriel workload ~S failed sanity after ~S collection:~%~
+              ~{  ~A~%~}"
+             workload cycle-kind errors))))
+
 (defun %evaluate-workload (with-macro eval-string workload iterations plan-type
                            heap-size stack-size collector-host-bytes-cell)
   "Evaluate one workload in a fresh Maclina/Clamsara environment.
 
-The fresh environment is warmed by one unmeasured iteration before the
-measured ones: it compiles the interpreted workload and resolves every
-first-contact dispatch while Maclina closures are live, so measured
+The fresh environment is warmed before the measured iterations: this compiles
+the interpreted workload and resolves every first-contact dispatch while
+Maclina closures are live, so measured
 collections see only real collector work.  COLLECTOR-HOST-BYTES-CELL is a
 cons whose CAR accumulates host bytes consed inside plan-collect windows."
   ;; The eval'd WITH-CLAMSARA-MACLINA form cannot close over lexical
@@ -124,7 +139,6 @@ cons whose CAR accumulates host bytes consed inside plan-collect windows."
                     (base-cell (cons 0 nil))
                     (accounting-hook
                       (lambda (pl cycle-kind phase)
-                        (declare (ignore pl cycle-kind))
                         (cond
                           ((and (eq phase :enter) (not window-open))
                            ;; Close-region is idempotent and allocation-free;
@@ -133,18 +147,23 @@ cons whose CAR accumulates host bytes consed inside plan-collect windows."
                            (%close-region)
                            (setf (car base-cell) (%host-bytes)
                                  window-open t))
-                          ((and (eq phase :exit) window-open)
+                          ((and (or (eq phase :exit) (eq phase :abort))
+                                window-open)
                            (incf (car *gabriel-window-cell*)
-                                 ;; A host GC inside the window shrinks
-                                 ;; bytes_allocated, so a negative delta
-                                 ;; means that window's total is unknowable;
-                                 ;; clamp rather than report garbage.
-                                 (max 0 (- (%host-bytes) (car base-cell))))
+                                 (- (%host-bytes) (car base-cell)))
                            ;; Drain the collector's own pending region now so
                            ;; the next window's baseline starts clean.
                            (%close-region)
-                           (setf window-open nil)))))
-                    (stats nil))
+                           (setf window-open nil)
+                           ;; Only a completed collection has a coherent
+                           ;; post-state.  Sanity runs after the byte window is
+                           ;; closed, so checker allocations are not charged to
+                           ;; the collector.
+                           (when (eq phase :exit)
+                             (%assert-plan-sane pl ',name cycle-kind)
+                             (incf (cdr *gabriel-window-cell*)))))))
+                    (stats nil)
+                    (elapsed 0.0))
                ;; Warmup first: unmeasured, no hook installed.  Three
                ;; passes settle the interpreted workload's one-time host
                ;; costs; a single pass does not (first-contact dispatches
@@ -157,24 +176,32 @@ cons whose CAR accumulates host bytes consed inside plan-collect windows."
                             :iteration (list 'warmup warmup)
                             :expected ',expected
                             :actual value))))
-               ;; Now install the accounting hook for measured runs only.
-               (setf (clamsara:plan-collect-hook clamsara:*clamsara-plan*)
-                     accounting-hook)
-               ;; Drain the warmup's own pending region so the first
-               ;; measured window's baseline starts clean.
+               ;; Warmup activity is not part of the benchmark counters.
+               (clamsara:stats-reset
+                (clamsara:plan-stats clamsara:*clamsara-plan*))
                (%close-region)
-               (dotimes (iteration ,iterations)
-                 (let ((value (funcall ',eval-string ,source)))
-                   (unless (equal value ',expected)
-                     (error 'gabriel-benchmark-failure
-                            :workload ',name
-                            :iteration iteration
-                            :expected ,expected
-                            :actual value))
-                   (push value values)))
+               (clamsara:with-plan-collect-hook
+                   (clamsara:*clamsara-plan* accounting-hook)
+                 (let ((started (get-internal-real-time)))
+                   (dotimes (iteration ,iterations)
+                     (let ((value (funcall ',eval-string ,source)))
+                       (unless (equal value ',expected)
+                         (error 'gabriel-benchmark-failure
+                                :workload ',name
+                                :iteration iteration
+                                :expected ,expected
+                                :actual value))
+                       (push value values)))
+                   (setf elapsed
+                         (/ (- (get-internal-real-time) started)
+                            (float internal-time-units-per-second))))
+                 ;; Every workload performs at least one checked collection,
+                 ;; including allocation-free TAK and the small DDERIV case.
+                 (clamsara:plan-collect clamsara:*clamsara-plan*
+                                        :cycle-kind :full))
                (setf stats (clamsara:stats-snapshot
                              (clamsara:plan-stats clamsara:*clamsara-plan*)))
-               (values (nreverse values) stats))))))
+               (values (nreverse values) stats elapsed))))))
 
 #+sbcl
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -231,26 +258,87 @@ message."
       (dolist (workload workloads (nreverse results))
         (unless (typep workload 'gabriel-workload)
           (error "Not a GABRIEL-WORKLOAD: ~s" workload))
-        (let ((started (get-internal-real-time))
-              (bytes-cell (cons 0 nil)))
-          (multiple-value-bind (values stats)
+        (let ((bytes-cell (cons 0 0)))
+          (multiple-value-bind (values stats elapsed)
               (%evaluate-workload with-macro eval-string workload iterations
                                   plan-type heap-size stack-size bytes-cell)
-            (let* ((elapsed (/ (- (get-internal-real-time) started)
-                               (float internal-time-units-per-second)))
-                   (result (list :name (gabriel-workload-name workload)
-                                 :iterations iterations
-                                 :elapsed-seconds elapsed
-                                 :values values
-                                 :collector-host-bytes (car bytes-cell)
-                                 :stats stats)))
+            (let ((result (list :name (gabriel-workload-name workload)
+                                :plan plan-type
+                                :heap-size heap-size
+                                :iterations iterations
+                                :elapsed-seconds elapsed
+                                :values values
+                                :collector-host-bytes (car bytes-cell)
+                                :collections-checked (cdr bytes-cell)
+                                :stats stats)))
               (push result results)
               (when verbose
                 (format stream
                         "  ~a: ~d iterations, ~,3f sec, ~
-                         collector-host-bytes=~d, stats ~s~%"
+                         collector-host-bytes=~d, sanity-checks=~d, stats ~s~%"
                         (getf result :name)
                         iterations
                         elapsed
                         (getf result :collector-host-bytes)
+                        (getf result :collections-checked)
                         stats)))))))))
+
+(defun run-gabriel-suite (&key (stream *standard-output*) verbose
+                               (iterations *gabriel-default-iterations*))
+  "Run every Gabriel workload across the tracing textbook collector plans.
+
+Each plan starts at *GABRIEL-SUITE-HEAP-SIZE*.  A plan whose retained mature
+set exhausts that heap is retried at successively doubled sizes, matching the
+GCBench suite's bounded capacity protocol."
+  (let ((results nil))
+    (dolist (plan *gabriel-suite-plans*
+                  (nreverse results))
+      (let ((heap-size *gabriel-suite-heap-size*)
+            (plan-results nil))
+        (loop while (<= heap-size (* 16 *gabriel-suite-heap-size*))
+              do (handler-case
+                     (progn
+                       (setf plan-results
+                             (run-gabriel-bench
+                              :plan-type plan :heap-size heap-size
+                              :iterations iterations :stream stream
+                              :verbose verbose))
+                       (return))
+                   (clamsara:heap-exhausted ()
+                     (setf heap-size (* heap-size 2))
+                     (format stream
+                             "~&~A exhausted ~D words; retrying at ~D~%"
+                             plan (/ heap-size 2) heap-size))))
+        (unless plan-results
+          (error "~A exhausted every Gabriel suite heap size" plan))
+        (dolist (result plan-results)
+          (push result results))))))
+
+(defun run-gabriel-tests (&key (stream *standard-output*) (verbose t))
+  "Run and enforce the Gabriel harness's correctness contracts."
+  (let ((results (run-gabriel-suite :stream stream :verbose nil)))
+    (unless (= (length results)
+               (* (length *gabriel-suite-plans*)
+                  (length *gabriel-workloads*)))
+      (error "Gabriel suite produced ~D results, expected ~D"
+             (length results)
+             (* (length *gabriel-suite-plans*)
+                (length *gabriel-workloads*))))
+    (dolist (result results)
+      (let ((cycles (cdr (assoc :gc-cycles (getf result :stats))))
+            (host-bytes (getf result :collector-host-bytes)))
+        (unless (plusp cycles)
+          (error "Gabriel workload ~S performed no checked collection"
+                 (getf result :name)))
+        (unless (= cycles (getf result :collections-checked))
+          (error "Gabriel workload ~S checked ~D of ~D collections"
+                 (getf result :name)
+                 (getf result :collections-checked) cycles))
+        #+sbcl
+        (unless (zerop host-bytes)
+          (error "Gabriel workload ~S collector consed ~D host bytes"
+                 (getf result :name) host-bytes))))
+    (when verbose
+      (format stream "~&Gabriel regression suite: ~D checked results~%"
+              (length results)))
+    results))

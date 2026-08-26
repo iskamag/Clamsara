@@ -5,6 +5,8 @@
   (:export
    #:gcbench-dependencies-available-p
    #:run-gcbench
+   #:run-gcbench-tests
    #:run-gcbench-suite
    #:gcbench-result
-   #:*gcbench-suite-heap-size*))
+   #:*gcbench-suite-heap-size*
+   #:*gcbench-suite-plans*))

@@ -57,6 +57,18 @@
       (make-node :left (make-tree (- depth 1))
                  :right (make-tree (- depth 1)))))
 
+;; Traverse the retained tree after the allocation churn.  In a native Lisp,
+;; merely retaining a pointer is enough for the original benchmark's liveness
+;; purpose.  Maclina references are tagged integers, however, so a stale root
+;; is still non-NIL; dereferencing every edge makes this an actual simulator
+;; liveness check.
+(defun tree-node-count (node)
+  (if (null node)
+      0
+      (+ 1
+         (tree-node-count (node-left node))
+         (tree-node-count (node-right node)))))
+
 ;; nodes used by a tree of a given size
 (defmacro tree-size (i) `(- (expt 2 (1+ ,i)) 1))
 
@@ -105,9 +117,9 @@
             ;(format t "GCBench: Bottom up construction~%")
             (dotimes (i iteration-count) (make-tree d))))
 
-        ;; these are fake references to LongLivedTree and array to
-        ;; keep them from being optimized away
-        (assert (not (null long-lived-tree)))
+        ;; Validate both retained objects after all short-lived tree churn.
+        (assert (= (tree-node-count long-lived-tree)
+                   (tree-size long-lived-tree-depth)))
         (assert (let ((n (min 1000 (1- (floor (length array) 2)))))
                   (= (round (aref array n)) (round (/ 1.0 (1+ n))))))))))
 

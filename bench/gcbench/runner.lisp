@@ -7,9 +7,9 @@
 ;;;; The point is collector fidelity, not wall clock: event counters and sanity
 ;;;; checks after every collection, plus zero host bytes consed inside the
 ;;;; collection windows.  The windows are measured through PLAN-COLLECT-HOOK,
-;;;; the plan's instrumentation seam; the hook body itself does no consing
-;;;; (it reads an alien counter into a preallocated cell), so measured bytes
-;;;; are attributable to the collector phases alone.
+;;;; the plan's instrumentation seam.  The accounting part of the hook reads
+;;;; an alien counter into a preallocated cell without consing; sanity runs
+;;;; only after that window has closed.
 
 (in-package #:clamsara-bench-gcbench)
 
@@ -33,6 +33,7 @@ host allocation on the collection path."
   (words-copied 0 :type fixnum)
   (objects-copied 0 :type fixnum)
   (barrier-transfers 0 :type fixnum)
+  (collections-checked 0 :type fixnum)
   (sanity-errors nil))
 
 ;; ---- optional dependency loading (mirrors bench/gabriel/runner.lisp) -----
@@ -93,11 +94,10 @@ Returns nothing: callers read the pinned specials."
   (sb-alien:define-alien-variable ("bytes_allocated" %gcbench-bytes)
     sb-alien:unsigned-long))
 
-;; The raw 64-bit bytes_allocated counter exceeds SBCL's fixnum range after
-;; gigabytes of process allocation.  Windows only ever compute (now - base)
-;; deltas, so every counter read is reduced modulo 2^32 and each delta uses
-;; wraparound arithmetic over the same modulus: a window's true size is far
-;; below 4 GiB, making the modular result exact.
+;; Keep the hot hook's counter values in a bounded fixnum domain.  Windows only
+;; ever compute (now - base) deltas, so every read is reduced modulo 2^32 and
+;; each delta uses wraparound arithmetic over the same modulus.  A window's
+;; true size is far below 4 GiB, making the modular result exact.
 (defconstant +host-bytes-modulus+ (ash 1 32))
 
 (declaim (inline %wrap-bytes))
@@ -110,8 +110,8 @@ Returns nothing: callers read the pinned specials."
   #-sbcl 0)
 
 (defun %bytes-delta (now base)
-  "Signed NOW-BASE in the wrapped 32-bit domain."
-  (- now base))
+  "NOW-BASE modulo the 32-bit counter domain."
+  (mod (- now base) +host-bytes-modulus+))
 
 (defun %close-alloc-region ()
   ;; Make SBCL's next host allocation hit the raw counter immediately.
@@ -120,6 +120,14 @@ Returns nothing: callers read the pinned specials."
 
 (defun %host-bytes-supported-p ()
   #+sbcl t #-sbcl nil)
+
+(defun %assert-plan-sane (plan cycle-kind)
+  "Signal when a completed benchmark collection leaves invalid state."
+  (let ((errors (clamsara:sanity-check
+                 plan :check-mark (not (clamsara::plan-sticky-p plan)))))
+    (when errors
+      (error "GCBench failed sanity after ~S collection:~%~{  ~A~%~}"
+             cycle-kind errors))))
 
 (defun %fixture-pathname ()
   "The system definition lives at the repo root; the benchmark source is
@@ -155,7 +163,7 @@ strings deserve the identical read semantics."
 (defun run-gcbench
     (&key (depth 9)
           (plan-type :semispace)
-          (heap-size 16384)
+          (heap-size 32768)
           (stack-size 262144)
           (iterations 1)
           (stream *standard-output*)
@@ -184,9 +192,7 @@ an explicit unsupported note."
       (format stream
               "~&GCBENCH ~a depth=~d heap=~d: ~d iter(s), ~,3f s, value=~s~
                ~%  gc-cycles=~d words-copied=~d objects-copied=~d ~
-               barrier-transfers=~d~
-               ~%  sanity-errors=~:[none~;~*~{~a~^; ~}~]~
-               ~%  collector-host-bytes=~d~@[ (byte accounting unsupported here)~]~%"
+               barrier-transfers=~d"
               plan-type depth heap-size
               (gcbench-result-iterations result)
               (/ (gcbench-result-elapsed-ms result) 1000.0)
@@ -194,10 +200,16 @@ an explicit unsupported note."
               (gcbench-result-gc-cycles result)
               (gcbench-result-words-copied result)
               (gcbench-result-objects-copied result)
-              (gcbench-result-barrier-transfers result)
-              (gcbench-result-sanity-errors result)
-              (gcbench-result-sanity-errors result)
-              (gcbench-result-sanity-errors result)
+              (gcbench-result-barrier-transfers result))
+      (if (gcbench-result-sanity-errors result)
+          (format stream "~%  sanity-errors=~{~a~^; ~}"
+                  (gcbench-result-sanity-errors result))
+          (format stream "~%  sanity-errors=none"))
+      (format stream "~%  collections-checked=~d"
+              (gcbench-result-collections-checked result))
+      (format stream
+              "~%  collector-host-bytes=~d~@[ ~
+               (byte accounting unsupported here)~]~%"
               (gcbench-result-collector-host-bytes result)
               (not (%host-bytes-supported-p))))
     result))
@@ -208,14 +220,13 @@ an explicit unsupported note."
   ;; adapter's setup entry point.  This keeps the benchmark system free of a
   ;; compile-time dependency on the optional adapter.
   ;;
-  ;; Protocol: one unmeasured warmup iteration compiles the interpreted
-  ;; workload's code paths and resolves every first-contact dispatch while
+  ;; Protocol: unmeasured warmup iterations compile the interpreted
+  ;; workload's code paths and resolve every first-contact dispatch while
   ;; live Maclina closures are on the stack; the measured iterations then run
   ;; identical work under the accounting hook.  A conforming collector reports
   ;; exactly zero collector host bytes across all measured windows.
   (%ensure-maclina)
-  (let* ((started (get-internal-real-time))
-         (host-bytes (cons 0 0))          ; window base / accumulated total
+  (let* ((host-bytes (cons 0 0))          ; window base / accumulated total
          (window-open nil)
          (maclina-package (find-package :clamsara-maclina))
          (client-special (%external-symbol maclina-package
@@ -225,6 +236,7 @@ an explicit unsupported note."
          (make-collector (find-symbol "MAKE-COLLECTOR" :clamsara))
          (boot-gc (find-symbol "BOOT-GC" :clamsara))
          (stats-fn (find-symbol "PLAN-STATS" :clamsara))
+         (reset-stats-fn (find-symbol "STATS-RESET" :clamsara))
          (snapshot-fn (find-symbol "STATS-SNAPSHOT" :clamsara))
          (sanity-fn (find-symbol "SANITY-CHECK" :clamsara))
          (gc-fn (find-symbol "CLAMSARA-GC" :clamsara))
@@ -232,13 +244,12 @@ an explicit unsupported note."
          (vm-special (find-symbol "*CLAMSARA-VM*" :clamsara))
          (vm (funcall *make-vm-symbol* :heap-size heap-size))
          (plan (funcall make-collector plan-type vm heap-size))
-         (value nil) (stats nil) (errors nil)
+         (value nil) (stats nil) (errors nil) (elapsed-ms 0.0)
+         (collections-checked 0)
          (accounting-hook
-          ;; Only closed windows contribute: a prewarm call fires :exit with
-          ;; WINDOW-OPEN nil and is ignored, so one-time dispatch costs never
-          ;; pollute the sum.
+          ;; Only paired windows contribute.  The hook is installed after
+          ;; warmup, so one-time dispatch costs never pollute the sum.
           (lambda (pl cycle-kind phase)
-            (declare (ignore pl cycle-kind))
             (cond
               ((and (eq phase :enter) (not window-open))
                ;; Close-region is idempotent and allocation-free; the call
@@ -247,23 +258,26 @@ an explicit unsupported note."
                (%close-alloc-region)
                (setf (car host-bytes) (%bytes-allocated)
                      window-open t))
-              ((and (eq phase :exit) window-open)
+              ((and (or (eq phase :exit) (eq phase :abort)) window-open)
                (incf (cdr host-bytes)
-                     ;; A host GC inside the window shrinks the counter; a
-                     ;; negative delta means the true total is unknowable.
-                     (max 0 (%bytes-delta
-                             (%bytes-allocated) (car host-bytes))))
+                     (%bytes-delta (%bytes-allocated) (car host-bytes)))
                ;; Drain the collector's own pending region now so the next
                ;; window's baseline cannot inherit it.
                (%close-alloc-region)
-               (setf window-open nil)))))
+               (setf window-open nil)
+               ;; ABORT means the collector did not produce a coherent
+               ;; post-state.  Preserve its original condition; completed
+               ;; collections get checked after their accounting window.
+               (when (eq phase :exit)
+                 (%assert-plan-sane pl cycle-kind)
+                 (incf collections-checked))))))
+         (bench-source (format nil "(gcbench ~d)" depth))
          (bench-string
           (lambda ()
-            (%maclina-eval-source-string
-             (format nil "(gcbench ~d)" depth))))
+            (%maclina-eval-source-string bench-source)))
          (collect-stats
-          ;; Report whole-run counters so cycles/copied reflect everything
-          ;; since boot-reset, including the warmup pass.
+          ;; Report measured-workload counters only; warmup and final
+          ;; verification collections are outside this snapshot.
           (lambda () (funcall snapshot-fn (funcall stats-fn plan)))))
     (funcall boot-gc plan)
     (progv (list client-special environment-special plan-special vm-special)
@@ -277,18 +291,21 @@ an explicit unsupported note."
         (declare (ignorable warmup))
         (unless (funcall bench-string)
           (error "gcbench warmup returned NIL")))
+      (funcall reset-stats-fn (funcall stats-fn plan))
       ;; Measured iterations under the hook.
       (clamsara:with-plan-collect-hook (plan accounting-hook)
-        (dotimes (i iterations)
-          (let ((v (funcall bench-string)))
-            (unless v (error "gcbench returned NIL"))
-            (setf value (not (null v)))))
-        ;; The checked entry point also re-runs the sanity checker.  Its
-        ;; window is measured like any other collection.
-        (funcall gc-fn :cycle-kind :full)
-          ;; The sanity pass runs after the hook is removed, so its host
-          ;; consing stays outside every measured window.
-        (setf stats (funcall collect-stats))))
+        (let ((started (get-internal-real-time)))
+          (loop repeat iterations do
+            (let ((v (funcall bench-string)))
+              (unless v (error "gcbench returned NIL"))
+              (setf value (not (null v)))))
+          (setf elapsed-ms
+                (* 1000 (/ (- (get-internal-real-time) started)
+                           (float internal-time-units-per-second))))))
+      (setf stats (funcall collect-stats))
+      ;; Verify final reclamation through the public checked entry point, but
+      ;; keep this diagnostic collection outside measured counters/windows.
+      (funcall gc-fn :cycle-kind :full))
     ;; Hook-free invariant pass over the final heap state.  Sticky plans
     ;; keep their mark bits between minors by design, so the checker must
     ;; not demand a clear stratum from them.
@@ -304,17 +321,21 @@ an explicit unsupported note."
      :depth depth :heap-size heap-size :plan plan-type
      :iterations iterations
      :value (and value t)
-     :elapsed-ms (* 1000 (/ (- (get-internal-real-time) started)
-                            (float internal-time-units-per-second)))
+     :elapsed-ms elapsed-ms
      :stats stats
      :collector-host-bytes (cdr host-bytes)
      :gc-cycles (cdr (assoc :gc-cycles stats))
      :words-copied (cdr (assoc :words-copied stats))
      :objects-copied (cdr (assoc :objects-copied stats))
      :barrier-transfers (cdr (assoc :barrier-transfers stats))
+     :collections-checked collections-checked
      :sanity-errors errors)))
 
 (defparameter *gcbench-suite-heap-size* 16384)
+(defparameter *gcbench-suite-plans*
+  '(:semispace :marksweep :immix :gencopy :genms :genimmix
+    :stickyimmix :stickyms :zgcish)
+  "Collector plans exercised by RUN-GCBENCH-SUITE.")
 
 (defun run-gcbench-suite (&key (stream *standard-output*) verbose
                             (depth 8) (iterations 1))
@@ -323,8 +344,7 @@ HEAP-SIZE starts at *GCBENCH-SUITE-HEAP-SIZE* and, when a plan exhausts it,
 the run retries that plan at twice the size: mark/sweep families need a larger
 mature space than copying families at the same live footprint."
   (let ((results nil))
-    (dolist (plan '(:semispace :marksweep :immix :gencopy :genms :genimmix
-                    :stickyimmix :stickyms :zgcish)
+    (dolist (plan *gcbench-suite-plans*
                   (nreverse results))
       (let ((heap-size *gcbench-suite-heap-size*)
             (result nil))
@@ -344,4 +364,56 @@ mature space than copying families at the same live footprint."
                              plan (/ heap-size 2) heap-size))))
         (if result
             (push result results)
-            (format stream "~&~a exhausted every suite heap size~%" plan))))))
+            (error "~A exhausted every GCBench suite heap size" plan))))))
+
+(defun %validate-gcbench-result (result)
+  (unless (gcbench-result-value result)
+    (error "GCBench ~S returned a false result" (gcbench-result-plan result)))
+  (unless (plusp (gcbench-result-gc-cycles result))
+    (error "GCBench ~S measured iteration performed no collection"
+           (gcbench-result-plan result)))
+  (unless (= (gcbench-result-collections-checked result)
+             (gcbench-result-gc-cycles result))
+    (error "GCBench ~S checked ~D of ~D measured collections"
+           (gcbench-result-plan result)
+           (gcbench-result-collections-checked result)
+           (gcbench-result-gc-cycles result)))
+  (when (gcbench-result-sanity-errors result)
+    (error "GCBench ~S reported sanity errors: ~S"
+           (gcbench-result-plan result)
+           (gcbench-result-sanity-errors result)))
+  #+sbcl
+  (unless (zerop (gcbench-result-collector-host-bytes result))
+    (error "GCBench ~S collector consed ~D host bytes"
+           (gcbench-result-plan result)
+           (gcbench-result-collector-host-bytes result)))
+  result)
+
+(defun run-gcbench-tests (&key (stream *standard-output*) (verbose t))
+  "Run GCBench and enforce its accounting, output, and all-plan contracts."
+  ;; Synthetic counter values make the 2^32 boundary deterministic instead of
+  ;; waiting for a long-lived Lisp process to happen to cross it.
+  (unless (and (= 200 (%bytes-delta 300 100))
+               (= 196 (%bytes-delta 100 (- +host-bytes-modulus+ 96))))
+    (error "GCBench wrapped host-byte delta regression"))
+  (let* ((capture (make-string-output-stream))
+         (default-result (run-gcbench :stream capture :verbose t))
+         (rendered (get-output-stream-string capture))
+         (suite-results
+           (run-gcbench-suite :stream stream :verbose nil)))
+    (%validate-gcbench-result default-result)
+    (unless (and (search "sanity-errors=none" rendered)
+                 (search "collections-checked=" rendered)
+                 (search "collector-host-bytes=0" rendered)
+                 (not (search "collector-host-bytes=NIL" rendered)))
+      (error "GCBench rendered invalid diagnostics:~%~A" rendered))
+    (unless (= (length suite-results) (length *gcbench-suite-plans*))
+      (error "GCBench suite produced ~D results, expected ~D"
+             (length suite-results) (length *gcbench-suite-plans*)))
+    (dolist (result suite-results)
+      (%validate-gcbench-result result))
+    (when verbose
+      (write-string rendered stream)
+      (format stream "~&GCBench regression suite: ~D checked plans~%"
+              (length suite-results)))
+    suite-results))

@@ -578,6 +578,7 @@ into the evacuated blocks and must be rewritten too."
                                            :page-resource
                                            (make-instance 'bitmap-page-resource
                                              :total-pages (space-page-count space)
+                                             :first-page 0
                                              :heap (vm-heap vm))
                                            :base-page (space-start-page space)
                                            :vm vm :space space))

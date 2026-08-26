@@ -162,6 +162,13 @@ are rejected instead of smuggling host pointers into the simulated heap."
     (clamsara:vm-add-root vm value)
     (1- (length (clamsara::vm-root-vector vm)))))
 
+(defun %pin-root (vm value)
+  "Push VALUE into the VM root vector and return its slot index.
+VM-ADD-ROOT returns the pushed address, not an index; callers keeping the
+index for a post-GC re-read must compute it from the fill pointer here."
+  (clamsara:vm-add-root vm value)
+  (1- (length (clamsara::vm-root-vector vm))))
+
 (defun %allocate-cons (client car cdr)
   ;; CAR and CDR are host-call arguments while PLAN-ALLOCATE may trigger a GC.
   ;; Pin them in the VM root vector, then read back their possibly forwarded
@@ -352,76 +359,64 @@ The eight arguments cover the supported simple DEFSTRUCT subset; unlike an
   (let* ((plan (maclina-client-plan client))
          (vm (clamsara:plan-vm plan))
          (root-base (length (clamsara::vm-root-vector vm)))
-         (root-index root-base))
-    (labels ((pin (value)
-             (when (%maclina-reference-p vm value)
-               (clamsara:vm-add-root vm value)
-               (incf root-index)))
-           (current (value)
-             (if (%maclina-reference-p vm value)
-                 (prog1
-                     (%make-maclina-reference
-                      vm (aref (clamsara::vm-root-vector vm) root-index))
-                   (incf root-index))
-                 value))
-           (store (address slot value)
-             (clamsara:vm-set-reference
-              vm address slot (%encode-heap-value vm (current value)))))
-      (when (> slot-count 0) (pin v0))
-      (when (> slot-count 1) (pin v1))
-      (when (> slot-count 2) (pin v2))
-      (when (> slot-count 3) (pin v3))
-      (when (> slot-count 4) (pin v4))
-      (when (> slot-count 5) (pin v5))
-      (when (> slot-count 6) (pin v6))
-      (when (> slot-count 7) (pin v7))
-      (unwind-protect
-           (let ((address
-                   (clamsara::allocate-object
-                    plan slot-count :type-tag clamsara:+tag-struct+)))
-             (setf root-index root-base)
-             (when (> slot-count 0) (store address 0 v0))
-             (when (> slot-count 1) (store address 1 v1))
-             (when (> slot-count 2) (store address 2 v2))
-             (when (> slot-count 3) (store address 3 v3))
-             (when (> slot-count 4) (store address 4 v4))
-             (when (> slot-count 5) (store address 5 v5))
-             (when (> slot-count 6) (store address 6 v6))
-             (when (> slot-count 7) (store address 7 v7))
-             (%make-maclina-reference vm address))
-        (setf (fill-pointer (clamsara::vm-root-vector vm)) root-base)))))
-
-(defun %allocate-struct (client slot-count values)
-  "Allocate a +TAG-STRUCT+ object and initialize VALUES without constructing
-an auxiliary index list.  VALUES is the caller's argument sequence; all tagged
-inputs are pinned in the preallocated VM root vector before allocation."
-  (let* ((plan (maclina-client-plan client))
-         (vm (clamsara:plan-vm plan))
-         (root-base (length (clamsara::vm-root-vector vm)))
-         (root-index root-base))
-    ;; Pin values in place.  This loop deliberately avoids MAPCAR/PUSH and
-    ;; therefore does not cons on the host collector path.
-    (dolist (value values)
-      (when (%maclina-reference-p vm value)
-        (clamsara:vm-add-root vm value)
-        (incf root-index)))
+         (pinned (make-array 8 :initial-element nil))
+         (values (vector v0 v1 v2 v3 v4 v5 v6 v7)))
+    ;; Pin every reference argument BEFORE any allocation-triggered
+    ;; collection.  The pin decision is captured here: after a GC the original
+    ;; value is a stale from-space address, so the store phase must not
+    ;; re-test its liveness.  The root slot it was pinned into is the healed
+    ;; authority.
+    (dotimes (i slot-count)
+      (let ((v (aref values i)))
+        (when (%maclina-reference-p vm v)
+          (setf (aref pinned i) (%pin-root vm v)))))
     (unwind-protect
          (let ((address
                  (clamsara::allocate-object
                   plan slot-count :type-tag clamsara:+tag-struct+)))
-           (setf root-index root-base)
+           (dotimes (slot slot-count)
+             (let ((root-index (aref pinned slot)))
+               (clamsara:vm-set-reference
+                vm address slot
+                (%encode-heap-value
+                 vm (if root-index
+                        (%make-maclina-reference
+                         vm (aref (clamsara::vm-root-vector vm) root-index))
+                        (aref values slot))))))
+           (%make-maclina-reference vm address))
+      (setf (fill-pointer (clamsara::vm-root-vector vm)) root-base))))
+
+(defun %allocate-struct (client slot-count values)
+  "Allocate a +TAG-STRUCT+ object and initialize VALUES without constructing
+  an auxiliary index list.  VALUES is the caller's argument sequence; all tagged
+  inputs are pinned in the preallocated VM root vector before allocation."
+  (let* ((plan (maclina-client-plan client))
+         (vm (clamsara:plan-vm plan))
+         (root-base (length (clamsara::vm-root-vector vm)))
+         (pinned (make-list (length values) :initial-element nil)))
+    ;; Capture the pin decision before GC can move the arguments: a pin's
+    ;; index (not a later liveness re-test of the stale original) is what the
+    ;; store phase must consult.
+    (loop for value in values
+          for cell on pinned
+          when (%maclina-reference-p vm value)
+            do (setf (car cell) (%pin-root vm value)))
+    (unwind-protect
+         (let ((address
+                 (clamsara::allocate-object
+                  plan slot-count :type-tag clamsara:+tag-struct+)))
            (loop for value in values
+                 for cell on pinned
                  for slot from 0
-                 do (let ((current
-                            (if (%maclina-reference-p vm value)
-                                (prog1
-                                    (%make-maclina-reference
-                                     vm (aref (clamsara::vm-root-vector vm)
-                                              root-index))
-                                  (incf root-index))
-                                value)))
+                 do (let ((root-index (car cell)))
                       (clamsara:vm-set-reference
-                       vm address slot (%encode-heap-value vm current))))
+                       vm address slot
+                       (%encode-heap-value
+                        vm (if root-index
+                               (%make-maclina-reference
+                                vm (aref (clamsara::vm-root-vector vm)
+                                         root-index))
+                               value)))))
            (%make-maclina-reference vm address))
       (setf (fill-pointer (clamsara::vm-root-vector vm)) root-base))))
 

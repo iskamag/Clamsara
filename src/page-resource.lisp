@@ -11,7 +11,13 @@
    (heap        :initarg :heap :reader pr-heap)))
 
 (defclass bitmap-page-resource (page-resource)
-  ((bitmap :reader pr-bitmap)))
+  ;; FIRST-PAGE excludes the front of a resource from allocation.  The VM-wide
+  ;; default resource reserves page 0 for the null sentinel; a per-space
+  ;; resource (the large-object space) must not, because its page 0 is an
+  ;; ordinary payload page and an exact-fit request at the end of the space
+  ;; would otherwise be unreachable.
+  ((bitmap :reader pr-bitmap)
+   (first-page :initarg :first-page :reader pr-first-page :initform 1)))
 (defclass monotone-page-resource (page-resource)
   ((cursor :accessor pr-cursor :initform 1))) ; reserve page 0 (null)
 (defclass free-list-page-resource (page-resource)
@@ -39,8 +45,9 @@
                                                 (<= (car run) p (1- (+ (car run) (cdr run))))))))))
 
 (defmethod page-resource-get ((pr bitmap-page-resource) n-pages &key &allow-other-keys)
-  (let ((bm (pr-bitmap pr)) (total (pr-total-pages pr)))
-    (loop for start from 1 to (- total n-pages)
+  (let ((bm (pr-bitmap pr)) (total (pr-total-pages pr))
+        (first (pr-first-page pr)))
+    (loop for start from first to (- total n-pages)
           when (loop for k below n-pages always (zerop (sbit bm (+ start k))))
           do (loop for k below n-pages do (setf (sbit bm (+ start k)) 1))
              (return start))))

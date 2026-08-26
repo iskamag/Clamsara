@@ -114,6 +114,11 @@ has one source of truth.")
                      :initform (make-array 1 :adjustable t :fill-pointer 0))
    (booted-p :accessor plan-booted-p :initform nil)
    (sticky-p :initarg :sticky :initform nil :reader plan-sticky-p)
+   ;; Optional instrumentation seam: invoked (hook plan cycle-kind phase) on
+   ;; plan-collect entry with PHASE = :enter and on exit with PHASE = :exit.
+   ;; Benchmarks use it to attribute host bytes consed to collection windows
+   ;; without any overhead on non-instrumented plans.
+   (collect-hook :initarg :collect-hook :accessor plan-collect-hook :initform nil)
    ;; finalization trait (weak.tex §2): known/pending finalizer vectors, plus
    ;; a collector-private freeze list (phase-weak snapshot -> epilogue move)
    (known :accessor plan-known-finalizers :initform nil)
@@ -243,11 +248,15 @@ interpreted and compiled collectors cannot diverge."
   (when (eq (slot-value plan 'name) :nogc)
     (error 'heap-exhausted :requested-size 0 :space :nogc))
   (let* ((kind (or cycle-kind (plan-default-cycle-kind plan)))
-         (function
-           (gethash 'plan-collect (slot-value plan 'function-table))))
-    (if function
-        (funcall function plan kind)
-        (plan-collect-phase plan kind))))
+         (hook (plan-collect-hook plan)))
+    (when hook (funcall hook plan kind :enter))
+    (let ((function
+            (gethash 'plan-collect (slot-value plan 'function-table))))
+      (unwind-protect
+           (if function
+               (funcall function plan kind)
+               (plan-collect-phase plan kind))
+        (when hook (funcall hook plan kind :exit))))))
 
 ;; ---- space accessors ----------------------------------------------------
 

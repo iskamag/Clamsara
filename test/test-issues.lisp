@@ -541,6 +541,40 @@
           (values nil "harness called a failure a pass")
           (values t "ok")))))
 
+(deftest collect-hook-distinguishes-exit-from-abort ()
+  (let* ((vm (make-simulator-vm 4096))
+         (plan (make-collector :semispace vm 4096))
+         (events nil))
+    (boot-gc plan)
+    (with-plan-collect-hook
+        (plan (lambda (pl cycle-kind phase)
+                (declare (ignore pl cycle-kind))
+                (push phase events)))
+      (plan-collect plan :cycle-kind :full))
+    (unless (equal (nreverse events) '(:enter :exit))
+      (return-from collect-hook-distinguishes-exit-from-abort
+        (values nil (format nil "successful hook phases were ~S" events))))
+    (let* ((table (plan-function-table plan))
+           (original (gethash 'plan-collect table)))
+      (unwind-protect
+           (progn
+             (setf events nil
+                   (gethash 'plan-collect table)
+                   (lambda (pl cycle-kind)
+                     (declare (ignore pl cycle-kind))
+                     (error "forced collector failure")))
+             (handler-case
+                 (with-plan-collect-hook
+                     (plan (lambda (pl cycle-kind phase)
+                             (declare (ignore pl cycle-kind))
+                             (push phase events)))
+                   (plan-collect plan :cycle-kind :full))
+               (error () nil))
+             (if (equal (nreverse events) '(:enter :abort))
+                 (values t "ok")
+                 (values nil (format nil "aborted hook phases were ~S" events))))
+        (setf (gethash 'plan-collect table) original)))))
+
 ;; ---- GAP-002: fresh allocation slots are zeroed --------------------------
 
 (deftest fresh-allocation-zeroes-slots ()

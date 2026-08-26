@@ -119,9 +119,10 @@ has one source of truth.")
    (booted-p :accessor plan-booted-p :initform nil)
    (sticky-p :initarg :sticky :initform nil :reader plan-sticky-p)
    ;; Optional instrumentation seam: invoked (hook plan cycle-kind phase) on
-   ;; plan-collect entry with PHASE = :enter and on exit with PHASE = :exit.
+   ;; plan-collect entry with PHASE = :enter, then with PHASE = :exit after a
+   ;; completed collection or :abort when collection unwinds through an error.
    ;; Benchmarks use it to attribute host bytes consed to collection windows
-   ;; without any overhead on non-instrumented plans.
+   ;; and to run post-collection checks without masking failed collections.
    (collect-hook :initarg :collect-hook :accessor plan-collect-hook :initform nil)
    ;; finalization trait (weak.tex §2): known/pending finalizer vectors, plus
    ;; a collector-private freeze list (phase-weak snapshot -> epilogue move)
@@ -255,17 +256,22 @@ interpreted and compiled collectors cannot diverge."
          (hook (plan-collect-hook plan)))
     (when hook (funcall hook plan kind :enter))
     (let ((function
-            (gethash 'plan-collect (slot-value plan 'function-table))))
+            (gethash 'plan-collect (slot-value plan 'function-table)))
+          (completed-p nil))
       (unwind-protect
-           (if function
-               (funcall function plan kind)
-               (plan-collect-phase plan kind))
-        (when hook (funcall hook plan kind :exit))))))
+           (prog1
+               (if function
+                   (funcall function plan kind)
+                   (plan-collect-phase plan kind))
+             (setf completed-p t))
+        (when hook
+          (funcall hook plan kind (if completed-p :exit :abort)))))))
 
 (defmacro with-plan-collect-hook ((plan hook-form) &body body)
   "Bind PLAN's collection instrumentation seam to HOOK-FORM for BODY.
 HOOK-FORM evaluates to nil or a function of (PLAN CYCLE-KIND PHASE), with
-PHASE = :enter before and :exit after every collection.  The previous hook is
+PHASE = :enter before collection, :exit after successful completion, and
+:abort when collection unwinds through an error.  The previous hook is
 restored on exit.  This is the measurement entry benchmarks use; it is not on
 any collector path."
   `(let ((.old-hook. (plan-collect-hook ,plan)))

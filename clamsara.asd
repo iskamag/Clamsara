@@ -73,7 +73,17 @@
                  (:file "test-sanity")
                  (:file "test-persistence")
                  (:file "test-issues")
-                 (:file "test-workloads")))))
+                 (:file "test-workloads"))))
+  :perform (asdf:test-op (operation component)
+             (declare (ignore operation component))
+             (let ((summary
+                     (uiop:symbol-call :clamsara :run-test-suite
+                                       :verbose nil)))
+               (unless (zerop (cdr summary))
+                 (error "Clamsara core suite failed ~D test~:P"
+                        (cdr summary)))
+               (format t "~&Clamsara core suite: ~D passed~%"
+                       (car summary)))))
 
 ;;; Optional Maclina workload driver. EXTRINSICL must be loaded before its
 ;;; maclina adapter (the upstream subsystem omits that dependency), hence the
@@ -106,10 +116,10 @@
              (uiop:symbol-call :clamsara-maclina :run-maclina-tests)))
 
 
-;;; Optional, deliberately small Gabriel-style Maclina benchmark subset.  This
-;;; system depends only on the core system: invoking its test operation loads
-;;; :clamsara/maclina dynamically so a missing optional installation gets a
-;;; clear benchmark-specific error rather than becoming a core dependency.
+;;; Optional, deliberately small Gabriel-style Maclina benchmark subset.  A
+;;; normal load depends only on the core system; TEST-OP declares the optional
+;;; Maclina load explicitly so ASDF can schedule it without a recursive
+;;; operation warning.
 (asdf:defsystem :clamsara/bench/gabriel
   :version "8.0.0"
   :description "Small optional Gabriel-style workloads over Maclina."
@@ -121,10 +131,12 @@
     :components ((:file "package")
                  (:file "forms")
                  (:file "runner"))))
+  :in-order-to ((asdf:test-op
+                 (asdf:load-op "clamsara/maclina")))
   :perform (asdf:test-op (operation component)
              (declare (ignore operation component))
              (uiop:symbol-call :clamsara-gabriel-bench
-                               :run-gabriel-bench)))
+                               :run-gabriel-tests)))
 
 ;;; The upstream Boehm GCBench source translated to Common Lisp, driven
 ;;; through Maclina in the simulated heap.  This is a benchmark, not a test:
@@ -139,7 +151,9 @@
     :serial t
     :components ((:file "package")
                  (:file "runner"))))
+  :in-order-to ((asdf:test-op
+                 (asdf:load-op "clamsara/maclina")))
   :perform (asdf:test-op (operation component)
              (declare (ignore operation component))
              (uiop:symbol-call :clamsara-bench-gcbench
-                               :run-gcbench)))
+                               :run-gcbench-tests)))

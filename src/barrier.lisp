@@ -190,17 +190,15 @@ vm-object-old-p misses LOS objects, whose age stratum stays 0."
                  (let* ((plan (barrier-plan barrier))
                         (spaces (and plan (plan-spaces plan))))
                    (dolist (space spaces)
-                     (when (and (typep space 'superblock-space)
-                                (vm-reference-p vm new))
-                       (let ((saddr (ref-strip-or-self vm src))
-                             (naddr (ref-strip-or-self vm new)))
-                         ;; Hierarchy metadata belongs only to mature-space
-                         ;; edges.  A mature source may point into the nursery
-                         ;; or LOS; those references must not be interpreted
-                         ;; as mature block indices.
-                         (when (and (space-contains-p space saddr)
-                                    (space-contains-p space naddr))
-                           (superblock-note-write space vm saddr naddr)))))))
+                     (when (typep space 'superblock-space)
+                       (let ((saddr (ref-strip-or-self vm src)))
+                         ;; Fine is source state and must be cleared even
+                         ;; when the new value is a nursery/LOS reference.
+                         (when (space-contains-p space saddr)
+                           (if (vm-reference-p vm new)
+                               (superblock-note-write
+                                space vm saddr (ref-strip-or-self vm new))
+                               (sb-clear-fine-for-address space saddr))))))))
                new)))
 
 (defun publication-barrier-rule (&optional (name :publication))
@@ -212,7 +210,8 @@ vm-object-old-p misses LOS objects, whose age stratum stays 0."
                  (if (and (vm-reference-p vm new)
                           (vm-object-is-public-p vm src)
                           (not (vm-object-is-public-p vm new)))
-                     (let ((published (publish (plan-publication plan) vm new)))
+                     (let ((published (publication-publish
+                                       (plan-publication plan) vm new)))
                        ;; The mutator stores the returned value, so the slot
                        ;; ends up pointing at the public copy; the original is
                        ;; poisoned and pre-existing references to it are healed

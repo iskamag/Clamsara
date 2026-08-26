@@ -9,7 +9,14 @@
   ((base :initarg :base :reader pa-base)
    (log :initarg :log :accessor allocator-log)
    (vm :initarg :vm :accessor pa-vm)
-   (space :initarg :space :accessor pa-space)))
+   (space :initarg :space :accessor pa-space))
+  (:metaclass allocator-metaclass))
+
+(defmethod component-validate ((a persistent-allocator))
+  (unless (and (pa-base a) (allocator-log a))
+    (error 'plan-incompatible :plan a
+           :message "persistent allocator needs a base allocator and log"))
+  a)
 
 (defmethod alloc ((a persistent-allocator) size &key &allow-other-keys)
   (let ((addr (alloc (pa-base a) size)))
@@ -62,7 +69,10 @@
   (let ((image (make-array (vm-heap-size vm)
                            :element-type '(unsigned-byte 64)
                            :initial-element 0)))
-    (replace image (vm-heap vm))
+    ;; Capture logical virtual words, not the simulator's physical backing
+    ;; array.  A copy-free Claimore map may have swapped page-table entries.
+    (dotimes (address (vm-heap-size vm))
+      (setf (aref image address) (ref-u64 vm address)))
     image))
 
 (defun %base-image-checksum (image timestamp)

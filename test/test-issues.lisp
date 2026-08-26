@@ -353,14 +353,14 @@
               (values nil "small object co-located in a dead span block")))))))
 
 (deftest claimore-checkpoint-captures-persistence-log ()
-  ;; Cla(i)more's checkpoint phase must execute the real persistence fence,
+  ;; Claimore's checkpoint phase must execute the real persistence fence,
   ;; not merely increment a statistics counter.
   (with-clamsara (:plan-type :claimore :heap-size 4096)
     (plan-collect *clamsara-plan* :cycle-kind :checkpoint)
     (let ((log (vm-persistence-log *clamsara-vm*)))
       (if (and log (plusp (length (plog-segments log))))
           (values t "ok")
-          (values nil "Cla(i)more checkpoint did not append a segment")))))
+          (values nil "Claimore checkpoint did not append a segment")))))
 
 (deftest checkpoint-cycle-kind-admitted ()
   ;; persistence.tex §4: a checkpoint is an extra plan phase; the compiled
@@ -732,6 +732,16 @@
   (declare (ignore k)) (push :reclaim %probe-order))
 (defmethod gc-phase :release ((p %probe-plan-2) k)
   (declare (ignore k)) (push :release %probe-order))
+(defmethod gc-phase :around ((p %probe-plan-2) k)
+  (declare (ignore k))
+  (push :around-2 %probe-order)
+  (call-next-method)
+  (push :around-2-done %probe-order))
+(defmethod plan-collect-phase :around ((p %probe-plan-2) k)
+  (declare (ignore k))
+  (push :plan-around-2 %probe-order)
+  (call-next-method)
+  (push :plan-around-2-done %probe-order))
 
 (defclass %error-phase-plan (plan) ()
   (:metaclass plan-metaclass))
@@ -865,8 +875,8 @@
             (values nil (format nil "phase order wrong: ~a" %probe-order)))))))
 
 (deftest compiled-collector-matches-combination ()
-  ;; compilation.tex §3: the boot-emitted plan-collect resolves the same
-  ;; most-specific gc-phase methods the combination dispatches to.
+  ;; compilation.tex section 3: the boot-emitted plan-collect resolves the
+  ;; same most-specific phase methods and :around chain as CLOS dispatch.
   (let ((vm (make-simulator-vm 32768)))
     (let ((p (make-instance '%probe-plan-2
                             :name :probe2 :vm vm

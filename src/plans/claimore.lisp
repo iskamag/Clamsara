@@ -6,10 +6,9 @@
 ;;;; mark-region nursery with publication, a mature space reclaimed by reference
 ;;;; counting at superblock granularity (paper-v8 heap.tex §7.6: per-superblock
 ;;;; counts, superblock 0 = root, never freed) with a backup trace for cycles,
-;;;; and a checkpoint phase (persistence stub).  The metablock-search and
-;;;; block-compaction levels of the hierarchy are not yet wired into the
-;;;; reclaim path; the closure-over-matrices machinery (strata.lisp) is
-;;;; available for them.
+;;;; and a checkpoint phase.  The simulator uses scaled hierarchy geometry,
+;;;; but keeps the paper's ownership, Fine/Mature, relation, RC, map, move,
+;;;; and OVC protocols explicit.
 
 (in-package #:clamsara)
 
@@ -31,7 +30,12 @@
   (vm-register-stratum vm :public
     (make-stratum :public (vm-min-alignment-words vm) :bit (vm-heap-size vm)))
   (vm-register-stratum vm :card
-    (make-stratum :card (g-card) :bit (vm-heap-size vm))))
+    (make-stratum :card (g-card) :bit (vm-heap-size vm)))
+  ;; Temporary OVC destination identity; allocated at boot and never grown
+  ;; while the nursery is being compacted.
+  (vm-register-stratum vm :claimore-ovc-destination
+    (make-stratum :claimore-ovc-destination
+                  (vm-min-alignment-words vm) :bit (vm-heap-size vm))))
 
 (defmethod plan-allocate ((p claimore-plan) size space-designator)
   (let ((explicit (plan-explicit-space p space-designator)))
@@ -59,7 +63,15 @@
       (plan-retry-after p size space :major)))
 
 (defmethod gc-phase :prologue ((p claimore-plan) k)
-  (vm-stop-mutators (plan-vm p))
+  (let ((vm (plan-vm p)))
+    (vm-stop-mutators vm)
+    ;; The owner seal is the publication fence, not merely the simulator's
+    ;; stop flag.  A target backend may have foreign publishers that do not
+    ;; stop with this mutator set.
+    (when (plan-publication p)
+      (unless (publication-seal (plan-publication p) vm)
+        (error 'gc-phase-error :phase :prologue
+               :message "publication epoch has an active publisher"))))
   (if (eq k :minor)
       (space-prepare (cl-nursery p) (plan-vm p))
       (prepare-spaces p k)))
@@ -72,25 +84,44 @@
     (if (eq k :minor)
         (space-reclaim (cl-nursery p) vm :cycle-kind k)
         (progn
-          ;; apply the coalesced RC log (increments/decrements) to the table
-          (claimore-apply-rc-log p)
+          ;; Reconcile the sealed edge set before any zero-count release;
+          ;; precise tracing remains the authority for object liveness.
+          (claimore-reconcile-rc p)
           ;; backup trace reclaims cycles: mark from roots, sweep unmarked
           (reclaim-spaces p k)))))
 
 (defmethod gc-phase :checkpoint ((p claimore-plan) k)
   (declare (ignore k))
-  ;; Cla(i)more participates in the same persistence fence as other plans:
+  ;; Claimore participates in the same persistence fence as other plans:
   ;; capture dirty pages, arm COW/materialize T0 snapshots, append the segment,
   ;; and clear the dirty signal before publishing the checkpoint event.
-  (let ((segment (checkpoint-heap p :timestamp (get-universal-time))))
-    (gc-event-checkpoint p (plan-vm p)
-                         (persistence-segment-pages segment))))
+  (let ((vm (plan-vm p)))
+    (when (plan-publication p)
+      (unless (publication-seal (plan-publication p) vm)
+        (error 'gc-phase-error :phase :checkpoint
+               :message "publication epoch has an active publisher")))
+    (let ((segment (checkpoint-heap p :timestamp (get-universal-time))))
+      (superblock-seal-fine (cl-mature p))
+      (gc-event-checkpoint p (plan-vm p)
+                           (persistence-segment-pages segment)))
+    (when (plan-publication p)
+      (publication-open (plan-publication p) vm))))
 
 (defmethod gc-phase :release ((p claimore-plan) k)
   (let ((vm (plan-vm p)))
-    (let ((mark (vm-stratum vm :mark))) (when (and mark (eq k :major)) (s-clear mark)))
-    (let ((card (vm-stratum vm :card))) (when card (s-clear card))))
-  (when (plan-stats p) (stats-event (plan-stats p) :gc-cycles 1)))
+    (let ((mark (vm-stratum vm :mark)))
+      (when (and mark (member k '(:major :full))) (s-clear mark)))
+    (let ((card (vm-stratum vm :card))) (when card (s-clear card)))
+    (superblock-seal-fine (cl-mature p))
+    (when (plan-publication p)
+      ;; Published-root entries are append-only for the sealed epoch.  Compact
+      ;; them before reopening it, otherwise a long-lived read-guarded plan
+      ;; eventually exhausts its immortal owner buffer on stale entries.
+      (let ((pr (strategy-published-roots (plan-publication p))))
+        (when pr
+          (compact-published-roots pr vm (cl-nursery p))))
+      (publication-open (plan-publication p) vm))
+    (when (plan-stats p) (stats-event (plan-stats p) :gc-cycles 1))))
 
 (defun claimore-minor-root-reference (plan ref)
   (trace-root-in plan ref (cl-nursery plan) :trace-kind :minor))
@@ -99,6 +130,49 @@
   (trace-object-children plan ref
                          :target-space (cl-nursery plan)
                          :trace-kind :minor))
+
+(defun claimore-minor-scan-remembered-object (plan address)
+  "Trace nursery children of one dirty mature/LOS source.
+
+Claimore's nursery is owner-local, so a minor cannot rediscover incoming
+edges by scanning only nursery roots.  The fused metadata barrier dirties the
+source card; this pass consumes those cards at the stop boundary and routes
+only young referents into the nursery tracer."
+  (let* ((vm (plan-vm plan))
+         (nursery (cl-nursery plan))
+         (slots (vm-reference-slots vm address))
+         (weak-p (weak-pointer-p vm address)))
+    (labels ((visit (slot)
+               (when (or (not weak-p) (not (zerop slot)))
+                 (let ((ref (vm-object-reference vm address slot)))
+                   (when (and (vm-reference-p vm ref)
+                              (space-contains-p
+                               nursery (ref-strip-or-self vm ref)))
+                     (trace-root-in plan ref nursery :trace-kind :minor))))))
+      (if slots
+          (loop for slot across slots do (visit slot))
+          (dotimes (slot (vm-object-reference-count vm address))
+            (visit slot)))))
+  address)
+
+(defun claimore-minor-scan-remembered (plan)
+  "Consume dirty cards from every non-nursery space.
+
+The card is a conservative source filter; precise slot/layout scanning below
+keeps raw payload words and weak referents out of the nursery trace."
+  (let* ((vm (plan-vm plan))
+         (nursery (cl-nursery plan))
+         (card (vm-stratum vm :card))
+         (os (vm-object-start vm)))
+    (when (and card os)
+      (dolist (space (plan-spaces plan))
+        (unless (eq space nursery)
+          (loop for address from (space-base-address space)
+                below (space-end-address space)
+                when (and (s-test-bit os address)
+                          (s-test-bit card address))
+                  do (claimore-minor-scan-remembered-object plan address)))))
+    plan))
 
 (defun claimore-minor-mark (plan)
   "Private nursery collection: trace the request's roots + published objects
@@ -115,6 +189,7 @@
                         (s-test-bit os address))
                 do (space-trace-object nursery vm address tr))))
     (claimore-drain-published-roots plan)
+    (claimore-minor-scan-remembered plan)
     (tracer-drain tr #'claimore-minor-grey-reference plan)
     (claimore-drain-published-roots plan)))
 
@@ -155,6 +230,65 @@
                              (max 0 (+ cur delta)))))))))
     (setf (fill-pointer buf) 0)))
 
+(defun claimore-reconcile-rc-edge (mature vm source-sb reference counts)
+  (when (and (vm-reference-p vm reference)
+             (space-contains-p mature (ref-strip-or-self vm reference)))
+    (let ((target-sb (sb-index mature (ref-strip-or-self vm reference))))
+      (when (or (< source-sb 0) (/= source-sb target-sb))
+        (incf (aref counts target-sb)))))
+  counts)
+
+(defun claimore-reconcile-rc (plan)
+  "Recompute exact incoming cross-superblock pointer-slot counts.
+The mutator log is a fast-path signal, but release is permitted only after
+this precise reconciliation at the collection stop boundary."
+  (let* ((vm (plan-vm plan))
+         (mature (cl-mature plan))
+         (counts (sb-refcounts mature))
+         (os (vm-object-start vm)))
+    (fill counts 0)
+    (dolist (space (plan-spaces plan))
+      (loop for address from (space-base-address space)
+            below (space-end-address space)
+            when (s-test-bit os address)
+              do (let* ((slots (vm-reference-slots vm address))
+                        (count (vm-object-reference-count vm address))
+                        (weak-p (weak-pointer-p vm address))
+                        (source-sb (if (space-contains-p mature address)
+                                       (sb-index mature address)
+                                       -1)))
+                   (if slots
+                       (loop for slot across slots
+                             when (or (not weak-p) (not (zerop slot)))
+                               do (claimore-reconcile-rc-edge
+                                   mature vm source-sb
+                                   (vm-object-reference vm address slot)
+                                   counts))
+                       (dotimes (slot count)
+                         (when (or (not weak-p) (not (zerop slot)))
+                           (claimore-reconcile-rc-edge
+                            mature vm source-sb
+                            (vm-object-reference vm address slot)
+                            counts)))))))
+    (setf (fill-pointer (barrier-rc-buffer (plan-barrier plan))) 0))
+  plan)
+
+(defun claimore-metadata-barrier-rule (&optional (name :claimore-metadata))
+  "Fuse owner-local nursery relation tracking and page dirtiness into stores.
+The publication rule runs first, so NEW is the final value that becomes
+visible; the precise OVC later rebuilds rows and occupancy from the heap."
+  (make-barrier-rule
+   :name name :trigger :ref-write
+   :transfer (lambda (vm barrier src slot new)
+               (let* ((plan (barrier-plan barrier))
+                      (nursery (and plan (plan-nursery plan)))
+                      (old (vm-object-reference vm src slot)))
+                 (when nursery
+                   (claimore-nursery-note-write nursery vm src old new))
+                 (let ((card (vm-stratum vm :card)))
+                   (when card (s-set-bit card src))))
+               new)))
+
 (defun make-claimore-plan (vm heap-size)
   (declare (ignore heap-size))
   ;; Mature space region geometry: simulator-scale hierarchy (paper-v8
@@ -162,10 +296,10 @@
   ;; are shrunk so a small heap still contains several of each.  Superblock 0
   ;; holds the persistent root set and is never freed.
   (destructuring-bind (nu ma) (partition-pages (vm-page-count vm) '(1/3 2/3))
-    (let* ((nursery (make-instance 'private-immix-space :vm vm
+    (let* ((nursery (make-instance 'claimore-nursery-space :vm vm
                                     :start-page (car nu) :page-count (cdr nu)
                                     :name :nursery :default-space t
-                                    :moving :opportunistic
+                                    :moving :sliding-ovc
                                     :constraints (make-instance 'space-constraints
                                                                  :scope :thread)))
            (mature (make-instance 'superblock-space :vm vm
@@ -183,13 +317,17 @@
                        :transfer (publication-read-rule publication)))
            (barrier (make-instance 'barrier
                       :rules (list (publication-barrier-rule)
+                                   (claimore-metadata-barrier-rule)
                                    (rc-barrier-rule)
                                    lvb-rule
                                    read-rule)))
            (p (make-instance 'claimore-plan :name :claimore :vm vm
                             :spaces (list nursery mature) :barrier barrier
                             :constraints (make-instance 'plan-constraints
-                                          :scope :thread :write-barrier '(:publication :rc)
+                                          :scope :thread
+                                          :write-barrier '(:publication
+                                                           :claimore-metadata
+                                                           :rc)
                                           :read-barrier '(:lvb :trap)
                                           :forwarding :off-heap
                                           :concurrency :concurrent-relocate

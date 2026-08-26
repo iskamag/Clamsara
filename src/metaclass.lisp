@@ -1,4 +1,4 @@
-;;;; metaclass.lisp -- the component metaclasses (paper-v8 ch. heap/plans).
+;;;; metaclass.lisp -- the component metaclasses (paper-v9 ch. philosophy).
 ;;;;
 ;;;; Marker metaclasses that let a component validate its axis coordinates.
 ;;;; Validation runs at instance creation (shared-initialize :after) and again
@@ -7,14 +7,29 @@
 
 (in-package #:clamsara)
 
-(defclass space-metaclass (standard-class) ())
-(defclass plan-metaclass (standard-class) ())
-(defclass barrier-metaclass (standard-class) ())
+(defclass clamsara-metaclass (standard-class) ())
+(defclass space-metaclass (clamsara-metaclass) ())
+(defclass plan-metaclass (clamsara-metaclass) ())
+(defclass allocator-metaclass (clamsara-metaclass) ())
+(defclass barrier-metaclass (clamsara-metaclass) ())
+(defclass vm-metaclass (clamsara-metaclass) ())
 
-;; SBCL needs to accept standard-class as a superclass of these.
-(defmethod sb-mop:validate-superclass ((class space-metaclass) (super standard-class)) t)
-(defmethod sb-mop:validate-superclass ((class plan-metaclass) (super standard-class)) t)
-(defmethod sb-mop:validate-superclass ((class barrier-metaclass) (super standard-class)) t)
+;; SBCL needs to accept standard-class and sibling Clamsara metaclasses as
+;; superclasses of these component classes.
+(defmethod sb-mop:validate-superclass
+    ((class clamsara-metaclass) (super standard-class)) t)
+(defmethod sb-mop:validate-superclass
+    ((class clamsara-metaclass) (super clamsara-metaclass)) t)
+(defmethod sb-mop:validate-superclass
+    ((class space-metaclass) (super standard-class)) t)
+(defmethod sb-mop:validate-superclass
+    ((class plan-metaclass) (super standard-class)) t)
+(defmethod sb-mop:validate-superclass
+    ((class allocator-metaclass) (super standard-class)) t)
+(defmethod sb-mop:validate-superclass
+    ((class barrier-metaclass) (super standard-class)) t)
+(defmethod sb-mop:validate-superclass
+    ((class vm-metaclass) (super standard-class)) t)
 
 (defgeneric component-validate (instance)
   (:documentation "Validate a component's axis coordinates; signal on failure.")

@@ -72,7 +72,14 @@
    (coordination-state :initarg :coordination-state
                        :accessor vm-coordination-state
                        :initform (%make-coordination-state))
-   (plan        :initarg :plan :accessor vm-plan :initform nil)))
+   (plan        :initarg :plan :accessor vm-plan :initform nil))
+  (:metaclass vm-metaclass))
+
+(defmethod component-validate ((vm vm-binding))
+  (unless (and (arrayp (vm-heap vm))
+               (= (length (vm-heap vm)) (vm-heap-size vm)))
+    (error 'clamsara-error :message "VM heap storage does not match heap-size"))
+  vm)
 
 (defclass virtual-memory-mixin ()           ; T1
   ((vpt        :accessor mmu-vpt :initform nil)       ; virt-page -> (phys . prot)
@@ -123,6 +130,14 @@
   (:method ((vm vm-binding)) 0))
 (defgeneric vm-min-alignment-words (vm)
   (:method ((vm vm-binding)) 1))
+
+(defgeneric vm-page-physical (vm virtual-page)
+  (:documentation "Return the physical page currently backing VIRTUAL-PAGE.
+The identity result is the T0/simulator fallback; virtual-memory backends
+override it with their page-table mapping." )
+  (:method ((vm vm-binding) virtual-page)
+    (declare (ignore vm))
+    virtual-page))
 
 ;; ---- T0 memory access + atomics ------------------------------------------
 
@@ -457,7 +472,11 @@ calling context until VM-RESUME-MUTATORS." )
                 (if (= epoch most-positive-fixnum) 0 (1+ epoch))))))
     ;; There are no concurrent mutators in the simulator.  A real backend can
     ;; leave this as a request and have each worker call VM-SAFEPOINT instead.
-    (vm-safepoint vm :reason :stop-mutators)))
+    (vm-safepoint vm :reason :stop-mutators)
+    ;; The stop boundary is an explicit publication point in the execution
+    ;; model.  The simulator's fence is a no-op, while a target VM supplies
+    ;; the hardware ordering primitive.
+    (memory-fence vm)))
 
 (defgeneric vm-resume-mutators (vm)
   (:documentation "Clear the stop request and release simulator mutators.
@@ -466,4 +485,5 @@ The epoch is retained as the completed stop interval's token." )
     (let ((state (vm-coordination-state vm)))
       (setf (coordination-state-requested state) nil
             (coordination-state-stopped state) nil))
+    (memory-fence vm)
     vm))

@@ -175,6 +175,10 @@ when the caller has just captured a collector-owned dirty set."
     (loop for k below count
           do (setf (car (aref (mmu-vpt vm) (+ virt-page k))) (+ phys-page k)))))
 
+(defmethod vm-page-physical ((vm virtual-memory-mixin) virtual-page)
+  (mmu-ensure vm)
+  (car (aref (mmu-vpt vm) virtual-page)))
+
 (defgeneric vm-flush-tlb (vm &optional page-index count)
   (:method ((vm ring0-mixin) &optional page-index count)
     (declare (ignore page-index count))

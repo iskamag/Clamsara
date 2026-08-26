@@ -125,11 +125,17 @@ has one source of truth.")
    ;; and to run post-collection checks without masking failed collections.
    (collect-hook :initarg :collect-hook :accessor plan-collect-hook :initform nil)
    ;; finalization trait (weak.tex §2): known/pending finalizer vectors, plus
-   ;; a collector-private freeze list (phase-weak snapshot -> epilogue move)
+   ;; collector-private fixed-capacity freeze vectors (phase-weak snapshot ->
+   ;; epilogue move).  Addresses and callbacks are kept in parallel vectors so
+   ;; the collection path does not cons a temporary list.
    (known :accessor plan-known-finalizers :initform nil)
+   (known-callbacks :accessor plan-known-finalizer-callbacks :initform nil)
    (pending :accessor plan-pending-finalizers :initform nil)
+   (pending-callbacks :accessor plan-pending-finalizer-callbacks :initform nil)
    (pending-finalizer-freeze :accessor plan-pending-finalizer-freeze
-                             :initform nil))
+                             :initform nil)
+   (pending-finalizer-freeze-callbacks
+    :accessor plan-pending-finalizer-freeze-callbacks :initform nil))
   (:metaclass plan-metaclass)
   (:default-initargs :constraints (make-instance 'plan-constraints)))
 
@@ -199,7 +205,8 @@ has one source of truth.")
   ;; themselves run on a mutator after the pause, never inside it.
   (when (plan-pending-finalizer-freeze p)
     (process-finalizers p (plan-pending-finalizer-freeze p))
-    (setf (plan-pending-finalizer-freeze p) nil)))
+    (setf (fill-pointer (plan-pending-finalizer-freeze p)) 0
+          (fill-pointer (plan-pending-finalizer-freeze-callbacks p)) 0)))
 
 (defun call-gc-phase-method (plan cycle-kind phase)
   "Resolve the most-specific GC-PHASE method qualified PHASE for PLAN and
@@ -226,13 +233,17 @@ interpreted and compiled collectors cannot diverge."
         (unwind-protect
              (let ((*gc-phase-selection* :checkpoint))
                (gc-phase p cycle-kind))
-          (vm-resume-mutators (plan-vm p))))
+          (vm-resume-mutators (plan-vm p))
+          (publication-reopen-after-abort
+           (plan-publication p) (plan-vm p))))
       (unwind-protect
            (let ((*gc-phase-selection* :collection))
              (gc-phase p cycle-kind))
         ;; The normal epilogue already resumes, but the protocol is idempotent
         ;; and this also covers errors before the epilogue is reached.
-        (vm-resume-mutators (plan-vm p)))))
+        (vm-resume-mutators (plan-vm p))
+        (publication-reopen-after-abort
+         (plan-publication p) (plan-vm p)))))
 
 (defmethod plan-collect-phase :around ((p plan) cycle-kind)
   (let ((t0 (get-internal-run-time)))
@@ -493,16 +504,30 @@ heap-sized capacity so registration and collection never grow them."
       (setf (plan-known-finalizers plan)
             (make-array capacity :element-type 'fixnum
                         :initial-element 0 :fill-pointer 0)))
+    (unless (plan-known-finalizer-callbacks plan)
+      (setf (plan-known-finalizer-callbacks plan)
+            (make-array capacity :initial-element nil :fill-pointer 0)))
     (unless (plan-pending-finalizers plan)
       (setf (plan-pending-finalizers plan)
             (make-array capacity :element-type 'fixnum
-                        :initial-element 0 :fill-pointer 0))))
-  plan)
+                        :initial-element 0 :fill-pointer 0)))
+    (unless (plan-pending-finalizer-callbacks plan)
+      (setf (plan-pending-finalizer-callbacks plan)
+            (make-array capacity :initial-element nil :fill-pointer 0)))
+    (unless (plan-pending-finalizer-freeze plan)
+      (setf (plan-pending-finalizer-freeze plan)
+            (make-array capacity :element-type 'fixnum
+                        :initial-element 0 :fill-pointer 0)))
+    (unless (plan-pending-finalizer-freeze-callbacks plan)
+      (setf (plan-pending-finalizer-freeze-callbacks plan)
+            (make-array capacity :initial-element nil :fill-pointer 0)))
+  plan))
 
 (defun finalize-plan (plan)
   "Wire spaces, SFT, strata, barrier, then validate.  Idempotent."
   (unless (plan-booted-p plan)
     (let ((vm (plan-vm plan)))
+      (component-validate vm)
       (plan-install-strata plan vm)
       ;; Finalization storage is part of normal plan setup, not an optional
       ;; mutator-side initialization step (weak.tex §2).
@@ -524,7 +549,9 @@ heap-sized capacity so registration and collection never grow them."
       ;; space validation runs here, after slots are populated: allocator
       ;; checks and the concurrent-relocate forwarding rule need the VM.
       (dolist (s (plan-spaces plan))
-        (component-validate s))
+        (component-validate s)
+        (when (space-allocator s)
+          (component-validate (space-allocator s))))
       (component-validate plan)
       (setf (plan-booted-p plan) t)))
   plan)

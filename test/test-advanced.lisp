@@ -197,6 +197,99 @@
         (if (and (plusp a2) (= (vm-object-reference-count (%vm) a2) 2))
             (values t "ok") (values nil "claimore major failed"))))))
 
+(deftest claimore-map-swaps-page-backing-and-heals ()
+  ;; The map tier must relocate a fragmented mature page by swapping virtual
+  ;; page backing, not by copying its payload.  Root correction and metadata
+  ;; transfer are still mandatory before the source block is recycled.
+  (with-clamsara (:plan-type :claimore :heap-size 65536)
+    (let* ((plan *clamsara-plan*)
+           (vm *clamsara-vm*)
+           (mature (cl-mature plan))
+           (allocator (space-allocator mature))
+           ;; Fill SB0's first block so the test allocation lands in SB1.
+           (filler (plan-allocate-in plan 512 mature))
+           (dead (plan-allocate-in plan 1 mature))
+           (live (plan-allocate-in plan 1 mature)))
+      (vm-write-header vm filler +tag-object+ 511)
+      (vm-write-header vm dead +tag-object+ 0)
+      (vm-write-header vm live +tag-object+ 0)
+      (let* ((old-page (address-page live))
+             (old-physical (vm-page-physical vm old-page))
+             (root-index (1- (progn (vm-add-root vm live)
+                                    (length (vm-root-vector vm))))))
+        (plan-collect plan :cycle-kind :major)
+        (let* ((moved (aref (vm-root-vector vm) root-index))
+               (new-page (address-page moved)))
+          (if (and (/= moved live)
+                   (not (vm-object-start-p vm live))
+                   (vm-object-start-p vm moved)
+                   (= (vm-page-physical vm new-page) old-physical)
+                   (= 1 (stats-get (plan-stats plan) :pages-mapped))
+                   (null (sanity-check plan)))
+              (values t "Claimore map swapped backing and healed the root")
+              (values nil
+                      (format nil
+                              "map failed: old=~a new=~a changed=~a old-live=~a new-live=~a physical=~a (~a/~a) pages=~a free=~a errors=~s"
+                              live moved
+                              (/= moved live)
+                              (vm-object-start-p vm live)
+                              (vm-object-start-p vm moved)
+                              (= (vm-page-physical vm new-page) old-physical)
+                              old-physical
+                              (vm-page-physical vm new-page)
+                              (stats-get (plan-stats plan) :pages-mapped)
+                              (hierarchical-block-in-use-p allocator
+                                                               (sb-block-index mature live))
+                              (sanity-check plan)))))))))
+
+(deftest claimore-minor-scans-mature-remembered-edges ()
+  ;; A Claimore minor must retain a nursery child reachable from a mature
+  ;; object.  The metadata/card barrier records the source; nursery roots
+  ;; alone are not enough to find this edge.
+  (with-clamsara (:plan-type :claimore :heap-size 65536)
+    (let* ((plan *clamsara-plan*)
+           (vm *clamsara-vm*)
+           (mature (plan-allocate-in plan 2 (cl-mature plan)))
+           ;; Leave a dead nursery object in front of the child so OVC has to
+           ;; exercise forwarding and slot healing, not just retain address 0.
+           (dead (clamsara-allocate-object 0))
+           (child (clamsara-allocate-object 0)))
+      (declare (ignore dead))
+      (vm-write-header vm mature +tag-object+ 1)
+      (clamsara-write mature 0 child)
+      ;; Bypass the public-root API here: this test isolates the mature
+      ;; remembered-set contract, so the nursery child must remain private.
+      (vm-add-root vm mature)
+      (let ((root-index (1- (length (vm-root-vector vm)))))
+        (plan-collect plan :cycle-kind :minor)
+        (let ((mature-now (clamsara-root root-index))
+              (child-now (vm-object-reference vm mature 0)))
+          (if (and (vm-object-start-p vm mature-now)
+                   (vm-object-start-p vm child-now)
+                   (not (vm-object-start-p vm child)))
+              (values t "mature remembered edge survived Claimore minor")
+              (values nil "Claimore minor dropped a mature-to-nursery edge")))))))
+
+(deftest external-claimore-root-publishes-existing-children ()
+  ;; A mature object can become an external public root after it already has a
+  ;; private child.  Root registration must repair that edge before exposing
+  ;; the mature object; setting only the source public bit is unsound.
+  (with-clamsara (:plan-type :claimore :heap-size 65536)
+    (let* ((plan *clamsara-plan*)
+           (vm *clamsara-vm*)
+           (mature (plan-allocate-in plan 2 (cl-mature plan)))
+           (child (clamsara-allocate-object 0)))
+      (vm-write-header vm mature +tag-object+ 1)
+      (clamsara-write mature 0 child)
+      (let* ((index (clamsara-register-root mature))
+             (published-child (vm-object-reference vm mature 0)))
+        (if (and (= (clamsara-root index) mature)
+                 (space-contains-p (cl-mature plan) published-child)
+                 (vm-object-is-public-p vm published-child)
+                 (error-object-p vm child))
+            (values t "external Claimore root repaired its private child")
+            (values nil "external Claimore root left a private child edge"))))))
+
 ;; ---- G5: weak references + finalization (weak.tex) -----------------------
 
 (deftest weak-referent-cleared-when-dead ()
@@ -277,6 +370,28 @@
                  (equal pending (list dead)))
             (values t "ok")
             (values nil (format nil "pending finalizers wrong: ~a" pending)))))))
+
+(deftest finalizers-execute-only-after-pause ()
+  ;; weak.tex §2: collection only transfers a registration to pending; the
+  ;; mutator-side drain is the first point at which user finalizer code runs.
+  (let ((calls nil))
+    (with-clamsara (:plan-type :marksweep :heap-size 32768)
+      (let ((dead (clamsara-allocate-object 0)))
+        (register-finalizer
+         *clamsara-plan* dead
+         (lambda (address) (push (list :called address) calls)))
+        (clamsara-gc)
+        (unless (and (null calls)
+                     (= 1 (pending-finalizer-count *clamsara-plan*)))
+          (return-from finalizers-execute-only-after-pause
+            (values nil "finalizer ran during collection or was not queued")))
+        (let ((pending (drain-pending-finalizers *clamsara-plan*)))
+          (if (and (equal pending (list dead))
+                   (equal calls (list (list :called dead)))
+                   (zerop (pending-finalizer-count *clamsara-plan*)))
+              (values t "ok")
+              (values nil (format nil "finalizer result wrong: ~a / ~a"
+                                  pending calls))))))))
 
 (deftest published-roots-record-and-drain ()
   ;; locality.tex §1: the published-roots set records guarded EDGES (object +

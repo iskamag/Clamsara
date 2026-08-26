@@ -12,10 +12,25 @@
    (work :accessor publication-work :initform (make-array 0 :fill-pointer 0))
    ;; preallocated closure-copy dedup table (boot-time; the publication
    ;; barrier must not call the host allocator)
-   (copy-seen :accessor publication-copy-seen :initform nil)))
+   (copy-seen :accessor publication-copy-seen :initform nil)
+   ;; The owner-side publication handshake (execution-model.tex section 4).
+   ;; These are VM/immortal words on a target.  The simulator keeps them in
+   ;; the strategy object, but never allocates or grows them during a publish.
+   (owner-epoch :accessor publication-epoch :initform 0)
+   (owner-state :accessor publication-state :initform :open)
+   (owner-active :accessor publication-active :initform 0)))
 
 (defgeneric publish (strategy vm object)
   (:documentation "Restore DLG for OBJECT becoming reachable from a public source."))
+(defgeneric publish-sealed (strategy vm object)
+  (:documentation "Publish OBJECT after the owner epoch has sealed.
+The default is deliberately a hard error: a target must provide an owner-local
+hot-publication/evacuation arm before it can admit foreign publication during
+a private collection."))
+(defmethod publish-sealed ((s publication-strategy) vm object)
+  (declare (ignore s vm object))
+  (error 'clamsara-error
+         :message "publication raced a sealed epoch without a hot-publication arm"))
 (defgeneric publication-read-rule (strategy)
   (:documentation "Optional read-barrier rule this strategy requires, or NIL.")
   (:method ((s publication-strategy)) nil))
@@ -25,6 +40,84 @@
 (defgeneric strategy-published-roots (strategy)
   (:documentation "The strategy's published-roots set, or NIL.")
   (:method ((s publication-strategy)) nil))
+
+(declaim (inline publication-open-p publication-sealed-p))
+(defun publication-open-p (strategy)
+  (eq (publication-state strategy) :open))
+(defun publication-sealed-p (strategy)
+  (eq (publication-state strategy) :sealed))
+
+(defun publication-enter (strategy vm)
+  "Enter the owner publication section and return whether it was open.
+
+The increment precedes the acquire-style state read.  A caller that gets NIL
+must leave immediately and perform the sealed-epoch hot arm; a caller that
+gets T may record its edge before the matching leave.  The simulator exposes
+the two steps separately so tests can interleave them deterministically; a
+target VM replaces the ordinary increments/loads with atomics."
+  (incf (publication-active strategy))
+  (memory-fence vm)
+  (publication-open-p strategy))
+
+(defun publication-leave (strategy)
+  "Leave a publication section after recording or installing its edge."
+  (let ((active (publication-active strategy)))
+    (unless (plusp active)
+      (error 'clamsara-error :message "publication active-count underflow"))
+    (decf (publication-active strategy)))
+  strategy)
+
+(defun publication-seal (strategy vm)
+  "Seal the current publication epoch and report whether its grace closed.
+
+The state change and fence prevent new open-epoch entrants.  NIL means a
+publisher was already inside the section; the owner must retry after that
+publisher's leave.  On the simulator this is the deterministic equivalent of
+the target's acquire wait for the active count to reach zero."
+  (unless (publication-sealed-p strategy)
+    (setf (publication-state strategy) :sealed
+          (publication-epoch strategy)
+          (if (= (publication-epoch strategy) most-positive-fixnum)
+              0
+              (1+ (publication-epoch strategy))))
+    (memory-fence vm))
+  (zerop (publication-active strategy)))
+
+(defun publication-open (strategy vm)
+  "Open the next publication epoch after the previous one has been drained."
+  (unless (zerop (publication-active strategy))
+    (error 'clamsara-error
+           :message "cannot open publication epoch with active publishers"))
+  (memory-fence vm)
+  (setf (publication-state strategy) :open)
+  strategy)
+
+(defun publication-reopen-after-abort (strategy vm)
+  "Release an unused sealed epoch after a failed collection.
+
+If a foreign publisher is still active, leave the epoch sealed; reopening it
+would let that publisher finish against state the failed collection has not
+drained.  The next owner fence can retry the close safely."
+  (when (and strategy
+             (publication-sealed-p strategy)
+             (zerop (publication-active strategy)))
+    (publication-open strategy vm))
+  strategy)
+
+(defun publication-publish (strategy vm object)
+  "Run one publication through the owner handshake.
+
+An open publication holds the active count until its DLG update is complete.
+A sealed publication leaves the section before entering the strategy-specific
+hot arm; the default hot arm errors rather than performing an unprotected
+write into owner state."
+  (if (publication-enter strategy vm)
+      (unwind-protect
+           (publish strategy vm object)
+        (publication-leave strategy))
+      (progn
+        (publication-leave strategy)
+        (publish-sealed strategy vm object))))
 
 (defun initialize-publication-work (strategy vm)
   "Allocate the eager-closure queue (and any published-roots set) at boot,
@@ -39,7 +132,10 @@
         (make-array (vm-heap-size vm) :element-type 'fixnum
                     :initial-element 0 :fill-pointer 0)
         (publication-copy-seen strategy)
-        (make-hash-table :test 'eql))
+        (make-hash-table :test 'eql)
+        (publication-epoch strategy) 0
+        (publication-state strategy) :open
+        (publication-active strategy) 0)
   (when (typep strategy 'lazy-read-barrier)
     (initialize-lazy-published-roots strategy vm))
   (when (typep strategy 'trap-error-copy-b)
@@ -123,6 +219,36 @@
                          referent))
             return t
           finally (return nil))))
+
+(defun compact-published-roots (pr vm private-space)
+  "Retain only current public-to-PRIVATE-SPACE guarded edges.
+
+The paper's set is append-only within an epoch, not forever.  Rebuilding it
+at the sealed collection fence is what makes the fixed owner buffer reusable:
+edges whose referent is now public, dead, or no longer in the owner region are
+retired.  The operation is in-place and fixed-capacity, so it is collection
+safe."
+  (when pr
+    (let ((objects (published-roots-objects pr))
+          (slots (published-roots-slots pr))
+          (fill (published-roots-fill pr))
+          (write 0))
+      (dotimes (read fill)
+        (let ((object (aref objects read))
+              (slot (aref slots read)))
+          (when (and (vm-object-start-p vm object)
+                     (vm-object-is-public-p vm object)
+                     (vm-valid-reference-p
+                      vm (vm-object-reference vm object slot))
+                     (space-contains-p
+                      private-space
+                      (ref-strip-or-self vm
+                                         (vm-object-reference vm object slot))))
+            (setf (aref objects write) object
+                  (aref slots write) slot)
+            (incf write))))
+      (setf (published-roots-fill pr) write)))
+  pr)
 
 (defun edge-referent-live-p (vm object slot)
   (let ((child (vm-object-reference vm object slot)))

@@ -35,6 +35,32 @@
      (let ((*clamsara-plan* plan) (*clamsara-vm* vm))
        ,@body)))
 
+(defun %publish-public-root-children (plan object)
+  "Restore DLG for the outgoing edges of an object already in the public
+  region.  External-root registration is itself a publication event; merely
+  setting the public bit would leave an existing private child unguarded."
+  (let* ((vm (plan-vm plan))
+         (publication (plan-publication plan))
+         (slots (vm-reference-slots vm object))
+         (weak-p (weak-pointer-p vm object)))
+    (labels ((publish-slot (slot)
+               (when (or (not weak-p) (not (zerop slot)))
+                 (let ((child (vm-object-reference vm object slot)))
+                   (when (and (vm-reference-p vm child)
+                              (not (vm-object-is-public-p
+                                    vm (ref-strip-or-self vm child))))
+                     (let ((published (publication-publish
+                                       publication vm child)))
+                       (unless published
+                         (error 'heap-exhausted :requested-size 1
+                                :space :public))
+                       (setf (vm-object-reference vm object slot) published)))))))
+      (if slots
+          (loop for slot across slots do (publish-slot slot))
+          (dotimes (slot (vm-object-reference-count vm object))
+            (publish-slot slot)))))
+  object)
+
 (defun clamsara-allocate-object (slot-count &key (type-tag +tag-object+)
                                              (layout-id 0))
   (allocate-object *clamsara-plan* slot-count
@@ -51,16 +77,28 @@ address and callers track the INDEX, not the original address."
     ;; A weak-pointer object has no strong outgoing edge to publish; sending it
     ;; through a trap/copy strategy would also invalidate its weak metadata.
     (when (and publication
-               (not (weak-pointer-p *clamsara-vm* address))
-               ;; Trap/error-copy strategies require their publication edge to
-               ;; be represented by a heap stand-in.  An external root is
-               ;; already a root, not such a heap edge; publishing it here
-               ;; would poison/copy the root and lose weak/finalizer metadata.
-               ;; Eager/lazy strategies can publish the root directly.
-               (typep publication '(or eager-closure lazy-read-barrier)))
-      (setf address (publish publication *clamsara-vm* address))))
+               (not (weak-pointer-p *clamsara-vm* address)))
+      ;; An external root is a public witness too.  Every strategy, including
+      ;; the trap/error-copy strategies, must restore the declared DLG form
+      ;; before the root enters the VM root set.  This also revisits an object
+      ;; whose public bit was set by an earlier operation: its current strong
+      ;; children still need checking.
+      (let ((old-address address))
+        (if (or (vm-object-is-public-p *clamsara-vm* address)
+                (and (public-region publication)
+                     (space-contains-p (public-region publication) address)))
+            (progn
+              (setf (vm-object-is-public-p *clamsara-vm* address) t)
+              (%publish-public-root-children *clamsara-plan* address))
+            (progn
+              (setf address (publication-publish
+                             publication *clamsara-vm* address))
+              (unless address
+                (error 'heap-exhausted :requested-size 1 :space :public))
+              (rewrite-finalizer-address
+               *clamsara-plan* old-address address)))))
   (vm-add-root *clamsara-vm* address)
-  (1- (length (vm-root-vector *clamsara-vm*))))
+  (1- (length (vm-root-vector *clamsara-vm*)))))
 
 (defun clamsara-root (index)
   "Current address of root slot INDEX (updated across copying collections)."

@@ -8,7 +8,8 @@
 
 (in-package #:clamsara-maclina)
 
-(defclass maclina-vm (clamsara:simulator-vm) ())
+(defclass maclina-vm (clamsara:simulator-vm) ()
+  (:metaclass clamsara:vm-metaclass))
 
 (eval-when (:compile-toplevel :load-toplevel :execute)
   ;; Heap references use colour 1 while they are visible to Maclina.  The

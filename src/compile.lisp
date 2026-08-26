@@ -1,10 +1,11 @@
 ;;;; compile.lisp -- compile-to-functions and boot (paper-v8 ch. compilation).
 ;;;;
 ;;;; The compiler turns the MOP-composed collector into plain functions at
-;;;; boot. On SBCL the outer phase methods are resolved to method-functions;
-;;;; component operations inside those methods still use the VM/space generic
-;;;; protocols. Completely splicing those inner fragments remains a paper-v8
-;;;; requirement.
+;;;; boot. Method functions, around-method continuations, and plan wrappers
+;;;; are all resolved while CLOS is available; collection invokes only the
+;;;; resulting function objects. Component operations still need their own
+;;;; direct protocol emitters on a target backend, so this file does not claim
+;;;; that a simulator image has magically compiled arbitrary inner CLOS away.
 
 (in-package #:clamsara)
 
@@ -49,6 +50,12 @@
             (vm-clear-roots (plan-vm p))))))
     (boot-reset-state p)
     (boot-warm-runtime-dispatch p)
+    ;; The final dispatch warm-up can itself write through an armed simulator
+    ;; MMU after BOOT-RESET-STATE.  Do not expose those boot writes as the
+    ;; first mutator/checkpoint dirty set.
+    (let ((vm (plan-vm p)))
+      (when (and (typep vm 'virtual-memory-mixin) (mmu-dirty vm))
+        (fill (mmu-dirty vm) 0)))
     p))
 
 (defgeneric boot-cycle-kinds (plan)
@@ -67,9 +74,39 @@
       (fwd-clear vm)
       (rc-clear vm)
       (dolist (space (plan-spaces p))
+        (when (typep space 'claimore-nursery-space)
+          ;; The probe relation is collector state too.  Warm-up must not
+          ;; leave stale occupied nodes or rows influencing the first real
+          ;; owner-local decision after boot.
+          (matrix-clear-all (claimore-nursery-matrix space))
+          (fill (claimore-nursery-occupied space) 0)
+          (fill (claimore-nursery-dirty space) 0)
+          (fill (claimore-nursery-probe-roots space) 0)
+          (fill (claimore-nursery-probe-live space) 0)
+          (setf (claimore-nursery-recognised-dead space) 0
+                (claimore-nursery-last-action space) nil)
+          (fill (claimore-nursery-ovc-source-starts space) 0)
+          (fill (claimore-nursery-ovc-sizes space) 0)
+          (fill (claimore-nursery-ovc-age space) 0)
+          (fill (claimore-nursery-ovc-public space) 0)
+          (fill (claimore-nursery-ovc-log space) 0)
+          (fill (claimore-nursery-ovc-weak space) 0)
+          (fill (claimore-nursery-ovc-mark space) 0))
         (when (typep space 'superblock-space)
           (fill (sb-refcounts space) 0)
           (fill (sb-pinned space) 0)
+          (when (sb-fine-metablocks space)
+            (fill (sb-fine-metablocks space) 0))
+          (when (sb-map-source-starts space)
+            (fill (sb-map-source-starts space) 0)
+            (fill (sb-map-source-sizes space) 0)
+            (fill (sb-map-source-mark space) 0)
+            (fill (sb-map-source-age space) 0)
+            (fill (sb-map-source-public space) 0)
+            (fill (sb-map-source-log space) 0)
+            (fill (sb-map-source-weak space) 0)
+            (fill (sb-map-source-rc space) 0))
+          (setf (slot-value space 'map-pages) 0)
           (dotimes (i (length (sb-mb-matrices space)))
             (let ((m (aref (sb-mb-matrices space) i)))
               (when m (matrix-clear-all m))))
@@ -83,6 +120,10 @@
       (when (plan-barrier p)
         (setf (fill-pointer (barrier-satb-buffer (plan-barrier p))) 0
               (fill-pointer (barrier-rc-buffer (plan-barrier p))) 0))
+      ;; A boot-time map may have armed the simulator MMU.  Its dirty bits are
+      ;; execution metadata, not part of the post-boot heap image.
+      (when (and (typep vm 'virtual-memory-mixin) (mmu-dirty vm))
+        (fill (mmu-dirty vm) 0))
       (when (plan-publication p)
         (setf (fill-pointer (publication-work (plan-publication p))) 0)))
     ;; Keep the hash entries established by warm-up so the first real event
@@ -269,12 +310,115 @@ convention."
     (sb-mop:method-function method)))
 
 #+sbcl
+(defun %applicable-method-functions (gf plan cycle-kind qualifier)
+  (mapcar #'sb-mop:method-function
+          (remove-if-not
+           (lambda (method)
+             (equal (sb-mop:method-qualifiers method) (list qualifier)))
+           (compute-applicable-methods gf (list plan cycle-kind)))))
+
+#+sbcl
+(defun %plan-collect-custom-around-method-functions (plan cycle-kind)
+  "Return PLAN-COLLECT-PHASE around methods except the framework timing arm.
+
+The framework arm is emitted as an ordinary boot-built continuation below.
+That avoids entering a CLOS method function merely to update GC timing on the
+target.  User-defined around methods remain in the explicit boot chain and
+retain their normal call-next-method semantics."
+  (let ((gf (fdefinition 'plan-collect-phase)))
+    (mapcar #'sb-mop:method-function
+            (remove-if
+             (lambda (method)
+               (let ((specializers (sb-mop:method-specializers method)))
+                 (eq (first specializers) (find-class 'plan))))
+             (remove-if-not
+              (lambda (method)
+                (equal (sb-mop:method-qualifiers method) '(:around)))
+              (compute-applicable-methods gf (list plan cycle-kind)))))))
+
+#+sbcl
+(defun %compose-boot-method-functions (around-functions primary-function)
+  "Compose an already-resolved around chain around PRIMARY-FUNCTION.
+
+The continuation functions and their one-element next-method lists are
+created here, while CLOS/host allocation is legal.  A collection call only
+invokes those stable objects; it does not construct a continuation or a
+generic-function argument list."
+  (let ((next primary-function))
+    (dolist (method-function (reverse around-functions) next)
+      (let* ((next-function next)
+             (next-methods (list next-function)))
+        (setf next
+              (lambda (arguments ignored-next-methods)
+                (declare (ignore ignored-next-methods))
+                (funcall method-function arguments next-methods)))))))
+
+#+sbcl
+(defun %compiled-gc-phase-entry (plan cycle-kind phase-order)
+  "Build one static effective GC-PHASE invoker for CYCLE-KIND.
+
+This is the method-combination boundary: the selected phase methods and all
+applicable :around methods are resolved now.  It is intentionally separate
+from the inner VM/space protocols, whose target-specific direct emitters are a
+different compilation unit."
+  (let* ((gf (fdefinition 'gc-phase))
+         (around (%applicable-method-functions gf plan cycle-kind :around))
+         (phase-functions
+           (mapcar (lambda (phase)
+                     (selected-phase-method-function plan cycle-kind phase))
+                   phase-order))
+         (primary
+           (let ((functions phase-functions))
+             (lambda (arguments ignored-next-methods)
+               (declare (ignore ignored-next-methods))
+               (dolist (method-function functions)
+                 (funcall method-function arguments nil)))))
+         (effective (%compose-boot-method-functions around primary))
+         ;; This argument list is boot-owned and immutable after this point.
+         ;; It is the equivalent of the method-combination call's arguments
+         ;; without a collection-time (list plan cycle-kind).
+         (arguments (list plan cycle-kind)))
+    (lambda (ignored-plan ignored-cycle-kind)
+      (declare (ignore ignored-plan ignored-cycle-kind))
+      (funcall effective arguments nil))))
+
+#+sbcl
+(defun %compiled-plan-wrapper-entry (plan cycle-kind machine-entry)
+  "Compose plan-collect-phase :around methods around MACHINE-ENTRY.
+
+The default around method supplies GC timing.  Keeping it in this boot-built
+chain means a custom plan wrapper has the same semantics in interpreted and
+compiled execution without dispatching through PLAN-COLLECT-PHASE at runtime."
+  (let* ((around (%plan-collect-custom-around-method-functions
+                  plan cycle-kind))
+         (arguments (list plan cycle-kind))
+         (timed-machine
+           ;; This is the source default PLAN-COLLECT-PHASE :AROUND method,
+           ;; expressed as a plain continuation.  Its implementation is
+           ;; stable and known, so retaining its behavior need not retain a
+           ;; runtime CLOS call.
+           (lambda (ignored-arguments ignored-next-methods)
+             (declare (ignore ignored-arguments ignored-next-methods))
+             (let ((started (get-internal-run-time)))
+               (funcall machine-entry nil nil)
+               (let ((statistics (slot-value plan 'stats)))
+                 (when statistics
+                   (stats-event statistics :gc-time
+                              (- (get-internal-run-time) started)))))))
+         (effective
+           (%compose-boot-method-functions
+            around
+            timed-machine)))
+    (lambda (ignored-plan ignored-cycle-kind)
+      (declare (ignore ignored-plan ignored-cycle-kind))
+      (funcall effective arguments nil))))
+
+#+sbcl
 (defun direct-phase-forms (plan cycle-kind
                            &optional (phase-order +gc-phase-order+))
-  "Resolve PHASE-ORDER methods and prebuild their argument lists.
-The resolution is identical to the combination's dispatch, so compiled and
-interpreted collectors cannot diverge.  Checkpoint is deliberately excluded
-from ordinary collection phase lists: it is a fence, not a GC sub-phase."
+  "Compatibility diagnostic: return boot-resolved direct phase forms.
+The production emitter uses %COMPILED-GC-PHASE-ENTRY so :around methods are
+preserved too."
   (let ((arguments (list plan cycle-kind)))
     (loop for phase in phase-order
           for method-function = (selected-phase-method-function plan cycle-kind phase)
@@ -282,42 +426,53 @@ from ordinary collection phase lists: it is a fence, not a GC sub-phase."
 
 (defun compiled-plan-collect-form (plan)
   #+sbcl
-  (let ((minor (direct-phase-forms plan :minor +gc-collection-phase-order+))
-        (major (direct-phase-forms plan :major +gc-collection-phase-order+))
-        (full (direct-phase-forms plan :full +gc-collection-phase-order+))
+  (let* ((minor-machine
+           (%compiled-gc-phase-entry plan :minor +gc-collection-phase-order+))
+         (major-machine
+           (%compiled-gc-phase-entry plan :major +gc-collection-phase-order+))
+         (full-machine
+           (%compiled-gc-phase-entry plan :full +gc-collection-phase-order+))
+         (minor (%compiled-plan-wrapper-entry plan :minor minor-machine))
+         (major (%compiled-plan-wrapper-entry plan :major major-machine))
+         (full (%compiled-plan-wrapper-entry plan :full full-machine))
         ;; persistence.tex §4: a checkpoint is a SNAPSHOT, not a collection.
         ;; The compiled arm runs only the checkpoint phase (plus the
         ;; stop/resume safepoint), never prologue/mark/reclaim/compact.
-        (checkpoint-form (first (direct-phase-forms plan :checkpoint
-                                                     '(:checkpoint)))))
+        (checkpoint-machine (%compiled-gc-phase-entry plan :checkpoint
+                                                       '(:checkpoint)))
+        (checkpoint (%compiled-plan-wrapper-entry
+                     plan :checkpoint checkpoint-machine)))
     `(lambda (ignored-plan cycle-kind)
        (declare (ignore ignored-plan))
-       (let ((started (get-internal-run-time)))
-         (ecase cycle-kind
+       (ecase cycle-kind
            (:minor
             (unwind-protect
-                 (progn ,@minor)
+                 (funcall ',minor nil nil)
               ;; The normal epilogue resumes the VM, but this idempotent
               ;; cleanup also covers a phase/backend error.
-              (vm-resume-mutators (plan-vm ',plan))))
+              (vm-resume-mutators (plan-vm ',plan))
+              (publication-reopen-after-abort
+               (slot-value ',plan 'publication) (slot-value ',plan 'vm))))
            (:major
             (unwind-protect
-                 (progn ,@major)
-              (vm-resume-mutators (plan-vm ',plan))))
+                 (funcall ',major nil nil)
+              (vm-resume-mutators (plan-vm ',plan))
+              (publication-reopen-after-abort
+               (slot-value ',plan 'publication) (slot-value ',plan 'vm))))
            (:full
             (unwind-protect
-                 (progn ,@full)
-              (vm-resume-mutators (plan-vm ',plan))))
+                 (funcall ',full nil nil)
+              (vm-resume-mutators (plan-vm ',plan))
+              (publication-reopen-after-abort
+               (slot-value ',plan 'publication) (slot-value ',plan 'vm))))
            (:checkpoint
             (vm-stop-mutators (plan-vm ',plan))
             (unwind-protect
-                 ,checkpoint-form
-              (vm-resume-mutators (plan-vm ',plan))))
-         )
-         (let ((statistics (slot-value ',plan 'stats)))
-           (when statistics
-             (incf (gethash :gc-time (slot-value statistics 'events) 0)
-                   (- (get-internal-run-time) started)))))))
+                 (funcall ',checkpoint nil nil)
+              (vm-resume-mutators (plan-vm ',plan))
+              (publication-reopen-after-abort
+               (slot-value ',plan 'publication) (slot-value ',plan 'vm))))
+         )))
   #-sbcl
   `(lambda (runtime-plan cycle-kind)
      (plan-collect-phase runtime-plan cycle-kind)))

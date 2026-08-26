@@ -103,7 +103,10 @@
                    (setf (aref fwd address) destination)))
       ;; remap: heal every root + every live object's slots in EVERY space
       ;; (a LOS object may hold an edge into a relocated 'from' object)
-      (heal-every-space p fwd))))
+      (heal-every-space p fwd)
+      ;; The forwarding table remains live until the correction grace period
+      ;; closes; it is cleared only in the release phase.
+      (memory-fence vm))))
 
 (defmethod gc-phase :release ((p zgc-plan) k)
   (declare (ignore k))

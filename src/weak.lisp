@@ -104,12 +104,33 @@ untouched, even though they are not marked by the minor trace."
 on a target; fixed-capacity vectors on the simulator)."
   (%initialize-finalization-vectors plan vm))
 
-(defun register-finalizer (plan address)
-  "Register the object at ADDRESS for finalization."
-  (let ((known (plan-known-finalizers plan)))
-    (unless (vector-push address known)
+(defun register-finalizer (plan address &optional callback)
+  "Register ADDRESS and optional CALLBACK for post-pause finalization.
+CALLBACK is invoked as (CALLBACK ADDRESS) by DRAIN-PENDING-FINALIZERS, never
+from a collection phase.  The parallel callback vector is fixed-capacity
+storage established during plan finalization."
+  (unless (or (null callback) (functionp callback))
+    (error 'clamsara-error :message "finalizer callback must be a function or NIL"))
+  (let* ((known (plan-known-finalizers plan))
+         (callbacks (plan-known-finalizer-callbacks plan))
+         (index (length known)))
+    (unless (and (< index (array-total-size known))
+                 (< index (array-total-size callbacks)))
+      (error 'heap-exhausted :requested-size 1 :space :finalizers))
+    (setf (aref callbacks index) callback)
+    (unless (and (vector-push address known)
+                 (vector-push callback callbacks))
       (error 'heap-exhausted :requested-size 1 :space :finalizers)))
   address)
+
+(defun rewrite-finalizer-address (plan old-address new-address)
+  "Update a registration when publication replaces its external root."
+  (let ((known (plan-known-finalizers plan)))
+    (when known
+      (dotimes (i (length known))
+        (when (= (aref known i) old-address)
+          (setf (aref known i) new-address)))))
+  new-address)
 
 (defun snapshot-finalizer-deadness (plan vm cycle-kind)
   "Snapshot liveness of registered finalizers BEFORE reclaim/release phases
@@ -117,12 +138,16 @@ clear the mark stratum.  Dead ones move to a collector-private freeze list;
 EPILOGUE moves them to pending.  If tracing forwarded a live object, update its
 known finalizer address before the old copy is released."
   (let ((known (plan-known-finalizers plan))
+        (known-callbacks (plan-known-finalizer-callbacks plan))
+        (freeze (plan-pending-finalizer-freeze plan))
+        (freeze-callbacks (plan-pending-finalizer-freeze-callbacks plan))
         (os (vm-object-start vm))
-        (dead nil))
+        (dead-count 0))
     (when (and known os)
       (let ((survivors 0))
         (loop for i from 0 below (length known)
               for old-address = (aref known i)
+              for callback = (aref known-callbacks i)
               for address =
                 (if (and (s-test-bit os old-address)
                          (vm-object-is-forwarded-p vm old-address))
@@ -133,26 +158,47 @@ known finalizer address before the old copy is released."
                               (not (vm-object-is-marked-p vm address))
                               (not (vm-object-is-forwarded-p vm address))
                               (zerop (vm-object-rc vm address))))
-                     (push address dead)
+                     (progn
+                       (unless (and (< dead-count (array-total-size freeze))
+                                    (< dead-count (array-total-size freeze-callbacks)))
+                         (error 'heap-exhausted :requested-size 1
+                                :space :finalizers))
+                       (setf (aref freeze dead-count) address
+                             (aref freeze-callbacks dead-count) callback)
+                       (incf dead-count))
                      (progn
                        ;; A copying trace may have replaced OLD-ADDRESS with a
                        ;; live destination.  Keep the vector in the post-GC
                        ;; address space; otherwise the next cycle loses it.
                        (setf (aref known survivors) address)
                        (incf survivors))))
-        (setf (fill-pointer known) survivors)))
-    dead))
+        (setf (fill-pointer known) survivors
+              (fill-pointer known-callbacks) survivors
+              (fill-pointer freeze) dead-count
+              (fill-pointer freeze-callbacks) dead-count)))
+    ;; Keep the preallocated freeze buffers installed between cycles.  An empty
+    ;; freeze is still a valid epilogue input and must not turn the next cycle's
+    ;; storage into NIL.
+    freeze))
 
-(defun process-finalizers (plan dead-addresses)
-  "weak.tex §2: move the (pre-computed) dead finalizer addresses known->
-pending.  Runs in the epilogue; finalizers themselves run on a mutator after
-the pause, never inside it."
-  (let ((pending (plan-pending-finalizers plan)))
-    (when pending
-      (dolist (address dead-addresses)
-        (unless (vector-push address pending)
-          (error 'heap-exhausted :requested-size 1 :space :finalizers)))))
-  plan)
+(defun process-finalizers (plan frozen-addresses)
+  "Move the frozen address/callback pairs from known to pending.
+This is epilogue bookkeeping only.  CALLBACKS execute only when a mutator
+later calls DRAIN-PENDING-FINALIZERS."
+  (let ((pending (plan-pending-finalizers plan))
+        (pending-callbacks (plan-pending-finalizer-callbacks plan))
+        (freeze-callbacks (plan-pending-finalizer-freeze-callbacks plan)))
+    (dotimes (i (length frozen-addresses))
+      (let ((address (aref frozen-addresses i))
+            (callback (aref freeze-callbacks i)))
+        (unless (and (< (length pending) (array-total-size pending))
+                     (< (length pending-callbacks)
+                        (array-total-size pending-callbacks)))
+          (error 'heap-exhausted :requested-size 1 :space :finalizers))
+        (unless (and (vector-push address pending)
+                     (vector-push callback pending-callbacks))
+          (error 'heap-exhausted :requested-size 1 :space :finalizers))))
+  plan))
 
 (defun finalizer-dead-p (plan vm address cycle-kind)
   "True if the object at ADDRESS is genuinely dead.  Only cycles that TRACE
@@ -170,10 +216,14 @@ the pause, never inside it."
   (length (plan-pending-finalizers plan)))
 
 (defun drain-pending-finalizers (plan)
-  "Pop every pending finalizer address (called by a mutator after the
-  pause).  Returns a fresh list."
+  "Pop every pending finalizer and execute its callback after the pause.
+Returns a fresh list of addresses for diagnostics and compatibility."
   (let ((pending (plan-pending-finalizers plan))
+        (callbacks (plan-pending-finalizer-callbacks plan))
         (result nil))
     (loop while (plusp (length pending))
-          do (push (vector-pop pending) result))
+          do (let ((address (vector-pop pending))
+                   (callback (vector-pop callbacks)))
+               (when callback (funcall callback address))
+               (push address result)))
     (nreverse result)))

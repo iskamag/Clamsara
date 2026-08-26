@@ -241,7 +241,7 @@ rewritten; they must not, however, point at a freed/foreign region."
 
 (defun %sanity-check-hierarchy-escape (space vm errors)
   "Ensure escape metadata is confined to live blocks and has only the three
-Cla(i)more direction bits.  Direction bits are remembered and need not be
+Claimore direction bits.  Direction bits are remembered and need not be
 retracted when a slot is overwritten; freeing/reusing a block must clear them."
   (let* ((nblocks (sb-block-count space))
          (escape (or (sb-escape space) (vm-stratum vm :block-escape))))

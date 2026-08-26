@@ -132,8 +132,17 @@ returns true only for addresses in the plan's configured cons-space."))
   ADDRESS."
   (let ((slots (vm-reference-slots vm address)))
     (flet ((heal-slot (i)
-             (let ((child (vm-object-reference vm address i)))
-               (when (vm-reference-p vm child)
+      (let ((child (vm-object-reference vm address i)))
+               ;; A moving collector may clear the old object's identity
+               ;; before this pass (Claimore OVC does so to make stale reads
+               ;; fail).  The forwarding table is then the authoritative
+               ;; proof that this particular in-heap word was a moved object;
+               ;; requiring VM-REFERENCE-P here would skip the edge we must
+               ;; heal.  Raw words are still untouched unless they name an
+               ;; active forwarding entry.
+               (when (and (vm-valid-reference-p vm child)
+                          (< (ref-strip-or-self vm child)
+                             (length fwd-table)))
                  (let* ((bare (ref-strip-or-self vm child))
                         (destination (aref fwd-table bare)))
                    (when (plusp destination)

@@ -11,7 +11,7 @@
 ;; event on a collector path never has to resize it or cons a key/value pair.
 (defparameter +stats-event-names+
   '(:barrier-transfers :words-copied :objects-copied :queue-spills
-    :closure-passes :pages-written :dirty-pages :mmu-faults
+    :closure-passes :pages-written :dirty-pages :pages-mapped :mmu-faults
     ;; Existing clients use this general cycle counter; retain it alongside
     ;; the paper metrics.
     :gc-cycles :gc-time :checkpoints)

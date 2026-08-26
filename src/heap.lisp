@@ -107,11 +107,21 @@
    (limit :initarg :limit :accessor ba-limit)
    (cursor :accessor ba-cursor)
    (vm :initarg :vm :accessor ba-vm)
-   (space :initarg :space :accessor ba-space)))
+   (space :initarg :space :accessor ba-space))
+  (:metaclass allocator-metaclass))
 
 (defmethod shared-initialize :after ((a bump-allocator) slot-names &key)
   (declare (ignore slot-names))
   (unless (slot-boundp a 'cursor) (setf (ba-cursor a) (ba-start a))))
+
+(defmethod component-validate ((a bump-allocator))
+  (unless (and (integerp (ba-start a)) (integerp (ba-limit a))
+               (<= 0 (ba-start a)) (<= (ba-start a) (ba-limit a))
+               (<= (ba-start a) (ba-cursor a))
+               (<= (ba-cursor a) (ba-limit a)))
+    (error 'plan-incompatible :plan a
+           :message "bump allocator has an invalid cursor range"))
+  a)
 
 (defmethod alloc ((a bump-allocator) size &key &allow-other-keys)
   (let ((c (ba-cursor a)))
@@ -127,11 +137,13 @@
 
 ;; ---- cons allocator (2-word bump) -----------------------------------------
 
-(defclass cons-allocator (bump-allocator) ())
+(defclass cons-allocator (bump-allocator) ()
+  (:metaclass allocator-metaclass))
 
 ;; ---- monotone allocator (immortal, never releases) -----------------------
 
-(defclass monotone-allocator (bump-allocator) ())
+(defclass monotone-allocator (bump-allocator) ()
+  (:metaclass allocator-metaclass))
 
 ;; ---- free-list allocator (segregated fit, word granularity) -------------
 
@@ -145,7 +157,15 @@
    (run-lengths :accessor fl-run-lengths)
    (run-count :accessor fl-run-count :initform 0)
    (vm :initarg :vm :accessor fl-vm)
-   (space :initarg :space :accessor fl-space)))
+   (space :initarg :space :accessor fl-space))
+  (:metaclass allocator-metaclass))
+
+(defmethod component-validate ((a free-list-allocator))
+  (unless (and (integerp (fl-start a)) (integerp (fl-limit a))
+               (<= 0 (fl-start a)) (<= (fl-start a) (fl-limit a)))
+    (error 'plan-incompatible :plan a
+           :message "free-list allocator has an invalid range"))
+  a)
 
 (defmethod shared-initialize :after ((a free-list-allocator) slot-names &key)
   (declare (ignore slot-names))
@@ -241,7 +261,14 @@
    ;; base-page is the absolute page offset of this space so that the
    ;; allocator returns addresses inside the space's own range.
    (base-page :initarg :base-page :accessor los-base-page :initform 0)
-   (allocated :accessor los-allocated :initform (make-hash-table :test 'eql))))
+   (allocated :accessor los-allocated :initform (make-hash-table :test 'eql)))
+  (:metaclass allocator-metaclass))
+
+(defmethod component-validate ((a los-allocator))
+  (unless (and (los-pr a) (los-vm a) (los-space a))
+    (error 'plan-incompatible :plan a
+           :message "large-object allocator is not wired to VM/space/resource"))
+  a)
 
 (defmethod alloc ((a los-allocator) size &key &allow-other-keys)
   (let* ((pages (ceiling size +page-words+))
@@ -289,7 +316,16 @@
    ;; must never recycle a span block while its root object is live.
    (span-root :accessor ix-span-root :initform nil)
    ;; preallocated per-block live counts (the sweep's two-pass span logic)
-   (block-live :accessor ix-block-live :initform nil)))
+   (block-live :accessor ix-block-live :initform nil))
+  (:metaclass allocator-metaclass))
+
+(defmethod component-validate ((a immix-allocator))
+  (unless (and (integerp (ix-start a)) (integerp (ix-limit a))
+               (<= 0 (ix-start a)) (<= (ix-start a) (ix-limit a))
+               (plusp (ix-block-words a)))
+    (error 'plan-incompatible :plan a
+           :message "Immix allocator has an invalid range or block size"))
+  a)
 
 (defmethod shared-initialize :after ((a immix-allocator) slot-names &key)
   (declare (ignore slot-names))
@@ -475,6 +511,10 @@ bounded implementation only compacts when an out-of-place block is available."
                                  destination-address))))
             (setf (immix-block-cursor destination) cursor)
             (immix-heal-references s vm fwd)
+            ;; Forwarding is a grace-period resource.  The source cannot be
+            ;; forgotten or reused until every root and slot has observed the
+            ;; correction.
+            (memory-fence vm)
             (vm-clear-metadata-range
              vm (immix-block-base source)
              (+ (immix-block-base source) (ix-block-words a)))
@@ -485,17 +525,19 @@ bounded implementation only compacts when an out-of-place block is available."
 
 (defun heal-forwarded-root (plan ref)
   (let ((vm (plan-vm plan)))
-    (if (vm-reference-p vm ref)
-        (let* ((address (ref-strip-or-self vm ref))
-               (destination (aref (vm-fwd-table vm) address)))
-          (if (plusp destination)
-              ;; Preserve the pointer colour so a self-healing LVB sees the
-              ;; relocated reference as "good" rather than a bare address.
-              (if (typep vm 'coloured-pointer-mixin)
-                  (ref-set-colour vm destination (vm-good-colour vm))
-                  destination)
-              ref))
-        ref)))
+    (let* ((address (ref-strip-or-self vm ref))
+           (fwd (vm-fwd-table vm))
+           (destination
+             (and (vm-valid-reference-p vm ref)
+                  (< address (length fwd))
+                  (aref fwd address))))
+      (if (plusp destination)
+          ;; Preserve the pointer colour so a self-healing LVB sees the
+          ;; relocated reference as "good" rather than a bare address.
+          (if (typep vm 'coloured-pointer-mixin)
+              (ref-set-colour vm destination (vm-good-colour vm))
+              destination)
+          ref))))
 
 (defun heal-every-space (plan fwd)
   "Heal root references plus the reference slots of every live object in
@@ -551,6 +593,371 @@ into the evacuated blocks and must be rewritten too."
                      :constraints (make-instance 'space-constraints
                                                  :scope :request))
   (:metaclass space-metaclass))
+
+;; Claimore's nursery uses Immix's fixed block allocator only as its physical
+;; substrate.  Its collection protocol is the paper's owner-local matrix probe
+;; followed by precise offset-vector compaction (OVC), not ordinary Immix
+;; opportunistic defragmentation.
+(defclass claimore-nursery-space (private-immix-space)
+  ((nursery-granule :initarg :nursery-granule :initform +g-block+
+                    :accessor claimore-nursery-granule)
+   (nursery-node-count :accessor claimore-nursery-node-count :initform 0)
+   (nursery-matrix :accessor claimore-nursery-matrix :initform nil)
+   (nursery-occupied :accessor claimore-nursery-occupied :initform nil)
+   (nursery-dirty :accessor claimore-nursery-dirty :initform nil)
+   (nursery-probe-roots :accessor claimore-nursery-probe-roots :initform nil)
+   (nursery-probe-live :accessor claimore-nursery-probe-live :initform nil)
+   ;; Keep the policy threshold as an integer percentage.  A rational ratio
+   ;; here would allocate a temporary ratio in SBCL's generic arithmetic on
+   ;; every probe, which is forbidden once the collector is booted.
+   (nursery-mgc-threshold :initarg :nursery-mgc-threshold :initform 25
+                          :accessor claimore-nursery-mgc-threshold)
+   (nursery-recognised-dead :accessor claimore-nursery-recognised-dead
+                            :initform 0)
+   (nursery-last-action :accessor claimore-nursery-last-action :initform nil)
+   ;; OVC scratch is boot-owned.  It prevents overlapping source/destination
+   ;; objects from corrupting one another and keeps the collection path fixed
+   ;; capacity.  The parallel metadata arrays preserve source state before a
+   ;; packed destination can overlap an old source address.
+   (ovc-scratch :accessor claimore-nursery-ovc-scratch :initform nil)
+   (ovc-source-starts :accessor claimore-nursery-ovc-source-starts
+                      :initform nil)
+   (ovc-sizes :accessor claimore-nursery-ovc-sizes :initform nil)
+   (ovc-age :accessor claimore-nursery-ovc-age :initform nil)
+   (ovc-public :accessor claimore-nursery-ovc-public :initform nil)
+   (ovc-log :accessor claimore-nursery-ovc-log :initform nil)
+   (ovc-weak :accessor claimore-nursery-ovc-weak :initform nil)
+   (ovc-mark :accessor claimore-nursery-ovc-mark :initform nil))
+  (:default-initargs :moving :sliding-ovc
+                     :constraints (make-instance 'space-constraints
+                                                 :scope :thread))
+  (:metaclass space-metaclass))
+
+(defmethod shared-initialize :after ((s claimore-nursery-space) slot-names
+                                     &key vm)
+  (declare (ignore slot-names))
+  (when (and vm (slot-boundp s 'start-page) (slot-boundp s 'page-count))
+    (let* ((words (- (space-end-address s) (space-base-address s)))
+           (granule (claimore-nursery-granule s))
+           (nodes (max 1 (ceiling words granule))))
+      (setf (claimore-nursery-node-count s) nodes
+            (claimore-nursery-matrix s)
+            (make-matrix-stratum granule nodes)
+            (claimore-nursery-occupied s)
+            (make-array nodes :element-type 'bit :initial-element 0)
+            (claimore-nursery-dirty s)
+            (make-array nodes :element-type 'bit :initial-element 0)
+            (claimore-nursery-probe-roots s)
+            (make-array nodes :element-type 'bit :initial-element 0)
+            (claimore-nursery-probe-live s)
+            (make-array nodes :element-type 'bit :initial-element 0)
+            (claimore-nursery-ovc-scratch s)
+            (make-array words :element-type '(unsigned-byte 64)
+                        :initial-element 0)
+            (claimore-nursery-ovc-source-starts s)
+            (make-array words :element-type 'bit :initial-element 0)
+            (claimore-nursery-ovc-sizes s)
+            (make-array words :element-type 'fixnum :initial-element 0)
+            (claimore-nursery-ovc-age s)
+            (make-array words :element-type 'fixnum :initial-element 0)
+            (claimore-nursery-ovc-public s)
+            (make-array words :element-type 'bit :initial-element 0)
+            (claimore-nursery-ovc-log s)
+            (make-array words :element-type 'bit :initial-element 0)
+            (claimore-nursery-ovc-weak s)
+            (make-array words :element-type 'bit :initial-element 0)
+            (claimore-nursery-ovc-mark s)
+            (make-array words :element-type 'bit :initial-element 0)))))
+
+(defun claimore-nursery-node (s address)
+  (let ((node (floor (- (ref-strip-or-self (space-vm s) address)
+                        (space-base-address s))
+                     (claimore-nursery-granule s))))
+    (max 0 (min (1- (claimore-nursery-node-count s)) node))))
+
+(defun claimore-nursery-note-write (s vm source old new)
+  "Record a nursery relation before SOURCE's store is exposed.
+Overwrites conservatively dirty the source node; OVC later rebuilds those rows
+from the precise post-collection payloads."
+  (when (space-contains-p s (ref-strip-or-self vm source))
+    (let ((src-node (claimore-nursery-node s source))
+          (matrix (claimore-nursery-matrix s))
+          (dirty (claimore-nursery-dirty s)))
+      (when dirty (setf (sbit dirty src-node) 1))
+      (when (and matrix (vm-reference-p vm new)
+                 (space-contains-p s (ref-strip-or-self vm new)))
+        (let ((dst-node (claimore-nursery-node s new)))
+          (unless (= src-node dst-node)
+            (matrix-set matrix src-node dst-node))))))
+  new)
+
+(defun claimore-nursery-seed-probe-root (s ref)
+  (let ((vm (space-vm s)))
+    (when (and (vm-reference-p vm ref)
+               (space-contains-p s (ref-strip-or-self vm ref)))
+      (setf (sbit (claimore-nursery-probe-roots s)
+                  (claimore-nursery-node s ref)) 1)))
+  ref)
+
+(defun claimore-nursery-probe (s vm)
+  "Run the conservative matrix probe before exact OVC marking.
+The probe only chooses/report a physical policy; exact marks remain the
+liveness authority in all cases."
+  (let* ((roots (claimore-nursery-probe-roots s))
+         (live (claimore-nursery-probe-live s))
+         (occupied (claimore-nursery-occupied s))
+         (matrix (claimore-nursery-matrix s))
+         (nodes (claimore-nursery-node-count s))
+         (recognized 0))
+    (fill roots 0)
+    (vm-scan-roots vm s #'claimore-nursery-seed-probe-root)
+    (replace live (matrix-closure matrix roots))
+    (dotimes (node nodes)
+      (when (and (= 1 (sbit occupied node))
+                 (= 0 (sbit live node)))
+        (incf recognized)))
+    (setf (claimore-nursery-recognised-dead s) recognized
+          (claimore-nursery-last-action s)
+          (if (>= recognized
+                  (ceiling (* nodes
+                               (claimore-nursery-mgc-threshold s))
+                           100))
+              :mgc
+              :ovc)))
+  s)
+
+(defun claimore-nursery-rebuild-metadata (s vm)
+  "Rebuild occupancy and relation rows after OVC has installed destinations."
+  (let ((matrix (claimore-nursery-matrix s))
+        (occupied (claimore-nursery-occupied s))
+        (dirty (claimore-nursery-dirty s))
+        (os (vm-object-start vm))
+        (base (space-base-address s))
+        (end (space-end-address s)))
+    (matrix-clear-all matrix)
+    (fill occupied 0)
+    (fill dirty 0)
+    (loop for address from base below end
+          when (s-test-bit os address)
+            do (let ((src-node (claimore-nursery-node s address))
+                     (slots (vm-reference-slots vm address))
+                     (count (vm-object-reference-count vm address))
+                     (weak-p (weak-pointer-p vm address)))
+                 (setf (sbit occupied src-node) 1)
+                 (if slots
+                     (loop for slot across slots
+                           when (or (not weak-p) (not (zerop slot)))
+                             do (let ((child (vm-object-reference vm address slot)))
+                                  (when (and (vm-reference-p vm child)
+                                             (space-contains-p
+                                              s (ref-strip-or-self vm child)))
+                                    (let ((dst-node
+                                            (claimore-nursery-node s child)))
+                                      (unless (= src-node dst-node)
+                                        (matrix-set matrix src-node dst-node))))))
+                     (dotimes (slot count)
+                       (when (or (not weak-p) (not (zerop slot)))
+                         (let ((child (vm-object-reference vm address slot)))
+                           (when (and (vm-reference-p vm child)
+                                      (space-contains-p
+                                       s (ref-strip-or-self vm child)))
+                             (let ((dst-node
+                                     (claimore-nursery-node s child)))
+                               (unless (= src-node dst-node)
+                                 (matrix-set matrix src-node dst-node)))))))))))
+  s)
+
+(defun claimore-nursery-clear-source-metadata (vm address)
+  "Clear source identity while retaining the OVC forwarding table."
+  (let ((os (vm-object-start vm)))
+    (when os (s-clear-bit os address)))
+  (dolist (name '(:mark :log :public :age :weak))
+    (let ((stratum (vm-stratum vm name)))
+      (when stratum (s-set stratum address (stratum-default stratum)))))
+  (when (and (vm-rc-table vm) (< address (length (vm-rc-table vm))))
+    (setf (aref (vm-rc-table vm) address) 0))
+  address)
+
+(defun claimore-nursery-copy-metadata (s vm source destination)
+  (let ((age (vm-stratum vm :age))
+        (public (vm-stratum vm :public))
+        (log (vm-stratum vm :log))
+        (weak (vm-stratum vm :weak))
+        (mark (vm-stratum vm :mark))
+        (os (vm-object-start vm)))
+    (when os (s-set-bit os destination))
+    (when mark
+      (if (= 1 (sbit (claimore-nursery-ovc-mark s) source))
+          (s-set-bit mark destination)
+          (s-clear-bit mark destination)))
+    (when age (s-set age destination (aref (claimore-nursery-ovc-age s) source)))
+    (when public
+      (if (= 1 (sbit (claimore-nursery-ovc-public s) source))
+          (s-set-bit public destination)
+          (s-clear-bit public destination)))
+    (when log
+      (if (= 1 (sbit (claimore-nursery-ovc-log s) source))
+          (s-set-bit log destination)
+          (s-clear-bit log destination)))
+    (when weak
+      (if (= 1 (sbit (claimore-nursery-ovc-weak s) source))
+          (s-set-bit weak destination)
+          (s-clear-bit weak destination))))
+  destination)
+
+(defun claimore-nursery-rebuild-allocator (s vm cursor)
+  (let* ((a (space-allocator s))
+         (base (space-base-address s))
+         (bw (ix-block-words a))
+         (end (space-end-address s))
+         (block-count (min (length (ix-blocks a))
+                           (ceiling (max 0 (- cursor base)) bw))))
+    (dotimes (i (length (ix-blocks a)))
+      (let ((block (aref (ix-blocks a) i)))
+        (setf (immix-block-cursor block) (immix-block-base block)
+              (immix-block-live block) 0)))
+    (fill (ix-span-root a) -1)
+    (setf (ix-block-count a) block-count
+          (ix-next-base a) (+ base (* block-count bw))
+          (ix-current a) (and (plusp block-count)
+                              (aref (ix-blocks a) (1- block-count))))
+    (loop for address from base below cursor
+          when (s-test-bit (vm-object-start vm) address)
+            do (let* ((words (vm-object-total-words vm address))
+                      (first (floor (- address base) bw))
+                      (last (floor (- (+ address words -1) base) bw)))
+                 (when (< first block-count)
+                   (loop for bi from first to (min last (1- block-count))
+                         for block = (aref (ix-blocks a) bi)
+                         do (setf (immix-block-cursor block)
+                                  (max (immix-block-cursor block)
+                                       (min (+ (immix-block-base block) bw)
+                                            (+ address words)))))
+                 (when (> words bw)
+                   (loop for bi from first to (min last (1- block-count))
+                         do (setf (aref (ix-span-root a) bi) first)))))
+    (when (and (plusp block-count) (> (ix-next-base a) end))
+      (setf (ix-next-base a) end)))
+  s))
+
+(defmethod space-prepare ((s claimore-nursery-space) vm &key cycle-kind)
+  (declare (ignore cycle-kind))
+  (s-clear-range (vm-stratum vm :mark)
+                 (space-base-address s) (space-end-address s))
+  s)
+
+(defun claimore-nursery-ovc (s vm)
+  "Precise offset-vector compaction for the owner-local nursery.
+All source words and metadata are snapshotted into boot-owned buffers before
+packed destinations are installed, so overlapping objects cannot corrupt the
+source scan."
+  (let* ((a (space-allocator s))
+         (base (space-base-address s))
+         (source-end (ix-next-base a))
+         (end (space-end-address s))
+         (bw (ix-block-words a))
+         (os (vm-object-start vm))
+         (mark (vm-stratum vm :mark))
+         (scratch (claimore-nursery-ovc-scratch s))
+         (source-starts (claimore-nursery-ovc-source-starts s))
+         (sizes (claimore-nursery-ovc-sizes s))
+         (ages (claimore-nursery-ovc-age s))
+         (public-stratum (vm-stratum vm :public))
+         (public-save (claimore-nursery-ovc-public s))
+         (log-stratum (vm-stratum vm :log))
+         (log-save (claimore-nursery-ovc-log s))
+         (weak-stratum (vm-stratum vm :weak))
+         (weak-save (claimore-nursery-ovc-weak s))
+         (saved-mark (claimore-nursery-ovc-mark s))
+         (dest-starts (vm-stratum vm :claimore-ovc-destination))
+         (cursor base))
+    (fill source-starts 0)
+    (fill sizes 0)
+    (fill saved-mark 0)
+    (fill public-save 0)
+    (fill log-save 0)
+    (fill weak-save 0)
+    (when (vm-stratum vm :age) (fill ages 0))
+    (s-clear dest-starts)
+    (fwd-clear vm)
+    ;; Snapshot source object boundaries, metadata, and live payload words.
+    (loop for address from base below source-end
+          when (s-test-bit os address)
+            do (let* ((words (vm-object-total-words vm address))
+                      (live (and mark (s-test-bit mark address))))
+                 (setf (sbit source-starts (- address base)) 1)
+                 (setf (aref sizes address) words)
+                 (setf (sbit saved-mark address) (if live 1 0))
+                 (when (vm-stratum vm :age)
+                   (setf (aref ages address)
+                         (s-get (vm-stratum vm :age) address)))
+                 (when public-stratum
+                   (setf (sbit public-save address)
+                         (if (s-test-bit public-stratum address) 1 0)))
+                 (when log-stratum
+                   (setf (sbit log-save address)
+                         (if (s-test-bit log-stratum address) 1 0)))
+                 (when weak-stratum
+                   (setf (sbit weak-save address)
+                         (if (s-test-bit weak-stratum address) 1 0)))
+                 (when live
+                   ;; Keep small objects within a block and start spans at a
+                   ;; block boundary, matching the allocator's geometry.
+                   (let ((block-end
+                           (+ base (* (1+ (floor (- cursor base) bw)) bw))))
+                     (cond
+                       ((> words bw)
+                        (setf cursor
+                              (+ base (* (ceiling (- cursor base) bw) bw))))
+                       ((> (+ cursor words) block-end)
+                        (setf cursor block-end))))
+                   (when (> (+ cursor words) end)
+                     (error 'heap-exhausted :requested-size words
+                            :space :claimore-nursery-ovc))
+                   (setf (aref (vm-fwd-table vm) address) cursor)
+                   (s-set-bit dest-starts cursor)
+                   (dotimes (k words)
+                     (setf (aref scratch (+ (- cursor base) k))
+                           (ref-u64 vm (+ address k))))
+                   (let ((stats (%stats-for-vm vm)))
+                     (when stats
+                       (stats-event stats :objects-copied 1)
+                       (stats-event stats :words-copied words)))
+                   (incf cursor words))))
+    ;; Install all packed raw objects only after the source snapshot is done.
+    (loop for address from base below cursor
+          do (setf (ref-u64 vm address)
+                   (aref scratch (- address base))))
+    ;; Drop every old identity, including dead objects, while preserving the
+    ;; forwarding table until every destination reference has been healed.
+    (loop for address from base below source-end
+          when (= 1 (sbit source-starts (- address base)))
+            do (claimore-nursery-clear-source-metadata vm address))
+    ;; Recreate destination side metadata from the source snapshot.
+    (loop for address from base below source-end
+          when (and (= 1 (sbit source-starts (- address base)))
+                    (= 1 (sbit saved-mark address)))
+            do (claimore-nursery-copy-metadata
+                s vm address (aref (vm-fwd-table vm) address)))
+    ;; All plan spaces and roots may point into the nursery.
+    (heal-every-space (vm-plan vm) (vm-fwd-table vm))
+    (memory-fence vm)
+    (claimore-nursery-rebuild-allocator s vm cursor)
+    (claimore-nursery-rebuild-metadata s vm)
+    (fwd-clear vm)
+    (fill source-starts 0)
+    (s-clear dest-starts)
+    (when mark (s-clear-range mark base end)))
+  s)
+
+(defmethod space-reclaim ((s claimore-nursery-space) vm &key cycle-kind)
+  (declare (ignore cycle-kind))
+  (claimore-nursery-probe s vm)
+  ;; The exact OVC is the liveness authority for both probe outcomes.  The
+  ;; :mgc outcome records the coarse policy choice without allowing coarse
+  ;; metadata to reclaim an object independently of the precise trace.
+  (claimore-nursery-ovc s vm)
+  s)
 (defclass los-space (space) ()
   (:default-initargs :policy :trace :moving :none)
   (:metaclass space-metaclass))
@@ -826,6 +1233,23 @@ into the evacuated blocks and must be rewritten too."
    ;; SBs that must not be released wholesale this cycle
    (pinned :accessor sb-pinned :initform nil
            :type (or (simple-array bit (*)) null))
+   ;; One Fine/Mature bit per metablock.  Fine is sealed state; a mutator
+   ;; store demotes it before the new value becomes visible.
+   (fine-metablocks :accessor sb-fine-metablocks :initform nil
+                    :type (or (simple-array bit (*)) null))
+   ;; One-block scratch for the copy-free map tier.  The simulator's physical
+   ;; heap is identity mapped until this tier is first used; after that the
+   ;; software MMU swaps a live source page with a free destination page and
+   ;; the same virtual-address correction path used by move heals references.
+   (map-source-starts :accessor sb-map-source-starts :initform nil)
+   (map-source-sizes :accessor sb-map-source-sizes :initform nil)
+   (map-source-mark :accessor sb-map-source-mark :initform nil)
+   (map-source-age :accessor sb-map-source-age :initform nil)
+   (map-source-public :accessor sb-map-source-public :initform nil)
+   (map-source-log :accessor sb-map-source-log :initform nil)
+   (map-source-weak :accessor sb-map-source-weak :initform nil)
+   (map-source-rc :accessor sb-map-source-rc :initform nil)
+   (map-pages :accessor sb-map-pages :initform 0)
    ;; the block-granularity 3-bit escape stratum (registered on the VM)
    (escape :accessor sb-escape :initform nil
            :type (or stratum null)))
@@ -842,7 +1266,10 @@ into the evacuated blocks and must be rewritten too."
 (declaim (inline %sb-block-words %sb-bpm %sb-mps %sb-block-count
                  %sb-mb-count %sb-count %sb-block-matrices
                  %sb-mb-matrices %sb-refcounts %sb-pinned
-                 %sb-reached-mbs %sb-mb-root-bits %sb-escape))
+                 %sb-reached-mbs %sb-mb-root-bits %sb-escape %sb-fine
+                 %sb-map-source-starts %sb-map-source-sizes %sb-map-source-mark
+                 %sb-map-source-age %sb-map-source-public %sb-map-source-log
+                 %sb-map-source-weak %sb-map-source-rc))
 (defun %sb-block-words (s)
   (declare (optimize (speed 3) (safety 0)))
   (the fixnum (slot-value s 'block-words)))
@@ -883,6 +1310,33 @@ into the evacuated blocks and must be rewritten too."
 (defun %sb-escape (s)
   (declare (optimize (speed 3) (safety 0)))
   (slot-value s 'escape))
+(defun %sb-fine (s)
+  (declare (optimize (speed 3) (safety 0)))
+  (slot-value s 'fine-metablocks))
+(defun %sb-map-source-starts (s)
+  (declare (optimize (speed 3) (safety 0)))
+  (slot-value s 'map-source-starts))
+(defun %sb-map-source-sizes (s)
+  (declare (optimize (speed 3) (safety 0)))
+  (slot-value s 'map-source-sizes))
+(defun %sb-map-source-mark (s)
+  (declare (optimize (speed 3) (safety 0)))
+  (slot-value s 'map-source-mark))
+(defun %sb-map-source-age (s)
+  (declare (optimize (speed 3) (safety 0)))
+  (slot-value s 'map-source-age))
+(defun %sb-map-source-public (s)
+  (declare (optimize (speed 3) (safety 0)))
+  (slot-value s 'map-source-public))
+(defun %sb-map-source-log (s)
+  (declare (optimize (speed 3) (safety 0)))
+  (slot-value s 'map-source-log))
+(defun %sb-map-source-weak (s)
+  (declare (optimize (speed 3) (safety 0)))
+  (slot-value s 'map-source-weak))
+(defun %sb-map-source-rc (s)
+  (declare (optimize (speed 3) (safety 0)))
+  (slot-value s 'map-source-rc))
 
 ;; ---- region geometry -----------------------------------------------------
 
@@ -915,6 +1369,33 @@ into the evacuated blocks and must be rewritten too."
 (defun sb-block-base (s block-index)
   (+ (space-base-address s) (* block-index (%sb-block-words s))))
 
+(declaim (inline sb-fine-metablock-p sb-clear-fine-for-address))
+(defun sb-fine-metablock-p (s mb)
+  (let ((fine (%sb-fine s)))
+    (and fine (< mb (length fine)) (eql 1 (sbit fine mb)))))
+(defun sb-clear-fine-for-address (s address)
+  (let ((fine (%sb-fine s)))
+    (when (and fine (space-contains-p s address))
+      (setf (sbit fine (sb-mb-index s address)) 0)))
+  address)
+(defun superblock-seal-fine (s)
+  "Mark every currently occupied metablock Fine after a collection/checkpoint.
+The vector is summary state only; object liveness remains the trace's job."
+  (let ((fine (%sb-fine s))
+        (a (space-allocator s))
+        (bpm (%sb-bpm s))
+        (nmb (%sb-mb-count s)))
+    (when fine
+      (fill fine 0)
+      (dotimes (mb nmb)
+        (dotimes (b bpm)
+          (let ((bi (+ (* mb bpm) b)))
+            (when (and (< bi (%sb-block-count s))
+                       (hierarchical-block-in-use-p a bi))
+              (setf (sbit fine mb) 1)
+              (return))))))
+  s))
+
 (defmethod shared-initialize :after ((s superblock-space) slot-names &key)
   (declare (ignore slot-names))
   (let ((nsb (%sb-count s))
@@ -924,6 +1405,34 @@ into the evacuated blocks and must be rewritten too."
     (unless (%sb-refcounts s)
       (setf (slot-value s 'sb-refcounts)
             (make-array nsb :element-type 'fixnum :initial-element 0)))
+    (unless (%sb-fine s)
+      (setf (slot-value s 'fine-metablocks)
+            (make-array nmbs :element-type 'bit :initial-element 0)))
+    (unless (slot-value s 'map-source-starts)
+      (setf (slot-value s 'map-source-starts)
+            (make-array (sb-block-words s) :element-type 'bit
+                        :initial-element 0)
+            (slot-value s 'map-source-sizes)
+            (make-array (sb-block-words s) :element-type 'fixnum
+                        :initial-element 0)
+            (slot-value s 'map-source-mark)
+            (make-array (sb-block-words s) :element-type 'bit
+                        :initial-element 0)
+            (slot-value s 'map-source-age)
+            (make-array (sb-block-words s) :element-type 'fixnum
+                        :initial-element 0)
+            (slot-value s 'map-source-public)
+            (make-array (sb-block-words s) :element-type 'bit
+                        :initial-element 0)
+            (slot-value s 'map-source-log)
+            (make-array (sb-block-words s) :element-type 'bit
+                        :initial-element 0)
+            (slot-value s 'map-source-weak)
+            (make-array (sb-block-words s) :element-type 'bit
+                        :initial-element 0)
+            (slot-value s 'map-source-rc)
+            (make-array (sb-block-words s) :element-type 'fixnum
+                        :initial-element 0)))
     (unless (%sb-mb-matrices s)
       (setf (slot-value s (quote clamsara::mb-matrices))
             (make-array nsb :initial-element nil))
@@ -1032,6 +1541,7 @@ layout maps; weak referent slot zero is not a strong hierarchy edge."
   "Maintain hierarchy relations for a mature-space store SRC<-NEW.
    Both endpoints must belong to S: a mature source can point to a nursery
    or LOS object, but that edge has no mature block-matrix representation."
+  (sb-clear-fine-for-address s src)
   (when (and (space-contains-p s src) (space-contains-p s new))
     (let* ((src-block (sb-block-index s src))
            (dst-block (sb-block-index s new))
@@ -1246,7 +1756,156 @@ also keeps the hierarchy's root set consistent with the tracing root set."
                                     do (setf live-p t) (return))
                             (unless live-p
                               (hierarchical-free-block
-                               a vm bi)))))))))))))))
+                              a vm bi)))))))))))))))
+
+(defun superblock-map (s vm)
+  "Map one fragmented mature block into a free virtual block without copying.
+
+The simulator uses the software MMU's physical-page table for the same
+copy-free operation a target VM performs with page-table remapping.  The
+source and destination virtual pages swap physical backing; object metadata
+is moved in the side tables, and the ordinary forwarding/healing path repairs
+all references before the source block is recycled.  A span and superblock 0
+are excluded because their ownership/grace rules are different."
+  (let* ((a (space-allocator s))
+         (mark (vm-stratum vm :mark))
+         (os (vm-object-start vm))
+         (fwd (vm-fwd-table vm))
+         (bw (%sb-block-words s))
+         (source nil)
+         (source-fragmentation 0))
+    (when (and (typep a 'hierarchical-allocator)
+               mark os
+               (typep vm 'ring0-mixin))
+      ;; T0 direct accesses do not observe a page-table change.  The simulator
+      ;; therefore arms its software MMU at the first map; real VMs provide
+      ;; the same virtual-address semantics through their binding.
+      (when (typep vm 'virtual-memory-mixin)
+        (mmu-arm vm :clear-dirty nil))
+      (loop for bi from 1 below (%sb-block-count s)
+            when (and (hierarchical-block-in-use-p a bi)
+                      (minusp (aref (hierarchical-allocator-span-root a) bi)))
+              do (let* ((base (sb-block-base s bi))
+                        (limit (+ base bw))
+                        (cursor (hierarchical-block-cursor a bi))
+                        (live-words 0))
+                   (loop for address from base below limit
+                         when (and (s-test-bit os address)
+                                   (s-test-bit mark address))
+                           do (incf live-words
+                                    (vm-object-total-words vm address)))
+                   (let ((fragmentation (- (- cursor base) live-words)))
+                     (when (and (plusp live-words)
+                                (> fragmentation source-fragmentation))
+                       (setf source bi
+                             source-fragmentation fragmentation)))))
+      (when source
+        (let ((destination (hierarchical-acquire-block a)))
+          (when destination
+            (let* ((source-base (sb-block-base s source))
+                   (destination-base (sb-block-base s destination))
+                   (source-page (address-page source-base))
+                   (destination-page (address-page destination-base))
+                   (source-physical (vm-page-physical vm source-page))
+                   (destination-physical
+                     (vm-page-physical vm destination-page))
+                   (starts (%sb-map-source-starts s))
+                   (sizes (%sb-map-source-sizes s))
+                   (saved-mark (%sb-map-source-mark s))
+                   (ages (%sb-map-source-age s))
+                   (public (%sb-map-source-public s))
+                   (log (%sb-map-source-log s))
+                   (weak (%sb-map-source-weak s))
+                   (rc (%sb-map-source-rc s))
+                   (age-stratum (vm-stratum vm :age))
+                   (public-stratum (vm-stratum vm :public))
+                   (log-stratum (vm-stratum vm :log))
+                   (weak-stratum (vm-stratum vm :weak))
+                   (source-end (+ source-base bw))
+                   (destination-cursor destination-base))
+              ;; Snapshot all source boundaries and side metadata while the
+              ;; source virtual page still names its original physical page.
+              (fill starts 0)
+              (fill sizes 0)
+              (fill saved-mark 0)
+              (fill ages 0)
+              (fill public 0)
+              (fill log 0)
+              (fill weak 0)
+              (fill rc 0)
+              (loop for address from source-base below source-end
+                    when (s-test-bit os address)
+                      do (let ((offset (- address source-base)))
+                           (setf (sbit starts offset) 1
+                                 (aref sizes offset)
+                                 (vm-object-total-words vm address)
+                                 (sbit saved-mark offset)
+                                 (if (s-test-bit mark address) 1 0)
+                                 (aref rc offset) (vm-object-rc vm address))
+                           (when age-stratum
+                             (setf (aref ages offset)
+                                   (s-get age-stratum address)))
+                           (when public-stratum
+                             (setf (sbit public offset)
+                                   (if (s-test-bit public-stratum address)
+                                       1 0)))
+                           (when log-stratum
+                             (setf (sbit log offset)
+                                   (if (s-test-bit log-stratum address)
+                                       1 0)))
+                           (when weak-stratum
+                             (setf (sbit weak offset)
+                                   (if (s-test-bit weak-stratum address)
+                                       1 0)))))
+              ;; Swap page backing.  No payload word is copied.
+              (fwd-clear vm)
+              (vm-remap vm destination-page source-physical 1)
+              (vm-remap vm source-page destination-physical 1)
+              (vm-flush-tlb vm source-page 2)
+              ;; The source virtual range now names the old destination page,
+              ;; so remove its logical object identity before healing.  The
+              ;; forwarding table is populated afterwards and is the sole
+              ;; stale-reference witness during the correction window.
+              (vm-clear-metadata-range vm source-base source-end)
+              (loop for offset fixnum below bw
+                    when (= 1 (sbit starts offset))
+                      do (let* ((old (+ source-base offset))
+                                (new (+ destination-base offset))
+                                (words (aref sizes offset))
+                                (live (= 1 (sbit saved-mark offset))))
+                           (when live
+                             (setf (aref fwd old) new
+                                   destination-cursor
+                                   (max destination-cursor (+ new words)))
+                             (s-set-bit os new)
+                             (s-set-bit mark new)
+                             (when age-stratum
+                               (s-set age-stratum new (aref ages offset)))
+                             (when public-stratum
+                               (if (= 1 (sbit public offset))
+                                   (s-set-bit public-stratum new)
+                                   (s-clear-bit public-stratum new)))
+                             (when log-stratum
+                               (if (= 1 (sbit log offset))
+                                   (s-set-bit log-stratum new)
+                                   (s-clear-bit log-stratum new)))
+                             (when weak-stratum
+                               (if (= 1 (sbit weak offset))
+                                   (s-set-bit weak-stratum new)
+                                   (s-clear-bit weak-stratum new)))
+                             (setf (vm-object-rc vm new) (aref rc offset)))))
+              (setf (hierarchical-block-cursor a destination)
+                    destination-cursor)
+              (heal-every-space (vm-plan vm) fwd)
+              (memory-fence vm)
+              (hierarchical-free-block a vm source)
+              (superblock-rebuild-relations s vm)
+              (incf (slot-value s 'map-pages))
+              (let ((stats (%stats-for-vm vm)))
+                (when stats (stats-event stats :pages-mapped 1)))
+              (fill fwd 0)
+              t))))))
+  s)
 
 (defun superblock-compact (s vm)
   "Block compaction (heap.tex §6, the expensive last resort): move the live
@@ -1295,6 +1954,7 @@ also keeps the hierarchy's root set consistent with the tracing root set."
             ;; source addresses and must be healed before the source dies.
             ;; Healing covers every plan space: nursery, LOS, and mature.
             (heal-every-space (vm-plan vm) fwd)
+            (memory-fence vm)
             (hierarchical-free-block a vm source)
             ;; Recompute relations after source metadata is cleared and all
             ;; destination payloads have been healed.
@@ -1309,6 +1969,9 @@ also keeps the hierarchy's root set consistent with the tracing root set."
   (superblock-release-zero-count s vm)
   (superblock-search s vm)
   (superblock-sweep s vm)
+  ;; Map is the copy-free middle tier; only the rare residual fragmentation
+  ;; reaches block move below it.
+  (superblock-map s vm)
   (when (eq cycle-kind :major)
     (superblock-compact s vm))
   s)
@@ -1347,6 +2010,16 @@ also keeps the hierarchy's root set consistent with the tracing root set."
   ;; span-root[i] = root block index of the multi-block run block i
   ;; belongs to, or -1 (mirrors the immix allocator's span tracking)
   (span-root nil :type (or (simple-array fixnum (*)) null)))
+
+(defmethod component-validate ((a hierarchical-allocator))
+  (unless (and (<= 0 (hierarchical-allocator-start a))
+               (<= (hierarchical-allocator-start a)
+                   (hierarchical-allocator-limit a))
+               (plusp (hierarchical-allocator-block-words a))
+               (arrayp (hierarchical-allocator-cursors a)))
+    (error 'plan-incompatible :plan a
+           :message "hierarchical allocator has invalid geometry"))
+  a)
 
 (defun make-hierarchical-allocator (vm space)
   "Build the hierarchical allocator for SPACE, wiring the block geometry."

@@ -42,7 +42,8 @@
            #:bitmap-page-resource #:monotone-page-resource
            #:free-list-page-resource)
   ;; VM protocol
-  (:export #:vm-binding #:vm-binding-p #:vm-heap #:vm-heap-size
+  (:export #:clamsara-metaclass #:vm-metaclass #:vm-binding #:vm-binding-p
+           #:vm-heap #:vm-heap-size
            #:vm-page-count #:vm-tier #:vm-has-feature-p
            #:virtual-memory-mixin #:ring0-mixin #:has-cas128-mixin
            #:coloured-pointer-mixin
@@ -65,7 +66,7 @@
            #:software-mmu #:simulator-vm #:make-simulator-vm
            #:colour-remapped #:colour-marked0 #:colour-marked1
            #:colour-finalizable #:colour-good
-           #:vm-heap-base #:vm-min-alignment-words
+           #:vm-heap-base #:vm-min-alignment-words #:vm-page-physical
            #:vm-root-regions #:vm-root-region-count #:vm-root-region-capacity
            #:register-root-region
            #:vm-register-stratum #:vm-stratum
@@ -105,17 +106,21 @@
   ;; heap / spaces / allocators
   (:export #:space #:space-p #:space-name #:space-start-page #:space-page-count
            #:space-allocator #:space-page-resource #:space-policy #:space-moving
-           #:space-constraints #:space-metaclass
+           #:space-constraints #:space-metaclass #:allocator-metaclass
            #:space-contains-p #:space-trace-object #:space-prepare
            #:space-release #:space-reclaim #:space-occupancy
            #:space-default-p #:space-partner
            #:copy-space #:mark-sweep-space #:immix-space #:private-immix-space
+           #:claimore-nursery-space
            #:los-space #:cons-space #:immortal-space #:superblock-space
            #:space-constraints #:accepts-copies #:mixed-age #:scope #:immortal
            #:alloc #:free #:coalesce
            #:bump-allocator #:free-list-allocator #:immix-allocator
            #:los-allocator #:cons-allocator #:monotone-allocator
-           #:hierarchical-allocator
+           #:hierarchical-allocator #:sb-fine-metablocks
+           #:superblock-map #:sb-map-pages
+           #:claimore-nursery-matrix #:claimore-nursery-occupied
+           #:claimore-nursery-dirty #:claimore-nursery-last-action
            #:plan-build-sft #:plan-space-for-address
            #:page-index #:page-start-address #:address-page)
   ;; tracer
@@ -127,10 +132,15 @@
            #:barrier #:make-barrier #:barrier-rules
            #:barrier-note-write #:barrier-note-read
            #:barrier-metaclass #:no-barrier
-           #:publication-strategy #:publish #:publication-read-rule
+           #:publication-strategy #:publish #:publish-sealed
+           #:publication-read-rule
            #:eager-closure #:lazy-read-barrier #:trap-error-copy-a
            #:trap-error-copy-b
            #:strategy-read-guarded-p #:strategy-published-roots
+           #:publication-epoch #:publication-state #:publication-active
+           #:publication-open-p #:publication-sealed-p
+           #:publication-enter #:publication-leave #:publication-seal
+           #:publication-open #:compact-published-roots
            #:published-roots #:make-published-roots
            #:record-published-edge #:drain-published-roots
            #:published-roots-count #:published-edge-recorded-p

@@ -1,4 +1,4 @@
-;;;; clamsara.asd -- ASDF system definition for the Clamsara v8 framework.
+;;;; clamsara.asd -- ASDF system definition for the Clamsara v9 simulator.
 ;;;;
 ;;;; No external dependencies: pure ANSI CLOS + SBCL (used for speed/atomics).
 ;;;; Load without Quicklisp:
@@ -7,8 +7,8 @@
 ;;;;   (asdf:load-system :clamsara)
 
 (asdf:defsystem :clamsara
-  :version "8.0.0"
-  :description "A compilable, MOP-based garbage-collection framework (v8 rewrite)."
+  :version "9.0.0"
+  :description "A compilable, MOP-based garbage-collection simulator (v9 alignment work)."
   :licence "MIT"
   :depends-on ()
   :serial t
@@ -21,6 +21,7 @@
      (:file "conditions")
      (:file "strata")
      (:file "page-resource")
+     (:file "metaclass")
      (:module "vm"
       :serial t
       :components ((:file "binding")
@@ -28,7 +29,6 @@
                    (:file "software-mmu")
                    (:file "object-model")
                    (:file "simulator")))
-     (:file "metaclass")
      (:file "heap")
      (:file "tracer")
      (:file "publication")

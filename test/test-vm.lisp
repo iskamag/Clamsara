@@ -272,6 +272,55 @@
                                       idle-ok requested-ok resumed-ok
                                       next-epoch))))))))))
 
+(deftest publication-epoch-handshake ()
+  ;; execution-model.tex section 4: a publisher that entered before the seal
+  ;; keeps the epoch open until its final decrement; a later entrant observes
+  ;; the sealed epoch and cannot append to the owner's set.
+  (let* ((vm (make-simulator-vm 4096))
+         (strategy (make-instance 'lazy-read-barrier)))
+    (initialize-publication-work strategy vm)
+    (let* ((pr (strategy-published-roots strategy))
+           (epoch (publication-epoch strategy))
+           (entered-open (publication-enter strategy vm))
+           (seal-closed (publication-seal strategy vm)))
+      ;; This models a publisher preempted after its state read but before its
+      ;; append.  The owner cannot close grace while its active count is one.
+      (record-published-edge pr 512 0)
+      (publication-leave strategy)
+      (let ((retry-closed (publication-seal strategy vm))
+            (entered-after-seal (publication-enter strategy vm)))
+        (publication-leave strategy)
+        (publication-open strategy vm)
+        (if (and entered-open (not seal-closed) retry-closed
+                 (not entered-after-seal)
+                 (= (publication-active strategy) 0)
+                 (= (publication-epoch strategy) (1+ epoch))
+                 (= (published-roots-count pr) 1)
+                 (publication-open-p strategy))
+            (values t "publication seal waits for pre-seal publisher")
+            (values nil "publication epoch handshake admitted or lost an edge"))))))
+
+(deftest component-metaclass-contracts ()
+  ;; The paper's component taxonomy is a boot-time validation boundary.  VM
+  ;; and allocator classes must carry their dedicated metaclasses, and their
+  ;; validators must reject malformed storage before compilation.
+  (let* ((vm (make-simulator-vm 4096))
+         (space (make-instance 'mark-sweep-space :vm vm :start-page 1
+                               :page-count 2 :name :test))
+         (allocator (make-instance 'free-list-allocator :start 512 :limit 1024
+                                   :vm vm :space space))
+         (valid (and (typep (class-of vm) 'vm-metaclass)
+                     (typep (class-of allocator) 'allocator-metaclass)))
+         (rejected nil))
+    (handler-case
+        (component-validate
+         (make-instance 'bump-allocator :start 1024 :limit 512
+                        :vm vm :space space))
+      (plan-incompatible () (setf rejected t)))
+    (if (and valid rejected)
+        (values t "VM/allocator metaclass validation ok")
+        (values nil "VM/allocator metaclass contract was not enforced"))))
+
 
 (deftest slot-layout-api-regressions ()
   ;; Layout ids are carried in the spare field by both allocation entry points,

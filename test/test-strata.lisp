@@ -185,9 +185,10 @@
       ("bytes_allocated" %matrix-bytes-allocated)
       sb-alien:unsigned-long)
   (deftest matrix-closure-and-peel-are-allocation-free ()
-    ;; strata.md §6: the collector cannot call the host allocator.  The matrix
-    ;; closure and peel must run entirely on boot-allocated scratch, matching
-    ;; the bitmatrices C reference's `static` storage.
+    ;; paper-v9/chapters/philosophy.tex: the collector cannot call the host
+    ;; allocator.  The matrix closure and peel must run entirely on
+    ;; boot-allocated scratch, matching the bitmatrices C reference's `static`
+    ;; storage.
     (let ((m (make-matrix-stratum (g-block) 256))
           (roots (make-array 256 :element-type 'bit :initial-element 0)))
       (dotimes (i 256)

@@ -39,6 +39,13 @@
 (defmethod plan-handle-allocation-failure ((p zgc-plan) size space)
   (plan-retry-after p size space :full))
 
+(defmethod plan-current-space ((p zgc-plan) space)
+  ;; The from/to pair swaps on every full collection; resolve either stale
+  ;; object to the current allocating half.
+  (if (or (eq space (z-from p)) (eq space (z-to p)))
+      (z-from p)
+      space))
+
 (defmethod gc-phase :prologue ((p zgc-plan) k)
   (declare (ignore k))
   (vm-stop-mutators (plan-vm p))

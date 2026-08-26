@@ -354,8 +354,9 @@ should pass (VM-HEAP-BASE VM)."
 ;; The 1-bit remembered-set matrix from iskamag.com/posts/remsets.  Like the C
 ;; reference (bitmatrices/c/peel_space.c, bitvectors.c) the storage and all
 ;; work buffers are allocated ONCE at construction; the closure/peel loops
-;; never call MAKE-ARRAY, matching the strata.md §6 rule that the collector
-;; cannot call the host allocator.  Vectorised bulk steps use destructive
+;; never call MAKE-ARRAY, matching the immortal-allocation rule
+  ;; (paper-v9/chapters/philosophy.tex) that the collector cannot call the
+  ;; host allocator.  Vectorised bulk steps use destructive
 ;; BIT-IOR / BIT-AND into the preallocated scratch (SBCL makes those
 ;; allocation-free when the result array is one of the arguments).
 
@@ -451,7 +452,7 @@ This is shared by the closure and peel collection paths and never allocates."
 
 (defun matrix-closure (m roots &optional (max-passes nil))
   "Least-fixpoint forward closure from ROOTS over the matrix relation
-(strata.md §5).  For :POINTS-TO, row I names the regions reached from I;
+(paper-v9/chapters/strata.tex, Region relations).  For :POINTS-TO, row I names the regions reached from I;
 for :POINTED-BY, column I names the regions reached from I.  Returns the
 reached-regions bit-vector, which is shared preallocated scratch — copy it if
 you must keep it across another call.  MAX-PASSES bounds the diameter (NIL =

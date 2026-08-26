@@ -384,6 +384,13 @@ path (nursery, mature, LOS) uses it, so object identity is never forgotten."
         (when os (s-set-bit os addr))))
     addr))
 
+(defgeneric plan-current-space (plan space)
+  (:documentation "The current space playing SPACE's allocation role after any
+  rotations.  Copying plans swap paired space objects in their release phase:
+  the object that failed before a collection may afterwards be the cleared
+  target.  Plans whose named spaces rotate override this to resolve the role.")
+  (:method ((p plan) space) space))
+
 (defun plan-retry-after (plan size space cycle-kind)
   "Run CYCLE-KIND, retry allocation, and signal heap-exhausted on failure.
 The escalation tail shared by every plan's failure handler.
@@ -392,13 +399,15 @@ SPACE is the object that failed BEFORE the collection.  A copying plan may
 rotate it during CYCLE-KIND: the object then becomes the cleared target
 space, whose contents the NEXT collection's prologue erases before tracing
 them, so a mutator reference placed there by this retry would be stranded.
-Detect that case by comparing against the default space at ENTRY; after the
-collection, allocate into the CURRENT default.  Explicit/named spaces never
-rotate, so their retry keeps using SPACE."
+After the collection, allocate into the space that currently plays SPACE's
+role: the default-space lookup for default requests, PLAN-CURRENT-SPACE for
+named ones."
   (let ((was-default (eq space (default-space plan))))
     (plan-collect plan :cycle-kind cycle-kind)
     (or (plan-allocate-in plan size
-                          (if was-default (default-space plan) space))
+                          (if was-default
+                              (default-space plan)
+                              (plan-current-space plan space)))
         (error 'heap-exhausted :requested-size size :space (space-name space)))))
 
 (defgeneric plan-allocate (plan size space-designator)

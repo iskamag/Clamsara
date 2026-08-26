@@ -31,6 +31,13 @@
 (defmethod plan-handle-allocation-failure ((p semispace-plan) size space)
   (plan-retry-after p size space :full))
 
+(defmethod plan-current-space ((p semispace-plan) space)
+  ;; The from/to pair swaps on every full collection; resolve either stale
+  ;; object to the current allocating half.
+  (if (or (eq space (sp-from p)) (eq space (sp-to p)))
+      (sp-from p)
+      space))
+
 (defmethod gc-phase :prologue ((p semispace-plan) k)
   (declare (ignore k))
   (let ((vm (plan-vm p)))

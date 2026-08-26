@@ -69,15 +69,21 @@
   ;; must allocate into the CURRENT nursery: allocating into the old space
   ;; object would place a fresh, live cons in a region the next minor's
   ;; prologue clears before tracing it, stranding the mutator's reference.
-  ;; Explicit spaces (:mature, :los) never rotate, so their retry keeps SPACE:
-  ;; redirecting them into the nursery would violate the explicit-space
-  ;; contract that PLAN-ALLOCATE's named-space path promises.
   (plan-collect p :cycle-kind :minor)
-  (or (plan-allocate-in p size
-                        (if (eq space (gen-nursery-to p))
-                            (gen-nursery p)
-                            space))
+  (or (plan-allocate-in p size (plan-current-space p space))
       (plan-retry-after p size space :major)))
+
+(defmethod plan-current-space ((p generational-plan) space)
+  ;; Resolve a stale space object to the space currently playing its role.
+  ;; The nursery pair swaps on every minor; the mature pair (copying plans)
+  ;; swaps on every major.  A space object handed to the failure handler
+  ;; belongs to the generation BEFORE the last collection.
+  (cond
+    ((eq space (gen-nursery-to p)) (gen-nursery p))
+    ((eq space (gen-nursery p)) (gen-nursery p))
+    ((and (gen-mature-to p) (eq space (gen-mature-to p))) (gen-mature p))
+    ((and (gen-mature-to p) (eq space (gen-mature p))) (gen-mature p))
+    (t space)))
 
 ;; ---- phases -------------------------------------------------------------
 

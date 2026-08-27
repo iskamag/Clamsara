@@ -485,6 +485,10 @@ named ones."
                                       (layout-id 0) (space :default))
   "Allocate a headered object of SLOT-COUNT slots; return its address.
 LAYOUT-ID is recorded in the header spare field and defaults to zero."
+  ;; Validate before asking the allocator for space.  In particular, a
+  ;; negative count must not consume an allocator cursor and only fail later
+  ;; while encoding a nonsensical header.
+  (%validate-object-header-parameters type-tag slot-count)
   (unless (%valid-layout-id-p layout-id)
     (error 'clamsara-error
            :message (format nil "invalid layout id ~s (expected 0..~d)"

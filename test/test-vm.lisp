@@ -101,6 +101,32 @@
                (vm-object-start-p vm a))
           (values t "obj ok") (values nil "obj wrong")))))
 
+(deftest invalid-object-shape-is-rejected-before-allocation ()
+  ;; Header fields are fixed-width.  Reject malformed values before touching
+  ;; the allocator, rather than truncating a negative size into a giant
+  ;; object that poisons later scans.
+  (let ((ok t))
+    (dolist (count (list -2 -1))
+      (handler-case
+          (with-clamsara (:plan-type :semispace :heap-size 4096)
+            (clamsara-allocate-object count)
+            (setf ok nil))
+        (clamsara-error () nil)
+        (error () (setf ok nil))))
+    (handler-case
+        (with-clamsara (:plan-type :semispace :heap-size 4096)
+          (clamsara-allocate-object 0 :type-tag 256)
+          (setf ok nil))
+      (clamsara-error () nil)
+      (error () (setf ok nil)))
+    (handler-case
+        (make-simulator-vm 0)
+      (clamsara-error () nil)
+      (error () (setf ok nil)))
+    (if ok
+        (values t "invalid object shapes and heap sizes rejected")
+        (values nil "invalid object shape reached allocator or host error"))))
+
 (deftest vm-address-cons-p-default-and-configured ()
   ;; A bare VM has no headerless cells.  Installing a plan with a named
   ;; cons-space enables the predicate only for addresses in that space.

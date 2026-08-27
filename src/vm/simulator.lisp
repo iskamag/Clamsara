@@ -51,9 +51,18 @@
 (defun %make-simulator-vm (class heap-words plan &key
                               (work-packets (max 1 heap-words))
                               (root-region-capacity 16))
-  (when (>= heap-words (ash 1 +colour-pos+))
+  (unless (and (integerp heap-words)
+               (plusp heap-words)
+               (< heap-words (ash 1 +colour-pos+)))
     (error 'clamsara-error
-           :message "simulator heap does not fit below the colour bits"))
+           :message
+           (format nil
+                   "simulator heap size must be positive and fit below the colour bits (got ~s)"
+                   heap-words)))
+  (unless (and (integerp work-packets) (plusp work-packets))
+    (error 'clamsara-error
+           :message (format nil "work-packets must be a positive integer (got ~s)"
+                            work-packets)))
   (unless (and (integerp root-region-capacity) (<= 0 root-region-capacity))
     (error 'clamsara-error :message "root-region-capacity must be a non-negative integer"))
   (let* ((heap (make-array heap-words :element-type '(unsigned-byte 64)

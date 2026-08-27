@@ -9,7 +9,7 @@
 
 (defparameter *paper-v8-workload-plans*
   '(:semispace :marksweep :immix :gencopy :genms :genimmix
-    :stickyimmix :stickyms :zgcish))
+    :stickyimmix :stickyms :iso :zgcish :claimore))
 (defparameter *paper-v8-workload-seeds* '(13579 24680))
 (defparameter *paper-v8-workload-steps* 72)
 
@@ -157,16 +157,24 @@ Returns NIL plus a short explanation on the first mismatch."
                                (fail (format nil
                                              "allocation failed for ~a slots"
                                              slots))))
-                           (let ((node (make-paper-v8-node
+                             (let ((node (make-paper-v8-node
                                         id address (make-array slots
                                                                 :initial-element nil))))
-                             (push node nodes)
-                             (let ((index (clamsara-register-root address)))
-                               (unless (= index (length roots))
-                                 (return-from paper-v8-run
-                                   (fail (format nil "root index ~a, expected ~a"
-                                                 index (length roots)))))
-                               (setf roots (append roots (list id)))))))
+                               (push node nodes)
+                               (let ((index (clamsara-register-root address)))
+                                 (unless (= index (length roots))
+                                   (return-from paper-v8-run
+                                     (fail (format nil "root index ~a, expected ~a"
+                                                   index (length roots)))))
+                                 ;; Publication collectors may replace an
+                                 ;; object while registering an external root.
+                                 ;; The root index is the stable handle;
+                                 ;; retaining ADDRESS here would make the model
+                                 ;; report a simulator failure against the
+                                 ;; private pre-publication incarnation.
+                                 (setf (paper-v8-node-address node)
+                                       (clamsara-root index))
+                                 (setf roots (append roots (list id)))))))
                        (drop-root (index)
                          (let* ((last-index (1- (length roots)))
                                 (dropped (nth index roots))
@@ -240,6 +248,8 @@ Returns NIL plus a short explanation on the first mismatch."
                                                  (length live)) live))
                                   (index (clamsara-register-root
                                           (paper-v8-node-address node))))
+                             (setf (paper-v8-node-address node)
+                                   (clamsara-root index))
                              (setf roots (append roots
                                                   (list (paper-v8-node-id node))))
                              (record (list :root-add index

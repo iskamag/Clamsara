@@ -276,12 +276,41 @@ returns true only for addresses in the plan's configured cons-space."))
 
 ;; ---- allocation helper (header write + object-start mark) ----------------
 
+(defun %validate-object-header-parameters (type-tag slot-count)
+  "Validate fields that are encoded directly into an object header.
+
+Without this check a negative SLOT-COUNT is truncated by PACK-HEADER into a
+huge 24-bit size, even though the allocator may have reserved no payload at
+all.  That corrupts object traversal long after the bad API call, which is
+much harder to diagnose than a deterministic simulator error here."
+  (unless (and (integerp type-tag) (<= 0 type-tag) (< type-tag 256))
+    (error 'clamsara-error
+           :message (format nil "invalid object type tag ~s (expected 0..255)"
+                            type-tag)))
+  (unless (and (integerp slot-count)
+               (<= 0 slot-count)
+               (< slot-count +slot-index-limit+))
+    (error 'clamsara-error
+           :message
+           (format nil "invalid object slot count ~s (expected 0..~d)"
+                   slot-count (1- +slot-index-limit+))))
+  t)
+
 (defun vm-write-header (vm address type-tag slot-count &optional (layout-id 0))
   "Write a header at ADDRESS, zero the SLOT-COUNT payload slots, and mark the
   object-start bit.  LAYOUT-ID is stored in the header spare field and defaults
   to zero.  Returns ADDRESS.  Zeroing the payload is required so a first
   barrier-visible store to a fresh slot observes a non-reference: reused heap
   regions hold stale words from their previous occupant."
+  (%validate-object-header-parameters type-tag slot-count)
+  (unless (and (integerp address)
+               (<= 0 address)
+               (< address (vm-heap-size vm))
+               (<= (+ address 1 slot-count) (vm-heap-size vm)))
+    (error 'clamsara-error
+           :message (format nil
+                            "object header at ~s with ~s slots exceeds simulator heap"
+                            address slot-count)))
   (unless (%valid-layout-id-p layout-id)
     (error 'clamsara-error
            :message (format nil "invalid layout id ~s (expected 0..~d)"

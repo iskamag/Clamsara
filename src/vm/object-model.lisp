@@ -31,42 +31,47 @@ returns true only for addresses in the plan's configured cons-space."))
 ;; ---- object model protocol ----------------------------------------------
 
 (defgeneric vm-object-header (vm address)
-  (:method ((vm vm-binding) address) (ref-u64 vm address)))
+  (:method ((vm vm-binding) address) (vm-direct-ref-u64 vm address)))
 (defgeneric (setf vm-object-header) (new vm address)
-  (:method (new (vm vm-binding) address) (setf (ref-u64 vm address) new)))
+  (:method (new (vm vm-binding) address)
+    (vm-direct-set-ref-u64 vm address new)))
 
 (defgeneric vm-object-total-words (vm address)
   (:method ((vm vm-binding) address)
-    (if (vm-address-cons-p vm address)
+    (if (vm-direct-address-cons-p vm address)
         2
-        (1+ (header-size (vm-object-header vm address))))))
+        (1+ (header-size (vm-direct-object-header vm address))))))
 
 (defgeneric vm-object-reference-count (vm address)
   (:method ((vm vm-binding) address)
-    (if (vm-address-cons-p vm address) 2 (header-size (vm-object-header vm address)))))
+    (if (vm-direct-address-cons-p vm address)
+        2
+        (header-size (vm-direct-object-header vm address)))))
 
 (defgeneric vm-object-type-tag (vm address)
   (:method ((vm vm-binding) address)
-    (if (vm-address-cons-p vm address) +tag-cons+ (header-tag (vm-object-header vm address)))))
+    (if (vm-direct-address-cons-p vm address)
+        +tag-cons+
+        (header-tag (vm-direct-object-header vm address)))))
 
 (defgeneric vm-object-reference (vm address slot)
   (:method ((vm vm-binding) address slot)
-    (if (vm-address-cons-p vm address)
-        (ref-u64 vm (+ address slot))
-        (ref-u64 vm (+ address 1 slot)))))
+    (if (vm-direct-address-cons-p vm address)
+        (vm-direct-ref-u64 vm (+ address slot))
+        (vm-direct-ref-u64 vm (+ address 1 slot)))))
 (defgeneric (setf vm-object-reference) (new vm address slot)
   (:method (new (vm vm-binding) address slot)
-    (if (vm-address-cons-p vm address)
-        (setf (ref-u64 vm (+ address slot)) new)
-        (setf (ref-u64 vm (+ address 1 slot)) new))))
+    (if (vm-direct-address-cons-p vm address)
+        (vm-direct-set-ref-u64 vm (+ address slot) new)
+        (vm-direct-set-ref-u64 vm (+ address 1 slot) new))))
 
 (defun vm-set-reference (vm address slot value)
   "Collector-internal store: bypasses the write barrier."
-  (setf (vm-object-reference vm address slot) value))
+  (vm-direct-set-object-reference vm address slot value))
 
 (defgeneric vm-object-has-children-p (vm address)
   (:method ((vm vm-binding) address)
-    (plusp (vm-object-reference-count vm address))))
+    (plusp (vm-direct-object-reference-count vm address))))
 
 (defgeneric vm-object-start-p (vm address)
   (:method ((vm vm-binding) address)
@@ -76,7 +81,7 @@ returns true only for addresses in the plan's configured cons-space."))
 (defgeneric vm-object-copy (vm src dst)
   (:documentation "Copy payload words and preserve relocatable side metadata.")
   (:method ((vm vm-binding) src dst)
-    (let ((n (vm-object-total-words vm src)))
+    (let ((n (vm-direct-object-total-words vm src)))
       ;; Object-copy is the common relocation/publication seam.  Count both
       ;; units here so every collector path (including publication and
       ;; compaction) reports the same event, without allocating per object.
@@ -84,7 +89,9 @@ returns true only for addresses in the plan's configured cons-space."))
         (when stats
           (stats-event stats :objects-copied 1)
           (stats-event stats :words-copied n)))
-      (loop for k below n do (setf (ref-u64 vm (+ dst k)) (ref-u64 vm (+ src k)))))
+      (loop for k below n
+            do (vm-direct-set-ref-u64 vm (+ dst k)
+                                      (vm-direct-ref-u64 vm (+ src k)))))
     (let ((os (vm-object-start vm)))
       (when os (s-set-bit os dst)))
     ;; Preserve side metadata so identity survives relocation: mark, age,
@@ -94,9 +101,9 @@ returns true only for addresses in the plan's configured cons-space."))
     ;; live, so the mark bit is carried too; callers that want a fresh mark
     ;; (copy-space tracing an unmarked source) are unaffected because the
     ;; source is unmarked there.
-    (let ((age (vm-stratum vm :age)) (pub (vm-stratum vm :public))
-          (mark (vm-stratum vm :mark)) (log (vm-stratum vm :log))
-          (weak (vm-stratum vm :weak)))
+    (let ((age (vm-direct-stratum vm :age)) (pub (vm-direct-stratum vm :public))
+          (mark (vm-direct-stratum vm :mark)) (log (vm-direct-stratum vm :log))
+          (weak (vm-direct-stratum vm :weak)))
       (when age (s-set age dst (s-get age src)))
       (when pub (when (s-test-bit pub src) (s-set-bit pub dst)))
       (when mark (when (s-test-bit mark src) (s-set-bit mark dst)))
@@ -114,15 +121,15 @@ returns true only for addresses in the plan's configured cons-space."))
   scanning (every payload slot).  Weak pointers (weak.tex §1) have their
   referent slot 0 excluded from normal tracing; the weak phase processes it.
   Returns ADDRESS."
-  (let ((slots (vm-reference-slots vm address))
+    (let ((slots (vm-reference-slots vm address))
         (weak-p (weak-pointer-p vm address)))
     (flet ((visit (i)
              (when (or (not weak-p) (not (zerop i)))
-               (let ((r (vm-object-reference vm address i)))
+               (let ((r (vm-direct-object-reference vm address i)))
                  (unless (null-ref-p r) (funcall fn r))))))
       (if slots
           (loop for i across slots do (visit i))
-          (dotimes (i (vm-object-reference-count vm address)) (visit i)))))
+          (dotimes (i (vm-direct-object-reference-count vm address)) (visit i)))))
   address)
 
 (defun vm-heal-reference-slots (vm address fwd-table)
@@ -132,7 +139,7 @@ returns true only for addresses in the plan's configured cons-space."))
   ADDRESS."
   (let ((slots (vm-reference-slots vm address)))
     (flet ((heal-slot (i)
-      (let ((child (vm-object-reference vm address i)))
+      (let ((child (vm-direct-object-reference vm address i)))
                ;; A moving collector may clear the old object's identity
                ;; before this pass (Claimore OVC does so to make stale reads
                ;; fail).  The forwarding table is then the authoritative
@@ -146,11 +153,10 @@ returns true only for addresses in the plan's configured cons-space."))
                  (let* ((bare (ref-strip-or-self vm child))
                         (destination (aref fwd-table bare)))
                    (when (plusp destination)
-                     (setf (vm-object-reference vm address i)
-                           destination)))))))
+                     (vm-direct-set-object-reference vm address i destination)))))))
       (if slots
           (loop for i across slots do (heal-slot i))
-          (dotimes (i (vm-object-reference-count vm address)) (heal-slot i))))
+          (dotimes (i (vm-direct-object-reference-count vm address)) (heal-slot i))))
     address))
 
 (defun vm-valid-reference-p (vm reference)
@@ -164,7 +170,7 @@ returns true only for addresses in the plan's configured cons-space."))
   (let ((addr (ref-strip-or-self vm value)))
     (and (integerp addr) (plusp addr)
          (< addr (vm-heap-size vm))
-         (vm-object-start-p vm addr))))
+         (vm-direct-object-start-p vm addr))))
 (declaim (inline ref-strip-or-self))
 (defun ref-strip-or-self (vm r)
   (if (and (integerp r) (typep vm 'coloured-pointer-mixin))
@@ -191,34 +197,40 @@ returns true only for addresses in the plan's configured cons-space."))
 ;; mark ---
 (defmethod vm-object-is-marked-p ((vm vm-binding) reference)
   (ecase (vm-location vm :mark)
-    (:side      (let ((s (vm-stratum vm :mark))) (and s (s-test-bit s (ref-strip-or-self vm reference)))))
+    (:side      (let ((s (vm-direct-stratum vm :mark)))
+                 (and s (s-test-bit s (ref-strip-or-self vm reference)))))
     (:in-pointer (eql (ref-colour vm reference) (vm-mark-colour vm)))
-    (:in-header  (logbitp 0 (header-gc-flags (vm-object-header vm reference))))))
+    (:in-header  (logbitp 0
+                          (header-gc-flags
+                           (vm-direct-object-header vm reference))))))
 (defmethod (setf vm-object-is-marked-p) (new (vm vm-binding) reference)
   (ecase (vm-location vm :mark)
-    (:side      (let ((s (vm-stratum vm :mark)))
+    (:side      (let ((s (vm-direct-stratum vm :mark)))
                  (if new (s-set-bit s (ref-strip-or-self vm reference))
                          (s-clear-bit s (ref-strip-or-self vm reference)))))
     (:in-pointer (ref-set-colour vm reference
                                  (if new (vm-mark-colour vm)
                                      (vm-good-colour vm))))
-    (:in-header  (let ((h (vm-object-header vm reference)))
-                  (setf (vm-object-header vm reference)
-                        (dpb (if new 1 0) (byte 1 0) (header-gc-flags h)))))))
+    (:in-header  (let ((h (vm-direct-object-header vm reference)))
+                   (vm-direct-set-object-header
+                    vm reference
+                    (dpb (if new 1 0) (byte 1 0) (header-gc-flags h)))))))
 
 ;; log / public / age (side strata) ---
 (defmethod vm-object-is-logged-p ((vm vm-binding) address)
-  (let ((s (vm-stratum vm :log))) (and s (s-test-bit s address))))
+  (let ((s (vm-direct-stratum vm :log))) (and s (s-test-bit s address))))
 (defmethod (setf vm-object-is-logged-p) (new (vm vm-binding) address)
-  (let ((s (vm-stratum vm :log))) (if new (s-set-bit s address) (s-clear-bit s address))))
+  (let ((s (vm-direct-stratum vm :log)))
+    (if new (s-set-bit s address) (s-clear-bit s address))))
 (defmethod vm-object-is-public-p ((vm vm-binding) address)
-  (let ((s (vm-stratum vm :public))) (and s (s-test-bit s address))))
+  (let ((s (vm-direct-stratum vm :public))) (and s (s-test-bit s address))))
 (defmethod (setf vm-object-is-public-p) (new (vm vm-binding) address)
-  (let ((s (vm-stratum vm :public))) (if new (s-set-bit s address) (s-clear-bit s address))))
+  (let ((s (vm-direct-stratum vm :public)))
+    (if new (s-set-bit s address) (s-clear-bit s address))))
 (defmethod vm-object-age ((vm vm-binding) address)
-  (let ((s (vm-stratum vm :age))) (if s (s-get s address) 0)))
+  (let ((s (vm-direct-stratum vm :age))) (if s (s-get s address) 0)))
 (defmethod (setf vm-object-age) (age (vm vm-binding) address)
-  (let ((s (vm-stratum vm :age))) (when s (s-set s address age)) age))
+  (let ((s (vm-direct-stratum vm :age))) (when s (s-set s address age)) age))
 
 ;; reference count (off-heap table) ---
 (defmethod vm-object-rc ((vm vm-binding) address)
@@ -229,15 +241,16 @@ returns true only for addresses in the plan's configured cons-space."))
 ;; forwarding (in-header STW, or off-heap concurrent) ---
 (defmethod vm-object-is-forwarded-p ((vm vm-binding) address)
   (ecase (vm-location vm :forwarding)
-    (:in-header (header-forwarded-p (vm-object-header vm address)))
+    (:in-header (header-forwarded-p (vm-direct-object-header vm address)))
     (:off-heap  (fwd-present-p vm address))))
 (defmethod vm-object-forwarding-pointer ((vm vm-binding) address)
   (ecase (vm-location vm :forwarding)
-    (:in-header (forwarding-address (vm-object-header vm address)))
+    (:in-header (forwarding-address (vm-direct-object-header vm address)))
     (:off-heap  (fwd-get vm address))))
 (defmethod (setf vm-object-forwarding-pointer) (dst (vm vm-binding) address)
   (ecase (vm-location vm :forwarding)
-    (:in-header (setf (vm-object-header vm address) (make-forwarding-header dst)))
+    (:in-header (vm-direct-set-object-header
+                 vm address (make-forwarding-header dst)))
     (:off-heap  (fwd-set vm address dst))))
 
 ;; ---- generational discrimination ---------------------------------------
@@ -249,14 +262,17 @@ returns true only for addresses in the plan's configured cons-space."))
   (let ((addr (ref-strip-or-self vm reference))
         (plan (vm-plan vm)))
     (cond
-      ((and plan (plan-nursery plan) (space-contains-p (plan-nursery plan) addr)) t)
-      ((vm-stratum vm :log) (not (s-test-bit (vm-stratum vm :log) addr)))
-      ((vm-stratum vm :age) (zerop (s-get (vm-stratum vm :age) addr)))
+      ((and plan (plan-nursery plan)
+            (space-direct-contains-p (plan-nursery plan) addr)) t)
+      ((vm-direct-stratum vm :log)
+       (not (s-test-bit (vm-direct-stratum vm :log) addr)))
+      ((vm-direct-stratum vm :age)
+       (zerop (s-get (vm-direct-stratum vm :age) addr)))
       (t nil))))
 (defmethod vm-object-old-p ((vm vm-binding) reference)
   (let ((addr (ref-strip-or-self vm reference)))
-    (and (vm-object-start-p vm addr)
-         (not (vm-object-young-p vm reference)))))
+    (and (vm-direct-object-start-p vm addr)
+         (not (vm-direct-object-young-p vm reference)))))
 
 ;; ---- allocation helper (header write + object-start mark) ----------------
 
@@ -273,8 +289,9 @@ returns true only for addresses in the plan's configured cons-space."))
   ;; Pass the layout id through PACK-HEADER's spare argument.  This preserves
   ;; the complete spare field (rather than silently dropping it as the old
   ;; four-argument call did) while retaining the existing header bit layout.
-  (setf (ref-u64 vm address) (pack-header slot-count type-tag 0 layout-id))
-  (dotimes (k slot-count) (setf (ref-u64 vm (+ address 1 k)) 0))
+  (vm-direct-set-ref-u64 vm address
+                         (pack-header slot-count type-tag 0 layout-id))
+  (dotimes (k slot-count) (vm-direct-set-ref-u64 vm (+ address 1 k) 0))
   (let ((os (vm-object-start vm)))
     (when os (s-set-bit os address)))
   address)
@@ -283,8 +300,8 @@ returns true only for addresses in the plan's configured cons-space."))
   "Clear object identity and per-object metadata before an address is reused."
   (let ((os (vm-object-start vm)))
     (when os (s-clear-bit os address)))
-  (dolist (name '(:mark :log :public :age :weak))
-    (let ((s (vm-stratum vm name)))
+    (dolist (name '(:mark :log :public :age :weak))
+    (let ((s (vm-direct-stratum vm name)))
       (when s (s-set s address (stratum-default s)))))
   (when (and (vm-fwd-table vm) (< address (length (vm-fwd-table vm))))
     (setf (aref (vm-fwd-table vm) address) 0))
@@ -297,7 +314,7 @@ returns true only for addresses in the plan's configured cons-space."))
   (let ((os (vm-object-start vm)))
     (when os (s-clear-range os start end)))
   (dolist (name '(:mark :log :public :age :weak))
-    (let ((s (vm-stratum vm name)))
+    (let ((s (vm-direct-stratum vm name)))
       (when s (s-clear-range s start end))))
   (when (vm-fwd-table vm)
     (fill (vm-fwd-table vm) 0 :start start :end end))

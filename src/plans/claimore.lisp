@@ -64,7 +64,7 @@
 
 (defmethod gc-phase :prologue ((p claimore-plan) k)
   (let ((vm (plan-vm p)))
-    (vm-stop-mutators vm)
+    (vm-direct-stop-mutators vm)
     ;; The owner seal is the publication fence, not merely the simulator's
     ;; stop flag.  A target backend may have foreign publishers that do not
     ;; stop with this mutator set.
@@ -73,7 +73,7 @@
         (error 'gc-phase-error :phase :prologue
                :message "publication epoch has an active publisher"))))
   (if (eq k :minor)
-      (space-prepare (cl-nursery p) (plan-vm p))
+      (space-direct-prepare (cl-nursery p) (plan-vm p) k)
       (prepare-spaces p k)))
 
 (defmethod gc-phase :mark ((p claimore-plan) k)
@@ -82,7 +82,7 @@
 (defmethod gc-phase :reclaim ((p claimore-plan) k)
   (let ((vm (plan-vm p)))
     (if (eq k :minor)
-        (space-reclaim (cl-nursery p) vm :cycle-kind k)
+        (space-direct-reclaim (cl-nursery p) vm k)
         (progn
           ;; Reconcile the sealed edge set before any zero-count release;
           ;; precise tracing remains the authority for object liveness.
@@ -109,9 +109,9 @@
 
 (defmethod gc-phase :release ((p claimore-plan) k)
   (let ((vm (plan-vm p)))
-    (let ((mark (vm-stratum vm :mark)))
+    (let ((mark (vm-direct-stratum vm :mark)))
       (when (and mark (member k '(:major :full))) (s-clear mark)))
-    (let ((card (vm-stratum vm :card))) (when card (s-clear card)))
+    (let ((card (vm-direct-stratum vm :card))) (when card (s-clear card)))
     (superblock-seal-fine (cl-mature p))
     (when (plan-publication p)
       ;; Published-root entries are append-only for the sealed epoch.  Compact
@@ -144,14 +144,14 @@ only young referents into the nursery tracer."
          (weak-p (weak-pointer-p vm address)))
     (labels ((visit (slot)
                (when (or (not weak-p) (not (zerop slot)))
-                 (let ((ref (vm-object-reference vm address slot)))
+                 (let ((ref (vm-direct-object-reference vm address slot)))
                    (when (and (vm-reference-p vm ref)
-                              (space-contains-p
+                              (space-direct-contains-p
                                nursery (ref-strip-or-self vm ref)))
                      (trace-root-in plan ref nursery :trace-kind :minor))))))
       (if slots
           (loop for slot across slots do (visit slot))
-          (dotimes (slot (vm-object-reference-count vm address))
+          (dotimes (slot (vm-direct-object-reference-count vm address))
             (visit slot)))))
   address)
 
@@ -162,7 +162,7 @@ The card is a conservative source filter; precise slot/layout scanning below
 keeps raw payload words and weak referents out of the nursery trace."
   (let* ((vm (plan-vm plan))
          (nursery (cl-nursery plan))
-         (card (vm-stratum vm :card))
+         (card (vm-direct-stratum vm :card))
          (os (vm-object-start vm)))
     (when (and card os)
       (dolist (space (plan-spaces plan))
@@ -180,14 +180,14 @@ keeps raw payload words and weak referents out of the nursery trace."
   published-roots set is drained twice (locality.tex §1)."
   (let* ((vm (plan-vm plan)) (tr (plan-tracer plan)) (nursery (cl-nursery plan)))
     (tracer-reset tr)
-    (vm-scan-roots vm plan #'claimore-minor-root-reference)
-    (let ((pub (vm-stratum vm :public)) (os (vm-object-start vm)))
+    (vm-direct-scan-roots vm plan #'claimore-minor-root-reference)
+    (let ((pub (vm-direct-stratum vm :public)) (os (vm-object-start vm)))
       (when (and pub os)
         (loop for address from (space-base-address nursery)
               below (space-end-address nursery)
               when (and (s-test-bit pub address)
                         (s-test-bit os address))
-                do (space-trace-object nursery vm address tr))))
+                do (space-direct-trace-object nursery vm address tr :minor))))
     (claimore-drain-published-roots plan)
     (claimore-minor-scan-remembered plan)
     (tracer-drain tr #'claimore-minor-grey-reference plan)
@@ -200,14 +200,14 @@ keeps raw payload words and weak referents out of the nursery trace."
       (drain-published-roots
        pr
        (lambda (object slot)
-         (let ((vm (plan-vm plan)))
-           (let ((referent (vm-object-reference vm object slot)))
-             (when (vm-reference-p vm referent)
-               (let ((nursery (cl-nursery plan)))
-                 (when (space-contains-p
-                        nursery (ref-strip-or-self vm referent))
-                   (space-trace-object
-                    nursery vm referent (plan-tracer plan))))))))))))
+         (let* ((vm (plan-vm plan))
+                (referent (vm-direct-object-reference vm object slot))
+                (nursery (cl-nursery plan)))
+           (when (and (vm-reference-p vm referent)
+                      (space-direct-contains-p
+                       nursery (ref-strip-or-self vm referent)))
+             (space-direct-trace-object
+              nursery vm referent (plan-tracer plan) nil))))))))
 
 (defun claimore-apply-rc-log (plan)
   "Drain the RC delta buffer, folding external edges into per-SB counts.
@@ -222,7 +222,7 @@ keeps raw payload words and weak referents out of the nursery trace."
               for source-sb = (aref buf i)
               for ref = (aref buf (+ i 1))
               for delta = (aref buf (+ i 2))
-              when (and (plusp ref) (space-contains-p mature ref))
+              when (and (plusp ref) (space-direct-contains-p mature ref))
               do (let ((target-sb (sb-index mature ref)))
                    (when (/= source-sb target-sb)
                      (let ((cur (aref counts target-sb)))
@@ -232,7 +232,7 @@ keeps raw payload words and weak referents out of the nursery trace."
 
 (defun claimore-reconcile-rc-edge (mature vm source-sb reference counts)
   (when (and (vm-reference-p vm reference)
-             (space-contains-p mature (ref-strip-or-self vm reference)))
+             (space-direct-contains-p mature (ref-strip-or-self vm reference)))
     (let ((target-sb (sb-index mature (ref-strip-or-self vm reference))))
       (when (or (< source-sb 0) (/= source-sb target-sb))
         (incf (aref counts target-sb)))))
@@ -252,9 +252,9 @@ this precise reconciliation at the collection stop boundary."
             below (space-end-address space)
             when (s-test-bit os address)
               do (let* ((slots (vm-reference-slots vm address))
-                        (count (vm-object-reference-count vm address))
+                        (count (vm-direct-object-reference-count vm address))
                         (weak-p (weak-pointer-p vm address))
-                        (source-sb (if (space-contains-p mature address)
+                        (source-sb (if (space-direct-contains-p mature address)
                                        (sb-index mature address)
                                        -1)))
                    (if slots
@@ -262,13 +262,13 @@ this precise reconciliation at the collection stop boundary."
                              when (or (not weak-p) (not (zerop slot)))
                                do (claimore-reconcile-rc-edge
                                    mature vm source-sb
-                                   (vm-object-reference vm address slot)
+                                   (vm-direct-object-reference vm address slot)
                                    counts))
                        (dotimes (slot count)
                          (when (or (not weak-p) (not (zerop slot)))
                            (claimore-reconcile-rc-edge
                             mature vm source-sb
-                            (vm-object-reference vm address slot)
+                            (vm-direct-object-reference vm address slot)
                             counts)))))))
     (setf (fill-pointer (barrier-rc-buffer (plan-barrier plan))) 0))
   plan)
@@ -282,10 +282,10 @@ visible; the precise OVC later rebuilds rows and occupancy from the heap."
    :transfer (lambda (vm barrier src slot new)
                (let* ((plan (barrier-plan barrier))
                       (nursery (and plan (plan-nursery plan)))
-                      (old (vm-object-reference vm src slot)))
+                      (old (vm-direct-object-reference vm src slot)))
                  (when nursery
                    (claimore-nursery-note-write nursery vm src old new))
-                 (let ((card (vm-stratum vm :card)))
+                 (let ((card (vm-direct-stratum vm :card)))
                    (when card (s-set-bit card src))))
                new)))
 

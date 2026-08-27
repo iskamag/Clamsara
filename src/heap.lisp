@@ -28,7 +28,18 @@
                  :reader space-constraints)
    (vm           :initarg :vm :accessor space-vm :initform nil)
    (partner      :initarg :partner :initform nil :accessor space-partner)
-   (default-space-p :initarg :default-space :initform nil :accessor space-default-p))
+   (default-space-p :initarg :default-space :initform nil :accessor space-default-p)
+   ;; Filled by the boot compiler.  These slots hold effective protocol
+   ;; functions for this exact space/allocator pair; collection never asks the
+   ;; generic function dispatcher to rediscover them.
+   (collection-trace :accessor space-collection-trace :initform nil)
+   (collection-prepare :accessor space-collection-prepare :initform nil)
+   (collection-release :accessor space-collection-release :initform nil)
+   (collection-reclaim :accessor space-collection-reclaim :initform nil)
+   (collection-contains :accessor space-collection-contains :initform nil)
+   (collection-alloc :accessor space-collection-alloc :initform nil)
+   (collection-free :accessor space-collection-free :initform nil)
+   (collection-reset :accessor space-collection-reset :initform nil))
   (:metaclass space-metaclass))
 
 (defmethod shared-initialize :after ((s space) slot-names &key)
@@ -79,22 +90,22 @@
 
 ;; ---- space protocol (heap.tex) -------------------------------------------
 
-(defgeneric space-trace-object (space vm ref tracer &key trace-kind)
-  (:method ((s space) vm ref tracer &key trace-kind)
+(defgeneric space-trace-object (space vm ref tracer trace-kind)
+  (:method ((s space) vm ref tracer trace-kind)
     (declare (ignore tracer trace-kind))
     ref))
-(defgeneric space-prepare (space vm &key cycle-kind)
-  (:method ((s space) vm &key cycle-kind) (declare (ignore cycle-kind)) s))
-(defgeneric space-release (space vm &key cycle-kind)
-  (:method ((s space) vm &key cycle-kind) (declare (ignore cycle-kind)) s))
-(defgeneric space-reclaim (space vm &key cycle-kind)
-  (:method ((s space) vm &key cycle-kind) (declare (ignore cycle-kind)) s))
+(defgeneric space-prepare (space vm cycle-kind)
+  (:method ((s space) vm cycle-kind) (declare (ignore vm cycle-kind)) s))
+(defgeneric space-release (space vm cycle-kind)
+  (:method ((s space) vm cycle-kind) (declare (ignore vm cycle-kind)) s))
+(defgeneric space-reclaim (space vm cycle-kind)
+  (:method ((s space) vm cycle-kind) (declare (ignore vm cycle-kind)) s))
 (defgeneric space-occupancy (space)
   (:method ((s space)) 0))
 
 ;; ---- allocator protocol --------------------------------------------------
 
-(defgeneric alloc (allocator size &key &allow-other-keys))
+(defgeneric alloc (allocator size))
 (defgeneric free (allocator addr size))
 (defgeneric coalesce (allocator))
 (defgeneric allocator-reset (allocator)
@@ -123,7 +134,7 @@
            :message "bump allocator has an invalid cursor range"))
   a)
 
-(defmethod alloc ((a bump-allocator) size &key &allow-other-keys)
+(defmethod alloc ((a bump-allocator) size)
   (let ((c (ba-cursor a)))
     (if (<= (+ c size) (ba-limit a))
         (prog1 c (setf (ba-cursor a) (+ c size)))
@@ -189,7 +200,7 @@
                    (aref (fl-run-lengths a) (1+ i))))
     (decf (fl-run-count a))))
 
-(defmethod alloc ((a free-list-allocator) size &key &allow-other-keys)
+(defmethod alloc ((a free-list-allocator) size)
   (dotimes (i (fl-run-count a))
     (let ((addr (aref (fl-run-starts a) i))
           (len (aref (fl-run-lengths a) i)))
@@ -270,7 +281,7 @@
            :message "large-object allocator is not wired to VM/space/resource"))
   a)
 
-(defmethod alloc ((a los-allocator) size &key &allow-other-keys)
+(defmethod alloc ((a los-allocator) size)
   (let* ((pages (ceiling size +page-words+))
          (p (page-resource-get (los-pr a) pages)))
     (when p
@@ -359,7 +370,7 @@
 
 (defun ix-block-end (b block-words) (+ (immix-block-base b) block-words))
 
-(defmethod alloc ((a immix-allocator) size &key &allow-other-keys)
+(defmethod alloc ((a immix-allocator) size)
   ;; Medium objects (heap.tex §2: below the LOS threshold but above one
   ;; block) get a contiguous multi-block run carved from the never-used
   ;; region; the span is tracked so the block-level sweep reclaims it
@@ -428,7 +439,7 @@
 
 (defun immix-block-live-count (a vm b)
   "Number of marked object starts in block B."
-  (let ((mark (vm-stratum vm :mark)))
+  (let ((mark (vm-direct-stratum vm :mark)))
     (if mark
         (loop for address from (immix-block-base b)
               below (+ (immix-block-base b) (ix-block-words a))
@@ -439,7 +450,7 @@
   "Clear object-start and per-object metadata for dead objects in B.
 Line reuse is a separate allocator concern; stale object identity is never
 retained merely because another object keeps the block live."
-  (let ((mark (vm-stratum vm :mark))
+  (let ((mark (vm-direct-stratum vm :mark))
         (os (vm-object-start vm))
         (start (immix-block-base b))
         (end (+ (immix-block-base b) (ix-block-words a))))
@@ -456,7 +467,7 @@ was iterating, allocated through the ordinary allocator (which could select a
 source block), and finally reset every block including the destination.  This
 bounded implementation only compacts when an out-of-place block is available."
   (let* ((a (space-allocator s))
-         (mark (vm-stratum vm :mark))
+         (mark (vm-direct-stratum vm :mark))
          (os (vm-object-start vm))
          (fwd (vm-fwd-table vm)))
     (when (and mark os
@@ -480,7 +491,7 @@ bounded implementation only compacts when an out-of-place block is available."
                          when (and (s-test-bit os address)
                                    (s-test-bit mark address))
                            do (incf live-words
-                                    (vm-object-total-words vm address)))
+                                    (vm-direct-object-total-words vm address)))
                    (when (and (plusp live-words) (< live-words used))
                      (setf source block)
                      (return))))
@@ -495,26 +506,23 @@ bounded implementation only compacts when an out-of-place block is available."
                   below (+ (immix-block-base source) (ix-block-words a))
                   when (and (s-test-bit os address)
                             (s-test-bit mark address))
-                    do (let ((words (vm-object-total-words vm address)))
+                    do (let ((words (vm-direct-object-total-words vm address)))
                          (when (> (+ cursor words) limit)
                            (error 'clamsara-error
                                   :message
                                   "Immix defrag live set exceeds one block"))
                          (let ((destination-address cursor))
                            (incf cursor words)
-                           (vm-object-copy
+                           (vm-direct-object-copy
                             vm address destination-address)
-                           (setf (vm-object-is-marked-p
-                                  vm destination-address)
-                                 t
-                                 (aref fwd address)
-                                 destination-address))))
+                           (vm-direct-set-object-marked-p vm destination-address t)
+                           (setf (aref fwd address) destination-address))))
             (setf (immix-block-cursor destination) cursor)
             (immix-heal-references s vm fwd)
             ;; Forwarding is a grace-period resource.  The source cannot be
             ;; forgotten or reused until every root and slot has observed the
             ;; correction.
-            (memory-fence vm)
+            (vm-direct-memory-fence vm)
             (vm-clear-metadata-range
              vm (immix-block-base source)
              (+ (immix-block-base source) (ix-block-words a)))
@@ -546,7 +554,7 @@ including a LOS object -- may hold a reference into a block that just moved,
 and every such edge must be rewritten."
   (let* ((vm (plan-vm plan))
          (object-start (vm-object-start vm)))
-    (vm-scan-roots vm plan #'heal-forwarded-root)
+    (vm-direct-scan-roots vm plan #'heal-forwarded-root)
     (dolist (space (plan-spaces plan))
       (let ((allocator (space-allocator space)))
         ;; immix allocators bound their walk to used blocks; every other
@@ -679,13 +687,13 @@ into the evacuated blocks and must be rewritten too."
   "Record a nursery relation before SOURCE's store is exposed.
 Overwrites conservatively dirty the source node; OVC later rebuilds those rows
 from the precise post-collection payloads."
-  (when (space-contains-p s (ref-strip-or-self vm source))
+  (when (space-direct-contains-p s (ref-strip-or-self vm source))
     (let ((src-node (claimore-nursery-node s source))
           (matrix (claimore-nursery-matrix s))
           (dirty (claimore-nursery-dirty s)))
       (when dirty (setf (sbit dirty src-node) 1))
       (when (and matrix (vm-reference-p vm new)
-                 (space-contains-p s (ref-strip-or-self vm new)))
+                 (space-direct-contains-p s (ref-strip-or-self vm new)))
         (let ((dst-node (claimore-nursery-node s new)))
           (unless (= src-node dst-node)
             (matrix-set matrix src-node dst-node))))))
@@ -694,7 +702,7 @@ from the precise post-collection payloads."
 (defun claimore-nursery-seed-probe-root (s ref)
   (let ((vm (space-vm s)))
     (when (and (vm-reference-p vm ref)
-               (space-contains-p s (ref-strip-or-self vm ref)))
+               (space-direct-contains-p s (ref-strip-or-self vm ref)))
       (setf (sbit (claimore-nursery-probe-roots s)
                   (claimore-nursery-node s ref)) 1)))
   ref)
@@ -710,7 +718,7 @@ liveness authority in all cases."
          (nodes (claimore-nursery-node-count s))
          (recognized 0))
     (fill roots 0)
-    (vm-scan-roots vm s #'claimore-nursery-seed-probe-root)
+    (vm-direct-scan-roots vm s #'claimore-nursery-seed-probe-root)
     (replace live (matrix-closure matrix roots))
     (dotimes (node nodes)
       (when (and (= 1 (sbit occupied node))
@@ -741,15 +749,15 @@ liveness authority in all cases."
           when (s-test-bit os address)
             do (let ((src-node (claimore-nursery-node s address))
                      (slots (vm-reference-slots vm address))
-                     (count (vm-object-reference-count vm address))
+                     (count (vm-direct-object-reference-count vm address))
                      (weak-p (weak-pointer-p vm address)))
                  (setf (sbit occupied src-node) 1)
                  (if slots
                      (loop for slot across slots
                            when (or (not weak-p) (not (zerop slot)))
-                             do (let ((child (vm-object-reference vm address slot)))
+                             do (let ((child (vm-direct-object-reference vm address slot)))
                                   (when (and (vm-reference-p vm child)
-                                             (space-contains-p
+                                             (space-direct-contains-p
                                               s (ref-strip-or-self vm child)))
                                     (let ((dst-node
                                             (claimore-nursery-node s child)))
@@ -757,9 +765,9 @@ liveness authority in all cases."
                                         (matrix-set matrix src-node dst-node))))))
                      (dotimes (slot count)
                        (when (or (not weak-p) (not (zerop slot)))
-                         (let ((child (vm-object-reference vm address slot)))
+                         (let ((child (vm-direct-object-reference vm address slot)))
                            (when (and (vm-reference-p vm child)
-                                      (space-contains-p
+                                      (space-direct-contains-p
                                        s (ref-strip-or-self vm child)))
                              (let ((dst-node
                                      (claimore-nursery-node s child)))
@@ -772,18 +780,18 @@ liveness authority in all cases."
   (let ((os (vm-object-start vm)))
     (when os (s-clear-bit os address)))
   (dolist (name '(:mark :log :public :age :weak))
-    (let ((stratum (vm-stratum vm name)))
+    (let ((stratum (vm-direct-stratum vm name)))
       (when stratum (s-set stratum address (stratum-default stratum)))))
   (when (and (vm-rc-table vm) (< address (length (vm-rc-table vm))))
     (setf (aref (vm-rc-table vm) address) 0))
   address)
 
 (defun claimore-nursery-copy-metadata (s vm source destination)
-  (let ((age (vm-stratum vm :age))
-        (public (vm-stratum vm :public))
-        (log (vm-stratum vm :log))
-        (weak (vm-stratum vm :weak))
-        (mark (vm-stratum vm :mark))
+  (let ((age (vm-direct-stratum vm :age))
+        (public (vm-direct-stratum vm :public))
+        (log (vm-direct-stratum vm :log))
+        (weak (vm-direct-stratum vm :weak))
+        (mark (vm-direct-stratum vm :mark))
         (os (vm-object-start vm)))
     (when os (s-set-bit os destination))
     (when mark
@@ -823,7 +831,7 @@ liveness authority in all cases."
                               (aref (ix-blocks a) (1- block-count))))
     (loop for address from base below cursor
           when (s-test-bit (vm-object-start vm) address)
-            do (let* ((words (vm-object-total-words vm address))
+                      do (let* ((words (vm-direct-object-total-words vm address))
                       (first (floor (- address base) bw))
                       (last (floor (- (+ address words -1) base) bw)))
                  (when (< first block-count)
@@ -840,9 +848,9 @@ liveness authority in all cases."
       (setf (ix-next-base a) end)))
   s))
 
-(defmethod space-prepare ((s claimore-nursery-space) vm &key cycle-kind)
+(defmethod space-prepare ((s claimore-nursery-space) vm cycle-kind)
   (declare (ignore cycle-kind))
-  (s-clear-range (vm-stratum vm :mark)
+  (s-clear-range (vm-direct-stratum vm :mark)
                  (space-base-address s) (space-end-address s))
   s)
 
@@ -857,19 +865,19 @@ source scan."
          (end (space-end-address s))
          (bw (ix-block-words a))
          (os (vm-object-start vm))
-         (mark (vm-stratum vm :mark))
+         (mark (vm-direct-stratum vm :mark))
          (scratch (claimore-nursery-ovc-scratch s))
          (source-starts (claimore-nursery-ovc-source-starts s))
          (sizes (claimore-nursery-ovc-sizes s))
          (ages (claimore-nursery-ovc-age s))
-         (public-stratum (vm-stratum vm :public))
+         (public-stratum (vm-direct-stratum vm :public))
          (public-save (claimore-nursery-ovc-public s))
-         (log-stratum (vm-stratum vm :log))
+         (log-stratum (vm-direct-stratum vm :log))
          (log-save (claimore-nursery-ovc-log s))
-         (weak-stratum (vm-stratum vm :weak))
+         (weak-stratum (vm-direct-stratum vm :weak))
          (weak-save (claimore-nursery-ovc-weak s))
          (saved-mark (claimore-nursery-ovc-mark s))
-         (dest-starts (vm-stratum vm :claimore-ovc-destination))
+         (dest-starts (vm-direct-stratum vm :claimore-ovc-destination))
          (cursor base))
     (fill source-starts 0)
     (fill sizes 0)
@@ -877,20 +885,20 @@ source scan."
     (fill public-save 0)
     (fill log-save 0)
     (fill weak-save 0)
-    (when (vm-stratum vm :age) (fill ages 0))
+    (when (vm-direct-stratum vm :age) (fill ages 0))
     (s-clear dest-starts)
     (fwd-clear vm)
     ;; Snapshot source object boundaries, metadata, and live payload words.
     (loop for address from base below source-end
           when (s-test-bit os address)
-            do (let* ((words (vm-object-total-words vm address))
+            do (let* ((words (vm-direct-object-total-words vm address))
                       (live (and mark (s-test-bit mark address))))
                  (setf (sbit source-starts (- address base)) 1)
                  (setf (aref sizes address) words)
                  (setf (sbit saved-mark address) (if live 1 0))
-                 (when (vm-stratum vm :age)
+                 (when (vm-direct-stratum vm :age)
                    (setf (aref ages address)
-                         (s-get (vm-stratum vm :age) address)))
+                         (s-get (vm-direct-stratum vm :age) address)))
                  (when public-stratum
                    (setf (sbit public-save address)
                          (if (s-test-bit public-stratum address) 1 0)))
@@ -918,7 +926,7 @@ source scan."
                    (s-set-bit dest-starts cursor)
                    (dotimes (k words)
                      (setf (aref scratch (+ (- cursor base) k))
-                           (ref-u64 vm (+ address k))))
+                           (vm-direct-ref-u64 vm (+ address k))))
                    (let ((stats (%stats-for-vm vm)))
                      (when stats
                        (stats-event stats :objects-copied 1)
@@ -926,8 +934,8 @@ source scan."
                    (incf cursor words))))
     ;; Install all packed raw objects only after the source snapshot is done.
     (loop for address from base below cursor
-          do (setf (ref-u64 vm address)
-                   (aref scratch (- address base))))
+          do (vm-direct-set-ref-u64 vm address
+                                    (aref scratch (- address base))))
     ;; Drop every old identity, including dead objects, while preserving the
     ;; forwarding table until every destination reference has been healed.
     (loop for address from base below source-end
@@ -941,7 +949,7 @@ source scan."
                 s vm address (aref (vm-fwd-table vm) address)))
     ;; All plan spaces and roots may point into the nursery.
     (heal-every-space (vm-plan vm) (vm-fwd-table vm))
-    (memory-fence vm)
+    (vm-direct-memory-fence vm)
     (claimore-nursery-rebuild-allocator s vm cursor)
     (claimore-nursery-rebuild-metadata s vm)
     (fwd-clear vm)
@@ -950,7 +958,7 @@ source scan."
     (when mark (s-clear-range mark base end)))
   s)
 
-(defmethod space-reclaim ((s claimore-nursery-space) vm &key cycle-kind)
+(defun %claimore-nursery-reclaim (s vm cycle-kind)
   (declare (ignore cycle-kind))
   (claimore-nursery-probe s vm)
   ;; The exact OVC is the liveness authority for both probe outcomes.  The
@@ -958,6 +966,9 @@ source scan."
   ;; metadata to reclaim an object independently of the precise trace.
   (claimore-nursery-ovc s vm)
   s)
+
+(defmethod space-reclaim ((s claimore-nursery-space) vm cycle-kind)
+  (%claimore-nursery-reclaim s vm cycle-kind))
 (defclass los-space (space) ()
   (:default-initargs :policy :trace :moving :none)
   (:metaclass space-metaclass))
@@ -1001,15 +1012,17 @@ source scan."
 
 ;; ---- copy-space (SemiSpace / nurseries): Cheney --------------------------
 
-(defmethod space-trace-object ((s copy-space) vm ref tracer &key trace-kind)
+(defun %copy-space-trace-object (s vm ref tracer trace-kind)
   (declare (ignore trace-kind))
   (let* ((addr (ref-strip-or-self vm ref))
          (to (space-partner s)))
     (cond
-      ((vm-object-is-forwarded-p vm addr) (vm-object-forwarding-pointer vm addr))
-      ((vm-object-is-marked-p vm addr) addr)   ; already a to-space copy
+      ((vm-direct-object-forwarded-p vm addr)
+       (vm-direct-object-forwarding-pointer vm addr))
+      ((vm-direct-object-marked-p vm addr) addr)   ; already a to-space copy
       (t
-       (let ((dst (alloc (space-allocator to) (vm-object-total-words vm addr))))
+       (let ((dst (space-direct-alloc to
+                                      (vm-direct-object-total-words vm addr))))
          (unless dst
            ;; The live set does not fit the destination space.  There is no
            ;; way to complete a Cheney flip with an object that cannot be
@@ -1017,20 +1030,23 @@ source scan."
            ;; copy loop (which would clobber slot arithmetic with a type
            ;; error and leave the heap corrupt).
            (error 'heap-exhausted
-                  :requested-size (vm-object-total-words vm addr)
+                  :requested-size (vm-direct-object-total-words vm addr)
                   :space (space-name to)))
-         (vm-object-copy vm addr dst)
-         (setf (vm-object-is-marked-p vm dst) t)
-         (setf (vm-object-forwarding-pointer vm addr) dst)
+         (vm-direct-object-copy vm addr dst)
+         (vm-direct-set-object-marked-p vm dst t)
+         (vm-direct-set-object-forwarding-pointer vm addr dst)
          (tracer-enqueue tracer dst)
          dst)))))
 
-(defmethod space-prepare ((s copy-space) vm &key cycle-kind)
+(defmethod space-trace-object ((s copy-space) vm ref tracer trace-kind)
+  (%copy-space-trace-object s vm ref tracer trace-kind))
+
+(defmethod space-prepare ((s copy-space) vm cycle-kind)
   (declare (ignore cycle-kind))
-  (s-clear (vm-stratum vm :mark))
+  (s-clear (vm-direct-stratum vm :mark))
   s)
 
-(defmethod space-reclaim ((s copy-space) vm &key cycle-kind)
+(defmethod space-reclaim ((s copy-space) vm cycle-kind)
   (declare (ignore cycle-kind))
   ;; forwarding state is in-header and is gone once roots point at to-space;
   ;; mark bits cleared in prepare of next cycle.  Nothing to sweep here.
@@ -1042,51 +1058,62 @@ source scan."
 
 ;; ---- cons-space: headerless, off-heap forwarding -------------------------
 
-(defmethod space-trace-object ((s cons-space) vm ref tracer &key trace-kind)
+(defun %cons-space-trace-object (s vm ref tracer trace-kind)
   (declare (ignore trace-kind))
   (let* ((addr (ref-strip-or-self vm ref))
          (to (space-partner s)))
     (cond
-      ((vm-object-is-forwarded-p vm addr) (vm-object-forwarding-pointer vm addr))
-      (t (let ((dst (alloc (space-allocator to) 2)))
+      ((vm-direct-object-forwarded-p vm addr)
+       (vm-direct-object-forwarding-pointer vm addr))
+      (t (let ((dst (space-direct-alloc to 2)))
            (unless dst
              (error 'heap-exhausted :requested-size 2 :space (space-name to)))
-           (vm-object-copy vm addr dst)
-           (setf (vm-object-forwarding-pointer vm addr) dst)
+           (vm-direct-object-copy vm addr dst)
+           (vm-direct-set-object-forwarding-pointer vm addr dst)
            (tracer-enqueue tracer dst)
            dst)))))
 
+(defmethod space-trace-object ((s cons-space) vm ref tracer trace-kind)
+  (%cons-space-trace-object s vm ref tracer trace-kind))
+
 ;; ---- mark-sweep-space ----------------------------------------------------
 
-(defmethod space-trace-object ((s mark-sweep-space) vm ref tracer &key trace-kind)
+(defun %mark-sweep-space-trace-object (s vm ref tracer trace-kind)
   (declare (ignore trace-kind))
   (let ((addr (ref-strip-or-self vm ref)))
-    (unless (vm-object-is-marked-p vm addr)
-      (setf (vm-object-is-marked-p vm addr) t)
+    (unless (vm-direct-object-marked-p vm addr)
+      (vm-direct-set-object-marked-p vm addr t)
       (tracer-enqueue tracer addr))
     addr))
 
-(defmethod space-prepare ((s mark-sweep-space) vm &key cycle-kind)
+(defmethod space-trace-object ((s mark-sweep-space) vm ref tracer trace-kind)
+  (%mark-sweep-space-trace-object s vm ref tracer trace-kind))
+
+(defmethod space-prepare ((s mark-sweep-space) vm cycle-kind)
   (declare (ignore cycle-kind))
-  (s-clear (vm-stratum vm :mark))
+  (s-clear (vm-direct-stratum vm :mark))
   s)
 
-(defmethod space-reclaim ((s mark-sweep-space) vm &key cycle-kind)
+(defun %mark-sweep-space-reclaim (s vm cycle-kind)
   (declare (ignore cycle-kind))
   (let ((a (space-allocator s))
         (os (vm-object-start vm))
-        (mark (vm-stratum vm :mark))
+        (mark (vm-direct-stratum vm :mark))
         (start (space-base-address s))
         (end (space-end-address s)))
     (when (and a os mark)
       (loop for address from start below end
             when (and (s-test-bit os address)
                       (not (s-test-bit mark address)))
-              do (free a address (vm-object-total-words vm address)))
+              do (space-direct-free s address
+                                    (vm-direct-object-total-words vm address)))
       ;; Range-clear: the mark stratum is heap-wide; other spaces (LOS,
       ;; sticky partners) own their marks and reclaim after this space.
       (s-clear-range mark start end))
     s))
+
+(defmethod space-reclaim ((s mark-sweep-space) vm cycle-kind)
+  (%mark-sweep-space-reclaim s vm cycle-kind))
 
 (defmethod space-occupancy ((s mark-sweep-space))
   (let ((a (space-allocator s)))
@@ -1097,28 +1124,32 @@ source scan."
 
 ;; ---- immix-space ---------------------------------------------------------
 
-(defmethod space-trace-object ((s immix-space) vm ref tracer &key trace-kind)
+(defun %immix-space-trace-object (s vm ref tracer trace-kind)
   (let ((addr (ref-strip-or-self vm ref)))
     (cond
-      ((and (eq trace-kind :defrag) (not (vm-object-is-marked-p vm addr)))
+      ((and (eq trace-kind :defrag)
+            (not (vm-direct-object-marked-p vm addr)))
        ;; opportunistic copy: move into a compacted block if a target exists
-       (setf (vm-object-is-marked-p vm addr) t)
+       (vm-direct-set-object-marked-p vm addr t)
        (tracer-enqueue tracer addr)
        addr)
       (t
-       (unless (vm-object-is-marked-p vm addr)
-         (setf (vm-object-is-marked-p vm addr) t)
+       (unless (vm-direct-object-marked-p vm addr)
+         (vm-direct-set-object-marked-p vm addr t)
          (tracer-enqueue tracer addr))
        addr))))
 
-(defmethod space-prepare ((s immix-space) vm &key cycle-kind)
+(defmethod space-trace-object ((s immix-space) vm ref tracer trace-kind)
+  (%immix-space-trace-object s vm ref tracer trace-kind))
+
+(defmethod space-prepare ((s immix-space) vm cycle-kind)
   (declare (ignore cycle-kind))
-  (s-clear (vm-stratum vm :mark))
+  (s-clear (vm-direct-stratum vm :mark))
   s)
 
-(defmethod space-reclaim ((s immix-space) vm &key cycle-kind)
+(defun %immix-space-reclaim (s vm cycle-kind)
   (let ((a (space-allocator s)))
-    (when (and (plusp (ix-block-count a)) (vm-stratum vm :mark))
+    (when (and (plusp (ix-block-count a)) (vm-direct-stratum vm :mark))
       ;; First pass: decide each block's live count, but a span block is
       ;; reclaimed atomically with its root object: the whole span lives or
       ;; dies together (heap.tex §2 medium objects).  The per-block counts
@@ -1155,9 +1186,12 @@ source scan."
       (setf (ix-current a) (ix-first-block a)))
     (when (eq cycle-kind :major)
       (immix-defrag s vm))
-    (let ((mark (vm-stratum vm :mark)))
+    (let ((mark (vm-direct-stratum vm :mark)))
       (when mark (s-clear-range mark (ix-start a) (ix-limit a))))
     s))
+
+(defmethod space-reclaim ((s immix-space) vm cycle-kind)
+  (%immix-space-reclaim s vm cycle-kind))
 
 (defmethod space-occupancy ((s immix-space))
   (let ((a (space-allocator s)))
@@ -1169,31 +1203,39 @@ source scan."
 
 ;; ---- LOS -----------------------------------------------------------------
 
-(defmethod space-trace-object ((s los-space) vm ref tracer &key trace-kind)
+(defun %los-space-trace-object (s vm ref tracer trace-kind)
   (declare (ignore trace-kind))
   (let ((addr (ref-strip-or-self vm ref)))
-    (unless (vm-object-is-marked-p vm addr)
-      (setf (vm-object-is-marked-p vm addr) t)
+    (unless (vm-direct-object-marked-p vm addr)
+      (vm-direct-set-object-marked-p vm addr t)
       (tracer-enqueue tracer addr))
     addr))
 
-(defmethod space-reclaim ((s los-space) vm &key cycle-kind)
+(defmethod space-trace-object ((s los-space) vm ref tracer trace-kind)
+  (%los-space-trace-object s vm ref tracer trace-kind))
+
+(defun %los-space-reclaim (s vm cycle-kind)
   (declare (ignore cycle-kind))
-  (let ((a (space-allocator s)) (os (vm-object-start vm)) (mark (vm-stratum vm :mark)))
+  (let ((a (space-allocator s)) (os (vm-object-start vm))
+        (mark (vm-direct-stratum vm :mark)))
     (when (and a os mark)
       (loop for address from (space-base-address s)
             below (space-end-address s)
             when (and (s-test-bit os address)
                       (not (s-test-bit mark address)))
-              do (free a address (vm-object-total-words vm address)))
+              do (space-direct-free s address
+                                    (vm-direct-object-total-words vm address)))
       ;; Clear marks only within this space's range: the mark stratum is
       ;; heap-wide and other spaces (notably sticky plans) own their marks.
       (s-clear-range mark (space-base-address s) (space-end-address s)))
     s))
 
+(defmethod space-reclaim ((s los-space) vm cycle-kind)
+  (%los-space-reclaim s vm cycle-kind))
+
 ;; ---- immortal-space ------------------------------------------------------
 
-(defmethod space-reclaim ((s immortal-space) vm &key cycle-kind)
+(defmethod space-reclaim ((s immortal-space) vm cycle-kind)
   (declare (ignore vm cycle-kind)) s)
 
 ;; ---- superblock-space (Claimore hierarchical space) ----------------------
@@ -1375,7 +1417,7 @@ source scan."
     (and fine (< mb (length fine)) (eql 1 (sbit fine mb)))))
 (defun sb-clear-fine-for-address (s address)
   (let ((fine (%sb-fine s)))
-    (when (and fine (space-contains-p s address))
+    (when (and fine (space-direct-contains-p s address))
       (setf (sbit fine (sb-mb-index s address)) 0)))
   address)
 (defun superblock-seal-fine (s)
@@ -1457,38 +1499,38 @@ The vector is summary state only; object liveness remains the trace's job."
               (make-array mps :element-type 'bit :initial-element 0))))
     ;; The escape stratum is VM-registered; register once per VM.
     (let ((vm (space-vm s)))
-      (when (and vm (not (vm-stratum vm :block-escape)))
+      (when (and vm (not (vm-direct-stratum vm :block-escape)))
         (setf (slot-value s (quote clamsara::escape))
               (vm-register-stratum
                vm :block-escape
                (make-stratum :block-escape (%sb-block-words s) :u4
                              (vm-heap-size vm))))))))
 
-(defun superblock-trace-object (s vm ref tracer &key trace-kind)
+(defun superblock-trace-object (s vm ref tracer trace-kind)
   (declare (ignore trace-kind))
   (let ((addr (ref-strip-or-self vm ref)))
-    (unless (vm-object-is-marked-p vm addr)
-      (setf (vm-object-is-marked-p vm addr) t)
+    (unless (vm-direct-object-marked-p vm addr)
+      (vm-direct-set-object-marked-p vm addr t)
       (tracer-enqueue tracer addr))
     addr))
 
-(defmethod space-trace-object ((s superblock-space) vm ref tracer &key trace-kind)
-  (superblock-trace-object s vm ref tracer :trace-kind trace-kind))
+(defmethod space-trace-object ((s superblock-space) vm ref tracer trace-kind)
+  (superblock-trace-object s vm ref tracer trace-kind))
 
-(defmethod space-prepare ((s superblock-space) vm &key cycle-kind)
+(defmethod space-prepare ((s superblock-space) vm cycle-kind)
   (declare (ignore cycle-kind))
-  (s-clear (vm-stratum vm :mark))
+  (s-clear (vm-direct-stratum vm :mark))
   s)
 
 ;; ---- escape bits (block-granularity stratum) -----------------------------
 
 (defun sb-escape-value (s vm block-index)
   (declare (optimize (speed 3) (safety 0)))
-  (let ((escape (or (%sb-escape s) (vm-stratum vm :block-escape))))
+  (let ((escape (or (%sb-escape s) (vm-direct-stratum vm :block-escape))))
     (if escape (s-get escape (sb-block-base s block-index)) 0)))
 (defun (setf sb-escape-value) (bits s vm block-index)
   (declare (optimize (speed 3) (safety 0)))
-  (let ((escape (or (%sb-escape s) (vm-stratum vm :block-escape))))
+  (let ((escape (or (%sb-escape s) (vm-direct-stratum vm :block-escape))))
     (when escape (s-set escape (sb-block-base s block-index) bits))
     bits))
 
@@ -1505,7 +1547,7 @@ relations.  This boot-warmed direct walk is allocation-free and uses declared
 layout maps; weak referent slot zero is not a strong hierarchy edge."
   (let ((mb-matrices (%sb-mb-matrices s))
         (block-matrices (%sb-block-matrices s))
-        (escape (or (%sb-escape s) (vm-stratum vm :block-escape)))
+        (escape (or (%sb-escape s) (vm-direct-stratum vm :block-escape)))
         (os (vm-object-start vm)))
     (when mb-matrices
       (dotimes (i (length mb-matrices))
@@ -1528,13 +1570,13 @@ layout maps; weak referent slot zero is not a strong hierarchy edge."
                                do (superblock-note-write
                                    s vm address
                                    (ref-strip-or-self
-                                    vm (vm-object-reference vm address slot))))
-                       (dotimes (slot (vm-object-reference-count vm address))
+                                    vm (vm-direct-object-reference vm address slot))))
+                       (dotimes (slot (vm-direct-object-reference-count vm address))
                          (when (or (not weak-p) (not (zerop slot)))
                            (superblock-note-write
                             s vm address
                             (ref-strip-or-self
-                             vm (vm-object-reference vm address slot))))))))))
+                             vm (vm-direct-object-reference vm address slot))))))))))
   s)
 
 (defun superblock-note-write (s vm src new)
@@ -1542,7 +1584,8 @@ layout maps; weak referent slot zero is not a strong hierarchy edge."
    Both endpoints must belong to S: a mature source can point to a nursery
    or LOS object, but that edge has no mature block-matrix representation."
   (sb-clear-fine-for-address s src)
-  (when (and (space-contains-p s src) (space-contains-p s new))
+  (when (and (space-direct-contains-p s src)
+             (space-direct-contains-p s new))
     (let* ((src-block (sb-block-index s src))
            (dst-block (sb-block-index s new))
            (src-mb (floor src-block (%sb-bpm s)))
@@ -1575,7 +1618,7 @@ layout maps; weak referent slot zero is not a strong hierarchy edge."
   the authority; the count table only releases SBs the trace agrees are dead."
   (declare (optimize (speed 3) (safety 0)))
   (let ((pinned (%sb-pinned s))
-        (mark (vm-stratum vm :mark))
+        (mark (vm-direct-stratum vm :mark))
         (os (vm-object-start vm))
         (base (space-base-address s))
         (end (space-end-address s)))
@@ -1618,7 +1661,7 @@ Explicit root regions are already filtered by VM-SCAN-ROOTS, so this helper
 also keeps the hierarchy's root set consistent with the tracing root set."
   (let ((vm (space-vm s)))
     (when (and (integerp ref) (plusp ref)
-               (space-contains-p s (ref-strip-or-self vm ref)))
+               (space-direct-contains-p s (ref-strip-or-self vm ref)))
       (let* ((address (ref-strip-or-self vm ref))
              (mi (sb-mb-index s address))
              (sb (floor mi (%sb-mps s))))
@@ -1636,7 +1679,7 @@ also keeps the hierarchy's root set consistent with the tracing root set."
     (dotimes (i nsb) (fill (aref (%sb-mb-root-bits s) i) 0))
     ;; This includes the legacy root vector and every explicit
     ;; simulator/backend root region, applying each region's map.
-    (vm-scan-roots vm s #'superblock-seed-root-reference)
+    (vm-direct-scan-roots vm s #'superblock-seed-root-reference)
     (when (and nursery (vm-object-start vm))
       (let ((os (vm-object-start vm)))
         (loop for address from (space-base-address nursery)
@@ -1650,7 +1693,7 @@ also keeps the hierarchy's root set consistent with the tracing root set."
   the nursery object at ADDRESS.  Top-level: no host closure per object."
   (let ((slots (vm-reference-slots vm address)))
     (flet ((seed (ref)
-             (when (and (plusp ref) (space-contains-p s ref))
+            (when (and (plusp ref) (space-direct-contains-p s ref))
                (let* ((mi (sb-mb-index s ref))
                       (sb (floor mi (%sb-mps s))))
                  (when (< sb (%sb-count s))
@@ -1658,9 +1701,9 @@ also keeps the hierarchy's root set consistent with the tracing root set."
                                (sb-local-mb s mi)) 1))))))
       (if slots
           (loop for i across slots
-                do (seed (vm-object-reference vm address i)))
-          (dotimes (i (vm-object-reference-count vm address))
-            (seed (vm-object-reference vm address i))))))
+                do (seed (vm-direct-object-reference vm address i)))
+          (dotimes (i (vm-direct-object-reference-count vm address))
+            (seed (vm-direct-object-reference vm address i))))))
   address)
 
 (defun superblock-search (s vm)
@@ -1718,7 +1761,7 @@ also keeps the hierarchy's root set consistent with the tracing root set."
   forever.  This block-level sweep is the periodic full-trace backup that
   reclaims cycle garbage inside a still-counted superblock."
   (let* ((a (space-allocator s))
-         (mark (vm-stratum vm :mark))
+         (mark (vm-direct-stratum vm :mark))
          (os (vm-object-start vm))
          (nsb (%sb-count s))
          (bpm (%sb-bpm s))
@@ -1768,7 +1811,7 @@ is moved in the side tables, and the ordinary forwarding/healing path repairs
 all references before the source block is recycled.  A span and superblock 0
 are excluded because their ownership/grace rules are different."
   (let* ((a (space-allocator s))
-         (mark (vm-stratum vm :mark))
+         (mark (vm-direct-stratum vm :mark))
          (os (vm-object-start vm))
          (fwd (vm-fwd-table vm))
          (bw (%sb-block-words s))
@@ -1793,7 +1836,7 @@ are excluded because their ownership/grace rules are different."
                          when (and (s-test-bit os address)
                                    (s-test-bit mark address))
                            do (incf live-words
-                                    (vm-object-total-words vm address)))
+                                    (vm-direct-object-total-words vm address)))
                    (let ((fragmentation (- (- cursor base) live-words)))
                      (when (and (plusp live-words)
                                 (> fragmentation source-fragmentation))
@@ -1806,9 +1849,9 @@ are excluded because their ownership/grace rules are different."
                    (destination-base (sb-block-base s destination))
                    (source-page (address-page source-base))
                    (destination-page (address-page destination-base))
-                   (source-physical (vm-page-physical vm source-page))
+                   (source-physical (vm-direct-page-physical vm source-page))
                    (destination-physical
-                     (vm-page-physical vm destination-page))
+                     (vm-direct-page-physical vm destination-page))
                    (starts (%sb-map-source-starts s))
                    (sizes (%sb-map-source-sizes s))
                    (saved-mark (%sb-map-source-mark s))
@@ -1817,10 +1860,10 @@ are excluded because their ownership/grace rules are different."
                    (log (%sb-map-source-log s))
                    (weak (%sb-map-source-weak s))
                    (rc (%sb-map-source-rc s))
-                   (age-stratum (vm-stratum vm :age))
-                   (public-stratum (vm-stratum vm :public))
-                   (log-stratum (vm-stratum vm :log))
-                   (weak-stratum (vm-stratum vm :weak))
+                   (age-stratum (vm-direct-stratum vm :age))
+                   (public-stratum (vm-direct-stratum vm :public))
+                   (log-stratum (vm-direct-stratum vm :log))
+                   (weak-stratum (vm-direct-stratum vm :weak))
                    (source-end (+ source-base bw))
                    (destination-cursor destination-base))
               ;; Snapshot all source boundaries and side metadata while the
@@ -1838,10 +1881,10 @@ are excluded because their ownership/grace rules are different."
                       do (let ((offset (- address source-base)))
                            (setf (sbit starts offset) 1
                                  (aref sizes offset)
-                                 (vm-object-total-words vm address)
+                                 (vm-direct-object-total-words vm address)
                                  (sbit saved-mark offset)
                                  (if (s-test-bit mark address) 1 0)
-                                 (aref rc offset) (vm-object-rc vm address))
+                                 (aref rc offset) (vm-direct-object-rc vm address))
                            (when age-stratum
                              (setf (aref ages offset)
                                    (s-get age-stratum address)))
@@ -1893,11 +1936,11 @@ are excluded because their ownership/grace rules are different."
                                (if (= 1 (sbit weak offset))
                                    (s-set-bit weak-stratum new)
                                    (s-clear-bit weak-stratum new)))
-                             (setf (vm-object-rc vm new) (aref rc offset)))))
+                             (vm-direct-set-object-rc vm new (aref rc offset)))))
               (setf (hierarchical-block-cursor a destination)
                     destination-cursor)
               (heal-every-space (vm-plan vm) fwd)
-              (memory-fence vm)
+              (vm-direct-memory-fence vm)
               (hierarchical-free-block a vm source)
               (superblock-rebuild-relations s vm)
               (incf (slot-value s 'map-pages))
@@ -1913,7 +1956,7 @@ are excluded because their ownership/grace rules are different."
   old->new in the off-heap forwarding table, then heal every reference
   (roots, nursery slots, mature slots) before releasing the source block."
   (let* ((a (space-allocator s))
-         (mark (vm-stratum vm :mark))
+         (mark (vm-direct-stratum vm :mark))
          (os (vm-object-start vm))
          (fwd (vm-fwd-table vm)))
     (when (and mark os (hierarchical-fresh-available-p a))
@@ -1927,7 +1970,8 @@ are excluded because their ownership/grace rules are different."
                    (live-words 0))
               (loop for address from base below limit
                     when (and (s-test-bit os address) (s-test-bit mark address))
-                      do (incf live-words (vm-object-total-words vm address)))
+                      do (incf live-words
+                               (vm-direct-object-total-words vm address)))
               (let ((frag (- (- cursor base) live-words)))
                 (when (and (plusp live-words) (> frag source-frag))
                   (setf source bi source-frag frag))))))
@@ -1939,12 +1983,13 @@ are excluded because their ownership/grace rules are different."
             (loop for address from (sb-block-base s source)
                   below (+ (sb-block-base s source) (%sb-block-words s))
                   when (and (s-test-bit os address) (s-test-bit mark address))
-                    do (let ((words (vm-object-total-words vm address)))
+                    do (let ((words (vm-direct-object-total-words vm address)))
                          (when (> (+ dcur words) dlim)
                            (error 'clamsara-error
                                   :message "superblock compaction overflow"))
-                         (vm-object-copy vm address dcur)
-                         (setf (vm-object-is-marked-p vm dcur) t
+                         (vm-direct-object-copy vm address dcur)
+                         (vm-direct-set-object-marked-p vm dcur t)
+                         (setf
                                (aref fwd address) dcur)
                          (incf dcur words)))
             (setf (hierarchical-block-cursor a dest) dcur)
@@ -1954,7 +1999,7 @@ are excluded because their ownership/grace rules are different."
             ;; source addresses and must be healed before the source dies.
             ;; Healing covers every plan space: nursery, LOS, and mature.
             (heal-every-space (vm-plan vm) fwd)
-            (memory-fence vm)
+            (vm-direct-memory-fence vm)
             (hierarchical-free-block a vm source)
             ;; Recompute relations after source metadata is cleared and all
             ;; destination payloads have been healed.
@@ -1962,7 +2007,7 @@ are excluded because their ownership/grace rules are different."
             (fill fwd 0))))))
   s)
 
-(defmethod space-reclaim ((s superblock-space) vm &key cycle-kind)
+(defun %superblock-space-reclaim (s vm cycle-kind)
   ;; heap.tex §6: run the hierarchy in cost order -- refcount release first
   ;; (cheapest, largest gain), then search closure over reached metablocks,
   ;; then block compaction (the expensive last resort, run rarely).
@@ -1975,6 +2020,9 @@ are excluded because their ownership/grace rules are different."
   (when (eq cycle-kind :major)
     (superblock-compact s vm))
   s)
+
+(defmethod space-reclaim ((s superblock-space) vm cycle-kind)
+  (%superblock-space-reclaim s vm cycle-kind))
 
 (defmethod space-occupancy ((s superblock-space))
   (let ((a (space-allocator s)))
@@ -2200,7 +2248,7 @@ contain this MB's same-SB relations."
       (setf (aref (hierarchical-allocator-cursors a) block-index) (+ cursor size))
       cursor)))
 
-(defmethod alloc ((a hierarchical-allocator) size &key &allow-other-keys)
+(defmethod alloc ((a hierarchical-allocator) size)
   (if (<= size (hierarchical-allocator-block-words a))
       ;; small object: never bump into a span block — span runs are
       ;; exclusive and reclaimed atomically with their root

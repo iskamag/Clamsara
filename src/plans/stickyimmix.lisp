@@ -6,9 +6,9 @@
   (:metaclass space-metaclass))
 
 ;; immix reclaim but does NOT clear the mark stratum on minor (sticky)
-(defmethod space-reclaim ((s sticky-immix-space) vm &key cycle-kind)
+(defun %sticky-immix-space-reclaim (s vm cycle-kind)
   (let ((a (space-allocator s)))
-    (when (and (plusp (ix-block-count a)) (vm-stratum vm :mark))
+    (when (and (plusp (ix-block-count a)) (vm-direct-stratum vm :mark))
       (do-immix-blocks (b a)
         (let ((live (immix-block-live-count a vm b)))
           (setf (immix-block-live b) live)
@@ -21,8 +21,11 @@
             (setf (immix-block-cursor b) (immix-block-base b)))))
       (setf (ix-current a) (ix-first-block a)))
     (when (eq cycle-kind :major) (immix-defrag s vm))
-    (when (eq cycle-kind :major) (s-clear (vm-stratum vm :mark)))
+    (when (eq cycle-kind :major) (s-clear (vm-direct-stratum vm :mark)))
     s))
+
+(defmethod space-reclaim ((s sticky-immix-space) vm cycle-kind)
+  (%sticky-immix-space-reclaim s vm cycle-kind))
 
 (defclass sticky-immix-plan (plan) ()
   (:metaclass plan-metaclass))
@@ -38,14 +41,14 @@
                   :bit (vm-heap-size vm))))
 
 (defmethod gc-phase :prologue ((p sticky-immix-plan) k)
-  (vm-stop-mutators (plan-vm p))
-  (when (eq k :major) (s-clear (vm-stratum (plan-vm p) :mark))))
+  (vm-direct-stop-mutators (plan-vm p))
+  (when (eq k :major) (s-clear (vm-direct-stratum (plan-vm p) :mark))))
 
 (defmethod gc-phase :mark ((p sticky-immix-plan) k)
   (mark-roots p (plan-tracer p))
   (if (eq k :minor)
       (sticky-rescan-dirty p)
-      (s-clear (vm-stratum (plan-vm p) :log))))
+      (s-clear (vm-direct-stratum (plan-vm p) :log))))
 
 (defmethod gc-phase :reclaim ((p sticky-immix-plan) k)
   (reclaim-spaces p k))

@@ -158,20 +158,20 @@ has one source of truth.")
 (defun prepare-spaces (plan cycle-kind)
   (let ((vm (plan-vm plan)))
     (dolist (space (plan-spaces plan))
-      (space-prepare space vm :cycle-kind cycle-kind))))
+      (space-direct-prepare space vm cycle-kind))))
 
 (defun reclaim-spaces (plan cycle-kind)
   (let ((vm (plan-vm plan)))
     (dolist (space (plan-spaces plan))
-      (space-reclaim space vm :cycle-kind cycle-kind))))
+      (space-direct-reclaim space vm cycle-kind))))
 
 (defun release-spaces (plan cycle-kind)
   (let ((vm (plan-vm plan)))
     (dolist (space (plan-spaces plan))
-      (space-release space vm :cycle-kind cycle-kind))))
+      (space-direct-release space vm cycle-kind))))
 
 (defmethod gc-phase :prologue ((p plan) k)
-  (vm-stop-mutators (plan-vm p))
+  (vm-direct-stop-mutators (plan-vm p))
   (prepare-spaces p k))
 
 (defmethod gc-phase :mark ((p plan) k)
@@ -199,7 +199,7 @@ has one source of truth.")
   (when (plan-stats p) (stats-event (plan-stats p) :gc-cycles 1)))
 
 (defmethod gc-phase :epilogue ((p plan) k)
-  (vm-resume-mutators (plan-vm p))
+  (vm-direct-resume-mutators (plan-vm p))
   ;; weak.tex §2: dead objects with registered finalizers move known->pending
   ;; in the EPILOGUE, from the snapshot taken in the weak phase; finalizers
   ;; themselves run on a mutator after the pause, never inside it.
@@ -229,11 +229,11 @@ interpreted and compiled collectors cannot diverge."
       ;; persistence.tex §4: a checkpoint is a snapshot, not a collection.
       ;; Only the checkpoint phase (plus the stop/resume safepoint) runs.
       (progn
-        (vm-stop-mutators (plan-vm p))
+        (vm-direct-stop-mutators (plan-vm p))
         (unwind-protect
              (let ((*gc-phase-selection* :checkpoint))
                (gc-phase p cycle-kind))
-          (vm-resume-mutators (plan-vm p))
+          (vm-direct-resume-mutators (plan-vm p))
           (publication-reopen-after-abort
            (plan-publication p) (plan-vm p))))
       (unwind-protect
@@ -241,7 +241,7 @@ interpreted and compiled collectors cannot diverge."
              (gc-phase p cycle-kind))
         ;; The normal epilogue already resumes, but the protocol is idempotent
         ;; and this also covers errors before the epilogue is reached.
-        (vm-resume-mutators (plan-vm p))
+        (vm-direct-resume-mutators (plan-vm p))
         (publication-reopen-after-abort
          (plan-publication p) (plan-vm p)))))
 
@@ -421,7 +421,7 @@ any collector path."
 the address, or NIL.  The one shared alloc-and-install step: every allocator
 path (nursery, mature, LOS) uses it, so object identity is never forgotten."
   (let ((vm (plan-vm plan))
-        (addr (alloc (space-allocator space) size)))
+        (addr (space-direct-alloc space size)))
     (when addr
       (let ((os (vm-object-start vm)))
         (when os (s-set-bit os addr))))

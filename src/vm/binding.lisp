@@ -72,6 +72,10 @@
    (coordination-state :initarg :coordination-state
                        :accessor vm-coordination-state
                        :initform (%make-coordination-state))
+   ;; Boot-resolved inner protocol table.  It is deliberately an implementation
+   ;; slot rather than a second public VM API: CLOS selects the methods while
+   ;; the image is booting, and collection calls the captured functions.
+   (collection-ops :accessor vm-collection-ops :initform nil)
    (plan        :initarg :plan :accessor vm-plan :initform nil))
   (:metaclass vm-metaclass))
 
@@ -323,10 +327,10 @@ any indices they hold."
 
 (defun slot-map-for (vm address)
   (let* ((maps (vm-slot-maps vm))
-         (tag (vm-object-type-tag vm address))
+         (tag (vm-direct-object-type-tag vm address))
          (layout-id (if (eql tag +tag-cons+)
                         0
-                        (header-spare (vm-object-header vm address)))))
+                        (header-spare (vm-direct-object-header vm address)))))
     (and maps
          (gethash (%slot-map-key tag layout-id) maps))))
 
@@ -455,7 +459,7 @@ The simulator acknowledges synchronously; a concurrent backend may park the
 calling context until VM-RESUME-MUTATORS." )
   (:method ((vm vm-binding))
     (when (vm-safepoint-requested-p vm)
-      (vm-safepoint vm :reason :mutator-poll))
+      (vm-direct-safepoint vm :mutator-poll))
     vm))
 
 (defgeneric vm-stop-mutators (vm)
@@ -472,11 +476,11 @@ calling context until VM-RESUME-MUTATORS." )
                 (if (= epoch most-positive-fixnum) 0 (1+ epoch))))))
     ;; There are no concurrent mutators in the simulator.  A real backend can
     ;; leave this as a request and have each worker call VM-SAFEPOINT instead.
-    (vm-safepoint vm :reason :stop-mutators)
+    (vm-direct-safepoint vm :stop-mutators)
     ;; The stop boundary is an explicit publication point in the execution
     ;; model.  The simulator's fence is a no-op, while a target VM supplies
     ;; the hardware ordering primitive.
-    (memory-fence vm)))
+    (vm-direct-memory-fence vm)))
 
 (defgeneric vm-resume-mutators (vm)
   (:documentation "Clear the stop request and release simulator mutators.
@@ -485,5 +489,5 @@ The epoch is retained as the completed stop interval's token." )
     (let ((state (vm-coordination-state vm)))
       (setf (coordination-state-requested state) nil
             (coordination-state-stopped state) nil))
-    (memory-fence vm)
+    (vm-direct-memory-fence vm)
     vm))

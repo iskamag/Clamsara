@@ -17,13 +17,13 @@
 (defun weak-pointer-p (vm address)
   "True if the object at ADDRESS is a registered weak pointer (its slot 0 is
   the referent and is excluded from normal tracing)."
-  (let ((weak (vm-stratum vm :weak)))
+  (let ((weak (vm-direct-stratum vm :weak)))
     (and weak (s-test-bit weak address))))
 
 (defun register-weak-pointer (vm address)
   "Declare the object at ADDRESS a weak pointer: its referent slot 0 is
   processed in the weak phase, not the mark phase."
-  (let ((weak (vm-stratum vm :weak)))
+  (let ((weak (vm-direct-stratum vm :weak)))
     (unless weak
       (setf weak (vm-register-stratum
                   vm :weak
@@ -40,13 +40,13 @@
   per-superblock (heap.tex §6); a referent whose superblock count is zero is
   dead unless marked/forwarded.  The cycle backup may later prove it dead;
   the sanity checker treats such referents as dead and clears the pointer."
-  (or (vm-object-is-marked-p vm referent)
-      (vm-object-is-forwarded-p vm referent)
-      (plusp (vm-object-rc vm referent))
+  (or (vm-direct-object-marked-p vm referent)
+      (vm-direct-object-forwarded-p vm referent)
+      (plusp (vm-direct-object-rc vm referent))
       (let ((plan (vm-plan vm)))
         (some (lambda (s)
                 (and (typep s 'superblock-space)
-                     (space-contains-p s referent)
+                     (space-direct-contains-p s referent)
                      (let ((counts (sb-refcounts s)))
                        (and counts
                             (plusp (aref counts (sb-index s referent)))))))
@@ -55,8 +55,8 @@
 (defun resolve-weak-forwarding (vm referent)
   "Step 1: if the referent moved, resolve its forwarding (in-header or
   off-heap) before the liveness test."
-  (if (vm-object-is-forwarded-p vm referent)
-      (vm-object-forwarding-pointer vm referent)
+  (if (vm-direct-object-forwarded-p vm referent)
+      (vm-direct-object-forwarding-pointer vm referent)
       referent))
 
 (defun weak-phase (plan &optional cycle-kind)
@@ -65,14 +65,14 @@ before reclamation: resolve forwarding, then clear dead referents.  A minor
 collection only collects PLAN's nursery; mature referents therefore remain
 untouched, even though they are not marked by the minor trace."
   (let* ((vm (plan-vm plan))
-         (weak (vm-stratum vm :weak))
+         (weak (vm-direct-stratum vm :weak))
          (os (vm-object-start vm))
          (nursery (and (eq cycle-kind :minor) (plan-nursery plan))))
     (when (and weak os)
       (s-for-set-cells weak nil
         (lambda (address)
           (when (s-test-bit os address)
-            (let* ((referent (vm-object-reference vm address 0))
+            (let* ((referent (vm-direct-object-reference vm address 0))
                    (stripped (and (vm-valid-reference-p vm referent)
                                   (ref-strip-or-self vm referent))))
               (cond
@@ -81,18 +81,18 @@ untouched, even though they are not marked by the minor trace."
                 ;; A minor has no liveness information for mature objects and
                 ;; does not reclaim them.  Leave their weak slots alone rather
                 ;; than treating an unmarked mature object as dead.
-                ((and nursery (not (space-contains-p nursery stripped))) nil)
+                ((and nursery (not (space-direct-contains-p nursery stripped))) nil)
                 (t
                  (let ((resolved (resolve-weak-forwarding vm stripped)))
                    ;; heal the slot before the liveness test
                    (unless (eql resolved stripped)
-                     (setf (vm-object-reference vm address 0) resolved))
+                     (vm-direct-set-object-reference vm address 0 resolved))
                    ;; Publication is not itself a liveness proof.  A public
                    ;; bit describes locality/visibility, not reachability; a
                    ;; public object with no marked/forwarded/RC or root/pin
                    ;; must still be cleared as a weak referent.
                    (unless (weak-referent-live-p vm resolved)
-                     (setf (vm-object-reference vm address 0) 0)))))))))))
+                     (vm-direct-set-object-reference vm address 0 0)))))))))))
   plan)
 
 ;; ---- finalization trait (weak.tex §2) ------------------------------------
@@ -150,14 +150,14 @@ known finalizer address before the old copy is released."
               for callback = (aref known-callbacks i)
               for address =
                 (if (and (s-test-bit os old-address)
-                         (vm-object-is-forwarded-p vm old-address))
-                    (vm-object-forwarding-pointer vm old-address)
+                         (vm-direct-object-forwarded-p vm old-address))
+                    (vm-direct-object-forwarding-pointer vm old-address)
                     old-address)
               do (if (or (not (s-test-bit os address))
                          (and (finalizer-dead-p plan vm address cycle-kind)
-                              (not (vm-object-is-marked-p vm address))
-                              (not (vm-object-is-forwarded-p vm address))
-                              (zerop (vm-object-rc vm address))))
+                              (not (vm-direct-object-marked-p vm address))
+                              (not (vm-direct-object-forwarded-p vm address))
+                              (zerop (vm-direct-object-rc vm address))))
                      (progn
                        (unless (and (< dead-count (array-total-size freeze))
                                     (< dead-count (array-total-size freeze-callbacks)))
@@ -208,9 +208,9 @@ later calls DRAIN-PENDING-FINALIZERS."
   (if (member cycle-kind '(:full :major))
       t
       (let ((nursery (and plan (plan-nursery plan))))
-        (and nursery (space-contains-p nursery address)
-             (not (vm-object-is-marked-p vm address))
-             (not (vm-object-is-forwarded-p vm address))))))
+        (and nursery (space-direct-contains-p nursery address)
+             (not (vm-direct-object-marked-p vm address))
+             (not (vm-direct-object-forwarded-p vm address))))))
 
 (defun pending-finalizer-count (plan)
   (length (plan-pending-finalizers plan)))

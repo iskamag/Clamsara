@@ -3,6 +3,35 @@
 
 (in-package #:clamsara)
 
+;; This class exists to make the inner-protocol test observable.  A simulator
+;; hard-coded to the ordinary SIMULATOR-VM method would return the identity
+;; page; the boot assembler must retain this actual CLOS specialization.
+(defclass %boot-inner-vm (simulator-vm) ()
+  (:metaclass vm-metaclass))
+
+(defmethod vm-page-physical ((vm %boot-inner-vm) virtual-page)
+  (declare (ignore vm))
+  (+ virtual-page 1000))
+
+(deftest boot-resolves-inner-clos-specialization ()
+  ;; Inner CLOS is available while booting only.  After boot, replace the
+  ;; generic function with a trap: the captured fast effective method must
+  ;; still honor the specialized method without redispatching or a type branch.
+  (let* ((vm (%make-simulator-vm '%boot-inner-vm 32768 nil))
+         (plan (make-collector :semispace vm 32768))
+         (generic (fdefinition 'vm-page-physical)))
+    (boot-gc plan)
+    (unwind-protect
+         (progn
+           (setf (fdefinition 'vm-page-physical)
+                 (lambda (&rest arguments)
+                   (declare (ignore arguments))
+                   (error "post-boot inner CLOS dispatch")))
+           (if (= (vm-direct-page-physical vm 7) 1007)
+               (values t "boot captured the specialized inner CLOS method")
+               (values nil "boot lost the specialized inner CLOS method")))
+      (setf (fdefinition 'vm-page-physical) generic))))
+
 (defun %ivm () *clamsara-vm*)
 (defun %islot (a i) (vm-object-reference (%ivm) a i))
 (defun (setf %islot) (v a i) (setf (vm-object-reference (%ivm) a i) v))

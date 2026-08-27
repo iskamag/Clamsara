@@ -3,11 +3,470 @@
 ;;;; The compiler turns the MOP-composed collector into plain functions at
 ;;;; boot. Method functions, around-method continuations, and plan wrappers
 ;;;; are all resolved while CLOS is available; collection invokes only the
-;;;; resulting function objects. Component operations still need their own
-;;;; direct protocol emitters on a target backend, so this file does not claim
-;;;; that a simulator image has magically compiled arbitrary inner CLOS away.
+;;;; resulting function objects. The simulator uses SBCL's fast effective
+;;;; method calls for the same boot-resolved inner VM/space/allocator
+;;;; protocols. A target backend still needs its own low-level emitter or
+;;;; foreign method compiler.
 
 (in-package #:clamsara)
+
+;;;; Inner protocol assembler ------------------------------------------------
+;;;
+;;; The phase assembler below is only useful if the component protocols it
+;;; calls have the same property.  A generic function call is not a
+;;; compilation boundary: it can construct an effective method and a
+;;; next-method continuation on the first collection. The boot assembler
+;;; therefore captures the complete standard method combination for each
+;;; concrete VM/space/allocator instance. SBCL exposes that combination as a
+;;; fast-method-call graph; compiling an invocation of that graph preserves
+;;; before/after/around and CALL-NEXT-METHOD semantics without making a MOP
+;;; argument list at collection time.
+
+(defstruct (vm-collection-ops (:constructor %make-vm-collection-ops))
+  address-cons page-physical ref-u64 set-ref-u64 memory-fence stratum
+  scan-roots safepoint stop-mutators resume-mutators
+  object-header set-object-header object-total-words object-reference-count
+  object-type-tag object-reference set-object-reference object-start-p
+  object-has-children object-copy object-marked set-object-marked
+  object-logged set-object-logged object-public set-object-public
+  object-age set-object-age object-rc set-object-rc object-forwarded
+  object-forwarding-pointer set-object-forwarding-pointer object-young
+  object-old)
+
+#+sbcl
+(defun %effective-method-fast-call (generic-function methods)
+  "Return SBCL's direct fast-call graph for an effective method.
+
+GET-EFFECTIVE-METHOD-FUNCTION is the public MOP-shaped bridge and may return
+either a METHOD-CALL or an already assembled FAST-METHOD-CALL. The former's
+funcallable wrapper retains the same fast function used by the latter; make a
+constant FAST-METHOD-CALL around it so the compiler can emit direct calls.
+This is a representation conversion only: CLOS has already selected and
+combined the methods, and no class or method is named here."
+  (let ((effective-method
+          (sb-pcl::get-effective-method-function generic-function methods)))
+    (cond
+      ((sb-pcl::fast-method-call-p effective-method)
+       effective-method)
+      ((sb-pcl::method-call-p effective-method)
+       (let ((fast-function
+               (sb-pcl::%method-function-fast-function
+                (sb-pcl::method-call-function effective-method))))
+         (if (sb-pcl::fast-method-call-p fast-function)
+             fast-function
+             (sb-pcl::make-fast-method-call
+              :function fast-function
+              :pv nil
+              :next-method-call nil))))
+      (t
+       (error "SBCL returned an unsupported effective method call ~S"
+              effective-method)))))
+
+#+sbcl
+(defun %compile-effective-emitter (gf sample lambda-list call-args)
+  "Compile an ordinary fixed-arity function for GF's boot-time EMF.
+
+SAMPLE is used only while CLOS is available to select the applicable methods.
+CALL-ARGS is a form list containing the real function arguments and any
+boot-captured constants. SBCL's effective-method compiler expands the
+standard method combination (including before/after/around and
+CALL-NEXT-METHOD) into a direct fast-method-call graph; no MOP argument-list
+convention is entered by the resulting function."
+  (let* ((generic-function (fdefinition gf))
+         (methods (compute-applicable-methods generic-function sample))
+         (fast-call (%effective-method-fast-call generic-function methods)))
+    (compile nil
+             `(lambda ,lambda-list
+                (sb-pcl::invoke-fast-method-call
+                 ,fast-call nil ,@call-args)))))
+
+#-sbcl
+(defun %compile-effective-emitter (gf sample lambda-list call-args)
+  (declare (ignore gf sample lambda-list call-args))
+  nil)
+
+#+sbcl
+(defun %quoted-boot-object (object)
+  (list 'quote object))
+
+#+sbcl
+(defun %build-vm-collection-ops (vm plan)
+  (%make-vm-collection-ops
+   :address-cons
+   (%compile-effective-emitter 'vm-address-cons-p (list vm 0) '(address)
+                               (list (%quoted-boot-object vm) 'address))
+   :page-physical
+   (%compile-effective-emitter 'vm-page-physical (list vm 0) '(page)
+                               (list (%quoted-boot-object vm) 'page))
+   :ref-u64
+   (%compile-effective-emitter 'ref-u64 (list vm 0) '(address)
+                               (list (%quoted-boot-object vm) 'address))
+   :set-ref-u64
+   (%compile-effective-emitter '(setf ref-u64) (list nil vm 0)
+                               '(new-value address)
+                               (list 'new-value (%quoted-boot-object vm)
+                                     'address))
+   :memory-fence
+   (%compile-effective-emitter 'memory-fence (list vm) '()
+                               (list (%quoted-boot-object vm)))
+   :stratum
+   (%compile-effective-emitter 'vm-stratum (list vm nil) '(name)
+                               (list (%quoted-boot-object vm) 'name))
+   :scan-roots
+   (%compile-effective-emitter 'vm-scan-roots (list vm plan #'identity)
+                               '(collector-state fn)
+                               (list (%quoted-boot-object vm)
+                                     'collector-state 'fn))
+   :safepoint
+   (%compile-effective-emitter 'vm-safepoint (list vm :reason nil) '(reason)
+                               (list (%quoted-boot-object vm) :reason 'reason))
+   :stop-mutators
+   (%compile-effective-emitter 'vm-stop-mutators (list vm) '()
+                               (list (%quoted-boot-object vm)))
+   :resume-mutators
+   (%compile-effective-emitter 'vm-resume-mutators (list vm) '()
+                               (list (%quoted-boot-object vm)))
+   :object-header
+   (%compile-effective-emitter 'vm-object-header (list vm 0) '(address)
+                               (list (%quoted-boot-object vm) 'address))
+   :set-object-header
+   (%compile-effective-emitter '(setf vm-object-header) (list nil vm 0)
+                               '(new-value address)
+                               (list 'new-value (%quoted-boot-object vm)
+                                     'address))
+   :object-total-words
+   (%compile-effective-emitter 'vm-object-total-words (list vm 0) '(address)
+                               (list (%quoted-boot-object vm) 'address))
+   :object-reference-count
+   (%compile-effective-emitter 'vm-object-reference-count (list vm 0)
+                               '(address)
+                               (list (%quoted-boot-object vm) 'address))
+   :object-type-tag
+   (%compile-effective-emitter 'vm-object-type-tag (list vm 0) '(address)
+                               (list (%quoted-boot-object vm) 'address))
+   :object-reference
+   (%compile-effective-emitter 'vm-object-reference (list vm 0 0)
+                               '(address slot)
+                               (list (%quoted-boot-object vm) 'address 'slot))
+   :set-object-reference
+   (%compile-effective-emitter '(setf vm-object-reference) (list nil vm 0 0)
+                               '(new-value address slot)
+                               (list 'new-value (%quoted-boot-object vm)
+                                     'address 'slot))
+   :object-start-p
+   (%compile-effective-emitter 'vm-object-start-p (list vm 0) '(address)
+                               (list (%quoted-boot-object vm) 'address))
+   :object-has-children
+   (%compile-effective-emitter 'vm-object-has-children-p (list vm 0)
+                               '(address)
+                               (list (%quoted-boot-object vm) 'address))
+   :object-copy
+   (%compile-effective-emitter 'vm-object-copy (list vm 0 0) '(source destination)
+                               (list (%quoted-boot-object vm) 'source 'destination))
+   :object-marked
+   (%compile-effective-emitter 'vm-object-is-marked-p (list vm 0) '(address)
+                               (list (%quoted-boot-object vm) 'address))
+   :set-object-marked
+   (%compile-effective-emitter '(setf vm-object-is-marked-p) (list nil vm 0)
+                               '(new-value address)
+                               (list 'new-value (%quoted-boot-object vm)
+                                     'address))
+   :object-logged
+   (%compile-effective-emitter 'vm-object-is-logged-p (list vm 0) '(address)
+                               (list (%quoted-boot-object vm) 'address))
+   :set-object-logged
+   (%compile-effective-emitter '(setf vm-object-is-logged-p) (list nil vm 0)
+                               '(new-value address)
+                               (list 'new-value (%quoted-boot-object vm)
+                                     'address))
+   :object-public
+   (%compile-effective-emitter 'vm-object-is-public-p (list vm 0) '(address)
+                               (list (%quoted-boot-object vm) 'address))
+   :set-object-public
+   (%compile-effective-emitter '(setf vm-object-is-public-p) (list nil vm 0)
+                               '(new-value address)
+                               (list 'new-value (%quoted-boot-object vm)
+                                     'address))
+   :object-age
+   (%compile-effective-emitter 'vm-object-age (list vm 0) '(address)
+                               (list (%quoted-boot-object vm) 'address))
+   :set-object-age
+   (%compile-effective-emitter '(setf vm-object-age) (list nil vm 0)
+                               '(new-value address)
+                               (list 'new-value (%quoted-boot-object vm)
+                                     'address))
+   :object-rc
+   (%compile-effective-emitter 'vm-object-rc (list vm 0) '(address)
+                               (list (%quoted-boot-object vm) 'address))
+   :set-object-rc
+   (%compile-effective-emitter '(setf vm-object-rc) (list nil vm 0)
+                               '(new-value address)
+                               (list 'new-value (%quoted-boot-object vm)
+                                     'address))
+   :object-forwarded
+   (%compile-effective-emitter 'vm-object-is-forwarded-p (list vm 0)
+                               '(address)
+                               (list (%quoted-boot-object vm) 'address))
+   :object-forwarding-pointer
+   (%compile-effective-emitter 'vm-object-forwarding-pointer (list vm 0)
+                               '(address)
+                               (list (%quoted-boot-object vm) 'address))
+   :set-object-forwarding-pointer
+   (%compile-effective-emitter '(setf vm-object-forwarding-pointer)
+                               (list nil vm 0) '(new-value address)
+                               (list 'new-value (%quoted-boot-object vm)
+                                     'address))
+   :object-young
+   (%compile-effective-emitter 'vm-object-young-p (list vm 0) '(reference)
+                               (list (%quoted-boot-object vm) 'reference))
+   :object-old
+   (%compile-effective-emitter 'vm-object-old-p (list vm 0) '(reference)
+                               (list (%quoted-boot-object vm) 'reference))))
+
+#+sbcl
+(defun %install-space-collection-ops (space)
+  (let* ((allocator (space-allocator space))
+         (space-constant (%quoted-boot-object space))
+         (vm 'vm)
+         (ref 'ref)
+         (tracer 'tracer)
+         (trace-kind 'trace-kind)
+         (cycle-kind 'cycle-kind))
+    (setf (slot-value space 'collection-trace)
+          (%compile-effective-emitter
+           'space-trace-object (list space nil 0 nil nil)
+           '(vm ref tracer trace-kind)
+           (list space-constant vm ref tracer trace-kind))
+          (slot-value space 'collection-prepare)
+          (%compile-effective-emitter
+           'space-prepare (list space nil nil) '(vm cycle-kind)
+           (list space-constant vm cycle-kind))
+          (slot-value space 'collection-reclaim)
+          (%compile-effective-emitter
+           'space-reclaim (list space nil nil) '(vm cycle-kind)
+           (list space-constant vm cycle-kind))
+          (slot-value space 'collection-release)
+          (%compile-effective-emitter
+           'space-release (list space nil nil) '(vm cycle-kind)
+           (list space-constant vm cycle-kind))
+          (slot-value space 'collection-contains)
+          (%compile-effective-emitter
+           'space-contains-p (list space 0) '(address)
+           (list space-constant 'address))
+          (slot-value space 'collection-alloc)
+          (and allocator
+               (%compile-effective-emitter
+                'alloc (list allocator 0) '(size)
+                (list (%quoted-boot-object allocator) 'size)))
+          (slot-value space 'collection-free)
+          (and allocator
+               (%compile-effective-emitter
+                'free (list allocator 0 0) '(address size)
+                (list (%quoted-boot-object allocator) 'address 'size)))
+          (slot-value space 'collection-reset)
+          (and allocator
+               (%compile-effective-emitter
+                'allocator-reset (list allocator) '()
+                (list (%quoted-boot-object allocator)))))
+    space))
+
+#-sbcl
+(defun %build-vm-collection-ops (vm plan) (declare (ignore vm plan)) nil)
+#-sbcl
+(defun %install-space-collection-ops (space) space)
+
+(defun resolve-collection-protocols (plan)
+  "Assemble all inner CLOS protocols for PLAN during boot.
+The operation table is installed only after every method function and fixed
+argument list has been captured, so a partially assembled table cannot be
+observed by a collector."
+  (let* ((vm (plan-vm plan))
+         (ops (%build-vm-collection-ops vm plan)))
+    (setf (slot-value vm 'collection-ops) ops)
+    (dolist (space (plan-spaces plan))
+      (%install-space-collection-ops space))
+    plan))
+
+;; Fixed-operation entry points used by collection code.  Before boot they
+;; retain the interpreted CLOS path, which keeps the normal phase machine a
+;; useful diagnostic; after boot every branch below calls a captured method
+;; function and never the generic dispatcher.
+(defun %vm-ops (vm) (slot-value vm 'collection-ops))
+(defun vm-direct-address-cons-p (vm address)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-address-cons ops) address)
+        (vm-address-cons-p vm address))))
+(defun vm-direct-page-physical (vm page)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-page-physical ops) page)
+        (vm-page-physical vm page))))
+(defun vm-direct-ref-u64 (vm address)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-ref-u64 ops) address)
+        (ref-u64 vm address))))
+(defun vm-direct-set-ref-u64 (vm address value)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-set-ref-u64 ops) value address)
+        (setf (ref-u64 vm address) value))))
+(defun vm-direct-memory-fence (vm)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-memory-fence ops))
+        (memory-fence vm))))
+(defun vm-direct-stratum (vm name)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-stratum ops) name)
+        (vm-stratum vm name))))
+(defun vm-direct-scan-roots (vm state fn)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-scan-roots ops) state fn)
+        (vm-scan-roots vm state fn))))
+(defun vm-direct-safepoint (vm reason)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-safepoint ops) reason)
+        (vm-safepoint vm :reason reason))))
+(defun vm-direct-stop-mutators (vm)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-stop-mutators ops))
+        (vm-stop-mutators vm))))
+(defun vm-direct-resume-mutators (vm)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-resume-mutators ops))
+        (vm-resume-mutators vm))))
+
+(defun vm-direct-object-header (vm address)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-object-header ops) address)
+        (vm-object-header vm address))))
+(defun vm-direct-set-object-header (vm address value)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-set-object-header ops) value address)
+        (setf (vm-object-header vm address) value))))
+(defun vm-direct-object-total-words (vm address)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-object-total-words ops) address)
+        (vm-object-total-words vm address))))
+(defun vm-direct-object-reference-count (vm address)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-object-reference-count ops) address)
+        (vm-object-reference-count vm address))))
+(defun vm-direct-object-type-tag (vm address)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-object-type-tag ops) address)
+        (vm-object-type-tag vm address))))
+(defun vm-direct-object-reference (vm address slot)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-object-reference ops) address slot)
+        (vm-object-reference vm address slot))))
+(defun vm-direct-set-object-reference (vm address slot value)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-set-object-reference ops)
+                     value address slot)
+        (setf (vm-object-reference vm address slot) value))))
+(defun vm-direct-object-start-p (vm address)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-object-start-p ops) address)
+        (vm-object-start-p vm address))))
+(defun vm-direct-object-has-children-p (vm address)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-object-has-children ops) address)
+        (vm-object-has-children-p vm address))))
+(defun vm-direct-object-copy (vm source destination)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-object-copy ops) source destination)
+        (vm-object-copy vm source destination))))
+(defun vm-direct-object-marked-p (vm address)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-object-marked ops) address)
+        (vm-object-is-marked-p vm address))))
+(defun vm-direct-set-object-marked-p (vm address value)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-set-object-marked ops) value address)
+        (setf (vm-object-is-marked-p vm address) value))))
+(defun vm-direct-object-logged-p (vm address)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-object-logged ops) address)
+        (vm-object-is-logged-p vm address))))
+(defun vm-direct-set-object-logged-p (vm address value)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-set-object-logged ops) value address)
+        (setf (vm-object-is-logged-p vm address) value))))
+(defun vm-direct-object-public-p (vm address)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-object-public ops) address)
+        (vm-object-is-public-p vm address))))
+(defun vm-direct-set-object-public-p (vm address value)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-set-object-public ops) value address)
+        (setf (vm-object-is-public-p vm address) value))))
+(defun vm-direct-object-age (vm address)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-object-age ops) address)
+        (vm-object-age vm address))))
+(defun vm-direct-set-object-age (vm address value)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-set-object-age ops) value address)
+        (setf (vm-object-age vm address) value))))
+(defun vm-direct-object-rc (vm address)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-object-rc ops) address)
+        (vm-object-rc vm address))))
+(defun vm-direct-set-object-rc (vm address value)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-set-object-rc ops) value address)
+        (setf (vm-object-rc vm address) value))))
+(defun vm-direct-object-forwarded-p (vm address)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-object-forwarded ops) address)
+        (vm-object-is-forwarded-p vm address))))
+(defun vm-direct-object-forwarding-pointer (vm address)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-object-forwarding-pointer ops) address)
+        (vm-object-forwarding-pointer vm address))))
+(defun vm-direct-set-object-forwarding-pointer (vm address value)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-set-object-forwarding-pointer ops)
+                     value address)
+        (setf (vm-object-forwarding-pointer vm address) value))))
+(defun vm-direct-object-young-p (vm reference)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-object-young ops) reference)
+        (vm-object-young-p vm reference))))
+(defun vm-direct-object-old-p (vm reference)
+  (let ((ops (%vm-ops vm)))
+    (if ops (funcall (vm-collection-ops-object-old ops) reference)
+        (vm-object-old-p vm reference))))
+
+(defun space-direct-trace-object (space vm ref tracer trace-kind)
+  (let ((fn (slot-value space 'collection-trace)))
+    (if fn (funcall fn vm ref tracer trace-kind)
+        (space-trace-object space vm ref tracer trace-kind))))
+(defun space-direct-prepare (space vm cycle-kind)
+  (let ((fn (slot-value space 'collection-prepare)))
+    (if fn (funcall fn vm cycle-kind)
+        (space-prepare space vm cycle-kind))))
+(defun space-direct-reclaim (space vm cycle-kind)
+  (let ((fn (slot-value space 'collection-reclaim)))
+    (if fn (funcall fn vm cycle-kind)
+        (space-reclaim space vm cycle-kind))))
+(defun space-direct-release (space vm cycle-kind)
+  (let ((fn (slot-value space 'collection-release)))
+    (if fn (funcall fn vm cycle-kind)
+        (space-release space vm cycle-kind))))
+(defun space-direct-contains-p (space address)
+  (let ((fn (slot-value space 'collection-contains)))
+    (if fn (funcall fn address) (space-contains-p space address))))
+(defun space-direct-alloc (space size)
+  (let ((fn (slot-value space 'collection-alloc)))
+    (if fn (funcall fn size)
+        (alloc (space-allocator space) size))))
+(defun space-direct-free (space address size)
+  (let ((fn (slot-value space 'collection-free)))
+    (if fn (funcall fn address size)
+        (free (space-allocator space) address size))))
+(defun space-direct-reset (space)
+  (let ((fn (slot-value space 'collection-reset)))
+    (if fn (funcall fn)
+        (allocator-reset (space-allocator space)))))
 
 (defgeneric compile-to-functions (component)
   (:method-combination append)
@@ -17,6 +476,10 @@
 (defgeneric boot-gc (plan)
   (:method ((p plan))
     (finalize-plan p)
+    ;; CLOS is still available here.  Resolve the VM, space, and allocator
+    ;; protocols before assembling the phase machine; all subsequent warm-up
+    ;; collections exercise the same direct inner calls used by the mutator.
+    (resolve-collection-protocols p)
     (let ((table (plan-function-table p)))
       (loop for (name . form) in (compile-to-functions p)
             do (setf (gethash name table) (compile nil form))))
@@ -137,9 +600,9 @@
 
 (defun boot-warm-runtime-dispatch (plan)
   "Resolve dispatch that SBCL can evict while BOOT-RESET-STATE clears the heap.
-This is boot work, not a substitute for compiling the remaining inner VM
-protocol. In particular, a fresh SBCL otherwise allocates an effective method
-on the first live VM-OBJECT-REFERENCE after boot."
+This is boot work for accessors that remain ordinary simulator calls, such as
+metadata and barrier helpers. The inner VM/space/allocator protocol itself is
+already emitted as fast effective-method calls by RESOLVE-COLLECTION-PROTOCOLS."
   (let* ((vm (plan-vm plan))
          (space (default-space plan))
          (address (and space (space-base-address space))))
@@ -182,8 +645,37 @@ on the first live VM-OBJECT-REFERENCE after boot."
   ;; accessors as static slot reads: the real CLOS dispatch cache is what the
   ;; collection path uses, and that is what must be hot.
   (dolist (space (plan-spaces plan))
+    ;; Exercise the actual direct entry points, not only the old generic warm
+    ;; calls above.  In particular, SPACE-PREPARE reaches the stratum storage
+    ;; readers that a first post-boot collection would otherwise initialize.
+    (space-direct-contains-p space (space-base-address space))
+    (space-direct-prepare space (plan-vm plan) :full)
     (when (typep space 'superblock-space)
       (%warm-superblock space (plan-vm plan))))
+  ;; Resolve the complete VM operation vector through its production entry
+  ;; points as well.  This includes the unarmed T0 read/write branch; armed
+  ;; software-MMU reads are selected explicitly by VM-DIRECT-REF-U64.
+  (let* ((vm (plan-vm plan))
+         (space (default-space plan))
+         (address (and space (space-base-address space))))
+    (when address
+      (vm-direct-ref-u64 vm address)
+      (vm-direct-set-ref-u64 vm address (vm-direct-ref-u64 vm address))
+      (vm-direct-object-header vm address)
+      (vm-direct-object-total-words vm address)
+      (vm-direct-object-reference-count vm address)
+      (vm-direct-object-type-tag vm address)
+      (vm-direct-object-reference vm address 0)
+      (vm-direct-object-start-p vm address)
+      (vm-direct-object-marked-p vm address)
+      (vm-direct-object-logged-p vm address)
+      (vm-direct-object-public-p vm address)
+      (vm-direct-object-age vm address)
+      (vm-direct-object-rc vm address)
+      (vm-direct-object-forwarded-p vm address)
+      (vm-direct-object-forwarding-pointer vm address)
+      (vm-direct-object-young-p vm address)
+      (vm-direct-object-old-p vm address)))
   plan)
 
 (defun %warm-stratum (stratum)
@@ -450,26 +942,26 @@ preserved too."
                  (funcall ',minor nil nil)
               ;; The normal epilogue resumes the VM, but this idempotent
               ;; cleanup also covers a phase/backend error.
-              (vm-resume-mutators (plan-vm ',plan))
+              (vm-direct-resume-mutators (plan-vm ',plan))
               (publication-reopen-after-abort
                (slot-value ',plan 'publication) (slot-value ',plan 'vm))))
            (:major
             (unwind-protect
                  (funcall ',major nil nil)
-              (vm-resume-mutators (plan-vm ',plan))
+              (vm-direct-resume-mutators (plan-vm ',plan))
               (publication-reopen-after-abort
                (slot-value ',plan 'publication) (slot-value ',plan 'vm))))
            (:full
             (unwind-protect
                  (funcall ',full nil nil)
-              (vm-resume-mutators (plan-vm ',plan))
+              (vm-direct-resume-mutators (plan-vm ',plan))
               (publication-reopen-after-abort
                (slot-value ',plan 'publication) (slot-value ',plan 'vm))))
            (:checkpoint
-            (vm-stop-mutators (plan-vm ',plan))
+            (vm-direct-stop-mutators (plan-vm ',plan))
             (unwind-protect
                  (funcall ',checkpoint nil nil)
-              (vm-resume-mutators (plan-vm ',plan))
+              (vm-direct-resume-mutators (plan-vm ',plan))
               (publication-reopen-after-abort
                (slot-value ',plan 'publication) (slot-value ',plan 'vm))))
          )))

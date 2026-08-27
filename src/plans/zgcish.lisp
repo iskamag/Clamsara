@@ -50,11 +50,11 @@
 
 (defmethod gc-phase :prologue ((p zgc-plan) k)
   (declare (ignore k))
-  (vm-stop-mutators (plan-vm p))
+  (vm-direct-stop-mutators (plan-vm p))
   (setf (plan-marking-active-p p) t)
   (let ((vm (plan-vm p)))
-    (space-prepare (z-from p) vm)
-    (allocator-reset (space-allocator (z-to p)))
+    (space-direct-prepare (z-from p) vm nil)
+    (space-direct-reset (z-to p))
     (fwd-clear vm)))
 
 ;; mark: precise trace.  Incremental update keeps the graph consistent
@@ -75,23 +75,23 @@
   (setf (plan-marking-active-p p) nil)
   (let ((los (plan-los p)))
     (when los
-      (space-reclaim los (plan-vm p) :cycle-kind k))))
+      (space-direct-reclaim los (plan-vm p) k))))
 
 ;; relocate: copy every live (marked) object into the 'to' region, recording
 ;; old->new in the off-heap forwarding table.
 (defmethod gc-phase :compact ((p zgc-plan) k)
   (declare (ignore k))
   (let* ((vm (plan-vm p))
-         (mark (vm-stratum vm :mark))
+         (mark (vm-direct-stratum vm :mark))
          (os (vm-object-start vm))
          (fwd (vm-fwd-table vm))
-         (to (space-allocator (z-to p))))
+         (to (z-to p)))
     (when (and mark os)
       (loop for address from (space-base-address (z-from p))
             below (space-end-address (z-from p))
             when (s-test-bit mark address)
-              do (let* ((words (vm-object-total-words vm address))
-                        (destination (alloc to words)))
+              do (let* ((words (vm-direct-object-total-words vm address))
+                        (destination (space-direct-alloc to words)))
                    ;; A live object that cannot move leaves a stranded
                    ;; reference: the next prologue clears the from-space's
                    ;; metadata, so silently skipping the copy corrupts the
@@ -99,23 +99,23 @@
                    (unless destination
                      (error 'heap-exhausted :requested-size words
                                             :space (space-name (z-to p))))
-                   (vm-object-copy vm address destination)
+                   (vm-direct-object-copy vm address destination)
                    (setf (aref fwd address) destination)))
       ;; remap: heal every root + every live object's slots in EVERY space
       ;; (a LOS object may hold an edge into a relocated 'from' object)
       (heal-every-space p fwd)
       ;; The forwarding table remains live until the correction grace period
       ;; closes; it is cleared only in the release phase.
-      (memory-fence vm))))
+      (vm-direct-memory-fence vm))))
 
 (defmethod gc-phase :release ((p zgc-plan) k)
   (declare (ignore k))
   (let ((vm (plan-vm p)))
-    (s-clear (vm-stratum vm :mark))
+    (s-clear (vm-direct-stratum vm :mark))
     ;; the relocated objects now live in 'to'; swap and reset
     (rotatef (z-from p) (z-to p))
     (setf (space-default-p (z-from p)) t (space-default-p (z-to p)) nil)
-    (allocator-reset (space-allocator (z-to p)))
+    (space-direct-reset (z-to p))
     (fwd-clear vm)
     (when (plan-stats p) (stats-event (plan-stats p) :gc-cycles 1))))
 

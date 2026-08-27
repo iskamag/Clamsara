@@ -47,9 +47,9 @@
       (plan-retry-after p size space :major)))
 
 (defmethod gc-phase :prologue ((p iso-plan) k)
-  (vm-stop-mutators (plan-vm p))
+  (vm-direct-stop-mutators (plan-vm p))
   (if (eq k :minor)
-      (space-prepare (iso-private p) (plan-vm p))
+      (space-direct-prepare (iso-private p) (plan-vm p) k)
       (prepare-spaces p k)))
 
 (defmethod gc-phase :mark ((p iso-plan) k)
@@ -57,12 +57,12 @@
 
 (defmethod gc-phase :reclaim ((p iso-plan) k)
   (if (eq k :minor)
-      (space-reclaim (iso-private p) (plan-vm p) :cycle-kind k)
+      (space-direct-reclaim (iso-private p) (plan-vm p) k)
       (reclaim-spaces p k)))
 
 (defmethod gc-phase :release ((p iso-plan) k)
   (declare (ignore k))
-  (let ((mark (vm-stratum (plan-vm p) :mark))) (when mark (s-clear mark)))
+  (let ((mark (vm-direct-stratum (plan-vm p) :mark))) (when mark (s-clear mark)))
   (when (plan-stats p) (stats-event (plan-stats p) :gc-cycles 1)))
 
 ;; A private collection traces the request's roots (in the private space) plus
@@ -83,15 +83,15 @@
          (priv (iso-private plan)))
     (tracer-reset tr)
     ;; seed roots in the private space
-    (vm-scan-roots vm plan #'iso-minor-root-reference)
+    (vm-direct-scan-roots vm plan #'iso-minor-root-reference)
     ;; seed published objects (external roots) within the private space
-    (let ((pub (vm-stratum vm :public)) (os (vm-object-start vm)))
+    (let ((pub (vm-direct-stratum vm :public)) (os (vm-object-start vm)))
       (when (and pub os)
         (loop for address from (space-base-address priv)
               below (space-end-address priv)
               when (and (s-test-bit pub address)
                         (s-test-bit os address))
-                do (space-trace-object priv vm address tr))))
+                do (space-direct-trace-object priv vm address tr :minor))))
     ;; first drain of the published-roots set: guarded inbound edges seed the
     ;; trace (locality.tex §1)
     (iso-drain-published-roots plan)
@@ -110,14 +110,14 @@
       (drain-published-roots
        pr
        (lambda (object slot)
-         (let ((vm (plan-vm plan)))
-           (let ((referent (vm-object-reference vm object slot)))
-             (when (vm-reference-p vm referent)
-               (let ((private (iso-private plan)))
-                 (when (space-contains-p
-                        private (ref-strip-or-self vm referent))
-                   (space-trace-object
-                    private vm referent (plan-tracer plan))))))))))))
+         (let* ((vm (plan-vm plan))
+                (referent (vm-direct-object-reference vm object slot))
+                (private (iso-private plan)))
+           (when (and (vm-reference-p vm referent)
+                      (space-direct-contains-p
+                       private (ref-strip-or-self vm referent)))
+             (space-direct-trace-object
+              private vm referent (plan-tracer plan) nil))))))))
 
 (defun make-iso-plan (vm heap-size)
   (declare (ignore heap-size))

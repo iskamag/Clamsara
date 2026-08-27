@@ -9,20 +9,23 @@
   (:metaclass space-metaclass))
 
 ;; like mark-sweep reclaim but does NOT clear the mark stratum (sticky)
-(defmethod space-reclaim ((s sticky-mark-sweep-space) vm &key cycle-kind)
+(defun %sticky-mark-sweep-space-reclaim (s vm cycle-kind)
   (declare (ignore cycle-kind))
   (let ((a (space-allocator s))
         (os (vm-object-start vm))
-        (mark (vm-stratum vm :mark))
+        (mark (vm-direct-stratum vm :mark))
         (start (space-base-address s))
         (end (space-end-address s)))
     (when (and a os mark)
       (loop for address from start below end
             when (and (s-test-bit os address)
                       (not (s-test-bit mark address)))
-              do (free a address
-                       (vm-object-total-words vm address))))
+              do (space-direct-free s address
+                                    (vm-direct-object-total-words vm address))))
     s))
+
+(defmethod space-reclaim ((s sticky-mark-sweep-space) vm cycle-kind)
+  (%sticky-mark-sweep-space-reclaim s vm cycle-kind))
 (defclass sticky-ms-plan (plan) ()
   (:metaclass plan-metaclass))
 
@@ -37,14 +40,14 @@
                   :bit (vm-heap-size vm))))
 
 (defmethod gc-phase :prologue ((p sticky-ms-plan) k)
-  (vm-stop-mutators (plan-vm p))
-  (when (eq k :major) (s-clear (vm-stratum (plan-vm p) :mark))))
+  (vm-direct-stop-mutators (plan-vm p))
+  (when (eq k :major) (s-clear (vm-direct-stratum (plan-vm p) :mark))))
 
 (defmethod gc-phase :mark ((p sticky-ms-plan) k)
   (mark-roots p (plan-tracer p))
   (if (eq k :minor)
       (sticky-rescan-dirty p)
-      (s-clear (vm-stratum (plan-vm p) :log))))
+      (s-clear (vm-direct-stratum (plan-vm p) :log))))
 
 (defmethod gc-phase :reclaim ((p sticky-ms-plan) k)
   (reclaim-spaces p k))

@@ -18,7 +18,7 @@
            :message "persistent allocator needs a base allocator and log"))
   a)
 
-(defmethod alloc ((a persistent-allocator) size &key &allow-other-keys)
+(defmethod alloc ((a persistent-allocator) size)
   (let ((addr (alloc (pa-base a) size)))
     (when addr
       (plog-record-alloc (allocator-log a) addr size))

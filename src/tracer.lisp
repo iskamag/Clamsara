@@ -73,9 +73,9 @@
     (if (vm-reference-p vm ref)
         (let ((space (plan-space-for-address plan addr)))
           (if space
-              (space-trace-object
+              (space-direct-trace-object
                space vm ref tracer
-               :trace-kind (plan-active-trace-kind plan))
+               (plan-active-trace-kind plan))
               ref))
         ref)))
 
@@ -84,9 +84,10 @@
 forwarded) reference.  Shared by every minor/private collector's root seeder."
   (let ((vm (plan-vm plan)))
     (if (and (vm-reference-p vm ref)
-             (space-contains-p target-space (ref-strip-or-self vm ref)))
-        (space-trace-object target-space vm ref (plan-tracer plan)
-                            :trace-kind trace-kind)
+             (space-direct-contains-p target-space
+                                      (ref-strip-or-self vm ref)))
+        (space-direct-trace-object target-space vm ref (plan-tracer plan)
+                                   trace-kind)
         ref)))
 
 (defun trace-object-children (plan ref
@@ -105,7 +106,7 @@ referent slot 0 is excluded by default (weak.tex §1); healing paths pass
          (weak-p (and exclude-weak-referent (weak-pointer-p vm addr))))
     (labels ((process (i)
                (when (or (not weak-p) (not (zerop i)))
-                 (let ((child (vm-object-reference vm addr i)))
+                  (let ((child (vm-direct-object-reference vm addr i)))
                    (when (vm-reference-p vm child)
                      (let* ((caddr (ref-strip-or-self vm child))
                             (space (plan-space-for-address plan caddr)))
@@ -113,15 +114,13 @@ referent slot 0 is excluded by default (weak.tex §1); healing paths pass
                                   (or (null target-space)
                                       (eq space target-space)))
                          (let ((new
-                                 (space-trace-object
-                                  space vm child tracer
-                                  :trace-kind trace-kind)))
+                                 (space-direct-trace-object
+                                  space vm child tracer trace-kind)))
                            (unless (eql new child)
-                             (setf (vm-object-reference vm addr i)
-                                   new))))))))))
+                             (vm-direct-set-object-reference vm addr i new))))))))))
       (if slots
           (loop for i across slots do (process i))
-          (dotimes (i (vm-object-reference-count vm addr)) (process i))))
+          (dotimes (i (vm-direct-object-reference-count vm addr)) (process i))))
     ref))
 
 (defun mark-grey-reference (plan ref)
@@ -136,7 +135,7 @@ referent slot 0 is excluded by default (weak.tex §1); healing paths pass
   (tracer-reset tracer)
   ;; The visitor functions are top-level and state is explicit: neither step
   ;; constructs a host closure on the collection path.
-  (vm-scan-roots (plan-vm plan) plan #'mark-root-reference)
+  (vm-direct-scan-roots (plan-vm plan) plan #'mark-root-reference)
   (tracer-drain tracer #'mark-grey-reference plan))
 
 (defun sticky-rescan-dirty (plan)
@@ -145,7 +144,7 @@ Their mark bit cannot double as this cycle's grey bit, so the write barrier
 records them in the per-object log stratum."
   (let* ((vm (plan-vm plan))
          (tracer (plan-tracer plan))
-         (log (vm-stratum vm :log))
+         (log (vm-direct-stratum vm :log))
          (object-start (vm-object-start vm)))
     (when (and log object-start)
       (dolist (space (plan-spaces plan))

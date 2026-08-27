@@ -5,3 +5,6 @@ README.md
 *.fasl
 *.fasl
 .commandcode
+AGENTS.md
+doc/
+*~

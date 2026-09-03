@@ -253,6 +253,10 @@ convention is entered by the resulting function."
           (%compile-effective-emitter
            'space-contains-p (list space 0) '(address)
            (list space-constant 'address))
+          (slot-value space 'collection-occupancy)
+          (%compile-effective-emitter
+           'space-occupancy (list space) '()
+           (list space-constant))
           (slot-value space 'collection-alloc)
           (and allocator
                (%compile-effective-emitter
@@ -455,6 +459,11 @@ observed by a collector."
 (defun space-direct-contains-p (space address)
   (let ((fn (slot-value space 'collection-contains)))
     (if fn (funcall fn address) (space-contains-p space address))))
+(defun space-direct-occupancy (space)
+  "Call the construction-bound occupancy sample without collection-time CLOS
+method lookup.  The generic fallback exists only for an unbooted test space."
+  (let ((fn (slot-value space 'collection-occupancy)))
+    (if fn (funcall fn) (space-occupancy space))))
 (defun space-direct-alloc (space size)
   (let ((fn (slot-value space 'collection-alloc)))
     (if fn (funcall fn size)
@@ -589,13 +598,9 @@ observed by a collector."
         (fill (mmu-dirty vm) 0))
       (when (plan-publication p)
         (setf (fill-pointer (publication-work (plan-publication p))) 0)))
-    ;; Keep the hash entries established by warm-up so the first real event
-    ;; increment cannot grow the table on the collection path.
+    ;; Retain the boot-sized dense counter vector and clear every warmed event.
     (when (plan-stats p)
-      (maphash (lambda (name value)
-                 (declare (ignore value))
-                 (setf (gethash name (stats-events (plan-stats p))) 0))
-               (stats-events (plan-stats p))))
+      (stats-reset (plan-stats p)))
     p))
 
 (defun boot-warm-runtime-dispatch (plan)

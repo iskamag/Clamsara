@@ -37,10 +37,15 @@
    (collection-release :accessor space-collection-release :initform nil)
    (collection-reclaim :accessor space-collection-reclaim :initform nil)
    (collection-contains :accessor space-collection-contains :initform nil)
+   (collection-occupancy :accessor space-collection-occupancy :initform nil)
    (collection-alloc :accessor space-collection-alloc :initform nil)
    (collection-free :accessor space-collection-free :initform nil)
    (collection-reset :accessor space-collection-reset :initform nil))
   (:metaclass space-metaclass))
+
+(defun space-p (object)
+  "True when OBJECT is a Clamsara space instance."
+  (typep object 'space))
 
 (defmethod shared-initialize :after ((s space) slot-names &key)
   (declare (ignore slot-names))
@@ -264,45 +269,98 @@
 
 ;; ---- large-object allocator (whole pages) --------------------------------
 
+(defstruct (los-hot-arena
+            (:constructor %make-los-hot-arena
+                (bitmap total-pages first-page extents base-page)))
+  "Boot-owned raw LOS state.  It is deliberately a structure rather than a
+CLOS component: the measured allocator body touches only arrays and fixnums;
+component dispatch and slot extraction stay in the outer ALLOC method."
+  (bitmap #* :type simple-bit-vector)
+  (total-pages 0 :type fixnum)
+  (first-page 0 :type fixnum)
+  (extents #() :type (simple-array fixnum (*)))
+  (base-page 0 :type fixnum))
+
 (defclass los-allocator ()
   ((page-resource :initarg :page-resource :accessor los-pr)
    (vm :initarg :vm :accessor los-vm)
    (space :initarg :space :accessor los-space)
-   ;; The page-resource hands out *relative* page indices (starting at 1);
-   ;; base-page is the absolute page offset of this space so that the
-   ;; allocator returns addresses inside the space's own range.
    (base-page :initarg :base-page :accessor los-base-page :initform 0)
-   (allocated :accessor los-allocated :initform (make-hash-table :test 'eql)))
+   ;; Dense page-indexed extent storage is retained as the diagnostic view.
+   ;; HOT-ARENA holds this exact same vector plus raw bitmap geometry.
+   (extents :accessor los-extents :initform nil)
+   (hot-arena :reader los-hot-arena :initform nil))
   (:metaclass allocator-metaclass))
 
+(defmethod shared-initialize :after ((a los-allocator) slot-names &key)
+  (declare (ignore slot-names))
+  (when (and (slot-boundp a 'page-resource) (los-pr a))
+    (let* ((pr (los-pr a))
+           (extents (make-array (pr-total-pages pr)
+                                :element-type 'fixnum :initial-element 0)))
+      (setf (slot-value a 'extents) extents
+            (slot-value a 'hot-arena)
+            (%make-los-hot-arena
+             (pr-bitmap pr) (pr-total-pages pr) (pr-first-page pr)
+             extents (los-base-page a))))))
+
 (defmethod component-validate ((a los-allocator))
-  (unless (and (los-pr a) (los-vm a) (los-space a))
-    (error 'plan-incompatible :plan a
-           :message "large-object allocator is not wired to VM/space/resource"))
+  (let ((arena (los-hot-arena a)))
+    (unless (and (typep (los-pr a) 'bitmap-page-resource)
+                 (los-vm a) (los-space a) arena
+                 (eq (los-hot-arena-extents arena) (los-extents a))
+                 (= (length (los-extents a)) (pr-total-pages (los-pr a))))
+      (error 'plan-incompatible :plan a
+             :message "large-object allocator is not wired to one bitmap arena, VM, and space")))
   a)
 
-(defmethod alloc ((a los-allocator) size)
+(declaim (inline %los-alloc %los-free %los-reset))
+(defun %los-alloc (arena size)
+  "Allocate SIZE words in raw boot arena ARENA and return an address or NIL."
+  (declare (type los-hot-arena arena) (type fixnum size)
+           (optimize (speed 3) (safety 0)))
   (let* ((pages (ceiling size +page-words+))
-         (p (page-resource-get (los-pr a) pages)))
+         (p (%bitmap-pages-get
+             (los-hot-arena-bitmap arena)
+             (los-hot-arena-total-pages arena)
+             (los-hot-arena-first-page arena) pages)))
     (when p
-      (let ((abs-page (+ p (los-base-page a))))
-        (setf (gethash (ash abs-page +log-page-words+) (los-allocated a)) pages)
-        (ash abs-page +log-page-words+)))))
+      (setf (aref (los-hot-arena-extents arena) p) pages)
+      (ash (+ p (los-hot-arena-base-page arena)) +log-page-words+))))
+
+(defun %los-free (arena addr)
+  "Release only the exact recorded run beginning at page-aligned ADDR."
+  (declare (type los-hot-arena arena) (type fixnum addr)
+           (optimize (speed 3) (safety 0)))
+  (let* ((extents (los-hot-arena-extents arena))
+         (rel (- (ash addr (- +log-page-words+))
+                 (los-hot-arena-base-page arena)))
+         (pages (and (>= rel 0) (< rel (length extents))
+                     (aref extents rel))))
+    (when (plusp pages)
+      (setf (aref extents rel) 0)
+      (%bitmap-pages-release (los-hot-arena-bitmap arena) rel pages))))
+
+(defun %los-reset (arena)
+  "Release every exact run in raw boot arena ARENA."
+  (declare (type los-hot-arena arena) (optimize (speed 3) (safety 0)))
+  (let ((extents (los-hot-arena-extents arena))
+        (bitmap (los-hot-arena-bitmap arena)))
+    (loop for rel fixnum below (length extents)
+          for pages fixnum = (aref extents rel)
+          when (plusp pages)
+            do (setf (aref extents rel) 0)
+               (%bitmap-pages-release bitmap rel pages)))
+  arena)
+
+(defmethod alloc ((a los-allocator) size)
+  (%los-alloc (slot-value a 'hot-arena) size))
 (defmethod free ((a los-allocator) addr size)
   (declare (ignore size))
-  (let ((pages (gethash addr (los-allocated a))))
-    (when pages
-      (let ((abs-page (address-page addr)))
-        (page-resource-release (los-pr a) (- abs-page (los-base-page a)) pages))
-      (remhash addr (los-allocated a)))))
+  (%los-free (slot-value a 'hot-arena) addr))
 (defmethod allocator-reset ((a los-allocator))
-  ;; release every allocated page back to the resource, then forget them
-  (maphash (lambda (addr pages)
-             (let ((abs-page (address-page addr)))
-               (page-resource-release (los-pr a)
-                                      (- abs-page (los-base-page a)) pages)))
-           (los-allocated a))
-  (clrhash (los-allocated a)))
+  (%los-reset (slot-value a 'hot-arena))
+  a)
 
 ;; ---- Immix allocator (mark-region, block granular) -----------------------
 ;; Blocks are pages (512 words), carved from a fixed word range.  Bump within
@@ -741,8 +799,14 @@ liveness authority in all cases."
         (dirty (claimore-nursery-dirty s))
         (os (vm-object-start vm))
         (base (space-base-address s))
-        (end (space-end-address s)))
+        (end (space-end-address s))
+        (stats (%stats-for-vm vm)))
     (matrix-clear-all matrix)
+    ;; Clearing then reconstructing the matrix defines every logical row,
+    ;; including rows that remain empty.  Count matrix rows, not source
+    ;; objects (several objects can contribute to the same row).
+    (when stats
+      (stats-event stats :relation-rows-rebuilt (matrix-regions matrix)))
     (fill occupied 0)
     (fill dirty 0)
     (loop for address from base below end
@@ -1147,13 +1211,21 @@ source scan."
   (s-clear (vm-direct-stratum vm :mark))
   s)
 
-(defun %immix-space-reclaim (s vm cycle-kind)
+(defun %immix-sweep-blocks (s vm)
+  "Span-aware block sweep shared by immix and sticky-immix reclamation.
+
+First pass: decide each block's live count, but a span block is
+reclaimed atomically with its root object: the whole span lives or
+dies together (heap.tex §2 medium objects).  The per-block counts
+live in a boot-allocated vector, never a host allocation.  Second
+pass: forget dead objects and recycle fully-dead blocks, clearing the
+recycled span's flags so its blocks return to the allocator.
+
+The mark stratum is never cleared here: callers decide mark policy,
+which is what lets the sticky variant keep marks across minors while
+the ordinary immix space clears its own range after the sweep."
   (let ((a (space-allocator s)))
     (when (and (plusp (ix-block-count a)) (vm-direct-stratum vm :mark))
-      ;; First pass: decide each block's live count, but a span block is
-      ;; reclaimed atomically with its root object: the whole span lives or
-      ;; dies together (heap.tex §2 medium objects).  The per-block counts
-      ;; live in a boot-allocated vector, never a host allocation.
       (let ((block-live (ix-block-live a)))
         (do-immix-blocks (b a)
           (let ((bi (floor (- (immix-block-base b) (ix-start a))
@@ -1183,9 +1255,16 @@ source scan."
               ;; a recycled span block leaves its span
               (when (>= (aref (ix-span-root a) bi) 0)
                 (setf (aref (ix-span-root a) bi) -1))))))
-      (setf (ix-current a) (ix-first-block a)))
+      (setf (ix-current a) (ix-first-block a))))
+  s)
+
+(defun %immix-space-reclaim (s vm cycle-kind)
+  (let ((a (space-allocator s)))
+    (%immix-sweep-blocks s vm)
     (when (eq cycle-kind :major)
       (immix-defrag s vm))
+    ;; Range-clear: the mark stratum is heap-wide; other spaces (LOS,
+    ;; sticky partners) own their marks and reclaim after this space.
     (let ((mark (vm-direct-stratum vm :mark)))
       (when mark (s-clear-range mark (ix-start a) (ix-limit a))))
     s))
@@ -1232,6 +1311,18 @@ source scan."
 
 (defmethod space-reclaim ((s los-space) vm cycle-kind)
   (%los-space-reclaim s vm cycle-kind))
+
+(defmethod space-occupancy ((s los-space))
+  ;; Occupied LOS words for the :retained-bytes-sample gauge: the dense
+  ;; extent table records every live run's page length.  Read-only over the
+  ;; boot-allocated table; no allocation.
+  (let ((a (space-allocator s)))
+    (if (typep a 'los-allocator)
+        (let ((extents (los-extents a)))
+          (if extents
+              (* +page-words+ (loop for pages across extents sum pages))
+              0))
+        0)))
 
 ;; ---- immortal-space ------------------------------------------------------
 
@@ -1548,15 +1639,24 @@ layout maps; weak referent slot zero is not a strong hierarchy edge."
   (let ((mb-matrices (%sb-mb-matrices s))
         (block-matrices (%sb-block-matrices s))
         (escape (or (%sb-escape s) (vm-direct-stratum vm :block-escape)))
-        (os (vm-object-start vm)))
+        (os (vm-object-start vm))
+        (stats (%stats-for-vm vm))
+        (rows 0))
     (when mb-matrices
       (dotimes (i (length mb-matrices))
         (let ((matrix (aref mb-matrices i)))
-          (when matrix (matrix-clear-all matrix)))))
+          (when matrix
+            (matrix-clear-all matrix)
+            (incf rows (matrix-regions matrix))))))
     (when block-matrices
       (dotimes (i (length block-matrices))
         (let ((matrix (aref block-matrices i)))
-          (when matrix (matrix-clear-all matrix)))))
+          (when matrix
+            (matrix-clear-all matrix)
+            (incf rows (matrix-regions matrix))))))
+    ;; A clear-and-reconstruct pass defines every matrix row, including empty
+    ;; rows.  Count those actual rows once, not the number of source objects.
+    (when stats (stats-event stats :relation-rows-rebuilt rows))
     (when escape (s-clear escape))
     (when os
       (loop for address from (space-base-address s)

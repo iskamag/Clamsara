@@ -2,6 +2,12 @@
 
 (in-package #:clamsara)
 
+(deftest exported-space-p-is-defined ()
+  (let ((space (make-instance 'space :start-page 0 :page-count 1)))
+    (if (and (space-p space) (not (space-p 42)))
+        (values t "ok")
+        (values nil "SPACE-P export does not recognize space instances"))))
+
 (deftest free-list-allocator ()
   (let ((a (make-instance 'free-list-allocator :start 100 :limit 100000))
         addrs)
@@ -168,3 +174,138 @@
                  (zerop (sb-escape-value mature vm source-block)))
             (values t "ok")
             (values nil "foreign target polluted mature hierarchy metadata"))))))
+
+
+;; ---- LOS allocator: dense page-indexed extent bookkeeping ------------------
+
+#+sbcl
+(sb-alien:define-alien-variable
+    ("bytes_allocated" %los-test-bytes-allocated)
+    sb-alien:unsigned-long)
+
+#+sbcl
+(deftest los-allocation-makes-no-host-allocations ()
+  ;; First-call AND repeated-call measurement of the authored hot bodies
+  ;; (no warm-up credit, no warm-up substitution): the measured windows call
+  ;; the ordinary functions %LOS-ALLOC / %LOS-FREE / %LOS-RESET directly, so
+  ;; generic-function dispatch is explicitly EXCLUDED from the windows (CLOS
+  ;; overhead is accounted separately from the allocator body).  The extent
+  ;; table is allocated with the allocator at boot, so every window must
+  ;; report exactly zero host bytes.
+  ;; 2621440 words = 5120 pages; the semispace carve gives LOS 1/16 = 320
+  ;; pages, so 101 extents of 3 pages (303) fit with a small margin.
+  (let* ((vm (make-simulator-vm 2621440))
+         (plan (make-collector :semispace vm 2621440)))
+    (boot-gc plan)
+    (let* ((a (space-allocator (plan-los plan)))
+           ;; Extract the boot arena before every measurement.  This is the
+           ;; explicit CLOS boundary; the windows below contain raw structure,
+           ;; fixnum, and bit-vector operations only.
+           (arena (los-hot-arena a))
+           (extents (los-hot-arena-extents arena))
+           (base-page (los-hot-arena-base-page arena)))
+      ;; FIRST %LOS-ALLOC call
+      (sb-vm::close-thread-alloc-region)
+      (let ((before %los-test-bytes-allocated))
+        (let ((addr (%los-alloc arena 1100)))     ; 1100 words -> 3-page extent
+          (sb-vm::close-thread-alloc-region)
+          (let ((bytes (- %los-test-bytes-allocated before)))
+            (unless (and addr (zerop bytes))
+              (return-from los-allocation-makes-no-host-allocations
+                (values nil (format nil "first %los-alloc call consed ~D host bytes" bytes))))))
+        ;; REPEATED %LOS-ALLOC calls: every allocation must succeed (the
+        ;; resource fits) and the window must stay at zero host bytes (the
+        ;; extent table never grows).
+        (setf before %los-test-bytes-allocated)
+        (dotimes (i 100)
+          (let ((addr (%los-alloc arena 1100)))
+            (unless addr
+              (return-from los-allocation-makes-no-host-allocations
+                (values nil
+                        (format nil "LOS alloc ~D of 100 failed: extent/resource exhausted" i))))))
+        (sb-vm::close-thread-alloc-region)
+        (let ((bytes (- %los-test-bytes-allocated before)))
+          (unless (zerop bytes)
+            (return-from los-allocation-makes-no-host-allocations
+              (values nil (format nil "100 %%los-alloc calls consed ~D host bytes" bytes)))))
+        ;; DIRECT %LOS-FREE of every recorded run
+        (setf before %los-test-bytes-allocated)
+        (loop for rel below (length extents)
+              for pages = (aref extents rel)
+              when (plusp pages)
+                do (%los-free arena (ash (+ rel base-page) +log-page-words+)))
+        (sb-vm::close-thread-alloc-region)
+        (let ((bytes (- %los-test-bytes-allocated before)))
+          (unless (zerop bytes)
+            (return-from los-allocation-makes-no-host-allocations
+              (values nil (format nil "101 %%los-free calls consed ~D host bytes" bytes)))))
+        ;; DIRECT %LOS-RESET on an empty table
+        (setf before %los-test-bytes-allocated)
+        (%los-reset arena)
+        (sb-vm::close-thread-alloc-region)
+        (let ((bytes (- %los-test-bytes-allocated before)))
+          (if (zerop bytes)
+              (values t "ok: first/repeated %los-alloc, %los-free, %los-reset all 0 host bytes (dispatch excluded)")
+              (values nil (format nil "%%los-reset consed ~D host bytes" bytes))))))))
+
+(defun %los-extent-count (a)
+  (loop for e across (los-extents a) count (plusp e)))
+
+(deftest los-extents-record-exact-runs ()
+  ;; A 2-page request records an extent of exactly 2 at the start page and
+  ;; nothing elsewhere; a middle-page address is a no-op on free; freeing
+  ;; the recorded start releases exactly the recorded run.
+  (let* ((vm (make-simulator-vm 65536))
+         (plan (make-collector :semispace vm 65536)))
+    (boot-gc plan)
+    (let* ((a (space-allocator (plan-los plan)))
+           (addr (alloc a (+ +page-words+ 7))))    ; 519 words -> 2 pages
+      (unless addr
+        (return-from los-extents-record-exact-runs (values nil "alloc failed")))
+      (let* ((rel (- (address-page addr) (los-base-page a)))
+             (extent (aref (los-extents a) rel)))
+        (unless (= extent 2)
+          (return-from los-extents-record-exact-runs
+            (values nil (format nil "extent ~a is not exactly 2 pages" extent))))
+        (unless (and (= (%los-extent-count a) 1)
+                     (loop for i below (length (los-extents a))
+                           never (and (/= i rel) (plusp (aref (los-extents a) i)))))
+          (return-from los-extents-record-exact-runs
+            (values nil "extent recorded outside the start page")))
+        ;; middle of the run: no-op
+        (free a (+ addr +page-words+) 0)
+        (unless (= (%los-extent-count a) 1)
+          (return-from los-extents-record-exact-runs
+            (values nil "middle-page free released a live run")))
+        ;; exact run release
+        (free a addr 0)
+        (unless (and (zerop (%los-extent-count a))
+                     (zerop (aref (los-extents a) rel)))
+          (return-from los-extents-record-exact-runs
+            (values nil "start-page free did not clear the extent")))
+        ;; pages returned to the resource and reusable
+        (let ((again (alloc a (+ +page-words+ 7))))
+          (if (and again (= (%los-extent-count a) 1))
+              (values t "ok")
+              (values nil (values nil (values nil (values nil "released pages not reusable"))))))))))
+
+(deftest los-extents-coexist-and-reset ()
+  ;; Two live large objects coexist as two extents; allocator-reset releases
+  ;; both and clears the table.
+  (let* ((vm (make-simulator-vm 65536))
+         (plan (make-collector :semispace vm 65536)))
+    (boot-gc plan)
+    (let* ((a (space-allocator (plan-los plan)))
+           (x (alloc a 10))
+           (y (alloc a (+ +page-words+ 3))))
+      (unless (and x y (= (%los-extent-count a) 2))
+        (return-from los-extents-coexist-and-reset
+          (values nil (format nil "expected 2 extents, got ~a" (%los-extent-count a)))))
+      (let ((alive (loop for e across (los-extents a) sum e)))
+        (allocator-reset a)
+        (if (and (zerop (%los-extent-count a))
+                 (zerop (loop for e across (los-extents a) sum e))
+                 (= alive (+ 1 (ceiling (+ +page-words+ 3) +page-words+))))
+            (values t "ok")
+            (values nil "reset did not release exact page totals"))))))
+

@@ -372,3 +372,71 @@
       (if (zerop (%slot (clamsara-root 0) 0))
           (values t "ok")
           (values nil "public bit kept unreachable weak referent")))))
+
+
+;; ---- sticky-immix span / mark-scope regressions ----------------------------
+
+(defun %sticky-immix-span-flags (plan)
+  (let ((a (space-allocator (default-space plan))))
+    (loop for i below (ix-block-count a)
+          count (>= (aref (ix-span-root a) i) 0))))
+
+(deftest stickyimmix-medium-span-recycled ()
+  ;; A medium object (> 1 block, under the LOS threshold) spans two blocks.
+  ;; While live, both blocks and the tail-block payload survive sticky
+  ;; minors.  Once dead, a major reclaims the span atomically: the span
+  ;; flags clear and the blocks return to the allocator.  The sticky sweep
+  ;; once skipped the span-inheritance pass, so a dead span leaked its
+  ;; blocks forever.
+  (with-clamsara (:plan-type :stickyimmix :heap-size 262144)
+    (let ((big (clamsara-allocate-object 700 :type-tag +tag-array+)))
+      (clamsara-register-root big)
+      (let ((kids (loop for i from 0 below 8
+                        collect (clamsara-allocate-object 2))))
+        (loop for k in kids
+              for i from 640
+              do (clamsara-write big i k))
+        (dotimes (n 3)
+          (dotimes (j 30) (clamsara-allocate-object 5))
+          (plan-collect *clamsara-plan* :cycle-kind :minor))
+        (let ((flags (%sticky-immix-span-flags *clamsara-plan*)))
+          (unless (and (>= flags 2)
+                       (loop for k in kids
+                             for i from 640
+                             always (= (clamsara-read big i) k)))
+            (return-from stickyimmix-medium-span-recycled
+              (values nil
+                      (format nil "live span broke: flags=~a" flags)))))
+        ;; The object dies; stale sticky marks keep it through minors, and
+        ;; the next major (prologue mark clear + exact retrace) must return
+        ;; the whole span to the allocator.
+        (clamsara-remove-root 0)
+        (plan-collect *clamsara-plan* :cycle-kind :major)
+        (let ((stale (%sticky-immix-span-flags *clamsara-plan*)))
+          (if (zerop stale)
+              (values t "ok")
+              (values nil
+                      (format nil "~a stale span flags after span death"
+                              stale))))))))
+
+(deftest stickyimmix-major-keeps-live-los-object ()
+  ;; The reclaim must not erase mark bits while later spaces still sweep.
+  ;; The sticky reclaim once cleared the mark stratum heap-wide after its
+  ;; own sweep, so the LOS space reclaiming afterwards saw every large
+  ;; object as dead and released it -- even a live, rooted one.
+  (with-clamsara (:plan-type :stickyimmix :heap-size 262144)
+    (let ((big (clamsara-allocate-object 1100)))   ; > 1024 words: LOS
+      (clamsara-register-root big)
+      (handler-case (clamsara-gc :cycle-kind :major)
+        (clamsara-error (c)
+          (return-from stickyimmix-major-keeps-live-los-object
+            (values nil (format nil "sanity failed across major: ~a" c)))))
+      (let* ((extents (los-extents
+                       (space-allocator (plan-los *clamsara-plan*))))
+             (entries (loop for e across extents count (plusp e))))
+        (if (= entries 1)
+            (values t "ok")
+            (values nil
+                    (format nil
+                            "live LOS object released by major: ~a of 1 entry"
+                            entries)))))))

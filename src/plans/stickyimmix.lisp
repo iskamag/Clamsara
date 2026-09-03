@@ -5,27 +5,19 @@
 (defclass sticky-immix-space (immix-space) ()
   (:metaclass space-metaclass))
 
-;; immix reclaim but does NOT clear the mark stratum on minor (sticky)
-(defun %sticky-immix-space-reclaim (s vm cycle-kind)
-  (let ((a (space-allocator s)))
-    (when (and (plusp (ix-block-count a)) (vm-direct-stratum vm :mark))
-      (do-immix-blocks (b a)
-        (let ((live (immix-block-live-count a vm b)))
-          (setf (immix-block-live b) live)
-          (immix-forget-dead-objects a vm b)
-          (when (zerop live)
-            (vm-clear-metadata-range vm
-                                     (immix-block-base b)
-                                     (+ (immix-block-base b)
-                                        (ix-block-words a)))
-            (setf (immix-block-cursor b) (immix-block-base b)))))
-      (setf (ix-current a) (ix-first-block a)))
-    (when (eq cycle-kind :major) (immix-defrag s vm))
-    (when (eq cycle-kind :major) (s-clear (vm-direct-stratum vm :mark)))
-    s))
-
+;; Reclaim shares the ordinary Immix span-aware sweep (%immix-sweep-blocks,
+;; heap.lisp): a span is reclaimed atomically with its root object, and a
+;; fully-dead span's blocks return to the allocator.  The mark stratum is
+;; sticky and this method never clears it: a minor keeps survivor marks so
+;; only newly-dead objects are reclaimed, and a major already cleared the
+;; stratum in the plan's :prologue before the trace re-marked exact
+;; liveness.  Clearing here (the old behavior) also erased the marks the
+;; LOS sweep still reads when it reclaims after this space, which freed
+;; live large objects on every major.
 (defmethod space-reclaim ((s sticky-immix-space) vm cycle-kind)
-  (%sticky-immix-space-reclaim s vm cycle-kind))
+  (%immix-sweep-blocks s vm)
+  (when (eq cycle-kind :major) (immix-defrag s vm))
+  s)
 
 (defclass sticky-immix-plan (plan) ()
   (:metaclass plan-metaclass))

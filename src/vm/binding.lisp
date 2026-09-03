@@ -19,7 +19,12 @@
 (defstruct (coordination-state (:constructor %make-coordination-state))
   (requested nil :type boolean)
   (stopped nil :type boolean)
-  (epoch 0 :type fixnum))
+  (epoch 0 :type fixnum)
+  ;; One-outstanding-epoch flag for the paper-v11 epoch protocol
+  ;; (protocol/adapters.lisp): BEGIN-epoch rejects while open, AWAIT closes.
+  ;; Distinct from REQUESTED/STOPPED, which track the stop/resume interval.
+  ;; Preallocated with the VM; no allocation on any epoch path.
+  (epoch-open nil :type boolean))
 
 ;; Explicit root regions are a simulator/backend hook.  They are not native
 ;; stack maps: a backend registers stable vectors and (optionally) the mapped
@@ -394,11 +399,21 @@ capturing closure during collection. Explicit root regions are a simulator /
 backend hook, not native stack maps: mapped entries are rewritten, while NIL
 maps conservatively scan the complete registered range.")
   (:method ((vm vm-binding) collector-state fn)
-    (let ((roots (vm-root-vector vm)))
+    ;; Root locations are counted exactly as this method enumerates them:
+    ;; one visit per explicit root-vector entry and per root-region index the
+    ;; scan rewrites.  A backend adapter that appends further locations on
+    ;; top of CALL-NEXT-METHOD extends the scan beyond this count (see
+    ;; :root-locations-scanned in stats.lisp).  The total is emitted once per
+    ;; scan as a single prewarmed fixnum update; the per-visit accounting is
+    ;; a local fixnum, so the scan path never touches the host allocator.
+    (let ((roots (vm-root-vector vm))
+          (visited 0)
+          (stats (%stats-for-vm vm)))
       ;; Preserve the original root-vector protocol and its conservative scan.
       (dotimes (i (length roots))
         (setf (aref roots i)
-              (funcall fn collector-state (aref roots i))))
+              (funcall fn collector-state (aref roots i)))
+        (incf visited))
       ;; Descriptors and copied maps are VM-owned boot storage.  No host
       ;; allocation is needed while walking them during collection.
       (let ((regions (vm-root-regions vm)))
@@ -410,11 +425,14 @@ maps conservatively scan the complete registered range.")
                 (dotimes (i (length mapped))
                   (let ((index (aref mapped i)))
                     (setf (aref vector index)
-                          (funcall fn collector-state (aref vector index)))))
+                          (funcall fn collector-state (aref vector index)))
+                    (incf visited)))
                 (loop for index from (root-region-start descriptor)
                       below (root-region-end descriptor)
                       do (setf (aref vector index)
-                               (funcall fn collector-state (aref vector index)))))))))))
+                               (funcall fn collector-state (aref vector index)))
+                         (incf visited))))))
+      (when stats (stats-event stats :root-locations-scanned visited)))))
 
 ;; ---- coordination --------------------------------------------------------
 
@@ -450,6 +468,11 @@ acknowledged synchronously.  A parallel VM supplies an atomic implementation.")
     (declare (ignore reason))
     (let ((state (vm-coordination-state vm)))
       (when (coordination-state-requested state)
+        ;; Safepoint work: this arrival observes an outstanding stop.  The
+        ;; simulator acknowledges synchronously; a concurrent backend counts
+        ;; one arrival per stream that reaches the safepoint here.
+        (let ((stats (%stats-for-vm vm)))
+          (when stats (stats-event stats :safepoint-arrivals 1)))
         (setf (coordination-state-stopped state) t)))
     vm))
 
@@ -469,6 +492,11 @@ calling context until VM-RESUME-MUTATORS." )
     (let ((state (vm-coordination-state vm)))
       (unless (coordination-state-requested state)
         (setf (coordination-state-requested state) t)
+        ;; A NEW stop interval: count the request here, on the state
+        ;; transition, so the documented idempotent re-request inside one
+        ;; open interval does not inflate the counter.
+        (let ((stats (%stats-for-vm vm)))
+          (when stats (stats-event stats :safepoint-requests 1)))
         ;; EPOCH identifies this stop/resume interval.  Keep it a fixnum even
         ;; after a very long-running simulator session.
         (let ((epoch (coordination-state-epoch state)))

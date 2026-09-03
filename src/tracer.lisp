@@ -103,8 +103,14 @@ referent slot 0 is excluded by default (weak.tex §1); healing paths pass
          (tracer (plan-tracer plan))
          (addr (ref-strip-or-self vm ref))
          (slots (vm-reference-slots vm addr))
-         (weak-p (and exclude-weak-referent (weak-pointer-p vm addr))))
+         (weak-p (and exclude-weak-referent (weak-pointer-p vm addr)))
+         (stats (plan-stats plan)))
     (labels ((process (i)
+               ;; Every visited slot index is one scanned reference location,
+               ;; even when the slot is a weak referent or holds no traceable
+               ;; in-scope child (exact semantics in stats.lisp).  Prewarmed
+               ;; fixnum increment: no allocation on the tracing path.
+               (when stats (stats-event stats :ref-locations-scanned 1))
                (when (or (not weak-p) (not (zerop i)))
                   (let ((child (vm-direct-object-reference vm addr i)))
                    (when (vm-reference-p vm child)

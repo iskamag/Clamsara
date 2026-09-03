@@ -275,6 +275,21 @@ interpreted and compiled collectors cannot diverge."
                    (funcall function plan kind)
                    (plan-collect-phase plan kind))
              (setf completed-p t))
+        ;; Collection accounting lives at this single seam: a completed
+        ;; collection samples the :retained-bytes-sample gauge (sum of
+        ;; SPACE-OCCUPANCY over the plan's spaces, exact semantics in
+        ;; stats.lisp); a collection that unwound through an error counts
+        ;; :collection-aborts instead.  Both are prewarmed fixnum updates
+        ;; that cannot signal, so they never mask the original condition.
+        (let ((stats (slot-value plan 'stats)))
+          (when stats
+            (if completed-p
+                (let ((words 0))
+                  (dolist (s (slot-value plan 'spaces))
+                    (incf words (space-direct-occupancy s)))
+                  (stats-sample stats :retained-bytes-sample
+                                (* words +word-bytes+)))
+                (stats-event stats :collection-aborts 1))))
         (when hook
           (funcall hook plan kind (if completed-p :exit :abort)))))))
 
@@ -480,6 +495,19 @@ named ones."
   (:method ((p plan) size space)
     ;; non-generational: try alloc; full collect; try alloc; signal.
     (plan-retry-after p size space :full)))
+
+(defmethod plan-handle-allocation-failure :around ((p plan) size space)
+  ;; Every plan's failure policy enters this generic exactly once per failed
+  ;; allocation, runs at least one collection, and re-attempts the allocation
+  ;; (the retry; an event's internal escalation to further collections stays
+  ;; one retry event).  Count it at this single shared seam -- exact
+  ;; semantics in stats.lisp.  The failure path is cold and already
+  ;; dispatches through the generic; the increment is a prewarmed fixnum
+  ;; update that allocates nothing.
+  (declare (ignore size space))
+  (let ((stats (plan-stats p)))
+    (when stats (stats-event stats :allocation-retries 1)))
+  (call-next-method))
 
 (defun allocate-object (plan slot-count &key (type-tag +tag-object+)
                                       (layout-id 0) (space :default))

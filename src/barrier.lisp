@@ -44,6 +44,13 @@
 
 ;; ---- fused note-write / note-read ---------------------------------------
 
+(defun %barrier-stats (barrier)
+  "The plan statistics table recording BARRIER's events, or NIL when the
+barrier is not attached to a booted plan (stand-alone test VMs have no
+counter; they report no event rather than allocating one)."
+  (let ((plan (barrier-plan barrier)))
+    (and plan (plan-stats plan))))
+
 (declaim (inline %barrier-record-transfer))
 (defun %barrier-record-transfer (vm barrier)
   ;; BARrier transfers are counted at the fused dispatch point, where a
@@ -59,8 +66,14 @@
   "Mutator reference store: apply every :ref-write transfer in order.
   Returns the value that should be stored (a transfer may replace NEW, e.g.
   publication rewrites the slot to the public copy)."
+  ;; The fused dispatch point counts one :barrier-event per mutator store
+  ;; that reaches a barrier with rules, distinct from :barrier-transfers,
+  ;; which the per-rule loop below counts once per applied rule.  Both are
+  ;; prewarmed fixnum increments; neither allocates.
   (let ((rules (barrier-rules barrier)))
     (when rules
+      (let ((stats (%barrier-stats barrier)))
+        (when stats (stats-event stats :barrier-events 1)))
       (loop for r in rules
             when (eq (barrier-rule-trigger r) :ref-write)
             do (progn
@@ -72,29 +85,82 @@
 (defun barrier-note-read (vm barrier slot-addr reference)
   "Mutator reference load: apply every :ref-read transfer; return the reference
   (possibly healed)."
+  ;; Same event/transfer split as the write path: one event per fused load
+  ;; barrier invocation, one transfer per applied read rule.
   (let ((rules (barrier-rules barrier)))
     (if rules
-        (loop for r in rules
-              when (eq (barrier-rule-trigger r) :ref-read)
-              do (progn
-                   (%barrier-record-transfer vm barrier)
-                   (setf reference (funcall (barrier-rule-transfer r) vm slot-addr reference)))
-              finally (return reference))
+        (let ((stats (%barrier-stats barrier)))
+          (when stats (stats-event stats :barrier-events 1))
+          (loop for r in rules
+                when (eq (barrier-rule-trigger r) :ref-read)
+                do (progn
+                     (%barrier-record-transfer vm barrier)
+                     (setf reference (funcall (barrier-rule-transfer r) vm slot-addr reference)))
+                finally (return reference)))
         reference)))
 
+(declaim (inline %reserve-vector-capacity))
+(defun %reserve-vector-capacity (vector n space)
+  "Reserve tail capacity for N more elements in a fixed-capacity fill-pointer
+VECTOR (the simulator stand-in for immortal collector storage).  Overflow is a
+declared HEAP-EXHAUSTED failure naming SPACE, signalled BEFORE any element is
+appended, so an event that fails its reservation leaves the vector unchanged.
+Returns VECTOR; after a successful reservation of N elements, appends of up to
+N elements cannot fail."
+  ;; LENGTH observes a vector's fill pointer, not its backing capacity.
+  ;; ARRAY-TOTAL-SIZE is the fixed reservation bound.
+  (unless (<= (+ (fill-pointer vector) n) (array-total-size vector))
+    (error 'heap-exhausted :requested-size n :space space))
+  vector)
+
 (defun satb-enqueue (barrier ref)
-  (unless (vector-push ref (barrier-satb-buffer barrier))
-    (error 'heap-exhausted :requested-size 1 :space :satb-buffer))
+  (let ((buf (%reserve-vector-capacity (barrier-satb-buffer barrier)
+                                       1 :satb-buffer)))
+    (vector-push ref buf)
+    ;; One record = one enqueued pre-value reference = one simulated heap
+    ;; word of log bytes.  Counted only after the reservation succeeded, so
+    ;; a failed event appends nothing and reports nothing.
+    (let ((stats (%barrier-stats barrier)))
+      (when stats
+        (stats-event stats :satb-log-records 1)
+        (stats-event stats :satb-log-bytes +word-bytes+))))
   ref)
+
+(declaim (inline rc-log-reserve))
+(defun rc-log-reserve (barrier triple-count)
+  "Reserve capacity for TRIPLE-COUNT whole SOURCE-SUPERBLOCK/REF/DELTA triples
+in the RC log before the store event appends any of its deltas.  A store that
+emits a decrement and an increment reserves once for both, so a full log fails
+before the exposure store and cannot tear the event or leave a partial record."
+  (declare (type fixnum triple-count))
+  (%reserve-vector-capacity (barrier-rc-buffer barrier)
+                            (* 3 triple-count) :rc-buffer))
+
+(declaim (inline %rc-log-append))
+(defun %rc-log-append (buf source-superblock ref delta)
+  "Append one triple with NO capacity check.  Private: the caller must have
+reserved the triples through RC-LOG-RESERVE first -- RC-LOG-DELTA for the
+single-delta public API, or a store rule that reserved its whole event once.
+No append path may reserve after the event's reservation: a second reservation
+between the event's reserve and its appends is exactly the tear this split
+removes."
+  (declare (type (vector fixnum) buf))
+  (vector-push source-superblock buf)
+  (vector-push ref buf)
+  (vector-push delta buf))
+
 (declaim (inline rc-log-delta))
 (defun rc-log-delta (barrier source-superblock ref delta)
   "Append one SOURCE-SUPERBLOCK/REF/DELTA triple without mutator allocation.
-SOURCE-SUPERBLOCK is -1 when the source is outside Claimore's mature space."
-  (let ((buf (barrier-rc-buffer barrier)))
-    (unless (and (vector-push source-superblock buf)
-                 (vector-push ref buf)
-                 (vector-push delta buf))
-      (error 'heap-exhausted :requested-size 3 :space :rc-buffer)))
+SOURCE-SUPERBLOCK is -1 when the source is outside Claimore's mature space.
+The triple is all-or-nothing: capacity is reserved before the first push, so
+the log never holds a partial triple and a failed append leaves it unchanged."
+  (let ((buf (rc-log-reserve barrier 1)))
+    (%rc-log-append buf source-superblock ref delta)
+    (let ((stats (%barrier-stats barrier)))
+      (when stats
+        (stats-event stats :rc-log-records 1)
+        (stats-event stats :rc-log-bytes (* 3 +word-bytes+)))))
   ref)
 (defun rc-log-decrement (barrier ref &optional (source-superblock -1))
   (rc-log-delta barrier source-superblock ref -1))
@@ -149,7 +215,7 @@ vm-object-old-p misses LOS objects, whose age stratum stays 0."
   (make-barrier-rule
    :name name :trigger :ref-write
    :transfer (lambda (vm barrier src slot new)
-               (declare (ignore barrier slot new))
+               (declare (ignore barrier slot))
                (when (and (vm-reference-p vm src)
                           (vm-object-is-marked-p vm src))
                  (let ((log (vm-stratum vm :log)))
@@ -160,7 +226,6 @@ vm-object-old-p misses LOS objects, whose age stratum stays 0."
   (make-barrier-rule
    :name name :trigger :ref-write
    :transfer (lambda (vm barrier src slot new)
-               (declare (ignore new))
                (let ((prev (vm-object-reference vm src slot)))
                  (when (and prev (plusp prev) (vm-valid-reference-p vm prev))
                    (satb-enqueue barrier prev)))
@@ -177,13 +242,46 @@ vm-object-old-p misses LOS objects, whose age stratum stays 0."
                       ;; the deferred apply path cannot lose this distinction.
                       (source-superblock (%rc-superblock-for barrier vm src))
                       (old-superblock (%rc-superblock-for barrier vm old))
-                      (new-superblock (%rc-superblock-for barrier vm new)))
-                 (when (and (vm-reference-p vm old)
-                            (%rc-external-edge-p source-superblock old-superblock))
-                   (rc-log-decrement barrier old source-superblock))
-                 (when (and (vm-reference-p vm new)
-                            (%rc-external-edge-p source-superblock new-superblock))
-                   (rc-log-increment barrier new source-superblock))
+                      (new-superblock (%rc-superblock-for barrier vm new))
+                      ;; One store event may emit a decrement AND an
+                      ;; increment.  Decide both edges before appending
+                      ;; anything.
+                      (dec-edge-p (and (vm-reference-p vm old)
+                                       (%rc-external-edge-p
+                                        source-superblock old-superblock)))
+                      (inc-edge-p (and (vm-reference-p vm new)
+                                       (%rc-external-edge-p
+                                        source-superblock new-superblock))))
+                 ;; Exact per-superblock cancellation: when the old and new
+                 ;; external targets are the SAME superblock, the -1/+1 pair
+                 ;; nets zero external in-degree for that superblock, so the
+                 ;; event records nothing at all.
+                 (unless (and dec-edge-p inc-edge-p
+                              (eql old-superblock new-superblock))
+                   (let* ((records (+ (if dec-edge-p 1 0)
+                                      (if inc-edge-p 1 0)))
+                          ;; Reserve once for the whole event; append through
+                          ;; the private no-reserve path.  No record append
+                          ;; may reserve again between the event's
+                          ;; reservation and its last record: a second
+                          ;; reservation at exact capacity is the tear this
+                          ;; split removes.  Failure happens here, before the
+                          ;; exposure store, with the log unchanged.
+                          (buf (and (plusp records)
+                                    (rc-log-reserve barrier records))))
+                     (when buf
+                       (when dec-edge-p
+                         (%rc-log-append buf source-superblock old -1))
+                       (when inc-edge-p
+                         (%rc-log-append buf source-superblock new +1))
+                       ;; Whole records only: one record is one deferred
+                       ;; edge, three fixnum log words.  Cancellation events
+                       ;; never reserve, never append, never count.
+                       (let ((stats (%barrier-stats barrier)))
+                         (when stats
+                           (stats-event stats :rc-log-records records)
+                           (stats-event stats :rc-log-bytes
+                                        (* 3 +word-bytes+ records)))))))
                  ;; hierarchy bookkeeping (heap.tex §6): a store whose source
                  ;; or target lives in a superblock space updates the
                  ;; per-SB/per-MB points-to matrices and the block escape bits

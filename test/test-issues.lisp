@@ -1012,3 +1012,56 @@
           (values t "ok")
           (values nil
                   (format nil "faults=~a" (stats-get stats :mmu-faults)))))))
+
+
+;; ---- RC log drains at the Claimore collection boundary (lossless log) ----
+
+(deftest claimore-rc-log-drain-normalizes-coloured-targets ()
+  ;; RC records retain the client's opaque reference encoding.  Reconciliation
+  ;; must normalize a coloured reference before mature-space/SB lookup.
+  (with-clamsara (:plan-type :claimore :heap-size 65536)
+    (let* ((plan *clamsara-plan*)
+           (vm *clamsara-vm*)
+           (mature (cl-mature plan))
+           (target (+ (space-base-address mature) (* 32 512)))
+           (target-sb (sb-index mature target))
+           (counts (sb-refcounts mature))
+           (barrier (plan-barrier plan)))
+      (vm-write-header vm target +tag-object+ 0)
+      (rc-log-increment barrier
+                        (ref-set-colour vm target (colour-marked0)) -1)
+      (plan-collect plan :cycle-kind :minor)
+      (if (and (= (aref counts target-sb) 1)
+               (zerop (fill-pointer (barrier-rc-buffer barrier))))
+          (values t "ok")
+          (values nil "coloured RC target did not fold into its superblock")))))
+
+(deftest claimore-rc-log-drains-at-minor-boundary ()
+  ;; Minors never release mature storage, but the sealed delta log must
+  ;; drain at every collection boundary: the fill pointer returns to zero
+  ;; and the folded external in-degree lands on the target superblock.
+  (with-clamsara (:plan-type :claimore :heap-size 65536)
+    (let* ((plan *clamsara-plan*)
+           (vm *clamsara-vm*)
+           (barrier (plan-barrier plan))
+           (mature (cl-mature plan))
+           (base (space-base-address mature))
+           (holder base)                        ; block 0 -> SB0
+           (a (+ base (* 32 512)))              ; block 32 -> SB1
+           (counts (sb-refcounts mature)))
+      (vm-write-header vm holder +tag-object+ 1)
+      (vm-write-header vm a +tag-object+ 1)
+      (clamsara-write holder 0 a)               ; external edge: one +1 record
+      (unless (= (fill-pointer (barrier-rc-buffer barrier)) 3)
+        (return-from claimore-rc-log-drains-at-minor-boundary
+          (values nil
+                  (format nil "cross-superblock store logged ~a elements"
+                          (fill-pointer (barrier-rc-buffer barrier))))))
+      (plan-collect plan :cycle-kind :minor)
+      (let ((buf (barrier-rc-buffer barrier)))
+        (if (and (zerop (fill-pointer buf))
+                 (plusp (aref counts 1)))
+            (values t "ok")
+            (values nil
+                    (format nil "after minor: fill=~a sb1-count=~a"
+                            (fill-pointer buf) (aref counts 1))))))))

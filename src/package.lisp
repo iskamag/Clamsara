@@ -7,6 +7,30 @@
 (defpackage #:clamsara
   (:use #:cl)
   (:shadow #:space #:gc #:alloc #:free #:copy #:mark #:trace)
+  ;; paper-v11 client protocols (src/protocol/*.lisp).  The protocol systems
+  ;; are the normative surface; CLAMSARA imports their generics so adapter
+  ;; methods and migrated code name them without package qualifiers.
+  (:import-from #:clamsara-protocol.object-model
+   #:valid-reference-p #:object-start-p #:object-size #:object-kind
+   #:map-reference-locations #:load-reference #:store-reference-raw
+   #:initialize-object #:copy-object-representation #:reference-equal
+   #:offered-metadata-fields #:field-read #:field-write #:field-cas)
+  (:import-from #:clamsara-protocol.roots
+   #:with-root-snapshot #:map-root-locations #:load-root #:store-root
+   #:root-location-kind)
+  (:import-from #:clamsara-protocol.coordination
+   #:request-safepoint #:await-safepoint #:release-safepoint
+   #:current-mutator #:begin-epoch #:await-epoch #:publish-fence)
+  (:import-from #:clamsara-protocol.atomics
+   #:atomic-load #:atomic-store #:atomic-cas #:atomic-fetch-add
+   #:atomic-bit-set #:atomic-bit-clear #:fence)
+  (:import-from #:clamsara-protocol.address-space
+   #:managed-arena-offer #:validate-managed-layout #:install-managed-layout
+   #:space-of-reference #:update-space-ownership
+   #:reserve-virtual-range #:map-logical-pages #:unmap-logical-pages
+   #:remap-logical-pages #:protect-logical-pages #:flush-address-translations)
+  (:import-from #:clamsara-protocol.diagnostics
+   #:monotonic-clock #:fatal-diagnostic)
   ;; constants & types
   (:export #:+word-bits+ #:+word-bytes+ #:+log-word-bytes+
            #:+page-words+ #:+log-page-words+ #:+log-page-bytes+
@@ -180,8 +204,8 @@
            #:stickyimmix-plan #:stickyms-plan
            #:iso-plan #:zgcish-plan #:claimore-plan)
   ;; stats / sanity
-  (:export #:plan-stats #:make-stats #:stats-event #:stats-get #:stats-reset
-           #:stats-snapshot
+  (:export #:plan-stats #:make-stats #:stats-event #:stats-sample
+           #:stats-get #:stats-reset #:stats-snapshot
            #:sanity-check #:sanity-errors
            #:gc-event-checkpoint
            #:persistent-allocator #:persistence-log #:make-persistence-log
@@ -199,4 +223,10 @@
            #:clamsara-register-root #:clamsara-gc #:clamsara-write
            #:clamsara-read #:clamsara-plan
            #:*clamsara-plan* #:*clamsara-vm*
-           #:run-test-suite))
+           #:run-test-suite
+           ;; paper-v11 adapter surface: the simulator managed-arena offer
+           ;; record (src/protocol/adapters.lisp, managed-arena-offer).
+           #:simulator-arena #:simulator-arena-p
+           #:simulator-arena-base #:simulator-arena-extent
+           #:simulator-arena-alignment #:simulator-arena-page-words
+           #:simulator-arena-access-modes #:simulator-arena-reservations))

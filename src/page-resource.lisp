@@ -44,17 +44,35 @@
                                         :test (lambda (p run)
                                                 (<= (car run) p (1- (+ (car run) (cdr run))))))))))
 
-(defmethod page-resource-get ((pr bitmap-page-resource) n-pages &key &allow-other-keys)
-  (let ((bm (pr-bitmap pr)) (total (pr-total-pages pr))
-        (first (pr-first-page pr)))
-    (loop for start from first to (- total n-pages)
-          when (loop for k below n-pages always (zerop (sbit bm (+ start k))))
-          do (loop for k below n-pages do (setf (sbit bm (+ start k)) 1))
-             (return start))))
+;; Dense bitmap mechanics accept only raw boot storage and fixnum geometry.
+;; Generic page-resource dispatch and CLOS slot extraction stay in the thin
+;; methods below; LOS binds these raw values into its arena during construction.
+(declaim (inline %bitmap-pages-get %bitmap-pages-release))
+(defun %bitmap-pages-get (bitmap total first n-pages)
+  (declare (type simple-bit-vector bitmap)
+           (type fixnum total first n-pages)
+           (optimize (speed 3) (safety 0)))
+  (loop for start fixnum from first to (- total n-pages)
+        when (loop for k fixnum below n-pages
+                   always (zerop (sbit bitmap (+ start k))))
+          do (loop for k fixnum below n-pages
+                   do (setf (sbit bitmap (+ start k)) 1))
+             (return start)))
+
+(defun %bitmap-pages-release (bitmap start n-pages)
+  (declare (type simple-bit-vector bitmap)
+           (type fixnum start n-pages)
+           (optimize (speed 3) (safety 0)))
+  (loop for k fixnum below n-pages
+        do (setf (sbit bitmap (+ start k)) 0)))
+
+(defmethod page-resource-get ((pr bitmap-page-resource) n-pages
+                              &key &allow-other-keys)
+  (%bitmap-pages-get (pr-bitmap pr) (pr-total-pages pr)
+                     (pr-first-page pr) n-pages))
 
 (defmethod page-resource-release ((pr bitmap-page-resource) start n-pages)
-  (let ((bm (pr-bitmap pr)))
-    (loop for k below n-pages do (setf (sbit bm (+ start k)) 0))))
+  (%bitmap-pages-release (pr-bitmap pr) start n-pages))
 
 (defmethod page-resource-get ((pr monotone-page-resource) n-pages &key &allow-other-keys)
   (let ((c (pr-cursor pr)) (total (pr-total-pages pr)))

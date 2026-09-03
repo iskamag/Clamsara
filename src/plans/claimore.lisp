@@ -71,7 +71,14 @@
     (when (plan-publication p)
       (unless (publication-seal (plan-publication p) vm)
         (error 'gc-phase-error :phase :prologue
-               :message "publication epoch has an active publisher"))))
+               :message "publication epoch has an active publisher")))
+    ;; The delta log is sealed here: mutators are stopped and the publication
+    ;; epoch is sealed.  Fold the pending external-edge deltas into the
+    ;; per-superblock counts at every collection boundary, minors included.
+    ;; Minors never release mature storage, so the fold only keeps the counts
+    ;; fresh and bounds log growth between boundaries; majors still perform
+    ;; the exact reconciliation before any zero-count release.
+    (claimore-apply-rc-log p))
   (if (eq k :minor)
       (space-direct-prepare (cl-nursery p) (plan-vm p) k)
       (prepare-spaces p k)))
@@ -210,25 +217,43 @@ keeps raw payload words and weak referents out of the nursery trace."
               nursery vm referent (plan-tracer plan) nil))))))))
 
 (defun claimore-apply-rc-log (plan)
-  "Drain the RC delta buffer, folding external edges into per-SB counts.
+  "Drain the sealed RC delta log, folding external edges into per-SB counts.
   Each entry carries its source superblock, target, and delta.  Edges within a
   single superblock are not external in-degree and are ignored even if an old
-  producer left such an entry in the buffer."
-  (let ((buf (barrier-rc-buffer (plan-barrier plan)))
-        (mature (cl-mature plan)))
+  producer left such an entry in the buffer.
+
+  Call at a collection boundary with mutators stopped, so the log is
+  quiescent.  The fold iterates only the used fill pointer -- complete
+  triples -- never the whole heap-sized capacity.  The sealed log is cleared
+  only after a successful fold, and a torn tail signals an invariant
+  violation instead of silently dropping a record."
+  (let* ((buf (barrier-rc-buffer (plan-barrier plan)))
+         (mature (cl-mature plan))
+         (vm (plan-vm plan)))
     (when (and (sb-refcounts mature) buf)
-      (let ((counts (sb-refcounts mature)))
-        (loop for i from 0 below (length buf) by 3
+      (let ((counts (sb-refcounts mature))
+            (used (fill-pointer buf)))
+        (unless (zerop (mod used 3))
+          (error 'clamsara-error
+                 :message (format nil
+                                  "RC log holds a partial triple: ~a elements"
+                                  used)))
+        (loop for i from 0 below used by 3
               for source-sb = (aref buf i)
-              for ref = (aref buf (+ i 1))
+              for reference = (aref buf (+ i 1))
               for delta = (aref buf (+ i 2))
-              when (and (plusp ref) (space-direct-contains-p mature ref))
-              do (let ((target-sb (sb-index mature ref)))
+              for address = (ref-strip-or-self vm reference)
+              when (and (plusp address)
+                        (space-direct-contains-p mature address))
+              do (let ((target-sb (sb-index mature address)))
                    (when (/= source-sb target-sb)
                      (let ((cur (aref counts target-sb)))
                        (setf (aref counts target-sb)
                              (max 0 (+ cur delta)))))))))
-    (setf (fill-pointer buf) 0)))
+    ;; The fold succeeded (or there was nothing to fold): only now release
+    ;; the sealed records.
+    (when buf (setf (fill-pointer buf) 0)))
+  plan)
 
 (defun claimore-reconcile-rc-edge (mature vm source-sb reference counts)
   (when (and (vm-reference-p vm reference)

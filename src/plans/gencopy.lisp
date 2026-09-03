@@ -47,7 +47,7 @@
         ;; Explicit names (for example :mature or :los) bypass the nursery
         ;; and automatic LOS policy.
         (or (plan-allocate-in p size explicit)
-            (plan-handle-allocation-failure p size explicit))
+            (plan-direct-handle-allocation-failure p size explicit))
         (progn
           ;; LOS objects (heap.tex §2) bypass the nursery: whole-page
           ;; allocations in the large-object space.  This is only an automatic
@@ -60,9 +60,9 @@
                                (plan-constraints p))))
               (return-from plan-allocate
                 (or (plan-allocate-in p size los)
-                    (plan-handle-allocation-failure p size los)))))
+                    (plan-direct-handle-allocation-failure p size los)))))
           (or (plan-allocate-in p size (gen-nursery p))
-              (plan-handle-allocation-failure p size (gen-nursery p)))))))
+              (plan-direct-handle-allocation-failure p size (gen-nursery p)))))))
 
 (defmethod plan-handle-allocation-failure ((p generational-plan) size space)
   ;; After a minor the failed NURSERY object is the cleared nursery-to.  A retry

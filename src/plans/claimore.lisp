@@ -43,7 +43,7 @@
         ;; Explicit names (for example :mature or :los) bypass the nursery
         ;; and automatic LOS policy.
         (or (plan-allocate-in p size explicit)
-            (plan-handle-allocation-failure p size explicit))
+            (plan-direct-handle-allocation-failure p size explicit))
         (progn
           (let ((los (plan-los p)))
             (when (and (or (eq space-designator :default)
@@ -53,9 +53,9 @@
                                (plan-constraints p))))
               (return-from plan-allocate
                 (or (plan-allocate-in p size los)
-                    (plan-handle-allocation-failure p size los)))))
+                    (plan-direct-handle-allocation-failure p size los)))))
           (or (plan-allocate-in p size (cl-nursery p))
-              (plan-handle-allocation-failure p size (cl-nursery p)))))))
+              (plan-direct-handle-allocation-failure p size (cl-nursery p)))))))
 
 (defmethod plan-handle-allocation-failure ((p claimore-plan) size space)
   (plan-collect p :cycle-kind :minor)

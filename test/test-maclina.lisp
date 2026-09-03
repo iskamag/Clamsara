@@ -138,4 +138,222 @@
              (clamsara:stats-get
               (clamsara:plan-stats clamsara:*clamsara-plan*)
               :gc-cycles))))
+  ;; Global variable cells are registered GC roots: a special variable
+  ;; holding a simulated cons must survive moving collections.  This is the
+  ;; property TAKL depends on (special-based list traversal under GC).
+  (with-clamsara-maclina (:plan-type :semispace :heap-size 4096)
+    (clamsara-maclina-eval-string
+     "(defparameter *maclina-root-probe* (cons 7 8))")
+    (let ((probe (clamsara-maclina-eval-string "*maclina-root-probe*")))
+      (assert (clamsara:vm-reference-p clamsara:*clamsara-vm* probe))
+      (clamsara-maclina-eval-string "(dotimes (i 3000) (cons i nil))")
+      (assert (plusp
+               (clamsara:stats-get
+                (clamsara:plan-stats clamsara:*clamsara-plan*)
+                :gc-cycles)))
+      ;; Read through the registered global cell.  The host lexical PROBE is
+      ;; deliberately not a simulated root and may contain a stale address.
+      (assert (= 7 (clamsara-maclina-eval-string
+                    "(car *maclina-root-probe*)")))))
+  ;; ANSI proclamation shorthand: (PROCLAIM '(FIXNUM X)) is canonicalized to
+  ;; (TYPE FIXNUM X) before the installed PROCLAIM sees it (STAK prerequisite).
+  (with-clamsara-maclina (:plan-type :semispace :heap-size 4096)
+    (clamsara-maclina-eval-string
+     "(defparameter *maclina-proclaim-probe* 0)")
+    (clamsara-maclina-eval-string
+     "(proclaim '(fixnum *maclina-proclaim-probe*))")
+    (assert (zerop (clamsara-maclina-eval-string "*maclina-proclaim-probe*"))))
+  ;; Source-language LIST: macro expansion into nested simulated CONS,
+  ;; the FUNCALL fallback, moving-GC survival, and (on SBCL) first-call and
+  ;; repeated-call host-allocation measurements.
+  (run-maclina-list-tests)
   t)
+
+;; ---- source-language LIST: macro path, fallback, movement, allocation -----
+
+#+sbcl
+(sb-alien:define-alien-variable
+    ("bytes_allocated" %list-test-bytes-allocated)
+    sb-alien:unsigned-long)
+
+#+sbcl
+(defun %list-test-host-bytes (fn)
+  "Host bytes consed by FN, with the thread allocation region closed around
+the measured window so deferred region bumps become visible."
+  (sb-vm::close-thread-alloc-region)
+  (let ((before %list-test-bytes-allocated))
+    (funcall fn)
+    (sb-vm::close-thread-alloc-region)
+    (- %list-test-bytes-allocated before)))
+
+#+sbcl
+(defun run-maclina-allocation-windows ()
+  ;; Every allocation window runs against a VIRGIN environment inside a fresh
+  ;; process: read, compile, link, and setup happen outside all windows, and
+  ;; no seam function below is called before its "first" window.  The windows
+  ;; call ordinary host functions DIRECTLY -- no reader, eval, compiler, or
+  ;; dispatch work is measured.  The simulated CONS primitive, the CL:LIST
+  ;; FUNCALL fallback, and the direct Maclina entry (the compiled %%list5 and
+  ;; the runner seam CLAMSARA-MACLINA-COMPILE-STRING) are each asserted EXACT
+  ;; zero on first invocation and on repeats.  Residual open CLOS dispatch is
+  ;; not part of these windows; it is measured and labeled separately.
+  (with-clamsara-maclina (:plan-type :semispace :heap-size 4096)
+    (let ((client *clamsara-maclina-client*)
+          (env *clamsara-maclina-environment*))
+      ;; Substrate setup, not a language-seam call: one throwaway compiled
+      ;; Maclina function runs once so interpreter machinery is warm before
+      ;; the first language-level window.
+      (let ((*package* (find-package '#:clamsara-maclina)))
+        (clamsara-maclina-eval-string "(defun %%substrate-warmup () nil)")
+        (funcall (clostrum:fdefinition client env '%%substrate-warmup)))
+      ;; the ANSI seam is installed and the function cell is a genuine
+      ;; function (FUNCALL/APPLY fallback)
+      (assert (clostrum:compiler-macro-function client env 'cl:list))
+      ;; simulated CONS primitive: genuinely first call, then repeats
+      (let ((cons-fn (clostrum:fdefinition client env 'cl:cons)))
+        (assert (functionp cons-fn))
+        (let ((first (%list-test-host-bytes (lambda () (funcall cons-fn 1 2)))))
+          (let ((repeated
+                  (%list-test-host-bytes
+                   (lambda () (dotimes (i 100) (funcall cons-fn 1 2))))))
+            (assert (zerop first))
+            (assert (zerop repeated))
+            (format t "LIST-ALLOC: cons primitive first ~D B, 100 calls ~D B~%"
+                    first repeated))))
+      ;; CL:LIST function fallback: genuinely first call, then repeats
+      (let ((list-fn (clostrum:fdefinition client env 'cl:list)))
+        (assert (functionp list-fn))
+        (let ((first (%list-test-host-bytes
+                      (lambda () (funcall list-fn 1 2 3 4 5)))))
+          (let ((repeated
+                  (%list-test-host-bytes
+                   (lambda ()
+                     (dotimes (i 100)
+                       (let ((x (funcall list-fn 1 2 3 4 5)))
+                         (assert (clamsara:vm-reference-p
+                                  clamsara:*clamsara-vm* x))))))))
+            (assert (zerop first))
+            (assert (zerop repeated))
+            (format t "LIST-ALLOC: cl:list function first ~D B, 100 calls ~D B~%"
+                    first repeated))))
+      ;; Direct Maclina entry: a compiled function whose body is a source
+      ;; LIST call.  Compile happens outside the window; the window wraps the
+      ;; bound direct entry only.  First invocation and repeats are both
+      ;; asserted zero: the substrate owns frames, dynamic environments,
+      ;; argument marshalling, and multiple-value returns, so the interpreter
+      ;; itself allocates no host objects.
+      (let ((*package* (find-package '#:clamsara-maclina)))
+        (clamsara-maclina-eval-string "(defun %%list5 () (list 1 2 3 4 5))"))
+      (let ((list5 (clostrum:fdefinition client env '%%list5)))
+        (assert (functionp list5))
+        (let ((first (%list-test-host-bytes (lambda () (funcall list5)))))
+          (let ((repeated
+                  (%list-test-host-bytes
+                   (lambda ()
+                     (dotimes (i 100)
+                       (let ((x (funcall list5)))
+                         (assert (clamsara:vm-reference-p
+                                  clamsara:*clamsara-vm* x))))))))
+            (assert (zerop first))
+            (assert (zerop repeated))
+            (format t "LIST-ALLOC: %%list5 direct Maclina entry first ~D B, 100 calls ~D B~%"
+                    first repeated))))
+      ;; Runner seam: READ + COMPILE once at setup (outside the window); the
+      ;; returned bound entry is called per iteration.  This is the shape
+      ;; Gabriel/GCBench runners should use instead of EVAL-STRING.
+      (let ((entry (clamsara-maclina-compile-string "(list 1 2 3 4 5)")))
+        (assert (functionp entry))
+        (let ((first (%list-test-host-bytes (lambda () (funcall entry)))))
+          (let ((repeated
+                  (%list-test-host-bytes
+                   (lambda ()
+                     (dotimes (i 100)
+                       (let ((x (funcall entry)))
+                         (assert (clamsara:vm-reference-p
+                                  clamsara:*clamsara-vm* x))))))))
+            (assert (zerop first))
+            (assert (zerop repeated))
+            (format t "LIST-ALLOC: compile-string bound entry first ~D B, 100 calls ~D B~%"
+                    first repeated))))
+      ;; Labeled and REPORTED, not asserted: one open CLOS dispatch per
+      ;; iteration (clostrum:fdefinition is a generic function).  None of the
+      ;; zero windows above contains a generic call; this keeps the isolated
+      ;; dispatch cost visible and separate.
+      (let ((clos-window
+              (%list-test-host-bytes
+               (lambda ()
+                 (dotimes (i 100)
+                   (clostrum:fdefinition client env 'cl:car))))))
+        (format t "LIST-ALLOC: labeled open CLOS dispatch (clostrum:fdefinition, ~D B/100 calls, outside the zero windows)~%"
+                clos-window)))
+    t))
+
+(defun run-maclina-list-tests ()
+  ;; Allocation windows first, against a virgin environment: every "first"
+  ;; window is the genuinely first invocation of its seam function in a
+  ;; fresh process.  Earlier revisions measured "first" calls that the
+  ;; preceding correctness evals had already warmed; that is corrected here.
+  #+sbcl (run-maclina-allocation-windows)
+  ;; Source-language LIST: the macro path builds nested simulated CONS; the
+  ;; CL:LIST function cell remains the FUNCALL fallback; a macro-built list
+  ;; survives moving collections; direct runtime conses no host bytes.
+  (with-clamsara-maclina (:plan-type :semispace :heap-size 4096)
+    (let ((vm clamsara:*clamsara-vm*))
+      ;; Correctness: exact simulated-heap shape and values; empty form NIL.
+      (assert (null (clamsara-maclina-eval-string "(list)")))
+      (let ((l (clamsara-maclina-eval-string "(list 10 20 30)")))
+        (assert (clamsara:vm-reference-p vm l))
+        (assert (= clamsara:+tag-cons+
+                   (clamsara:vm-object-type-tag
+                    vm (%reference-address vm l))))
+        (let ((a1 (%reference-address vm l)))
+          (assert (= 10 (%decode-heap-value
+                         vm (clamsara:vm-object-reference vm a1 0))))
+          (let ((raw-cdr (clamsara:vm-object-reference vm a1 1)))
+            (assert (clamsara:vm-reference-p vm raw-cdr))
+            (let ((a2 (%reference-address vm raw-cdr)))
+              (assert (= 20 (%decode-heap-value
+                             vm (clamsara:vm-object-reference vm a2 0))))
+              (let ((raw-cdr2 (clamsara:vm-object-reference vm a2 1)))
+                (assert (clamsara:vm-reference-p vm raw-cdr2))
+                (let ((a3 (%reference-address vm raw-cdr2)))
+                  (assert (= 30 (%decode-heap-value
+                                 vm (clamsara:vm-object-reference vm a3 0))))
+                  (assert (zerop (clamsara:vm-object-reference vm a3 1)))))))))
+      ;; FUNCALL fallback (host side): the function cell still works and
+      ;; still returns simulated conses.
+      (let ((list-fn (clostrum:fdefinition
+                      *clamsara-maclina-client*
+                      *clamsara-maclina-environment*
+                      'cl:list)))
+        (let ((l (funcall list-fn 5 6 7)))
+          (assert (clamsara:vm-reference-p vm l))
+          (assert (= 3 (clamsara-maclina-eval `(length ,l))))
+          (assert (= 5 (clamsara-maclina-eval `(car ,l))))))
+      ;; FUNCALL fallback (Maclina side): FUNCALL of the standard name.
+      (assert (= 6 (clamsara-maclina-eval-string
+                    "(let ((l (funcall (function list) 1 2 3)))
+                       (+ (car l) (car (cdr l)) (car (cdr (cdr l)))))")))
+      ;; Moving GC: a source-built list survives semispace flips and is
+      ;; still an exact simulated chain afterwards.  The churn drops every
+      ;; cons it builds (pure allocation pressure: ~9000 words through a
+      ;; 4096-word heap forces several flips) so no dead scratch chain has
+      ;; to fit a destination half.
+      (let ((l (clamsara-maclina-eval-string
+                "(let ((l (list 7 8 9)))
+                   (dotimes (i 3000) (cons i nil))
+                   l)")))
+        (assert (plusp (clamsara:stats-get
+                        (clamsara:plan-stats clamsara:*clamsara-plan*)
+                        :gc-cycles)))
+        (assert (clamsara:vm-reference-p vm l))
+        (let ((sum 0) (addr (%reference-address vm l)))
+          (dotimes (slot 3)
+            (incf sum (%decode-heap-value
+                       vm (clamsara:vm-object-reference vm addr 0)))
+            (setf addr (clamsara:vm-object-reference vm addr 1)))
+          (assert (= sum 24))))
+      ;; Host-allocation windows live in RUN-MACLINA-ALLOCATION-WINDOWS,
+      ;; which runs FIRST below against a virgin environment so every "first"
+      ;; window is the genuinely first invocation of its seam function.
+      t)))

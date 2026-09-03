@@ -24,7 +24,7 @@
     (if explicit
         ;; Explicit names (including :from, :to, and :los) are authoritative.
         (or (plan-allocate-in p size explicit)
-            (plan-handle-allocation-failure p size explicit))
+            (plan-direct-handle-allocation-failure p size explicit))
         (progn
           (let ((los (plan-los p)))
             (when (and (or (eq space-designator :default)
@@ -34,9 +34,9 @@
                                (plan-constraints p))))
               (return-from plan-allocate
                 (or (plan-allocate-in p size los)
-                    (plan-handle-allocation-failure p size los)))))
+                    (plan-direct-handle-allocation-failure p size los)))))
           (or (plan-allocate-in p size (z-from p))
-              (plan-handle-allocation-failure p size (z-from p)))))))
+              (plan-direct-handle-allocation-failure p size (z-from p)))))))
 
 (defmethod plan-handle-allocation-failure ((p zgc-plan) size space)
   (plan-retry-after p size space :full))

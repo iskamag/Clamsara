@@ -100,6 +100,10 @@ has one source of truth.")
    (constraints :initarg :constraints :reader plan-constraints)
    (page-resource :accessor plan-page-resource :initform nil)
    (stats :accessor plan-stats :initform nil)
+   ;; Boot-bound effective method for the mutator's exhausted-allocation seam.
+   ;; Runtime invokes this fixed-arity function, never a lazy CLOS DFUN.
+   (allocation-failure-function
+    :accessor plan-allocation-failure-function :initform nil)
    (function-table :initform (make-hash-table :test 'eq) :reader plan-function-table)
    (sft :accessor plan-sft :initform nil)
    (tracer :accessor plan-tracer :initform nil)
@@ -489,7 +493,7 @@ named ones."
       (if (null space)
           (error 'heap-exhausted :requested-size size :space :no-space)
           (or (plan-allocate-in p size space)
-              (plan-handle-allocation-failure p size space))))))
+              (plan-direct-handle-allocation-failure p size space))))))
 
 (defgeneric plan-handle-allocation-failure (plan size space)
   (:method ((p plan) size space)

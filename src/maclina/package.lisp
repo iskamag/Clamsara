@@ -11,6 +11,8 @@
    #:setup-clamsara-maclina-environment
    #:clamsara-maclina-eval
    #:clamsara-maclina-eval-string
+   #:clamsara-maclina-compile-form
+   #:clamsara-maclina-compile-string
    #:load-maclina-source-file
    #:with-clamsara-maclina))
 

@@ -85,7 +85,6 @@ convention is entered by the resulting function."
   (declare (ignore gf sample lambda-list call-args))
   nil)
 
-#+sbcl
 (defun %quoted-boot-object (object)
   (list 'quote object))
 
@@ -289,7 +288,21 @@ observed by a collector."
     (setf (slot-value vm 'collection-ops) ops)
     (dolist (space (plan-spaces plan))
       (%install-space-collection-ops space))
+    (let ((space (default-space plan)))
+      (setf (plan-allocation-failure-function plan)
+            (and space
+                 (%compile-effective-emitter
+                  'plan-handle-allocation-failure
+                  (list plan 1 space) '(size space)
+                  (list (%quoted-boot-object plan) 'size 'space)))))
     plan))
+
+(defun plan-direct-handle-allocation-failure (plan size space)
+  "Invoke the construction-bound allocation-failure method combination."
+  (let ((function (slot-value plan 'allocation-failure-function)))
+    (if function
+        (funcall function size space)
+        (plan-handle-allocation-failure plan size space))))
 
 ;; Fixed-operation entry points used by collection code.  Before boot they
 ;; retain the interpreted CLOS path, which keeps the normal phase machine a
@@ -608,6 +621,9 @@ method lookup.  The generic fallback exists only for an unbooted test space."
 This is boot work for accessors that remain ordinary simulator calls, such as
 metadata and barrier helpers. The inner VM/space/allocator protocol itself is
 already emitted as fast effective-method calls by RESOLVE-COLLECTION-PROTOCOLS."
+  ;; Resolve the fixed-slot reader used by direct allocation retry while host
+  ;; dispatch work is still legal.
+  (slot-value plan 'allocation-failure-function)
   (let* ((vm (plan-vm plan))
          (space (default-space plan))
          (address (and space (space-base-address space))))

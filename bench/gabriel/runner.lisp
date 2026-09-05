@@ -11,8 +11,10 @@
   "Iterations used by RUN-GABRIEL-BENCH when none is supplied.")
 (defparameter *gabriel-max-iterations* +gabriel-hard-max-iterations+
   "Optional lower bound for one invocation; never raises the hard ceiling.")
-(defparameter *gabriel-suite-heap-size* 8192
-  "Starting heap size for each plan in RUN-GABRIEL-SUITE.")
+(defparameter *gabriel-suite-heap-size* 32768
+  "Shared first-attempt heap size for every plan in RUN-GABRIEL-SUITE.
+All nine plans pass the current canonical/smoke set at this size, so normal
+cross-plan evidence does not conceal a capacity retry.")
 (defparameter *gabriel-suite-plans*
   '(:semispace :marksweep :immix :gencopy :genms :genimmix
     :stickyimmix :stickyms :zgcish)
@@ -32,7 +34,7 @@
    (actual :initarg :actual :reader gabriel-failure-actual))
   (:report (lambda (condition stream)
              (format stream
-                     "Gabriel-style workload ~a failed at iteration ~d: "
+                     "Gabriel workload ~a failed at iteration ~d: "
                      (gabriel-failure-workload condition)
                      (gabriel-failure-iteration condition))
              (format stream "expected ~s, got ~s"
@@ -77,7 +79,9 @@ Loading is deliberately deferred until the benchmark is invoked.  Thus
             (error "loading :clamsara/maclina did not create CLAMSARA-MACLINA"))
           (let ((with-macro (%maclina-symbol package "WITH-CLAMSARA-MACLINA"))
                 (eval-string (%maclina-symbol package
-                                              "CLAMSARA-MACLINA-EVAL-STRING")))
+                                              "CLAMSARA-MACLINA-EVAL-STRING"))
+                (load-file (%maclina-symbol package
+                                            "LOAD-MACLINA-SOURCE-FILE")))
             ;; ASDF can leave a package behind if an earlier component failed;
             ;; reject that partial load with the same actionable condition.
             (unless (macro-function with-macro)
@@ -85,7 +89,10 @@ Loading is deliberately deferred until the benchmark is invoked.  Thus
             (unless (fboundp eval-string)
               (error
                "CLAMSARA-MACLINA:CLAMSARA-MACLINA-EVAL-STRING is not loaded"))
-            (values package with-macro eval-string))))
+            (unless (fboundp load-file)
+              (error
+               "CLAMSARA-MACLINA:LOAD-MACLINA-SOURCE-FILE is not loaded"))
+            (values package with-macro eval-string load-file))))
     (maclina-benchmark-unavailable (condition)
       (error condition))
     (error (condition)
@@ -103,6 +110,27 @@ that want to skip rather than run the benchmark."
     (maclina-benchmark-unavailable (condition)
       (values nil (princ-to-string condition)))))
 
+(defparameter *gabriel-reference-directory* "bench/gabriel/reference/"
+  "Repo-relative location of the checked-in canonical benchmark sources,
+resolved against the :clamsara/bench/gabriel system at call time.")
+
+(defun %reference-pathname (filename)
+  "Resolve FILENAME under the checked-in canonical reference directory.
+
+The system definition lives at the repository root, so resolving through the
+registered system stays correct under ASDF output translations, which move
+compiled files away from the sources."
+  (let ((asdf (or (find-package :asdf)
+                  (progn (ignore-errors (require :asdf))
+                         (find-package :asdf)))))
+    (unless asdf
+      (error "ASDF is not loaded"))
+    (let ((relative (find-symbol "SYSTEM-RELATIVE-PATHNAME" asdf)))
+      (unless (and relative (fboundp relative))
+        (error "ASDF:SYSTEM-RELATIVE-PATHNAME is unavailable"))
+      (funcall relative :clamsara/bench/gabriel
+               (merge-pathnames filename *gabriel-reference-directory*)))))
+
 (defun %assert-plan-sane (plan workload cycle-kind)
   "Signal when a completed workload collection leaves invalid simulator state."
   (let ((errors (clamsara:sanity-check
@@ -112,8 +140,9 @@ that want to skip rather than run the benchmark."
               ~{  ~A~%~}"
              workload cycle-kind errors))))
 
-(defun %evaluate-workload (with-macro eval-string workload iterations plan-type
-                           heap-size stack-size collector-host-bytes-cell)
+(defun %evaluate-workload (with-macro eval-string load-file workload
+                           iterations plan-type heap-size stack-size
+                           collector-host-bytes-cell)
   "Evaluate one workload in a fresh Maclina/Clamsara environment.
 
 The fresh environment is warmed before the measured iterations: this compiles
@@ -126,10 +155,21 @@ cons whose CAR accumulates host bytes consed inside plan-collect windows."
   (let ((source (gabriel-workload-source workload))
         (expected (gabriel-workload-expected workload))
         (name (gabriel-workload-name workload))
+        ;; Canonical workloads load their checked-in reference source into
+        ;; every fresh environment; style workloads have no file to load.
+        (reference (and (gabriel-workload-canonical-p workload)
+                        (%reference-pathname
+                         (canonical-gabriel-workload-reference-file
+                          workload))))
         (*gabriel-window-cell* collector-host-bytes-cell))
     ;; WITH-CLAMSARA-MACLINA is a macro in an optional package.  Constructing
     ;; this form after the package has loaded keeps the benchmark source
     ;; readable and avoids a compile-time dependency on that package.
+    ;; Benchmark source strings are read in the Maclina source package,
+    ;; mirroring LOAD-MACLINA-SOURCE-FILE's read semantics for files, so an
+    ;; invocation name resolves to the definitions the canonical file (or the
+    ;; inline source itself) installed in this environment.
+    (let ((*package* (find-package '#:clamsara-maclina)))
     (eval `(,with-macro
              (:plan-type ,plan-type
               :heap-size ,heap-size
@@ -164,6 +204,11 @@ cons whose CAR accumulates host bytes consed inside plan-collect windows."
                              (incf (cdr *gabriel-window-cell*)))))))
                     (stats nil)
                     (elapsed 0.0))
+               ;; Canonical workloads load their checked-in source into this
+               ;; fresh environment exactly like an interactive load, before
+               ;; any warmup or measured iteration.
+               (when ',reference
+                 (funcall ',load-file ',reference))
                ;; Warmup first: unmeasured, no hook installed.  Three
                ;; passes settle the interpreted workload's one-time host
                ;; costs; a single pass does not (first-contact dispatches
@@ -201,7 +246,7 @@ cons whose CAR accumulates host bytes consed inside plan-collect windows."
                                         :cycle-kind :full))
                (setf stats (clamsara:stats-snapshot
                              (clamsara:plan-stats clamsara:*clamsara-plan*)))
-               (values (nreverse values) stats elapsed))))))
+               (values (nreverse values) stats elapsed)))))))
 
 #+sbcl
 (eval-when (:compile-toplevel :load-toplevel :execute)
@@ -238,7 +283,7 @@ cons whose CAR accumulates host bytes consed inside plan-collect windows."
           (stack-size 65536)
           (stream *standard-output*)
           (verbose t))
-  "Run the small optional Gabriel-style workload subset.
+  "Run the supported canonical Gabriel and clearly labelled smoke workloads.
 
 Each workload gets a fresh Clamsara/Maclina environment.  ITERATIONS is
 bounded to keep this diagnostic harness from becoming an accidental stress
@@ -247,36 +292,48 @@ values, and Clamsara event statistics.  Maclina dependencies are loaded only
 here, and missing packages signal MACLINA-BENCHMARK-UNAVAILABLE with a clear
 message."
   (%validate-options iterations heap-size stack-size)
-  (multiple-value-bind (package with-macro eval-string)
+  (multiple-value-bind (package with-macro eval-string load-file)
       (%ensure-maclina)
     (declare (ignore package))
     (when verbose
       (format stream
-              "~&Gabriel-style Maclina subset (not full Gabriel coverage)~%"
-              ))
+              "~&Gabriel Maclina workloads: canonical TAK and TAKR loaded ~
+               from ~a; ctak.cl, stak.cl, and takl.cl skipped (see ~
+               forms.lisp for the exact load and safety reasons)~%"
+              *gabriel-reference-directory*))
     (let (results)
       (dolist (workload workloads (nreverse results))
         (unless (typep workload 'gabriel-workload)
           (error "Not a GABRIEL-WORKLOAD: ~s" workload))
         (let ((bytes-cell (cons 0 0)))
           (multiple-value-bind (values stats elapsed)
-              (%evaluate-workload with-macro eval-string workload iterations
-                                  plan-type heap-size stack-size bytes-cell)
+              (%evaluate-workload with-macro eval-string load-file workload
+                                  iterations plan-type heap-size stack-size
+                                  bytes-cell)
             (let ((result (list :name (gabriel-workload-name workload)
                                 :plan plan-type
                                 :heap-size heap-size
                                 :iterations iterations
                                 :elapsed-seconds elapsed
                                 :values values
+                                :status :ok
+                                :attempted-heap-sizes (list heap-size)
+                                :allocation-retries 0
+                                :aborted nil
+                                :reference-file
+                                (and (gabriel-workload-canonical-p workload)
+                                     (canonical-gabriel-workload-reference-file
+                                      workload))
                                 :collector-host-bytes (car bytes-cell)
                                 :collections-checked (cdr bytes-cell)
                                 :stats stats)))
               (push result results)
               (when verbose
                 (format stream
-                        "  ~a: ~d iterations, ~,3f sec, ~
+                        "  ~a~@[ [canonical ~a]~]: ~d iterations, ~,3f sec, ~
                          collector-host-bytes=~d, sanity-checks=~d, stats ~s~%"
                         (getf result :name)
+                        (getf result :reference-file)
                         iterations
                         elapsed
                         (getf result :collector-host-bytes)
@@ -285,18 +342,21 @@ message."
 
 (defun run-gabriel-suite (&key (stream *standard-output*) verbose
                                (iterations *gabriel-default-iterations*))
-  "Run every Gabriel workload across the tracing textbook collector plans.
+  "Run every admitted workload across all plans and return explicit evidence.
 
-Each plan starts at *GABRIEL-SUITE-HEAP-SIZE*.  A plan whose retained mature
-set exhausts that heap is retried at successively doubled sizes, matching the
-GCBench suite's bounded capacity protocol."
+Every plan first gets the same *GABRIEL-SUITE-HEAP-SIZE*.  Unexpected capacity
+retries remain bounded, printed, and recorded in each successful result.  The
+final report also contains one :SKIPPED record for each canonical source that
+cannot safely execute; those records are never multiplied into passing plan
+results."
   (let ((results nil))
-    (dolist (plan *gabriel-suite-plans*
-                  (nreverse results))
+    (dolist (plan *gabriel-suite-plans*)
       (let ((heap-size *gabriel-suite-heap-size*)
+            (attempts nil)
             (plan-results nil))
         (loop while (<= heap-size (* 16 *gabriel-suite-heap-size*))
-              do (handler-case
+              do (push heap-size attempts)
+                 (handler-case
                      (progn
                        (setf plan-results
                              (run-gabriel-bench
@@ -305,26 +365,47 @@ GCBench suite's bounded capacity protocol."
                               :verbose verbose))
                        (return))
                    (clamsara:heap-exhausted ()
-                     (setf heap-size (* heap-size 2))
-                     (format stream
-                             "~&~A exhausted ~D words; retrying at ~D~%"
-                             plan (/ heap-size 2) heap-size))))
+                     (let ((failed-size heap-size))
+                       (setf heap-size (* heap-size 2))
+                       (format stream
+                               "~&~A exhausted ~D words; retrying at ~D~%"
+                               plan failed-size heap-size)))))
         (unless plan-results
-          (error "~A exhausted every Gabriel suite heap size" plan))
-        (dolist (result plan-results)
-          (push result results))))))
+          (error "~A exhausted every Gabriel suite heap size; attempts ~S"
+                 plan (nreverse attempts)))
+        (let ((ordered-attempts (nreverse attempts)))
+          (dolist (result plan-results)
+            (setf (getf result :status) :ok
+                  (getf result :attempted-heap-sizes) ordered-attempts
+                  (getf result :allocation-retries)
+                  (1- (length ordered-attempts))
+                  (getf result :aborted) nil)
+            (push result results)))))
+    ;; COPY-TREE keeps callers from mutating the static skip ledger.
+    (nconc (nreverse results) (copy-tree *gabriel-canonical-skips*))))
 
 (defun run-gabriel-tests (&key (stream *standard-output*) (verbose t))
-  "Run and enforce the Gabriel harness's correctness contracts."
-  (let ((results (run-gabriel-suite :stream stream :verbose nil)))
-    (unless (= (length results)
-               (* (length *gabriel-suite-plans*)
-                  (length *gabriel-workloads*)))
-      (error "Gabriel suite produced ~D results, expected ~D"
-             (length results)
-             (* (length *gabriel-suite-plans*)
-                (length *gabriel-workloads*))))
-    (dolist (result results)
+  "Run and enforce the Gabriel harness's correctness and evidence contracts."
+  (let* ((results (run-gabriel-suite :stream stream :verbose nil))
+         (ran (remove-if-not (lambda (r) (eq (getf r :status) :ok))
+                             results))
+         (skipped (remove-if-not
+                   (lambda (r) (eq (getf r :status) :skipped)) results))
+         (expected-ran (* (length *gabriel-suite-plans*)
+                          (length *gabriel-workloads*))))
+    (unless (= (length ran) expected-ran)
+      (error "Gabriel suite produced ~D completed results, expected ~D"
+             (length ran) expected-ran))
+    (unless (= (length skipped) (length *gabriel-canonical-skips*))
+      (error "Gabriel suite reported ~D canonical skips, expected ~D"
+             (length skipped) (length *gabriel-canonical-skips*)))
+    (dolist (skip skipped)
+      (unless (and (getf skip :canonical)
+                   (stringp (getf skip :reference-file))
+                   (getf skip :missing-feature)
+                   (plusp (length (getf skip :reason))))
+        (error "Malformed canonical skip evidence: ~S" skip)))
+    (dolist (result ran)
       (let ((cycles (cdr (assoc :gc-cycles (getf result :stats))))
             (host-bytes (getf result :collector-host-bytes)))
         (unless (plusp cycles)
@@ -334,11 +415,18 @@ GCBench suite's bounded capacity protocol."
           (error "Gabriel workload ~S checked ~D of ~D collections"
                  (getf result :name)
                  (getf result :collections-checked) cycles))
+        (unless (and (consp (getf result :attempted-heap-sizes))
+                     (= (getf result :allocation-retries)
+                        (1- (length (getf result :attempted-heap-sizes))))
+                     (not (getf result :aborted)))
+          (error "Gabriel workload ~S has incomplete attempt evidence: ~S"
+                 (getf result :name) result))
         #+sbcl
         (unless (zerop host-bytes)
           (error "Gabriel workload ~S collector consed ~D host bytes"
                  (getf result :name) host-bytes))))
     (when verbose
-      (format stream "~&Gabriel regression suite: ~D checked results~%"
-              (length results)))
+      (format stream
+              "~&Gabriel regression suite: ~D checked results, ~D explicit canonical skips~%"
+              (length ran) (length skipped)))
     results))

@@ -79,6 +79,48 @@
                 (list "sbcl" "--noinform" "--script" (namestring script))
                 :output *standard-output* :error-output *error-output*))))
 
+(asdf:defsystem :clamsara/core/managed-layout
+  :version "11.0.0"
+  :description "paper-v11 portable managed-layout construction kernel."
+  :depends-on (:clamsara/protocol/address-space)
+  :pathname "src"
+  :components ((:file "core/managed-layout")))
+
+(asdf:defsystem :clamsara/core/managed-layout/test
+  :version "11.0.0"
+  :description "Standalone contract tests for the paper-v11 managed-layout kernel."
+  :depends-on (:clamsara/core/managed-layout)
+  :components ()
+  :perform (asdf:test-op (operation component)
+             (declare (ignore operation))
+             (let ((script (merge-pathnames
+                            "test/v11-managed-layout-contract.lisp"
+                            (asdf:system-source-directory component))))
+               (uiop:run-program
+                (list "sbcl" "--noinform" "--script" (namestring script))
+                :output *standard-output* :error-output *error-output*))))
+
+(asdf:defsystem :clamsara/core/metadata
+  :version "11.0.0"
+  :description "paper-v11 portable logical-metadata declaration, merge, binding, and operation kernel."
+  :depends-on (:clamsara/protocol/object-model :clamsara/protocol/atomics)
+  :pathname "src"
+  :components ((:file "core/metadata")))
+
+(asdf:defsystem :clamsara/core/metadata/test
+  :version "11.0.0"
+  :description "Standalone contract tests for the paper-v11 logical-metadata kernel."
+  :depends-on (:clamsara/core/metadata)
+  :components ()
+  :perform (asdf:test-op (operation component)
+             (declare (ignore operation))
+             (let ((script (merge-pathnames
+                            "test/v11-metadata-contract.lisp"
+                            (asdf:system-source-directory component))))
+               (uiop:run-program
+                (list "sbcl" "--noinform" "--script" (namestring script))
+                :output *standard-output* :error-output *error-output*))))
+
 (asdf:defsystem :clamsara
   ;; Version stays 9.0.0 while the v11 migration is incomplete: this system
   ;; does not yet conform to paper-v11 (see V11-IMPLEMENTATION.md).  Version
@@ -147,7 +189,9 @@
   :description "Clamsara test suite."
   :depends-on (:clamsara)
   :in-order-to ((asdf:test-op
-                 (asdf:test-op "clamsara/core/test")))
+                 (asdf:test-op "clamsara/core/test")
+                 (asdf:test-op "clamsara/core/managed-layout/test")
+                 (asdf:test-op "clamsara/core/metadata/test")))
   :serial t
   :components
   ((:module "test"

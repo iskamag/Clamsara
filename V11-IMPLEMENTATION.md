@@ -137,6 +137,37 @@ cycle/cohort behavior, exact phases, validation and activation rollback,
 publication, permanent immutability, mutable runtime state, and reverse
 shutdown.
 
+## Slice S3: managed layout and logical metadata kernels
+
+`clamsara/core/managed-layout` implements construction-time arena validation,
+constraint solving, derived metadata sizing, complete-solution audit, client
+validation and installation, dense page ownership lookup, and explicit
+quiesced ownership epochs.  Failed or ambiguous compositions signal structured
+conditions and never install a partial map.  `LAYOUT-SPACE-AT` uses a
+boot-built arena index and dense fixnum page tables.  Its first-call and
+repeated direct lookup windows report zero host bytes.
+
+`clamsara/core/metadata` implements metadata declaration validation,
+deterministic provenance-preserving merge, placement narrowing, offered-field
+compatibility checks, layout-mediated side-vector and side-table binding, and
+the scalar/bit/range/fold/project operation families.  It distinguishes the
+paper's required semantics from implementation-chosen records and field
+guarantee plists.  Field incompatibility and unavailable placement alternatives
+reject construction explicitly; there is no silent downgrade.  Dense vectors
+use the supplied atomic client when required; the portable kernel contains no
+SBCL primitives. Side tables use preallocated key/value/occupancy arrays with
+bounded linear lookup and explicit capacity exhaustion, without runtime growth.
+Bound dense side-vector operations report zero host bytes in warmed hosted
+windows. These measurements do not establish first-call deployment safety.
+Binding performs no runtime warmup or recompute calls. CLOS closure is
+Snowgrave's responsibility; Clamsara owns bounded runtime storage and avoids
+allocation in its algorithm bodies.
+
+These are independent portable kernels below the legacy collector system.
+They do not by themselves make a legacy plan v11-conformant.  Their standalone
+contracts are ASDF systems and are also prerequisites of `clamsara/test`:
+managed layout has 84 checks and metadata has 143 checks.
+
 ## Integrated correctness and hot-path repairs
 
 - StickyImmix now shares the span-aware Immix sweep.  Dead medium-object spans
@@ -156,9 +187,12 @@ shutdown.
 - Direct Maclina `LIST` source calls use the Clostrum compiler-macro seam to
   expand to nested simulated `CONS` calls while the ordinary function remains
   available to `FUNCALL` and `APPLY`.  The redundant `REVERSE` copy is gone.
-  Direct CONS/LIST helper windows are zero-allocation, but compiled Maclina
-  execution still allocates host runtime data; that remains an open blocker
-  below rather than being hidden by helper-only measurements.
+  VM call frames, argument windows, return positions, values, dynamic
+  environments, and global root cells are preallocated or construction-bound.
+  First and repeated direct CONS, functional LIST, direct compiled entry, and
+  compile-string-bound entry windows report zero host bytes, including runs
+  that trigger collections.  Global simulated references are reread through
+  registered stable root cells after moving collection.
 
 ## Conformance ledger (open blockers)
 
@@ -176,18 +210,7 @@ shutdown.
    transactions, phase declarations, move-epoch lifecycle, ephemerons,
    Wonderworld split, or adversarial scheduler requirements.  Each is a later
    migration slice; the full audit list is in the v11 spec audit report.
-3. **Maclina entry execution still allocates on the host.**  Although the
-   Clamsara-owned CONS/LIST helpers are allocation-free, a directly fetched,
-   precompiled Maclina function currently measures about 17.5 KiB on its first
-   call and 20.4 KiB over 100 calls.  This is not CLOS overhead and is not
-   exempted.  The Maclina client runtime needs preallocated frames/stacks or a
-   bound direct entry before its benchmark execution is supervisor-safe.
-4. **Maclina global value cells are not root locations.**  A simulated
-   reference stored in a global variable is not enumerated by VM-SCAN-ROOTS.
-   Canonical Gabriel programs with persistent global heap objects must remain
-   skipped until the client registers those value cells as stable root
-   locations; enabling them without that seam would be unsound.
-5. Canonical Gabriel coverage is still constrained by unsupported source/runtime
+3. Canonical Gabriel coverage is still constrained by unsupported source/runtime
    features.  Each skipped reference file must name the exact missing feature;
    lookalike workloads are smoke tests, not canonical evidence.
 
@@ -199,3 +222,16 @@ image without :clamsara (`V11-PROTOCOL-SYSTEMS-INDEPENDENT`); adapter
 contracts per protocol, including every unsupported boundary; order
 validation; token staleness/overlap rejection; and the measured
 no-per-visit-allocation property (`V11-ADAPTERS-NO-ALLOCATION`).
+
+`clamsara/core/test`, `clamsara/core/managed-layout/test`, and
+`clamsara/core/metadata/test` run the 67-check component, 84-check managed
+layout, and 143-check metadata contracts.  `asdf:test-system :clamsara/test`
+orders all three before the legacy FiveAM core suite.
+
+Cleanup validation: the baseline core suite passed 214 tests. After the kernel
+repairs, the standalone layout and metadata suites passed 84 and 143 checks.
+Gabriel passed 36 workload results and GCBench passed nine plans with a 4 GiB
+SBCL host heap; a previous combined run exhausted the default 1 GiB host heap
+while compiling TAKR. The canonical skip reasons still need refreshing against
+the current Maclina runtime. The construction-phase mismatch with v11 remains
+open; these kernels do not establish full v11 conformance.

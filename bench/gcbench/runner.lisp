@@ -33,6 +33,28 @@ host allocation on the collection path."
   (words-copied 0 :type fixnum)
   (objects-copied 0 :type fixnum)
   (barrier-transfers 0 :type fixnum)
+  ;; Credible-statistics counters (exact semantics in src/stats.lisp).  Every
+  ;; field reads the plan's prewarmed stats snapshot from the measured
+  ;; iterations only; warmup and the final verification collection stay
+  ;; outside it.  RETAINED-BYTES-SAMPLE is the gauge's LAST post-collection
+  ;; value, not a sum over collections.
+  (ref-locations-scanned 0 :type fixnum)
+  (root-locations-scanned 0 :type fixnum)
+  (barrier-events 0 :type fixnum)
+  (satb-log-records 0 :type fixnum)
+  (satb-log-bytes 0 :type fixnum)
+  (rc-log-records 0 :type fixnum)
+  (rc-log-bytes 0 :type fixnum)
+  (queue-spills 0 :type fixnum)
+  (relation-rows-rebuilt 0 :type fixnum)
+  (safepoint-requests 0 :type fixnum)
+  (safepoint-arrivals 0 :type fixnum)
+  (collection-aborts 0 :type fixnum)
+  (allocation-retries 0 :type fixnum)
+  (retained-bytes-sample 0 :type fixnum)
+  ;; Heap escalations the suite needed before this run succeeded: 0 means the
+  ;; shared suite heap held, so cross-plan evidence carries no hidden retry.
+  (heap-retries 0 :type fixnum)
   (collections-checked 0 :type fixnum)
   (sanity-errors nil))
 
@@ -189,24 +211,46 @@ an explicit unsupported note."
   (%ensure-maclina)
   (let ((result (%gcbench-run depth plan-type heap-size stack-size iterations)))
     (when verbose
+      ;; Status leads with the event counters and heap/retry/abort evidence;
+      ;; wall time is secondary by design.
       (format stream
-              "~&GCBENCH ~a depth=~d heap=~d: ~d iter(s), ~,3f s, value=~s~
-               ~%  gc-cycles=~d words-copied=~d objects-copied=~d ~
-               barrier-transfers=~d"
+              "~&GCBENCH ~a depth=~d heap=~d: ~d iter(s), value=~s, ~,3f s~
+               ~%  gc-cycles=~d collections-checked=~d aborts=~d ~
+               alloc-retries=~d heap-retries=~d~
+               ~%  ref-locations=~d root-locations=~d barrier-events=~d ~
+               barrier-transfers=~d queue-spills=~d relation-rows=~d~
+               ~%  words-copied=~d objects-copied=~d retained-bytes=~d"
               plan-type depth heap-size
               (gcbench-result-iterations result)
-              (/ (gcbench-result-elapsed-ms result) 1000.0)
               (gcbench-result-value result)
+              (/ (gcbench-result-elapsed-ms result) 1000.0)
               (gcbench-result-gc-cycles result)
+              (gcbench-result-collections-checked result)
+              (gcbench-result-collection-aborts result)
+              (gcbench-result-allocation-retries result)
+              (gcbench-result-heap-retries result)
+              (gcbench-result-ref-locations-scanned result)
+              (gcbench-result-root-locations-scanned result)
+              (gcbench-result-barrier-events result)
+              (gcbench-result-barrier-transfers result)
+              (gcbench-result-queue-spills result)
+              (gcbench-result-relation-rows-rebuilt result)
               (gcbench-result-words-copied result)
               (gcbench-result-objects-copied result)
-              (gcbench-result-barrier-transfers result))
+              (gcbench-result-retained-bytes-sample result))
+      (format stream
+              "~%  satb-records=~d satb-bytes=~d rc-records=~d rc-bytes=~d ~
+               safepoints=req=~d,arrived=~d"
+              (gcbench-result-satb-log-records result)
+              (gcbench-result-satb-log-bytes result)
+              (gcbench-result-rc-log-records result)
+              (gcbench-result-rc-log-bytes result)
+              (gcbench-result-safepoint-requests result)
+              (gcbench-result-safepoint-arrivals result))
       (if (gcbench-result-sanity-errors result)
           (format stream "~%  sanity-errors=~{~a~^; ~}"
                   (gcbench-result-sanity-errors result))
           (format stream "~%  sanity-errors=none"))
-      (format stream "~%  collections-checked=~d"
-              (gcbench-result-collections-checked result))
       (format stream
               "~%  collector-host-bytes=~d~@[ ~
                (byte accounting unsupported here)~]~%"
@@ -328,10 +372,24 @@ an explicit unsupported note."
      :words-copied (cdr (assoc :words-copied stats))
      :objects-copied (cdr (assoc :objects-copied stats))
      :barrier-transfers (cdr (assoc :barrier-transfers stats))
+     :ref-locations-scanned (cdr (assoc :ref-locations-scanned stats))
+     :root-locations-scanned (cdr (assoc :root-locations-scanned stats))
+     :barrier-events (cdr (assoc :barrier-events stats))
+     :satb-log-records (cdr (assoc :satb-log-records stats))
+     :satb-log-bytes (cdr (assoc :satb-log-bytes stats))
+     :rc-log-records (cdr (assoc :rc-log-records stats))
+     :rc-log-bytes (cdr (assoc :rc-log-bytes stats))
+     :queue-spills (cdr (assoc :queue-spills stats))
+     :relation-rows-rebuilt (cdr (assoc :relation-rows-rebuilt stats))
+     :safepoint-requests (cdr (assoc :safepoint-requests stats))
+     :safepoint-arrivals (cdr (assoc :safepoint-arrivals stats))
+     :collection-aborts (cdr (assoc :collection-aborts stats))
+     :allocation-retries (cdr (assoc :allocation-retries stats))
+     :retained-bytes-sample (cdr (assoc :retained-bytes-sample stats))
      :collections-checked collections-checked
      :sanity-errors errors)))
 
-(defparameter *gcbench-suite-heap-size* 16384)
+(defparameter *gcbench-suite-heap-size* 32768)
 (defparameter *gcbench-suite-plans*
   '(:semispace :marksweep :immix :gencopy :genms :genimmix
     :stickyimmix :stickyms :zgcish)
@@ -340,13 +398,18 @@ an explicit unsupported note."
 (defun run-gcbench-suite (&key (stream *standard-output*) verbose
                             (depth 8) (iterations 1))
   "Run the GCBench across the tracing textbook plans at one shared depth.
-HEAP-SIZE starts at *GCBENCH-SUITE-HEAP-SIZE* and, when a plan exhausts it,
-the run retries that plan at twice the size: mark/sweep families need a larger
-mature space than copying families at the same live footprint."
+Every plan attempts the SAME *GCBENCH-SUITE-HEAP-SIZE* first, so cross-plan
+evidence starts without a hidden retry; when a plan exhausts it, the run
+retries that plan at twice the size and records the escalation in the
+result's HEAP-RETRIES.  After each plan the suite prints an explicit status
+line naming the attempted heap, heap retries, measured aborts, and allocation
+retries; a plan that exhausts every bounded size is reported SKIPPED with the
+attempted bound before the suite signals."
   (let ((results nil))
     (dolist (plan *gcbench-suite-plans*
                   (nreverse results))
       (let ((heap-size *gcbench-suite-heap-size*)
+            (heap-retries 0)
             (result nil))
         (loop until (> heap-size (* 16 *gcbench-suite-heap-size*))
               do (handler-case
@@ -358,13 +421,38 @@ mature space than copying families at the same live footprint."
                                           :stream stream :verbose verbose))
                        (return))
                    (clamsara:heap-exhausted ()
+                     (incf heap-retries)
                      (setf heap-size (* heap-size 2))
                      (format stream
                              "~&~a exhausted ~d words; retrying at ~d~%"
                              plan (/ heap-size 2) heap-size))))
         (if result
-            (push result results)
-            (error "~A exhausted every GCBench suite heap size" plan))))))
+            (let ((recorded (progn
+                              (setf (gcbench-result-heap-retries result)
+                                    heap-retries)
+                              result)))
+              (push recorded results)
+              (format stream
+                      "~&  ~a: heap=~d heap-retries=~d aborts=~d ~
+                       alloc-retries=~d gc-cycles=~d value=~s~%"
+                      plan
+                      (gcbench-result-heap-size recorded)
+                      (gcbench-result-heap-retries recorded)
+                      (gcbench-result-collection-aborts recorded)
+                      (gcbench-result-allocation-retries recorded)
+                      (gcbench-result-gc-cycles recorded)
+                      (gcbench-result-value recorded)))
+            (progn
+              ;; Explicit skipped status: the plan could not run on any
+              ;; bounded suite heap.  Report the last attempted size and the
+              ;; recorded retries, then preserve the suite's old contract.
+              (format stream
+                      "~&  ~a: SKIPPED (heap exhausted at ~d words after ~d ~
+                       retries)~%"
+                      plan heap-size heap-retries)
+              (error "~A exhausted every GCBench suite heap size ~
+                      (last attempt ~d words, ~d retries)"
+                     plan heap-size heap-retries)))))))
 
 (defun %validate-gcbench-result (result)
   (unless (gcbench-result-value result)
@@ -387,6 +475,17 @@ mature space than copying families at the same live footprint."
     (error "GCBench ~S collector consed ~D host bytes"
            (gcbench-result-plan result)
            (gcbench-result-collector-host-bytes result)))
+  ;; The run returned, so every measured collection window completed; the
+  ;; abort counter must agree with that.  The tracing evidence itself must
+  ;; also exist: a measured workload that never scanned a reference location
+  ;; did not exercise the collector.
+  (unless (zerop (gcbench-result-collection-aborts result))
+    (error "GCBench ~S measured ~D aborted collection(s)"
+           (gcbench-result-plan result)
+           (gcbench-result-collection-aborts result)))
+  (unless (plusp (gcbench-result-ref-locations-scanned result))
+    (error "GCBench ~S measured iterations scanned no reference locations"
+           (gcbench-result-plan result)))
   result)
 
 (defun run-gcbench-tests (&key (stream *standard-output*) (verbose t))
@@ -405,6 +504,12 @@ mature space than copying families at the same live footprint."
     (unless (and (search "sanity-errors=none" rendered)
                  (search "collections-checked=" rendered)
                  (search "collector-host-bytes=0" rendered)
+                 (search "ref-locations=" rendered)
+                 (search "root-locations=" rendered)
+                 (search "barrier-events=" rendered)
+                 (search "heap-retries=" rendered)
+                 (search "retained-bytes=" rendered)
+                 (search "rc-records=" rendered)
                  (not (search "collector-host-bytes=NIL" rendered)))
       (error "GCBench rendered invalid diagnostics:~%~A" rendered))
     (unless (= (length suite-results) (length *gcbench-suite-plans*))

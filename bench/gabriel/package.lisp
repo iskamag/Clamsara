@@ -1,4 +1,4 @@
-;;;; bench/gabriel/package.lisp -- optional Gabriel-style benchmark harness.
+;;;; bench/gabriel/package.lisp -- canonical Gabriel and labelled smoke harness.
 
 (defpackage #:clamsara-gabriel-bench
   (:use #:cl)
@@ -8,7 +8,11 @@
    #:gabriel-workload-name
    #:gabriel-workload-source
    #:gabriel-workload-expected
+   #:canonical-gabriel-workload
+   #:canonical-gabriel-workload-reference-file
+   #:gabriel-workload-canonical-p
    #:*gabriel-workloads*
+   #:*gabriel-canonical-skips*
    #:*gabriel-default-iterations*
    #:*gabriel-max-iterations*
    #:*gabriel-suite-heap-size*

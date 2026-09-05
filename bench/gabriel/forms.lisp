@@ -1,9 +1,35 @@
-;;;; bench/gabriel/forms.lisp -- a deliberately small, cons-only subset.
+;;;; bench/gabriel/forms.lisp -- canonical benchmarks plus a cons-only style
+;;; subset.
 ;;;
-;;; These are Gabriel-*style* smoke workloads, not a port of the complete
-;;; Gabriel benchmark suite.  Maclina's simulated values currently accept
-;;; NIL, integers, and tagged simulated conses, so the list workload uses
-;;; integer operator tags rather than symbols in its expression tree.
+;;; The :tak and :takr workloads are the checked-in canonical Gabriel sources
+;;; under bench/gabriel/reference/.  Every fresh Maclina environment loads the
+;;; file itself, exactly like an interactive load, and the invocation runs at
+;;; the canonical driver size.  They are not re-typed lookalikes.
+;;;
+;;; Canonical sources that cannot be added, and why (nothing is hidden):
+;;;   ctak.cl -- loads and compiles, but the canonical invocation fails at
+;;;     runtime: THROW unwinding into a CATCH that sits in a call-operand
+;;;     position is broken in the current Maclina VM ("The value 7 is not of
+;;;     type FUNCTION when binding MACLINA.VM-CROSS::CALLEE" at
+;;;     (CTAK 18 12 6); also at (CTAK 2 1 0) and (CTAK 6 3 0), while
+;;;     (CTAK 1 1 1) and body-position throws succeed).  Fixing that means
+;;;     touching the VM, which is outside this benchmark's scope.
+;;;   stak.cl -- cannot load: (PROCLAIM '(FIXNUM STAK-X STAK-Y STAK-Z)) makes
+;;;     the Maclina/Extrinsicl PROCLAIM handler fall through its ECASE, which
+;;;     supports only the declaration identifiers (DECLARATION INLINE
+;;;     NOTINLINE SPECIAL OPTIMIZE TYPE FTYPE).
+;;;   takl.cl -- cannot load: (DEFVAR 18L (LISTN 18)) needs
+;;;     (SETF EXTRINSICL:SYMBOL-VALUE), which has no applicable method in the
+;;;     run-time environment.  Independently, 18l/12l/6l would be simulated
+;;;     references in global value cells, and the VM root scan covers only the
+;;;     Maclina stack and value area, not global value cells: a global
+;;;     simulated reference would not be enumerated as a root.  No workload
+;;;     here reads those globals.
+;;;
+;;; The remaining entries stay Gabriel-style cons-churn smoke workloads, not
+;;; canonical benchmarks.  Maclina's simulated values accept NIL, integers,
+;;; and tagged simulated conses, so the symbolic workload uses integer
+;;; operator tags rather than symbols in its expression tree.
 
 (in-package #:clamsara-gabriel-bench)
 
@@ -18,19 +44,30 @@ host-list behavior."
   (source "" :type string)
   expected)
 
+(defstruct (canonical-gabriel-workload
+            (:include gabriel-workload)
+            (:constructor
+             make-canonical-gabriel-workload
+             (name reference-file source expected)))
+  "A workload run from its checked-in canonical source.
+
+REFERENCE-FILE names a file under bench/gabriel/reference/ that every fresh
+Maclina environment loads before SOURCE -- the invocation form -- is
+evaluated.  The expected value stays scalar: the canonical TAK-family
+drivers return one fixnum, which the host compares with EQUAL, independent
+of simulated-heap representation."
+  (reference-file "" :type string))
+
+(defun gabriel-workload-canonical-p (workload)
+  "True when WORKLOAD runs a checked-in canonical source file."
+  (typep workload 'canonical-gabriel-workload))
+
 (defparameter *gabriel-workloads*
   (list
-   (make-gabriel-workload
-    :tak
-    "(progn
-       (defun tak (x y z)
-         (if (< y x)
-             (tak (tak (1- x) y z)
-                  (tak (1- y) z x)
-                  (tak (1- z) x y))
-             z))
-       (tak 12 6 0))"
-    1)
+   (make-canonical-gabriel-workload
+    :tak "tak.cl" "(tak 18 12 6)" 7)
+   (make-canonical-gabriel-workload
+    :takr "takr.cl" "(tak0 18 12 6)" 7)
    (make-gabriel-workload
     :destructive-cons
     "(let ((x (cons 1 (cons 2 (cons 3 nil))))
@@ -69,4 +106,18 @@ host-list behavior."
        (checksum
         (dderiv (list 0 (list 1 99 99) (list 1 3 99)) 99)))"
     307))
-  "The small, supported Gabriel-style workload set.")
+  "The supported workload set: canonical Gabriel TAK/TAKR plus style workloads.")
+
+(defparameter *gabriel-canonical-skips*
+  '((:name :ctak :reference-file "ctak.cl" :canonical t :status :skipped
+     :missing-feature :catch-throw-call-operand-unwind
+     :reason "Maclina mis-restores a CATCH/THROW result used as a call operand; (CTAK 18 12 6) reaches 7 but then binds 7 as MACLINA.VM-CROSS::CALLEE")
+    (:name :stak :reference-file "stak.cl" :canonical t :status :skipped
+     :missing-feature :variable-type-proclamation
+     :reason "Extrinsicl PROCLAIM rejects the canonical (FIXNUM STAK-X STAK-Y STAK-Z) proclamation")
+    (:name :takl :reference-file "takl.cl" :canonical t :status :skipped
+     :missing-feature :enumerated-global-value-cell-roots
+     :reason "(SETF EXTRINSICL:SYMBOL-VALUE) is absent and simulated global value cells are not enumerated as roots"))
+  "Canonical checked-in sources not executed.  These machine-readable records
+are part of the suite report; a skipped source is never counted as a passing
+lookalike workload.")

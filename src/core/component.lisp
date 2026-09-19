@@ -289,8 +289,25 @@ activated configuration's binding table; the resource handles themselves are
 sealed after activation."
   (copy-list (gethash component (configuration-bindings configuration))))
 
+(defparameter *configuration-ledger-capacity* 2
+  "Maximum number of published configurations retained in
+*PUBLISHED-CONFIGURATIONS*.  NIL keeps every configuration.  The ledger is
+a diagnostic registry: each entry retains the configuration's whole
+component graph (plans, spaces, VM state), so an unbounded default is a
+host-memory leak for any process that constructs many ephemeral
+configurations.  *MOST-RECENT-CONFIGURATION* is always retained
+regardless.")
+
 (defparameter *published-configurations* ()
-  "Ledger of configurations whose :ACTIVATE phase completed.")
+  "Bounded ledger of the most recently published configurations
+(*CONFIGURATION-LEDGER-CAPACITY* controls the bound; NIL is unbounded).")
+
+(defun %record-published-configuration (configuration)
+  (push configuration *published-configurations*)
+  (let ((capacity *configuration-ledger-capacity*))
+    (when (and capacity (> (length *published-configurations*) capacity))
+      (setf *published-configurations*
+            (subseq *published-configurations* 0 capacity)))))
 
 (defparameter *most-recent-configuration* nil
   "The configuration object of the most recent BUILD-CONFIGURATION call,
@@ -596,7 +613,7 @@ not occur.  Cleanup failures cannot replace the original construction error."
   (setf (slot-value configuration 'phases)
         (append (configuration-phases configuration) (list :activate)))
   (%set-configuration-state configuration :active)
-  (push configuration *published-configurations*)
+  (%record-published-configuration configuration)
   configuration)
 
 ;;; ---------------------------------------------------------------------

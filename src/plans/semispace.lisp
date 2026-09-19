@@ -59,17 +59,15 @@
 
 (defun make-semispace-plan (vm heap-size)
   (declare (ignore heap-size))
-  (destructuring-bind (a b) (partition-pages (vm-page-count vm) '(1/2 1/2))
-    (let* ((from (make-instance 'copy-space :vm vm :start-page (car a)
-                                :page-count (cdr a) :name :from :default-space t))
-           (to   (make-instance 'copy-space :vm vm :start-page (car b)
-                                :page-count (cdr b) :name :to :default-space nil))
-           (p (make-instance 'semispace-plan :name :semispace :vm vm
-                            :spaces (list from to)
-                            :constraints (make-instance 'plan-constraints))))
-      (setf (space-partner from) to (space-partner to) from
+  ;; The halves split evenly: a Cheney flip needs the destination at
+  ;; least as large as the source, and the LOS takes its own region
+  ;; instead of shrinking either half.
+  (destructuring-bind (from to los)
+      (make-plan-spaces vm
+        '((copy-space 1/2 :from :default-space t)
+          (copy-space 1/2 :to)))
+    (let ((p (make-instance 'semispace-plan :name :semispace :vm vm
+                            :spaces (list from to los)
+                            :constraints (make-instance 'plan-constraints))))      (setf (space-partner from) to (space-partner to) from
             (sp-from p) from (sp-to p) to)
-      ;; Balanced carve: the Cheney flip needs equally sized halves, so the
-      ;; LOS space takes its pages from both instead of shrinking only :to.
-      (add-los-space p 1/16 :balanced t)
-      (finalize-plan p) p)))
+      (finalize-plan p))))

@@ -3,11 +3,14 @@
 ;;;; A stratum is a dense, typed metadata layer over the heap address space:
 ;;;;   stratum := (name, granularity, cell-type, default, storage)
 ;;;; cell-index(addr) = floor((addr - heap-base) / granularity).  Granularity
-;;;; is a power of
-;;;; two in WORDS.  Storage policy is invisible to consumers: s-get/s-set
-;;;; dispatch on it. The simulator uses host bit-vectors. Besides matching
-;;;; paper-v8 chapter 6, this avoids boxing a host bignum whenever bit 63 of an
-;;;; (unsigned-byte 64) packed word is set.
+;;;; is a power of two in WORDS.  Storage policy is invisible to consumers:
+;;;; s-get/s-set dispatch on it. Flat storage is a host SIMPLE-VECTOR of boxed
+;;;; cell values -- the realization shape paper-v11's metadata kernel binds
+;;;; (clamsara-metadata side vectors), so a bound handle and a stratum share
+;;;; one authoritative storage. :U4/:U8/:U16 remain logical widths: writes
+;;;; mask to the declared width. The matrix stratum keeps its packed
+;;;; bit-vector: it is collector-owned relation storage, not a bound side
+;;;; vector.
 
 (in-package #:clamsara)
 
@@ -30,8 +33,11 @@
    ;; consumers (including bulk operations) use the same address transform.
    (heap-base   :initarg :heap-base   :initform 0 :reader stratum-heap-base)
    (heap-words  :initarg :heap-words  :reader stratum-heap-words)
-   (log-gran    :reader stratum-log-gran)
-   (cells       :accessor stratum-cells)    ; backing store (type-specific)
+    (log-gran    :reader stratum-log-gran)
+    ;; Backing store (type-specific).  Construction may supply the vector
+    ;; directly: a metadata binding wraps its provisioned supply here, so
+    ;; the bound handle and the stratum share one storage.
+    (cells       :initarg :cells :accessor stratum-cells)
    (active      :accessor stratum-active :initform nil) ; active-set vector
    (concurrent-p :initarg :concurrent :initform nil :reader stratum-concurrent-p)
    ;; two-level directory:
@@ -65,14 +71,9 @@
   (unless (slot-boundp s 'cells)
     (%stratum-allocate s)))
 
-(declaim (inline %bits-per-cell %default-byte))
+(declaim (inline %bits-per-cell))
 (defun %bits-per-cell (cell-type)
   (ecase cell-type (:bit 1) (:u4 4) (:u8 8) (:u16 16) (:ref 64)))
-(defun %default-byte (s cell-type)
-  (let ((d (stratum-default s)))
-    (ecase cell-type
-      (:u4 (logior (ldb (byte 4 0) d) (ash (ldb (byte 4 0) d) 4)))
-      ((:bit :u8 :u16 :ref) d))))
 
 (defun %stratum-allocate (s)
   (let* ((ct (stratum-cell-type s))
@@ -102,21 +103,19 @@
     s))
 
 (defun %make-flat (cell-type cells &optional (default 0))
-  "Create a flat backing store for CELL-TYPE.  Cells start at DEFAULT so a
-stratum with a non-zero default (an inverted stratum) is consistent from boot."
-  (ecase cell-type
-    (:bit  (make-array cells :element-type 'bit
-                       :initial-element (ldb (byte 1 0) default)))
-    (:u4   (make-array (ceiling cells 2) :element-type '(unsigned-byte 8)
-                       :initial-element
-                       (let ((d default))
-                         (logior (ldb (byte 4 0) d) (ash (ldb (byte 4 0) d) 4)))))
-    (:u8   (make-array cells :element-type '(unsigned-byte 8)
-                       :initial-element (ldb (byte 8 0) default)))
-    (:u16  (make-array cells :element-type '(unsigned-byte 16)
-                       :initial-element (ldb (byte 16 0) default)))
-    (:ref  (make-array cells :element-type '(unsigned-byte 64)
-                       :initial-element default))))
+  "Create the flat backing store for CELL-TYPE: one simple-vector of boxed
+cell values, initialized to DEFAULT so a stratum with a non-zero default (an
+inverted stratum) is consistent from boot."
+  (declare (ignore cell-type))
+  (make-array cells :initial-element (ldb (byte 64 0) default)))
+
+(defun %flat-cell-type-width (cell-type)
+  (ecase cell-type (:bit 1) (:u4 4) (:u8 8) (:u16 16) (:ref nil)))
+
+(declaim (inline %flat-mask))
+(defun %flat-mask (cell-type v)
+  (let ((w (%flat-cell-type-width cell-type)))
+    (if w (ldb (byte w 0) v) v)))
 
 (defun make-stratum (name granularity cell-type heap-words
                      &key (default 0) (storage :contiguous) concurrent
@@ -133,24 +132,18 @@ should pass (VM-HEAP-BASE VM)."
 
 ;; ---- per-storage access helpers ------------------------------------------
 
-(declaim (inline %flat-get %flat-set))
+(declaim (inline %flat-get %flat-set %cells-ref))
+(defun %cells-ref (cells idx)
+  ;; Flat storage is either a simple-vector of boxed cells or -- for :BIT
+  ;; facts bound through the metadata kernel -- a packed bit-vector.
+  (if (simple-vector-p cells) (svref cells idx) (sbit cells idx)))
 (defun %flat-get (s idx)
-  (ecase (stratum-cell-type s)
-    (:bit  (sbit (stratum-cells s) idx))
-    (:u4   (let ((by (ash idx -1)) (ni (logand idx 1)))
-             (ldb (byte 4 (* ni 4)) (aref (stratum-cells s) by))))
-    (:u8   (aref (stratum-cells s) idx))
-    (:u16  (aref (stratum-cells s) idx))
-    (:ref  (aref (stratum-cells s) idx))))
+  (%cells-ref (stratum-cells s) idx))
 (defun %flat-set (s idx v)
-  (ecase (stratum-cell-type s)
-    (:bit  (setf (sbit (stratum-cells s) idx) (if (oddp v) 1 0)))
-    (:u4   (let ((by (ash idx -1)) (ni (logand idx 1)) (vec (stratum-cells s)))
-             (setf (aref vec by)
-                   (dpb (ldb (byte 4 0) v) (byte 4 (* ni 4)) (aref vec by)))))
-    (:u8   (setf (aref (stratum-cells s) idx) (ldb (byte 8 0) v)))
-    (:u16  (setf (aref (stratum-cells s) idx) (ldb (byte 16 0) v)))
-    (:ref  (setf (aref (stratum-cells s) idx) v))))
+  (let ((cells (stratum-cells s)))
+    (if (simple-vector-p cells)
+        (setf (svref cells idx) (%flat-mask (stratum-cell-type s) v))
+        (setf (sbit cells idx) (ldb (byte 1 0) v)))))
 
 (declaim (inline %chunk-get %chunk-ensure))
 (defun %chunk-ensure (s chunk)
@@ -163,12 +156,7 @@ should pass (VM-HEAP-BASE VM)."
          (off (logand idx (1- cs)))
          (arr (aref (stratum-dir s) chunk)))
     (if arr
-        (ecase (stratum-cell-type s)
-          (:bit  (sbit arr off))
-          (:u4   (ldb (byte 4 (* (logand off 1) 4)) (aref arr (ash off -1))))
-          (:u8   (aref arr off))
-          (:u16  (aref arr off))
-          (:ref  (aref arr off)))
+        (svref arr off)
         (stratum-default s))))
 
 ;; ---- scalar operations ---------------------------------------------------
@@ -197,15 +185,8 @@ should pass (VM-HEAP-BASE VM)."
        (let* ((cs (stratum-chunk-cells s))
               (chunk (floor idx cs)) (off (logand idx (1- cs)))
               (arr (%chunk-ensure s chunk)))
-         (ecase (stratum-cell-type s)
-           (:bit  (setf (sbit arr off) (if (oddp v) 1 0)))
-           (:u4   (setf (aref arr (ash off -1))
-                        (dpb (ldb (byte 4 0) v) (byte 4 (* (logand off 1) 4))
-                             (aref arr (ash off -1)))))
-           (:u8   (setf (aref arr off) (ldb (byte 8 0) v)))
-           (:u16  (setf (aref arr off) (ldb (byte 16 0) v)))
-           (:ref  (setf (aref arr off) v))))))))
-
+         (setf (svref arr off)
+               (%flat-mask (stratum-cell-type s) v)))))))
 (defun s-test-bit (s addr)
   (declare (optimize (speed 3) (safety 0)))
   (not (eql (s-get s addr) (stratum-default s))))
@@ -239,18 +220,9 @@ should pass (VM-HEAP-BASE VM)."
   (let ((def (stratum-default s)))
     (cond
        ((and (null range) (member (stratum-storage s) '(:contiguous :contiguous-with-active-set)))
-        (ecase (stratum-cell-type s)
-          (:bit  (let ((def (stratum-default s)))
-                   ;; a set cell is a non-default cell: for default 0 that is
-                   ;; bit 1, for default 1 that is bit 0.  Honour the default
-                   ;; so an inverted stratum clears/restores correctly.
-                   (fill (stratum-cells s) (if (zerop def) 0 1))))
-          (:u4   (fill (stratum-cells s) (%default-byte s :u4)))
-          (:u8   (fill (stratum-cells s) (ldb (byte 8 0) def)))
-          (:u16  (fill (stratum-cells s) (ldb (byte 16 0) def)))
-          (:ref  (fill (stratum-cells s) def)))
-       (when (stratum-active s)
-         (setf (fill-pointer (stratum-active s)) 0)))
+        (fill (stratum-cells s) (%flat-mask (stratum-cell-type s) def))
+        (when (stratum-active s)
+          (setf (fill-pointer (stratum-active s)) 0)))
       (t
        (if range
            (s-clear-range s (car range) (cdr range))
@@ -281,7 +253,7 @@ should pass (VM-HEAP-BASE VM)."
             (setf sum (count set-bit vec))
             (multiple-value-bind (start end) (%range-bounds s range)
               (loop for c from start below end
-                    when (eql set-bit (sbit vec c))
+                    when (eql set-bit (%cells-ref vec c))
                     do (incf sum))))
         sum))
     (t
@@ -299,7 +271,7 @@ should pass (VM-HEAP-BASE VM)."
           (let ((vec (stratum-cells s))
                 (set-bit (if (zerop (stratum-default s)) 1 0)))
             (loop for idx from start below end
-                  when (eql set-bit (sbit vec idx))
+                  when (eql set-bit (%cells-ref vec idx))
                   do (funcall fn (%cell-address s idx)))))
         ((stratum-active s)
          (loop for idx across (stratum-active s)

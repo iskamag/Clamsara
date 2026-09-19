@@ -31,6 +31,82 @@
    #:remap-logical-pages #:protect-logical-pages #:flush-address-translations)
   (:import-from #:clamsara-protocol.diagnostics
    #:monotonic-clock #:fatal-diagnostic)
+  ;; paper-v11 committed kernels (src/core/*.lisp).  CLAMSARA consumes them
+  ;; so collector construction runs through the reference component,
+  ;; managed-layout, and metadata protocols instead of hand wiring.
+  (:import-from #:clamsara-core
+   #:component #:component-dependencies #:component-resources
+   #:component-constraints #:validate-component #:initialize-component
+   #:activate-component #:deactivate-component #:make-resource
+   #:resource-name #:resource-start #:resource-extent #:resource-size
+   #:resource-granularity #:resource-ownership #:resource-lifetime
+   #:resource-atomicity #:resource-providers #:resource-consumers
+   #:resource-sealed-p #:configuration #:configuration-components
+   #:configuration-resources #:configuration-constraints
+   #:configuration-layout #:configuration-state #:configuration-phases
+   #:configuration-topological-order #:configuration-active-p
+   #:find-resource #:component-bindings #:build-configuration
+   #:deactivate-configuration #:context #:construction-error
+   #:component-failure #:component-failure-phase #:component-failure-cause
+   #:dependency-cycle #:resource-conflict #:missing-resource
+   #:configuration-sealed)
+  (:import-from #:clamsara-managed-layout
+   #:address-space-offer #:make-address-space-offer
+   #:offer-arenas #:offer-exclusions #:offer-address-width
+   #:managed-arena #:make-managed-arena
+   #:arena-name #:arena-base #:arena-extent #:arena-end #:arena-alignment
+   #:arena-page-size #:arena-access-modes #:arena-reservations
+   #:make-arena-reservation
+   #:arena-reservation #:reservation-start #:reservation-extent
+   #:reservation-kind
+   #:exclusion #:make-exclusion
+   #:resource-request #:make-resource-request
+   #:request-name #:request-owner #:request-kind
+   #:request-min-extent #:request-preferred-extent #:request-max-extent
+   #:request-alignment #:request-page-granularity #:request-access
+   #:request-atomicity #:request-lifetime #:request-returnable-pages-p
+   #:request-mobility #:request-reclaimability
+   #:request-adjacent-to #:request-separated-from #:request-alias-with
+   #:request-near #:request-derive-from #:request-size-function
+   #:build-managed-layout #:managed-layout #:solution-regions
+   #:solution-arenas #:solution-free-intervals #:solution-work-capacity
+   #:solution-installed-p #:find-solution-region #:layout-region
+   #:region-name #:region-request #:region-owner #:region-kind
+   #:region-arena-name #:region-start #:region-extent #:region-end
+   #:region-access #:region-atomicity #:region-alias-partners
+   #:region-stable-across-checkpoint-p #:region-effective-page
+   #:free-interval #:free-arena-name #:free-start #:free-extent
+   #:layout-space-at #:open-ownership-epoch #:quiesce-ownership-epoch
+   #:ownership-epoch #:layout-rejection)
+  (:import-from #:clamsara-metadata
+   #:metadata-specification #:make-metadata-specification
+   #:metadata-name #:metadata-domain #:metadata-cell-type #:metadata-width
+   #:metadata-granularity #:metadata-default #:metadata-placement
+   #:metadata-atomicity #:metadata-ownership #:metadata-lifetime
+   #:metadata-writers #:metadata-order #:metadata-transfer-policy
+   #:metadata-persistence #:metadata-reset-semantics #:metadata-kinds
+   #:metadata-recompute #:metadata-merge-function
+   #:make-contribution #:contribution-contributor
+   #:contribution-specification #:merge-metadata #:metadata-registry
+   #:registry-specifications #:find-metadata-specification
+   #:bind-metadata #:metadata-binding #:binding-handles #:find-metadata
+   #:side-request #:side-request-specification #:side-request-kind
+   #:side-request-cells #:side-request-base #:side-request-granularity
+   #:side-request-domain #:side-request-width #:make-side-storage
+   #:metadata-table #:metadata-table-p #:make-metadata-table
+   #:side-storage #:side-storage-vector #:side-storage-base
+   #:side-storage-cells #:side-storage-atomics #:side-storage-places
+   #:vector-storage #:vector-base #:vector-span #:vector-cells
+   #:vector-granularity #:table-storage #:table-cells
+   #:metadata-handle #:handle-specification #:handle-name
+   #:handle-placement #:handle-cell-type #:handle-default
+   #:handle-atomicity #:handle-order
+   #:metadata-ref #:metadata-set #:metadata-cas #:metadata-reset
+   #:metadata-set-bit #:metadata-clear-bit #:metadata-clear-range
+   #:metadata-fold #:metadata-map-present #:metadata-project
+   #:metadata-transfer
+   #:metadata-error #:metadata-unsupported #:metadata-conflict
+   #:metadata-invalid #:metadata-exhausted)
   ;; constants & types
   (:export #:+word-bits+ #:+word-bytes+ #:+log-word-bytes+
            #:+page-words+ #:+log-page-words+ #:+log-page-bytes+
@@ -223,10 +299,4 @@
            #:clamsara-register-root #:clamsara-gc #:clamsara-write
            #:clamsara-read #:clamsara-plan
            #:*clamsara-plan* #:*clamsara-vm*
-           #:run-test-suite
-           ;; paper-v11 adapter surface: the simulator managed-arena offer
-           ;; record (src/protocol/adapters.lisp, managed-arena-offer).
-           #:simulator-arena #:simulator-arena-p
-           #:simulator-arena-base #:simulator-arena-extent
-           #:simulator-arena-alignment #:simulator-arena-page-words
-           #:simulator-arena-access-modes #:simulator-arena-reservations))
+           #:run-test-suite))

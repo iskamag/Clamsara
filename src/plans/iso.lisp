@@ -14,13 +14,11 @@
   (declare (ignore p))
   '(:minor :major))
 
-(defmethod plan-install-strata ((p iso-plan) vm)
-  (vm-set-location vm :mark :side)
-  (vm-set-location vm :forwarding :in-header)
-  (vm-register-stratum vm :mark
-    (make-stratum :mark (vm-min-alignment-words vm) :bit (vm-heap-size vm)))
-  (vm-register-stratum vm :public
-    (make-stratum :public (vm-min-alignment-words vm) :bit (vm-heap-size vm))))
+;; Iso publishes objects out of its request-private space: the default set
+;; plus the publication-visibility datum.
+(defmethod component-metadata-specifications ((p iso-plan))
+  (append (call-next-method)
+          (list (public-specification (plan-vm p)))))
 
 (defmethod plan-allocate ((p iso-plan) size space-designator)
   (let ((explicit (plan-explicit-space p space-designator)))
@@ -121,20 +119,16 @@
 
 (defun make-iso-plan (vm heap-size)
   (declare (ignore heap-size))
-  (destructuring-bind (pr pu) (partition-pages (vm-page-count vm) '(1/2 1/2))
-    (let* ((private (make-instance 'private-immix-space :vm vm
-                                    :start-page (car pr) :page-count (cdr pr)
-                                    :name :private :default-space t))
-           (public (make-instance 'immix-space :vm vm
-                                   :start-page (car pu) :page-count (cdr pu)
-                                   :name :public :default-space nil))
-           (barrier (make-instance 'barrier :rules (list (publication-barrier-rule))))
+  (destructuring-bind (private public los)
+      (make-plan-spaces vm
+        '((private-immix-space 1/2 :private :default-space t)
+          (immix-space 1/2 :public)))
+    (let* ((barrier (make-instance 'barrier :rules (list (publication-barrier-rule))))
            (p (make-instance 'iso-plan :name :iso :vm vm
-                            :spaces (list private public) :barrier barrier
-                            :constraints (make-instance 'plan-constraints
-                                         :scope :request :write-barrier :publication))))
+                             :spaces (list private public los) :barrier barrier
+                             :constraints (make-instance 'plan-constraints
+                                          :scope :request :write-barrier :publication))))
       (setf (iso-private p) private (iso-public p) public
             (barrier-plan barrier) p
             (plan-publication p) (make-instance 'eager-closure :public-region public))
-      (add-los-space p 1/16)
-      (finalize-plan p) p)))
+      (finalize-plan p))))

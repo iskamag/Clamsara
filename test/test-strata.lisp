@@ -93,6 +93,8 @@
 (deftest plan-rejects-private-space-with-global-scope ()
   ;; Scope is an invariant across the plan and every non-global space, not
   ;; just a requirement that a plan publication strategy be non-NIL.
+  ;; Construction wraps the rejection with the failing phase and component;
+  ;; the cause underneath must still be the plan-incompatible scope fact.
   (let* ((vm (make-simulator-vm 4096))
          (s (make-instance 'private-immix-space :vm vm
                            :start-page 1 :page-count 2 :name :private))
@@ -100,7 +102,8 @@
     (handler-case
         (finalize-plan
          (make-instance 'plan :name :bad-scope :vm vm :spaces (list s)))
-      (plan-incompatible () (setf caught t)))
+      (construction-error (c)
+        (setf caught (typep (component-failure-cause c) 'plan-incompatible))))
     (if caught
         (values t "scope mismatch rejected")
         (values nil "global plan accepted private space"))))
@@ -116,7 +119,8 @@
                         :publication (make-instance 'eager-closure)
                         :constraints (make-instance 'plan-constraints
                                                     :scope :request)))
-      (plan-incompatible () (setf caught t)))
+      (construction-error (c)
+        (setf caught (typep (component-failure-cause c) 'plan-incompatible))))
     (if caught
         (values t "missing private space rejected")
         (values nil "private plan accepted only global spaces"))))

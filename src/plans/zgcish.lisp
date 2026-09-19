@@ -13,11 +13,15 @@
    (to   :accessor z-to   :initform nil))
   (:metaclass plan-metaclass))
 
-(defmethod plan-install-strata ((p zgc-plan) vm)
-  (vm-set-location vm :mark :side)
-  (vm-set-location vm :forwarding :off-heap)     ; concurrent relocation -> off-heap
-  (vm-register-stratum vm :mark
-    (make-stratum :mark (vm-min-alignment-words vm) :bit (vm-heap-size vm))))
+;; Concurrent marking narrows the mark datum: mutator loads shade while
+;; the collector marks, so the writers race and idempotent 0->1 sets still
+;; need an atomic operation (strata.tex section 5).
+(defmethod component-metadata-specifications ((p zgc-plan))
+  (let ((vm (plan-vm p)))
+    (substitute (mark-specification vm :writers :concurrent
+                                    :atomicity '(:bit-atomic :cas))
+                :mark (call-next-method)
+                :key #'metadata-name)))
 
 (defmethod plan-allocate ((p zgc-plan) size space-designator)
   (let ((explicit (plan-explicit-space p space-designator)))
@@ -121,27 +125,23 @@
 
 (defun make-zgcish-plan (vm heap-size)
   (declare (ignore heap-size))
-  (destructuring-bind (a b) (partition-pages (vm-page-count vm) '(1/2 1/2))
-    (let* ((from (make-instance 'immix-space :vm vm :start-page (car a)
-                                :page-count (cdr a) :name :from :default-space t
-                                :moving :concurrent-relocate))
-           (to (make-instance 'immix-space :vm vm :start-page (car b)
-                              :page-count (cdr b) :name :to :default-space nil
-                              :moving :concurrent-relocate))
-           ;; The relocation LVB runs first: a stale reference is healed
+  ;; Relocation copies into :to; the halves split evenly so a full :from
+  ;; always fits its destination.
+  (destructuring-bind (from to los)
+      (make-plan-spaces vm
+        '((immix-space 1/2 :from :default-space t :moving :concurrent-relocate)
+          (immix-space 1/2 :to :moving :concurrent-relocate)))
+    (let* (;; The relocation LVB runs first: a stale reference is healed
            ;; before any other read rule tests it (barriers.tex).
            (barrier (make-instance 'barrier
                       :rules (list (lvb-barrier-rule)
                                    (shade-mark-barrier-rule))))
            (p (make-instance 'zgc-plan :name :zgcish :vm vm
-                            :spaces (list from to) :barrier barrier
+                            :spaces (list from to los) :barrier barrier
                             :constraints (make-instance 'plan-constraints
                                          :write-barrier :incremental-update
                                          :read-barrier '(:lvb :incremental-update)
                                          :forwarding :off-heap
                                          :concurrency :concurrent-relocate))))
       (setf (z-from p) from (z-to p) to (barrier-plan barrier) p)
-      ;; Relocation copies into :to; keep the halves equal so a full :from
-      ;; always fits its destination.
-      (add-los-space p 1/16 :balanced t)
-      (finalize-plan p) p)))
+      (finalize-plan p))))

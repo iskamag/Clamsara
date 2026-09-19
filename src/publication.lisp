@@ -6,7 +6,7 @@
 
 (in-package #:clamsara)
 
-(defclass publication-strategy ()
+(defclass publication-strategy (component)
   ((public-region :initarg :public-region :accessor public-region
                   :initform nil)
    (work :accessor publication-work :initform (make-array 0 :fill-pointer 0))

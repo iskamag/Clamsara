@@ -1,6 +1,11 @@
 ;;;; core/metadata.lisp -- clamsara-metadata: logical metadata specification,
 ;;;; binding, and stratum operations.
 ;;;;
+;;;; Scalar results, range endpoints, projection, and destination-only
+;;;; movement follow paper-v12/chapters/strata.tex.  The remaining declaration
+;;;; and binding migration is recorded in IMPLEMENTATION-DEBT.md; this module
+;;;; does not claim complete v12 conformance.
+;;;;
 ;;;; Normative sources (paper-v11/chapters/):
 ;;;;   strata.tex            -- logical metadata facts, merge and binding,
 ;;;;                            stratum operations, authority and transfer,
@@ -384,13 +389,6 @@ mandatory otherwise.  See METADATA-SPECIFICATION for the fact vocabulary."
   (when (eq (metadata-transfer-policy spec) :merge)
     (unless (functionp (metadata-merge-function spec))
       (%invalid spec (list :reason :merge-requires-merge-function))))
-  (when (and (eq (metadata-transfer-policy spec) :discard)
-             (eq (metadata-reset-semantics spec) :forbidden))
-    ;; :discard performs the declared reset at both keys (strata.tex 3:
-    ;; "intentionally discard"); a datum that forbids reset cannot
-    ;; declare that policy.
-    (%invalid spec (list :discard-requires-runnable-reset
-                         (metadata-reset-semantics spec))))
   (when (eq (metadata-transfer-policy spec) :recompute)
     (unless (functionp (metadata-recompute spec))
       (%invalid spec (list :reason :recompute-transfer-requires-recompute-function))))
@@ -655,13 +653,17 @@ KIND is :VECTOR (dense simple-vector, one cell per floor((a-b)/g)) or :TABLE
    (atomics :initarg :atomics :initform nil :reader side-storage-atomics)
    (places :initarg :places :initform nil :reader side-storage-places))
   (:documentation "A boot-sized supply from the layout callback.  For a
-:VECTOR request, VECTOR is a SIMPLE-VECTOR holding at least CELLS cells and
-BASE is the bound range base b of the scalar stratum formula.  For a :TABLE
-request, VECTOR is a METADATA-TABLE preallocated for at least CELLS
-entries; BASE and CELLS restate the declared boot size.  Atomic vectors also
-supply ATOMICS, a client providing relaxed load/store/CAS, and PLACES, a
-simple-vector of prebuilt opaque places naming the same VECTOR cells.
-Without that client the vector supports only coordinated plain access."))
+  :VECTOR request, VECTOR is either a SIMPLE-VECTOR holding at least CELLS
+  boxed cells or -- when the requesting fact is a :BIT cell type -- a
+  packed BIT-VECTOR of at least CELLS bits (strata.tex section 2's
+  contiguous packed array); BASE is the bound range base b of the scalar
+  stratum formula.  For a :TABLE request, VECTOR is a METADATA-TABLE
+  preallocated for at least CELLS entries; BASE and CELLS restate the
+  declared boot size.  Atomic vectors also supply ATOMICS, a client
+  providing relaxed load/store/CAS, and PLACES, a simple-vector of
+  prebuilt opaque places naming the same VECTOR cells (the boxed
+  realization only).  Without that client the vector supports only
+  coordinated plain access."))
 
 (defun make-side-storage (&key vector (base 0) cells atomics places)
   (make-instance 'side-storage :vector vector :base base :cells cells
@@ -744,7 +746,8 @@ the declared recompute, or signal for :forbidden resets."))
 (defgeneric metadata-clear-bit (handle key)
   (:documentation "Clear a bit cell (strata.tex 2 protocol)."))
 (defgeneric metadata-clear-range (handle range)
-  (:documentation "Reset every cell of RANGE to the default.  RANGE is a
+  (:documentation "Apply the declared runtime reset to every cell of RANGE.
+Return HANDLE.  RANGE is a
 (start . end) key interval for dense handles and NIL for whole-table
 handles."))
 (defgeneric metadata-fold (handle range function initial-value)
@@ -754,7 +757,9 @@ handles."))
   (:documentation "Call FUNCTION on every present (non-default) cell of
 RANGE; FUNCTION receives (key value)."))
 (defgeneric metadata-project (source destination reducer)
-  (:documentation "Project SOURCE into DESTINATION cell-wise; REDUCER
+  (:documentation "Combine SOURCE into DESTINATION over their declared key
+domains; dense projection admits integral coarsening over equal extents.
+Aliased storage rejects before visiting.  REDUCER
 receives (source-value destination-value) and returns the new destination
 value."))
 (defgeneric metadata-transfer (handle source-key destination-key)
@@ -1018,7 +1023,16 @@ field whose declared guarantees all match, or a plist of rejection reasons."
             (supply-cells (side-storage-cells supply))
             (atomics (side-storage-atomics supply))
             (places (side-storage-places supply)))
-        (unless (and (simple-vector-p vector)
+        ;; Storage shape: a SIMPLE-VECTOR of boxed cells, or -- only for a
+        ;; :BIT fact -- a packed SIMPLE-BIT-VECTOR (the "contiguous packed array"
+        ;; realization of strata.tex section 2).  Multi-bit and reference
+        ;; cells have no packed form here.  Atomic access is defined only
+        ;; over the boxed realization (PLACES name simple-vector cells);
+        ;; a concurrent-writer fact therefore requires the boxed supply.
+        (unless (and (or (simple-vector-p vector)
+                         (and (typep vector 'simple-bit-vector)
+                              (eq (metadata-cell-type spec) :bit)))
+                     (or (null atomics) (simple-vector-p vector))
                      (typep supply-cells '(integer 0 *))
                      (>= supply-cells cells)
                      (<= supply-cells (length vector))
@@ -1030,26 +1044,27 @@ field whose declared guarantees all match, or a plist of rejection reasons."
           (return-from %bind-vector
             (values nil (list :reason :side-storage-invalid
                               :simple-vector-p (simple-vector-p vector)
+                              :bit-vector-p (bit-vector-p vector)
                               :declared-cells supply-cells
                               :required-cells cells))))
         (%side-atomicity-ok-p spec :side-vector contributors atomics)
         (values
          (make-instance
-          'vector-metadata-handle
-          :specification spec :placement :side-vector
-          :provided-atomicity (%provided-atomicity :side-vector atomics)
-          :provided-order (%provided-order :side-vector)
-          :storage vector
-          :atomics atomics :places places
-          :base base
-          :span (if (member (metadata-domain spec) *address-domains*)
-                    extent cells)
-          :granularity (max 1 (or (metadata-granularity spec) 1))
-          :cells cells
-          :default (metadata-default spec)
-          :cell-type (metadata-cell-type spec)
-          :integer-limit (ash 1 (metadata-width spec)))
-         nil)))))
+           'vector-metadata-handle
+           :specification spec :placement :side-vector
+           :provided-atomicity (%provided-atomicity :side-vector atomics)
+           :provided-order (%provided-order :side-vector)
+           :storage vector
+           :atomics atomics :places places
+           :base base
+           :span (if (member (metadata-domain spec) *address-domains*)
+                     extent cells)
+           :granularity (max 1 (or (metadata-granularity spec) 1))
+           :cells cells
+           :default (metadata-default spec)
+           :cell-type (metadata-cell-type spec)
+           :integer-limit (ash 1 (metadata-width spec)))
+          nil)))))
 
 (defun %bind-table (spec layout object-cells contributors)
   (let* ((cells (%checked-cells spec object-cells contributors))
@@ -1183,26 +1198,39 @@ every unusable composition signals METADATA-UNSUPPORTED."
   (%vector-read handle (%vector-cell handle key)))
 
 (defun %vector-read (handle cell)
-  (if (vector-atomics handle)
-      (atomic-load (vector-atomics handle) (svref (vector-places handle) cell)
-                   :relaxed)
-      (svref (vector-storage handle) cell)))
+  (let ((storage (vector-storage handle)))
+    (cond ((vector-atomics handle)
+           (atomic-load (vector-atomics handle)
+                        (svref (vector-places handle) cell) :relaxed))
+          ((simple-vector-p storage) (svref storage cell))
+          (t (sbit storage cell)))))
 
 (defun %vector-write (handle cell value)
-  (if (vector-atomics handle)
-      (atomic-store (vector-atomics handle) (svref (vector-places handle) cell)
-                    value :relaxed)
-      (setf (svref (vector-storage handle) cell) value))
-  value)
+  (let ((storage (vector-storage handle)))
+    (cond ((vector-atomics handle)
+           (atomic-store (vector-atomics handle)
+                         (svref (vector-places handle) cell) value :relaxed))
+          ((simple-vector-p storage) (setf (svref storage cell) value))
+          (t (setf (sbit storage cell) (ldb (byte 1 0) value))))
+    value))
 
 (defun %vector-cas (handle cell old new)
-  (if (vector-atomics handle)
-      (atomic-cas (vector-atomics handle) (svref (vector-places handle) cell)
-                  old new :relaxed)
-      (let ((previous (svref (vector-storage handle) cell)))
-        (when (eql previous old)
-          (setf (svref (vector-storage handle) cell) new))
-        previous)))
+  (let ((storage (vector-storage handle)))
+    (cond ((vector-atomics handle)
+           (atomic-cas (vector-atomics handle)
+                       (svref (vector-places handle) cell) old new :relaxed))
+          ((simple-vector-p storage)
+           (let ((previous (svref storage cell)))
+             (when (eql previous old)
+               (setf (svref storage cell) new))
+             previous))
+          ;; A packed bit-vector supply is admitted only without an
+          ;; atomics client (single-writer facts), so a plain
+          ;; compare-and-set preserves the caller's coordination.
+          (t (let ((previous (sbit storage cell)))
+               (when (eql previous old)
+                 (setf (sbit storage cell) (ldb (byte 1 0) new)))
+               previous)))))
 
 (defmethod metadata-set ((handle vector-metadata-handle) key value)
   (ecase (handle-cell-type handle)
@@ -1271,10 +1299,20 @@ every unusable composition signals METADATA-UNSUPPORTED."
 (defun %vector-cell-or-edge (handle key)
   (if (= key (+ (vector-base handle) (vector-span handle)))
       (vector-cells handle)
-      (%vector-cell handle key)))
+      (let ((cell (%vector-cell handle key)))
+        (unless (zerop (mod (- key (vector-base handle))
+                           (vector-granularity handle)))
+          (error 'metadata-key-error
+                 :component (handle-name handle)
+                 :fact (list :unaligned-range-endpoint key)))
+        cell)))
 
 (defmethod metadata-clear-range ((handle vector-metadata-handle) range)
   (multiple-value-bind (start end) (%dense-cell-range handle range)
+    ;; Check the permission even for an empty interval, before mutation.
+    (when (eq (metadata-reset-semantics (handle-specification handle)) :forbidden)
+      (error 'metadata-key-error :component (handle-name handle)
+             :fact (list :reset-forbidden (handle-name handle))))
     (do ((cell start (1+ cell)))
         ((>= cell end))
       (metadata-reset handle (+ (vector-base handle)
@@ -1304,20 +1342,24 @@ every unusable composition signals METADATA-UNSUPPORTED."
 (defmethod metadata-project ((source vector-metadata-handle)
                              (destination vector-metadata-handle) reducer)
   (unless (and (= (vector-base source) (vector-base destination))
-               (= (vector-cells source) (vector-cells destination))
-               (= (vector-granularity source) (vector-granularity destination)))
+               (= (vector-span source) (vector-span destination))
+               (eq (metadata-domain (handle-specification source))
+                   (metadata-domain (handle-specification destination)))
+               (zerop (mod (vector-granularity destination)
+                           (vector-granularity source)))
+               (not (eq (vector-storage source) (vector-storage destination))))
     (error 'metadata-unsupported
            :component (handle-name source)
            :fact (list :reason :project-incompatible
                        :source (handle-name source)
                        :destination (handle-name destination))))
   (do ((cell 0 (1+ cell)))
-        ((>= cell (vector-cells destination)) destination)
-      (metadata-set destination
-                    (+ (vector-base destination)
-                       (* cell (vector-granularity destination)))
+      ((>= cell (vector-cells source)) destination)
+    (let ((key (+ (vector-base source)
+                  (* cell (vector-granularity source)))))
+      (metadata-set destination key
                     (funcall reducer (%vector-read source cell)
-                             (%vector-read destination cell)))))
+                             (metadata-ref destination key))))))
 
 ;;; ---------------------------------------------------------------------
 ;;; Boot-table realization.
@@ -1390,7 +1432,9 @@ every unusable composition signals METADATA-UNSUPPORTED."
 (defmethod metadata-reset ((handle table-metadata-handle) key)
   (let ((spec (handle-specification handle)))
     (ecase (metadata-reset-semantics spec)
-      (:default (%table-delete (table-storage handle) key))
+      (:default
+       (%table-delete (table-storage handle) key)
+       (handle-default handle))
       (:recompute
        (metadata-set handle key
                      (funcall (metadata-recompute spec) key
@@ -1407,8 +1451,9 @@ every unusable composition signals METADATA-UNSUPPORTED."
            :component (handle-name handle)
            :fact (list :bit-operation-on-non-bit-cell
                        (handle-cell-type handle))))
-  (%table-store handle key 1)
-  1)
+  (let ((previous (metadata-ref handle key)))
+    (%table-store handle key 1)
+    previous))
 
 (defmethod metadata-clear-bit ((handle table-metadata-handle) key)
   (unless (eq (handle-cell-type handle) :bit)
@@ -1416,8 +1461,9 @@ every unusable composition signals METADATA-UNSUPPORTED."
            :component (handle-name handle)
            :fact (list :bit-operation-on-non-bit-cell
                        (handle-cell-type handle))))
-  (%table-store handle key 0)
-  0)
+  (let ((previous (metadata-ref handle key)))
+    (%table-store handle key 0)
+    previous))
 
 (defmethod metadata-clear-range ((handle table-metadata-handle) range)
   (unless (null range)
@@ -1460,7 +1506,9 @@ every unusable composition signals METADATA-UNSUPPORTED."
 
 (defmethod metadata-project ((source table-metadata-handle)
                              (destination table-metadata-handle) reducer)
-  (unless (eq (handle-cell-type source) (handle-cell-type destination))
+  (unless (and (eq (metadata-domain (handle-specification source))
+                   (metadata-domain (handle-specification destination)))
+               (not (eq (table-storage source) (table-storage destination))))
     (error 'metadata-unsupported
            :component (handle-name source)
            :fact (list :reason :project-incompatible
@@ -1482,21 +1530,22 @@ every unusable composition signals METADATA-UNSUPPORTED."
   (field-read (field-object-model handle) (field-field handle) key))
 
 (defmethod metadata-set ((handle field-metadata-handle) key value)
+  (%check-table-value handle value)
   (field-write (field-object-model handle) (field-field handle) key value)
   value)
 
 (defmethod metadata-cas ((handle field-metadata-handle) key old new)
+  (%check-table-value handle new)
   (field-cas (field-object-model handle) (field-field handle) key old new))
 
 (defmethod metadata-reset ((handle field-metadata-handle) key)
   (let ((spec (handle-specification handle)))
     (ecase (metadata-reset-semantics spec)
       (:default
-       (field-write (field-object-model handle) (field-field handle) key
-                    (handle-default handle)))
+       (metadata-set handle key (handle-default handle)))
       (:recompute
-       (field-write
-        (field-object-model handle) (field-field handle) key
+       (metadata-set
+        handle key
         (funcall (metadata-recompute spec) key
                  (field-read (field-object-model handle)
                              (field-field handle) key))))
@@ -1514,9 +1563,9 @@ every unusable composition signals METADATA-UNSUPPORTED."
   ;; An atomic field sets its bit through the field's CAS; a plain field
   ;; through a plain write (client-protocols.tex section 1).
   (if (eq (handle-atomicity handle) :plain)
-      (progn (field-write (field-object-model handle) (field-field handle)
-                          key 1)
-             1)
+      (let ((previous (metadata-ref handle key)))
+        (field-write (field-object-model handle) (field-field handle) key 1)
+        previous)
       (field-cas (field-object-model handle) (field-field handle) key 0 1)))
 
 (defmethod metadata-clear-bit ((handle field-metadata-handle) key)
@@ -1526,9 +1575,9 @@ every unusable composition signals METADATA-UNSUPPORTED."
            :fact (list :bit-operation-on-non-bit-cell
                        (handle-cell-type handle))))
   (if (eq (handle-atomicity handle) :plain)
-      (progn (field-write (field-object-model handle) (field-field handle)
-                          key 0)
-             0)
+      (let ((previous (metadata-ref handle key)))
+        (field-write (field-object-model handle) (field-field handle) key 0)
+        previous)
       (field-cas (field-object-model handle) (field-field handle) key 1 0)))
 
 ;;; ---------------------------------------------------------------------
@@ -1582,6 +1631,14 @@ every unusable composition signals METADATA-UNSUPPORTED."
 
 (defmethod metadata-transfer ((handle metadata-handle) source-key
                               destination-key)
+  ;; Scalar movement prepares a distinct destination.  Source facts remain
+  ;; available until the mover has obtained its retirement certificate.
+  (when (if (typep handle 'vector-metadata-handle)
+            (= (%vector-cell handle source-key)
+               (%vector-cell handle destination-key))
+            (eql source-key destination-key))
+    (error 'metadata-key-error :component (handle-name handle)
+           :fact (list :transfer-alias source-key destination-key)))
   (let ((spec (handle-specification handle)))
     (ecase (metadata-transfer-policy spec)
       ;; Mark state normally transfers to the destination during a live
@@ -1605,11 +1662,11 @@ every unusable composition signals METADATA-UNSUPPORTED."
       (:recompute
        (metadata-set handle destination-key
                      (funcall (metadata-recompute spec) destination-key
-                              (metadata-ref handle destination-key))))
-      ;; Intentionally discard: neither side keeps the datum.
+                              (metadata-ref handle source-key))))
+      ;; Discard at the destination.  Source retirement is the mover's
+      ;; separate responsibility, even when the fact is not carried.
       (:discard
-       (metadata-reset handle destination-key)
-       (metadata-reset handle source-key)))
+       (metadata-set handle destination-key (handle-default handle))))
     handle))
 
 ;;; ---------------------------------------------------------------------

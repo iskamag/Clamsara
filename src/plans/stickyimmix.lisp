@@ -26,11 +26,12 @@
   (declare (ignore p))
   '(:minor :major))
 
-(defmethod plan-install-strata ((p sticky-immix-plan) vm)
-  (call-next-method)
-  (vm-register-stratum vm :log
-    (make-stratum :log (vm-min-alignment-words vm)
-                  :bit (vm-heap-size vm))))
+;; Sticky plans add the dirty-object log to the default set; the mark
+;; datum itself is the same (its STICKINESS is collection policy, not a
+;; different placement or transfer rule).
+(defmethod component-metadata-specifications ((p sticky-immix-plan))
+  (append (call-next-method)
+          (list (log-specification (plan-vm p)))))
 
 (defmethod gc-phase :prologue ((p sticky-immix-plan) k)
   (vm-direct-stop-mutators (plan-vm p))
@@ -56,18 +57,14 @@
 
 (defun make-stickyimmix-plan (vm heap-size)
   (declare (ignore heap-size))
-  (destructuring-bind (a) (partition-pages (vm-page-count vm) '(1))
-    (let ((space (make-instance 'sticky-immix-space :vm vm
-                                 :start-page (car a) :page-count (cdr a)
-                                 :name :default :default-space t)))
-      (let* ((barrier
-               (make-instance 'barrier
-                              :rules (list (sticky-dirty-barrier-rule))))
-             (p (make-instance 'sticky-immix-plan
-                             :name :stickyimmix :vm vm
-                             :spaces (list space) :sticky t
-                             :barrier barrier
-                             :constraints (make-instance 'plan-constraints))))
-        (setf (barrier-plan barrier) p)
-        (add-los-space p 1/16)
-        (finalize-plan p) p))))
+  (let* ((spaces (make-plan-spaces vm
+                    '((sticky-immix-space 1 :default :default-space t))))
+         (barrier (make-instance 'barrier
+                                 :rules (list (sticky-dirty-barrier-rule))))
+         (p (make-instance 'sticky-immix-plan
+                           :name :stickyimmix :vm vm
+                           :spaces spaces :sticky t
+                           :barrier barrier
+                           :constraints (make-instance 'plan-constraints))))
+    (setf (barrier-plan barrier) p)
+    (finalize-plan p)))

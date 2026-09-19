@@ -430,77 +430,158 @@ registration state; no allocation."
 
 ;;;; ---- address-space protocol (managed-layout.tex sections 2, 5) ---------
 ;;;;
-;;;; The simulator offers its whole heap as one managed arena and has no
-;;;; arena exclusions (the flat word array contains nothing else).  A layout,
-;;;; for this adapter, is a list of RANGE conses (START . WORD-COUNT); the
-;;;; full resource-request/layout-solution machinery of managed-layout.tex
-;;;; sections 3-4 is a later slice, and this adapter fixes only the client
-;;;; seam shape with exact checks.
-
-(defstruct (simulator-arena
-            (:constructor %make-arena
-                (base extent alignment page-words access-modes reservations)))
-  "One offered managed arena (managed-layout.tex section 2).  Built only by
-MANAGED-ARENA-OFFER to describe the boot-time offer, never per visit.
-BASE is a word index, EXTENT in words, ALIGNMENT in words, page geometry
-PAGE-WORDS, permitted ACCESS-MODES, and RESERVATIONS, which is empty for the
-simulator because its flat word array contains nothing else."
-  (base 0 :type fixnum)
-  (extent 0 :type fixnum)
-  (alignment 1 :type fixnum)
-  (page-words +page-words+ :type fixnum)
-  (access-modes nil)
-  (reservations nil))
+;;;; The simulator client offers its whole word-addressed heap as one managed
+;;;; arena (one machine address unit = one simulator word).  Page 0 carries the
+;;;; null sentinel, so it enters the offer as an implementation reservation,
+;;;; never as an exclusion Clamsara would have to guess.  validate/install
+;;;; consume the kernel's LAYOUT solution record: validation re-checks the
+;;;; regions against the heap, installation records the solution as the VM's
+;;;; ownership geometry (LAYOUT-SPACE-AT / epoch-guarded UPDATE-SPACE-
+;;;; OWNERSHIP live in the kernel).
 
 (defmethod managed-arena-offer ((vm simulator-vm))
-  (list (%make-arena (vm-heap-base vm)         ; base
-                     (vm-heap-size vm)         ; extent (words)
-                     (vm-min-alignment-words vm)
-                     +page-words+
-                     '(:read :write)
-                     nil)))
+  ;; Whole backed pages only: a trailing partial page cannot host logical
+  ;; pages, so it never enters the offered machine range.
+  (let ((backed-pages (floor (vm-heap-size vm) +page-words+)))
+    (make-address-space-offer
+     :arenas (list (make-managed-arena
+                    :name :simulator-heap
+                    :base (vm-heap-base vm)
+                    :extent (* backed-pages +page-words+)
+                    :alignment (max 1 (vm-min-alignment-words vm))
+                    :page-size +page-words+
+                    :access-modes '(:read :write)
+                    :reservations
+                    (list (make-arena-reservation
+                           :start 0 :extent +page-words+ :kind :null-sentinel))))
+     :exclusions '())))
 
-(defun %check-layout-ranges (vm layout)
-  (unless (and (listp layout) (every #'consp layout))
-    (error 'clamsara-error
-           :message "validate-managed-layout: layout must be a list of (START . WORD-COUNT) ranges"))
-  (let ((heap (vm-heap-size vm))
-        (end-so-far 0))
-    (dolist (range layout)
-      (let ((start (car range)) (count (cdr range)))
-        (unless (and (typep start 'fixnum) (typep count 'fixnum)
-                     (>= start 0) (plusp count)
-                     (<= (+ start count) heap))
-          (error 'clamsara-error
-                 :message (format nil "validate-managed-layout: range ~s is outside the simulator arena" range)))
-        (unless (>= start end-so-far)
-          (error 'clamsara-error
-                 :message (format nil "validate-managed-layout: range ~s overlaps an earlier range" range)))
-        (setf end-so-far (+ start count)))))
-  t)
+(defun %layout-region-list (layout)
+  (mapcar (lambda (region)
+            (list (region-name region)
+                  (region-start region)
+                  (region-extent region)))
+          (solution-regions layout)))
 
 (defmethod validate-managed-layout ((vm simulator-vm) layout)
-  (%check-layout-ranges vm layout))
+  ;; The kernel audited the solution; the client check is its own contract:
+  ;; every assigned region must lie inside the word-addressed arena, aligned
+  ;; to the logical page geometry, and non-overlapping in ascending order.
+  (let ((limit (* (floor (vm-heap-size vm) +page-words+) +page-words+))
+        (end-so-far 0))
+    (dolist (entry (%layout-region-list layout) t)
+      (destructuring-bind (name start extent) entry
+        (declare (ignore name))
+        (unless (and (typep start 'fixnum) (typep extent 'fixnum)
+                     (>= start 0) (plusp extent)
+                     (<= (+ start extent) limit)
+                     (zerop (mod start +page-words+))
+                     (zerop (mod extent +page-words+)))
+          (error 'clamsara-error
+                 :message (format nil
+                                  "validate-managed-layout: region ~s is outside the simulator arena or unaligned"
+                                  entry)))
+        (unless (>= start end-so-far)
+          (error 'clamsara-error
+                 :message (format nil
+                                  "validate-managed-layout: region ~s overlaps an earlier region"
+                                  entry)))
+        (setf end-so-far (+ start extent))))))
 
 (defmethod install-managed-layout ((vm simulator-vm) layout)
   ;; Volatile eager backing: the simulator heap already backs every address,
-  ;; so installation is validation plus the identity ownership map.  Nothing
-  ;; is fabricated.
-  (%check-layout-ranges vm layout)
+  ;; so installation is validation plus recording the solution as the VM's
+  ;; ownership geometry.  Nothing is fabricated.
+  (validate-managed-layout vm layout)
+  (setf (vm-managed-layout vm) layout)
   layout)
+
+;;;; ---- metadata side-storage provisioning (strata.tex section 1) ---------
+;;;;
+;;;; The bind-metadata layout callback receives each side-storage request
+;;;; and supplies boot-sized storage.  This is the simulator client's
+;;;; provisioning: :FORWARDING and :RC adopt the VM's boot tables (the
+;;;; client provisioned them at VM construction, so the binding becomes
+;;;; their authority instead of allocating a second table), every other
+;;;; datum receives a fresh host vector, and facts with concurrent writer
+;;;; domains receive the vector-atomic client and a place vector.
+
+(defun simulator-field-guarantees (field)
+  "Guarantees of the simulator's offered fields.  The simulator offers no
+  physical metadata fields (OFFERED-METADATA-FIELDS on VM-BINDING), so no
+  field can match any specification and every placement resolves to side
+  storage.  Extending the offer means stating these facts, not widening
+  this function."
+  (declare (ignore field))
+  nil)
+
+(defun simulator-side-storage (vm request)
+  "Provision one side-storage REQUEST for this client (the bind-metadata
+layout callback).  :FORWARDING and :RC adopt the VM's boot tables (the
+client provisioned them at VM construction, so the binding becomes their
+authority instead of allocating a second table).  Single-writer :BIT facts
+receive the packed bit-vector realization; every other fact receives a
+boxed simple-vector, and concurrent-writer facts also receive the
+vector-atomic client and a place vector."
+  (let* ((spec (side-request-specification request))
+         (cells (side-request-cells request))
+         (name (metadata-name spec)))
+    (flet ((adopt (table)
+             (make-side-storage :vector table
+                                :base (side-request-base request)
+                                :cells (length table))))
+      (cond ((and (eq name :forwarding)
+                  (eq (side-request-kind request) :vector))
+             (adopt (vm-fwd-table vm)))
+            ((and (eq name :rc)
+                  (eq (side-request-kind request) :vector))
+             (adopt (vm-rc-table vm)))
+            ((and (eq (metadata-cell-type spec) :bit)
+                  (eq (metadata-writers spec) :single))
+             (make-side-storage
+              :vector (make-array cells :element-type 'bit
+                                  :initial-element
+                                  (ldb (byte 1 0) (metadata-default spec)))
+              :base (side-request-base request)
+              :cells cells))
+            (t
+             (let ((vector (make-array cells
+                                       :initial-element
+                                       (metadata-default spec))))
+               (if (eq (metadata-writers spec) :concurrent)
+                   (make-side-storage
+                    :vector vector
+                    :base (side-request-base request)
+                    :cells cells
+                    :atomics (make-instance 'vector-atomic-client
+                                           :vector vector)
+                    :places (identity-places cells))
+                   (make-side-storage
+                    :vector vector
+                    :base (side-request-base request)
+                    :cells cells))))))))
+
+(defun simulator-metadata-supply (vm)
+  "The bind-metadata layout callback for this client."
+  (lambda (request) (simulator-side-storage vm request)))
 
 (defmethod space-of-reference ((plan plan) reference)
   ;; The plan's SFT is the current address-to-space realization (glossary:
-  ;; "Address-to-space realization ... an SFT is one possible representation").
-  ;; The protocol argument is the realization object; the simulator client
-  ;; supplies the plan until the managed-layout slice introduces layout
-  ;; objects.  Same resolution, same result, as PLAN-SPACE-FOR-ADDRESS.
+  ;; "Address-to-space realization ... an SFT is one possible representation"),
+  ;; derived from the installed managed-layout solution at construction.
+  ;; Same resolution, same result, as PLAN-SPACE-FOR-ADDRESS.
   (plan-space-for-address plan (ref-strip-or-self (plan-vm plan) reference)))
 
 (defmethod update-space-ownership ((plan plan) range owner)
-  (declare (ignore range owner))
-  (error 'clamsara-error
-         :message "update-space-ownership: the simulator's boot-time SFT has no ownership-reassignment path; the managed-layout slice introduces it"))
+  ;; Ownership reassignment belongs to the installed layout solution, under
+  ;; its epoch discipline (managed-layout.tex section 5): an update requires
+  ;; OPEN-OWNERSHIP-EPOCH + QUIESCE-OWNERSHIP-EPOCH, and one quiesced token
+  ;; authorizes exactly one update.
+  (let ((layout (vm-managed-layout (plan-vm plan))))
+    (if layout
+        (update-space-ownership layout range owner)
+        (error 'clamsara-error
+               :message "update-space-ownership: no managed layout is installed on this VM"))))
 
 ;;;; ---- mapping protocol, optional capability
 ;;;;      (client-protocols.tex section 5) ---------------------------------

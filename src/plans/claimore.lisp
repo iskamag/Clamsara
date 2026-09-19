@@ -21,21 +21,39 @@
   (declare (ignore p))
   '(:minor :major))
 
-(defmethod plan-install-strata ((p claimore-plan) vm)
-  (vm-set-location vm :mark :side)
-  (vm-set-location vm :forwarding :off-heap)      ; block compaction uses off-heap fwd
-  (vm-set-location vm :rc :off-heap)
-  (vm-register-stratum vm :mark
-    (make-stratum :mark (vm-min-alignment-words vm) :bit (vm-heap-size vm)))
-  (vm-register-stratum vm :public
-    (make-stratum :public (vm-min-alignment-words vm) :bit (vm-heap-size vm)))
-  (vm-register-stratum vm :card
-    (make-stratum :card (g-card) :bit (vm-heap-size vm)))
-  ;; Temporary OVC destination identity; allocated at boot and never grown
-  ;; while the nursery is being compacted.
-  (vm-register-stratum vm :claimore-ovc-destination
-    (make-stratum :claimore-ovc-destination
-                  (vm-min-alignment-words vm) :bit (vm-heap-size vm))))
+;; Claimore's own metadata facts.  The incoming-edge count and the
+;; temporary OVC destination identity are this plan's policy, so their
+;; specifications live here with it.
+(defun claimore-rc-specification (vm)
+  "Incoming-edge count (the counting unit: strong incoming locations).
+The collector folds the sealed log and reconciles exact counts at stop
+boundaries; the map tier carries the count across moves."
+  (make-metadata-specification
+   :name :rc :domain :word :cell-type :integer :width 64
+   :granularity 1 :default 0
+   :placement '(:side-vector) :atomicity '(:plain)
+   :writers :single :order :relaxed
+   :transfer :copy :persistence :ephemeral :reset :default))
+
+(defun claimore-ovc-destination-specification (vm)
+  "Temporary OVC destination identity.  Valid only inside a compaction;
+  intentionally discarded at both keys when the compaction retires it."
+  (make-metadata-specification
+   :name :claimore-ovc-destination :domain :word :cell-type :bit
+   :granularity (vm-min-alignment-words vm) :default 0
+   :placement '(:side-vector) :atomicity '(:plain)
+   :writers :single :order :relaxed
+   :transfer :discard :persistence :ephemeral :reset :default))
+
+;; The default set plus publication visibility, remembered cards, the
+;; reference count, and the OVC destination identity.
+(defmethod component-metadata-specifications ((p claimore-plan))
+  (let ((vm (plan-vm p)))
+    (append (call-next-method)
+            (list (public-specification vm)
+                  (card-specification vm)
+                  (claimore-rc-specification vm)
+                  (claimore-ovc-destination-specification vm)))))
 
 (defmethod plan-allocate ((p claimore-plan) size space-designator)
   (let ((explicit (plan-explicit-space p space-designator)))
@@ -317,23 +335,19 @@ visible; the precise OVC later rebuilds rows and occupancy from the heap."
 (defun make-claimore-plan (vm heap-size)
   (declare (ignore heap-size))
   ;; Mature space region geometry: simulator-scale hierarchy (paper-v8
-  ;; heap.tex §6).  Blocks stay 512 words (1 page); metablocks and superblocks
-  ;; are shrunk so a small heap still contains several of each.  Superblock 0
-  ;; holds the persistent root set and is never freed.
-  (destructuring-bind (nu ma) (partition-pages (vm-page-count vm) '(1/3 2/3))
-    (let* ((nursery (make-instance 'claimore-nursery-space :vm vm
-                                    :start-page (car nu) :page-count (cdr nu)
-                                    :name :nursery :default-space t
-                                    :moving :sliding-ovc
-                                    :constraints (make-instance 'space-constraints
-                                                                 :scope :thread)))
-           (mature (make-instance 'superblock-space :vm vm
-                                   :start-page (car ma) :page-count (cdr ma)
-                                   :name :mature :default-space nil
-                                   :blocks-per-metablock 8
-                                   :metablocks-per-superblock 4
-                                   :policy :hierarchical))
-           (publication (make-instance 'trap-error-copy-a :public-region mature))
+  ;; heap.tex §6).  Blocks stay 512 words (1 page); metablocks and
+  ;; superblocks are shrunk so a small heap still contains several of each.
+  ;; Superblock 0 holds the persistent root set and is never freed.
+  (destructuring-bind (nursery mature los)
+      (make-plan-spaces
+       vm
+       `((claimore-nursery-space 1/3 :nursery :default-space t
+          :moving :sliding-ovc
+          :constraints ,(make-instance 'space-constraints :scope :thread))
+         (superblock-space 2/3 :mature
+          :blocks-per-metablock 8 :metablocks-per-superblock 4
+          :policy :hierarchical)))
+    (let* ((publication (make-instance 'trap-error-copy-a :public-region mature))
            ;; The relocation LVB runs before the publication trap/read rule,
            ;; matching the paper's declared read-barrier order.
            (lvb-rule (lvb-barrier-rule))
@@ -347,17 +361,16 @@ visible; the precise OVC later rebuilds rows and occupancy from the heap."
                                    lvb-rule
                                    read-rule)))
            (p (make-instance 'claimore-plan :name :claimore :vm vm
-                            :spaces (list nursery mature) :barrier barrier
-                            :constraints (make-instance 'plan-constraints
-                                          :scope :thread
-                                          :write-barrier '(:publication
-                                                           :claimore-metadata
-                                                           :rc)
-                                          :read-barrier '(:lvb :trap)
-                                          :forwarding :off-heap
-                                          :concurrency :concurrent-relocate
-                                          :requires-tier :t2))))
+                             :spaces (list nursery mature los) :barrier barrier
+                             :constraints (make-instance 'plan-constraints
+                                           :scope :thread
+                                           :write-barrier '(:publication
+                                                            :claimore-metadata
+                                                            :rc)
+                                           :read-barrier '(:lvb :trap)
+                                           :forwarding :off-heap
+                                           :concurrency :concurrent-relocate
+                                           :requires-tier :t2))))
       (setf (cl-nursery p) nursery (cl-mature p) mature (barrier-plan barrier) p
             (plan-publication p) publication)
-      (add-los-space p 1/16)
-      (finalize-plan p) p)))
+      (finalize-plan p))))

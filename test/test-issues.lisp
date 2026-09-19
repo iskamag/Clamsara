@@ -404,10 +404,15 @@
 
 (deftest plan-validation-rejects-incoherent-combos ()
   ;; heap.tex §7 / plans.tex §1: incoherent axis combinations are rejected at
-  ;; finalization, before any code is generated.
+  ;; construction's :VALIDATE phase, before any code is generated.  The
+  ;; component kernel wraps the rejection with the phase and component; the
+  ;; cause underneath must still be the plan-incompatible fact.
   (let ((vm (make-simulator-vm 4096)))
-    ;; concurrent-relocate without off-heap forwarding must signal at plan
-    ;; finalization
+    ;; A plan that declares concurrent relocation must carry the LVB read
+    ;; rule that heals stale references.  (The v8 incoherence this case
+    ;; originally probed -- concurrent-relocate with in-header forwarding --
+    ;; is no longer constructible: construction binds forwarding off-object
+    ;; for every plan in this profile, so the declaration cannot disagree.)
     (let ((caught-p nil))
       (handler-case
           (finalize-plan
@@ -416,11 +421,16 @@
              :spaces (list (make-instance 'immix-space :vm vm
                                           :start-page 1 :page-count 6
                                           :name :bad :default-space t
-                                          :moving :concurrent-relocate))))
-        (plan-incompatible () (setf caught-p t)))
+                                          :moving :concurrent-relocate))
+             :barrier (make-instance 'barrier :rules nil)
+             :constraints (make-instance 'plan-constraints
+                                         :concurrency :concurrent-relocate)))
+        (construction-error (c)
+          (setf caught-p (typep (component-failure-cause c)
+                                'plan-incompatible))))
       (unless caught-p
         (return-from plan-validation-rejects-incoherent-combos
-          (values nil "concurrent-relocate without off-heap fwd not rejected"))))
+          (values nil "concurrent-relocate without an LVB rule not rejected"))))
     ;; a copying space without a partner must be rejected at plan validation
     (let ((caught-p nil))
       (handler-case
@@ -430,7 +440,9 @@
              :spaces (list (make-instance 'copy-space :vm vm
                                           :start-page 1 :page-count 2
                                           :name :lonely :default-space t))))
-        (plan-incompatible () (setf caught-p t)))
+        (construction-error (c)
+          (setf caught-p (typep (component-failure-cause c)
+                                'plan-incompatible))))
       (unless caught-p
         (return-from plan-validation-rejects-incoherent-combos
           (values nil "partnerless copying space not rejected"))))
@@ -467,7 +479,9 @@
            :barrier (make-instance 'barrier :rules nil)
            :constraints (make-instance 'plan-constraints
                                         :read-barrier :missing)))
-      (plan-incompatible () (setf caught-p t)))
+      (construction-error (c)
+        (setf caught-p (typep (component-failure-cause c)
+                              'plan-incompatible))))
     (if caught-p
         (values t "ok")
         (values nil "undeclared read barrier was not rejected"))))

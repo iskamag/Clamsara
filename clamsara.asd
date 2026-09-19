@@ -73,7 +73,7 @@
   :perform (asdf:test-op (operation component)
              (declare (ignore operation))
              (let ((script (merge-pathnames
-                            "test/v11-component-contract.lisp"
+                            "test/component-contract.lisp"
                             (asdf:system-source-directory component))))
                (uiop:run-program
                 (list "sbcl" "--noinform" "--script" (namestring script))
@@ -94,7 +94,7 @@
   :perform (asdf:test-op (operation component)
              (declare (ignore operation))
              (let ((script (merge-pathnames
-                            "test/v11-managed-layout-contract.lisp"
+                            "test/managed-layout-contract.lisp"
                             (asdf:system-source-directory component))))
                (uiop:run-program
                 (list "sbcl" "--noinform" "--script" (namestring script))
@@ -115,7 +115,7 @@
   :perform (asdf:test-op (operation component)
              (declare (ignore operation))
              (let ((script (merge-pathnames
-                            "test/v11-metadata-contract.lisp"
+                            "test/metadata-contract.lisp"
                             (asdf:system-source-directory component))))
                (uiop:run-program
                 (list "sbcl" "--noinform" "--script" (namestring script))
@@ -130,6 +130,8 @@
   :description "Clamsara simulator: v11 migration in progress.  The independent clamsara/protocol/* systems carry the exact paper-v11 client protocols; the collector internals behind them remain v8/v9-lineage and migrate slice by slice."
   :licence "MIT"
   :depends-on (:clamsara/core
+               :clamsara/core/managed-layout
+               :clamsara/core/metadata
                :clamsara/protocol/object-model
                :clamsara/protocol/roots
                :clamsara/protocol/coordination
@@ -157,11 +159,18 @@
                    (:file "software-mmu")
                    (:file "object-model")
                    (:file "simulator")))
+     ;; composition.lisp: the paper-v11 composition vocabulary (discovery
+     ;; seams, shared metadata facts, bound-metadata realization) that
+     ;; heap.lisp's space components speak.
+     (:file "composition")
      (:file "heap")
      (:file "tracer")
      (:file "publication")
      (:file "barrier")
      (:file "plan")
+     ;; construction.lisp: the construction engine (seven phases over the plan's
+     ;; component graph) the plans below construct through.
+     (:file "construction")
      (:file "compile")
      (:file "weak")
      (:file "persistence")
@@ -208,7 +217,7 @@
                  (:file "test-persistence")
                  (:file "test-issues")
                  (:file "test-workloads")
-                 (:file "test-v11-protocols"))))
+                 (:file "test-protocols"))))
   :perform (asdf:test-op (operation component)
              (declare (ignore operation component))
              (let ((summary

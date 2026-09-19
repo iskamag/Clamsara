@@ -31,15 +31,13 @@
   (setf (gen-minor-count p) 0)
   p)
 
-(defmethod plan-install-strata ((p generational-plan) vm)
-  (vm-set-location vm :mark :side)
-  (vm-set-location vm :forwarding :in-header)
-  (vm-register-stratum vm :mark
-    (make-stratum :mark (vm-min-alignment-words vm) :bit (vm-heap-size vm)))
-  (vm-register-stratum vm :card
-    (make-stratum :card (g-card) :bit (vm-heap-size vm)))
-  (vm-register-stratum vm :age
-    (make-stratum :age (vm-min-alignment-words vm) :u4 (vm-heap-size vm))))
+;; The generational base contributes the default mark/forwarding/weak set
+;; plus the remembered-card and age facts its nursery policy needs.
+(defmethod component-metadata-specifications ((p generational-plan))
+  (let ((vm (plan-vm p)))
+    (append (call-next-method)
+            (list (card-specification vm)
+                  (age-specification vm)))))
 
 (defmethod plan-allocate ((p generational-plan) size space-designator)
   (let ((explicit (plan-explicit-space p space-designator)))
@@ -271,47 +269,38 @@ liveness decision."
 ;; ---- construction -------------------------------------------------------
 
 (defun %make-generational (name vm mature-class copy-mature-p)
-  (multiple-value-bind (nursery-spec nursery-to-spec mature-spec mto-spec)
-      (if copy-mature-p
-          (values-list (partition-pages (vm-page-count vm) '(1/8 1/8 3/8 3/8)))
-          (values-list (append (partition-pages (vm-page-count vm) '(1/8 1/8 3/4))
-                               (list nil))))
-    (let* ((nursery (make-instance 'nursery-copy-space :vm vm
-                                    :start-page (car nursery-spec) :page-count (cdr nursery-spec)
-                                    :name :nursery :default-space t))
-           (nursery-to (make-instance 'nursery-copy-space :vm vm
-                                       :start-page (car nursery-to-spec)
-                                       :page-count (cdr nursery-to-spec)
-                                       :name :nursery-to :default-space nil))
-           (mature (make-instance mature-class :vm vm
-                                   :start-page (car mature-spec) :page-count (cdr mature-spec)
-                                   :name :mature :default-space nil))
-           (barrier (make-instance 'barrier :rules (list (card-barrier-rule))))
+  ;; A copying mature space needs its Cheney pair split evenly, like the
+  ;; nursery; a non-copying mature space takes the whole mature share.
+  (destructuring-bind (nursery nursery-to mature &optional mature-to los)
+      (make-plan-spaces
+       vm
+       (if copy-mature-p
+           `((nursery-copy-space 1/8 :nursery :default-space t)
+             (nursery-copy-space 1/8 :nursery-to)
+             (,mature-class 3/8 :mature)
+             (copy-space 3/8 :mature-to))
+           `((nursery-copy-space 1/8 :nursery :default-space t)
+             (nursery-copy-space 1/8 :nursery-to)
+             (,mature-class 3/4 :mature))))
+    (let* ((barrier (make-instance 'barrier :rules (list (card-barrier-rule))))
            (p (make-instance 'generational-plan
-                            :name name :vm vm
-                            :spaces (list nursery nursery-to mature)
-                            :barrier barrier
-                            :constraints (make-instance 'plan-constraints
-                                         :generational t :write-barrier :card))))
+                             :name name :vm vm
+                             :spaces (remove nil (list nursery nursery-to
+                                                       mature mature-to los))
+                             :barrier barrier
+                             :constraints (make-instance 'plan-constraints
+                                        :generational t :write-barrier :card))))
       (setf (gen-nursery p) nursery
             (gen-nursery-to p) nursery-to
             (gen-mature p) mature
             (space-partner nursery) nursery-to
-            (space-partner nursery-to) nursery)
-      (setf (barrier-plan barrier) p)
-      (when (and copy-mature-p mto-spec)
-        (let ((mto-space (make-instance 'copy-space :vm vm
-                                        :start-page (car mto-spec) :page-count (cdr mto-spec)
-                                        :name :mature-to :default-space nil)))
-          (setf (gen-mature-to p) mto-space
-                (space-partner mature) mto-space
-                (space-partner mto-space) mature)
-          (setf (plan-spaces p)
-                (list nursery nursery-to mature mto-space))))
-      ;; The mature pair is a Cheney space set just like the nursery pair:
-      ;; carve the LOS from its joint extent so the two halves stay equal.
-      (add-los-space p 1/16 :balanced t)
-      (finalize-plan p) p)))
+            (space-partner nursery-to) nursery
+            (barrier-plan barrier) p)
+      (when copy-mature-p
+        (setf (gen-mature-to p) mature-to
+              (space-partner mature) mature-to
+              (space-partner mature-to) mature))
+      (finalize-plan p))))
 
 (defun make-gencopy-plan (vm heap-size)
   (declare (ignore heap-size))

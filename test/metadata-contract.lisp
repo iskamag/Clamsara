@@ -1,7 +1,9 @@
 ;;;; test/v11-metadata-contract.lisp -- standalone SBCL contract test for
 ;;;; the paper-v11 logical metadata kernel (src/core/metadata.lisp).
+;;;; V12 regression cases below specify scalar, range, projection, and
+;;;; destination-transfer results across the currently supported realizations.
 ;;;;
-;;;; Run:  sbcl --script test/v11-metadata-contract.lisp
+;;;; Run:  sbcl --script test/metadata-contract.lisp
 ;;;;
 ;;;; Normative sources: paper-v11/chapters/strata.tex (facts, scalar-stratum
 ;;;; formula, protocol, transfer, concurrency, persistence),
@@ -282,9 +284,8 @@ to the requesting datum's declared default."
 (check-rejected recompute-reset-requires-recompute-function
                 (lambda () (mdspec :name :x :reset :recompute)))
 
-(check-rejected discard-transfer-requires-runnable-reset
-                (lambda () (mdspec :name :x :transfer :discard
-                                   :reset :forbidden)))
+(check discard-transfer-independent-of-runtime-reset
+       (mdspec :name :x :transfer :discard :reset :forbidden))
 
 ;;; --- 2. merge, dedup, refinement, provenance -------------------------
 
@@ -954,7 +955,7 @@ to the requesting datum's declared default."
                    (metadata-project
                     source
                     (find-metadata
-                     (vector-binding :name :pdst2 :granularity 4) :pdst2)
+                     (vector-binding :name :pdst2 :granularity 4 :extent 255) :pdst2)
                     #'+)))
                 'metadata-unsupported)))
 
@@ -1161,14 +1162,14 @@ to the requesting datum's declared default."
   (metadata-set h 0 3)
   (metadata-transfer h 0 1)
   (check transfer-recompute-recomputes-destination
-         (and (= 10 (metadata-ref h 1)) (= 3 (metadata-ref h 0)))))
+         (and (= 13 (metadata-ref h 1)) (= 3 (metadata-ref h 0)))))
 
 (let ((h (transfer-handle :discard)))
   (metadata-set h 0 3)
   (metadata-set h 1 3)
   (metadata-transfer h 0 1)
-  (check transfer-discard-resets-both-keys
-         (and (= 0 (metadata-ref h 0)) (= 0 (metadata-ref h 1)))))
+  (check transfer-discard-retains-source-until-retirement
+         (and (= 3 (metadata-ref h 0)) (= 0 (metadata-ref h 1)))))
 
 (check raw-object-copy-transfers-no-metadata
        ;; the client copies payload only; the field value is untouched by
@@ -1404,9 +1405,231 @@ to the requesting datum's declared default."
                        'metadata-key-error)
                 (= 2 (metadata-ref destination :b))))))
 
+;;; --- packed bit-vector realization (strata.tex section 2) ----------------
+;;;
+;;; A :BIT fact may bind over a packed BIT-VECTOR supply (the contiguous
+;;; packed array realization); every other cell type must stay boxed, and
+;;; the packed shape is not combinable with the atomic client (places
+;;; name simple-vector cells only).
+
+(let* ((spec (mdspec :name :mark :granularity 1 :default 0
+                     :placement '(:side-vector) :atomicity '(:plain)))
+       (supply (make-side-storage
+                :vector (make-array 16 :element-type 'bit
+                                    :initial-element 0)
+                :base 0 :cells 16))
+       (binding (bind-metadata (merge-metadata
+                                 (list (make-contribution :test spec)))
+                                :layout (constant-layout supply)
+                                :base 0 :extent 16))
+       (handle (find-metadata binding :mark)))
+  (check packed-bit-supply-binds (and handle
+                                       (eq (handle-placement handle)
+                                           :side-vector)))
+  (metadata-set-bit handle 5)
+  (check packed-bit-supply-reads (= 1 (metadata-ref handle 5)))
+  (metadata-clear-bit handle 5)
+  (check packed-bit-supply-clears (= 0 (metadata-ref handle 5)))
+  (check packed-bit-supply-range-clear
+         (progn (metadata-set-bit handle 3)
+                (metadata-clear-range handle (cons 0 16))
+                (= 0 (metadata-ref handle 3)))))
+
+(let* ((spec (mdspec :name :count :cell-type :integer :width 8
+                     :granularity 1 :default 0
+                     :placement '(:side-vector) :atomicity '(:plain)))
+       (supply (make-side-storage
+                :vector (make-array 16 :element-type 'bit
+                                    :initial-element 0)
+                :base 0 :cells 16)))
+  (check packed-bit-rejected-for-integer-cells
+         (handler-case
+             (progn (bind-metadata
+                     (merge-metadata
+                      (list (make-contribution :test spec)))
+                     :layout (constant-layout supply)
+                     :base 0 :extent 16)
+                    nil)
+           (metadata-unsupported () t))))
+
+(let* ((spec (mdspec :name :flag :granularity 1 :default 0
+                     :placement '(:side-vector)
+                     :atomicity '(:bit-atomic) :writers :concurrent))
+       (places (let ((places (make-array 16)))
+                 (dotimes (i 16 places)
+                   (setf (svref places i) i))))
+       (supply (make-side-storage
+                :vector (make-array 16 :element-type 'bit
+                                    :initial-element 0)
+                :base 0 :cells 16
+                :atomics (make-instance 'test-atomics)
+                :places places)))
+  ;; atomics require the boxed realization; a packed supply with an
+  ;; atomic client is an unusable composition, not a silent downgrade
+  (check packed-bit-with-atomics-rejected
+         (handler-case
+             (progn (bind-metadata
+                     (merge-metadata
+                      (list (make-contribution :test spec)))
+                     :layout (constant-layout supply)
+                     :base 0 :extent 16)
+                    nil)
+           (metadata-unsupported () t))))
+
+;;; --- v12 observable operation contracts ------------------------------
+
+(defun dense-test-handle (name &key (base 32) (extent 9) (granularity 4)
+                                  (reset :default) (cell-type :integer))
+  (find-metadata
+   (bind-one (mdspec :name name :cell-type cell-type
+                     :width (if (eq cell-type :bit) 1 8)
+                     :granularity granularity :reset reset)
+             :base base :extent extent :layout (vector-layout)) name))
+
+(let ((h (dense-test-handle :ranges)))
+  (metadata-set h 32 7)
+  (check unaligned-range-start-preserves-neighbor
+         (and (typep (rejected (lambda () (metadata-clear-range h '(33 . 36))))
+                     'metadata-key-error)
+              (= 7 (metadata-ref h 32))))
+  (check unaligned-range-end-rejects-before-visitation
+         (let ((calls 0))
+           (and (typep (rejected
+                        (lambda ()
+                          (metadata-fold h '(32 . 39)
+                                         (lambda (v acc) (incf calls) (+ v acc)) 0)))
+                       'metadata-key-error)
+                (zerop calls))))
+  (metadata-set h 40 9)
+  (check final-partial-cell-fold (= 16 (metadata-fold h '(32 . 41) #'+ 0)))
+  (let ((keys nil))
+    (metadata-map-present h '(32 . 41) (lambda (key value)
+                                        (declare (ignore value)) (push key keys)))
+    (check canonical-present-keys (equal '(32 40) (nreverse keys))))
+  (check same-cell-transfer-rejected-before-source-change
+         (and (typep (rejected (lambda () (metadata-transfer h 32 33)))
+                     'metadata-key-error)
+              (= 7 (metadata-ref h 32)))))
+
+(let ((h (dense-test-handle :forbidden-empty :reset :forbidden)))
+  (check empty-range-does-not-bypass-reset-permission
+         (typep (rejected (lambda () (metadata-clear-range h '(41 . 41))))
+                'metadata-key-error)))
+
+(let ((source (dense-test-handle :fine :granularity 2))
+      (destination (dense-test-handle :coarse :granularity 4)))
+  (metadata-set source 32 1)
+  (metadata-set source 34 2)
+  (metadata-set source 40 4)
+  (let ((calls 0))
+    (metadata-project source destination
+                      (lambda (src dst) (incf calls) (+ src dst)))
+    (check coarsening-project-covers-defaults-and-partial-cell
+           (and (= 5 calls) (= 3 (metadata-ref destination 32))
+                (= 0 (metadata-ref destination 36))
+                (= 4 (metadata-ref destination 40)))))
+  (check refining-project-rejects-before-mutation
+         (and (typep (rejected (lambda () (metadata-project destination source #'+)))
+                     'metadata-unsupported)
+              (= 1 (metadata-ref source 32))))
+  (check aliased-project-rejects-before-callback
+         (let ((calls 0))
+           (and (typep (rejected
+                        (lambda () (metadata-project source source
+                                                     (lambda (a b)
+                                                       (incf calls) (+ a b)))))
+                       'metadata-unsupported)
+                (zerop calls)))))
+
+(let ((source (dense-test-handle :partial-source))
+      (destination (dense-test-handle :partial-destination)))
+  (metadata-set source 32 10)
+  (metadata-set source 36 20)
+  (let ((calls 0))
+    (check project-invalid-result-preserves-completed-prefix
+           (and (typep (rejected
+                        (lambda ()
+                          (metadata-project source destination
+                                            (lambda (src dst)
+                                              (declare (ignore dst))
+                                              (if (= (incf calls) 2) 256 src)))))
+                       'metadata-key-error)
+                (= 2 calls) (= 10 (metadata-ref destination 32))
+                (= 0 (metadata-ref destination 36))
+                (= 20 (metadata-ref source 36))))))
+
+;; Bit results must not depend on storage representation or atomic access.
+(dolist (atomic-p '(nil t))
+  (set-toy-guarantees :atomicity (if atomic-p :bit-atomic :plain))
+  (let ((field (find-metadata
+                (bind-one (mdspec :name :result-field :domain :object
+                                  :placement '(:offered-field) :transfer :clear
+                                  :atomicity (list (if atomic-p :bit-atomic :plain)))
+                          :object-model *toy* :field-guarantees #'toy-guarantees)
+                :result-field)))
+    (metadata-set field :result 0)
+    (check field-bit-operations-return-previous
+           (equal '(0 1 1 0)
+                  (list (metadata-set-bit field :result)
+                        (metadata-set-bit field :result)
+                        (metadata-clear-bit field :result)
+                        (metadata-clear-bit field :result))))
+    (check field-invalid-value-never-reaches-physical-store
+           (and (typep (rejected (lambda () (metadata-set field :result 2)))
+                       'metadata-key-error)
+                (typep (rejected (lambda () (metadata-cas field :result 0 2)))
+                       'metadata-key-error)
+                (= 0 (metadata-ref field :result))))))
+
+(let ((table (find-metadata
+              (bind-one (mdspec :name :result-table :domain :object
+                                :placement '(:side-table))
+                        :layout (table-layout) :object-cells 1) :result-table))
+      (dense (dense-test-handle :result-dense :cell-type :bit)))
+  (dolist (pair (list (cons table :result) (cons dense 32)))
+    (let ((h (car pair)) (key (cdr pair)))
+      (check bit-operations-return-previous
+             (equal '(0 1 1 0)
+                    (list (metadata-set-bit h key) (metadata-set-bit h key)
+                          (metadata-clear-bit h key) (metadata-clear-bit h key))))
+      (metadata-set-bit h key)
+      (check reset-returns-resulting-default (= 0 (metadata-reset h key)))))
+  (check sparse-alias-rejects
+         (typep (rejected (lambda () (metadata-project table table #'+)))
+                'metadata-unsupported)))
+
+(let ((h (find-metadata
+          (bind-one (mdspec :name :discard-forbidden :transfer :discard
+                            :reset :forbidden) :extent 2 :layout (vector-layout))
+          :discard-forbidden)))
+  (metadata-set h 0 1)
+  (metadata-transfer h 0 1)
+  (check destination-discard-is-independent-of-source-reset-permission
+         (and (= 1 (metadata-ref h 0)) (= 0 (metadata-ref h 1)))))
+
 ;;; --- summary ---------------------------------------------------------
 
-(format t "~&v11 metadata contract: ~d checks, ~d failure~:p~%"
+(let ((h (transfer-handle :recompute)))
+  (metadata-set h 0 250)
+  (metadata-set h 1 5)
+  (check failed-transfer-leaves-source-and-destination-unchanged
+         (and (typep (rejected (lambda () (metadata-transfer h 0 1)))
+                     'metadata-key-error)
+              (= 250 (metadata-ref h 0)) (= 5 (metadata-ref h 1)))))
+
+(check adjustable-packed-storage-rejected-at-binding
+       (typep (rejected
+               (lambda ()
+                 (bind-one (mdspec :name :adjustable)
+                           :extent 8
+                           :layout (constant-layout
+                                    (make-side-storage
+                                     :vector (make-array 8 :element-type 'bit
+                                                          :adjustable t)
+                                     :base 0 :cells 8)))))
+              'metadata-unsupported))
+
+(format t "~&Metadata contract: ~d checks, ~d failure~:p~%"
         *checks* (length *failures*))
 (dolist (failure (reverse *failures*))
   (format t "  FAIL: ~a~%" failure))

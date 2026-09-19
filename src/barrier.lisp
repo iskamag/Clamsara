@@ -12,7 +12,7 @@
   (trigger   :ref-write :type (member :ref-write :ref-read :alloc))
   (transfer  (constantly nil) :type (or function null)))
 
-(defclass barrier ()
+(defclass barrier (component)
   ((rules :initarg :rules :accessor barrier-rules :initform nil)
    (plan :initarg :plan :accessor barrier-plan :initform nil)
    (satb-buffer :accessor barrier-satb-buffer

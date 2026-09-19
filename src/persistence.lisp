@@ -5,7 +5,7 @@
 
 ;; ---- the persistent allocator (persistence.tex §3) -----------------------
 
-(defclass persistent-allocator ()
+(defclass persistent-allocator (component)
   ((base :initarg :base :reader pa-base)
    (log :initarg :log :accessor allocator-log)
    (vm :initarg :vm :accessor pa-vm)

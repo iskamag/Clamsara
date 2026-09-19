@@ -66,11 +66,16 @@
   (unless (and (integerp root-region-capacity) (<= 0 root-region-capacity))
     (error 'clamsara-error :message "root-region-capacity must be a non-negative integer"))
   (let* ((heap (make-array heap-words :element-type '(unsigned-byte 64)
-                          :initial-element 0))
+                           :initial-element 0))
          (roots (make-array heap-words :element-type 'fixnum
                             :initial-element 0 :fill-pointer 0))
-         (fwd (make-array heap-words :element-type 'fixnum :initial-element 0))
-         (rc (make-array heap-words :element-type 'fixnum :initial-element 0))
+         ;; The forwarding and RC tables are the client-provisioned side
+         ;; storage for those logical data: paper-v11 construction binds
+         ;; them through the metadata kernel (a SIMPLE-VECTOR is the bound
+         ;; side-vector realization shape), so the boot tables ARE the
+         ;; authoritative storage a plan's binding adopts.
+         (fwd (make-array heap-words :initial-element 0))
+         (rc (make-array heap-words :initial-element 0))
          ;; Descriptors themselves are immortal VM storage.  Registration only
          ;; fills these records and copies its map during boot.
          (root-regions (make-array root-region-capacity))

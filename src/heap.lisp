@@ -16,36 +16,179 @@
 
 ;; ---- space base class ----------------------------------------------------
 
-(defclass space ()
+(defclass space (component)
   ((name         :initarg :name :initform nil :reader space-name)
-   (start-page   :initarg :start-page :reader space-start-page)
-   (page-count   :initarg :page-count :reader space-page-count)
-   (allocator    :initarg :allocator :accessor space-allocator)
-   (page-resource :initarg :page-resource :initform nil :reader space-page-resource)
-   (policy       :initarg :policy :initform :trace :reader space-policy)
-   (moving       :initarg :moving :initform :none :reader space-moving)
-   (constraints  :initarg :constraints :initform (make-instance 'space-constraints)
-                 :reader space-constraints)
-   (vm           :initarg :vm :accessor space-vm :initform nil)
-   (partner      :initarg :partner :initform nil :accessor space-partner)
-   (default-space-p :initarg :default-space :initform nil :accessor space-default-p)
-   ;; Filled by the boot compiler.  These slots hold effective protocol
-   ;; functions for this exact space/allocator pair; collection never asks the
-   ;; generic function dispatcher to rediscover them.
-   (collection-trace :accessor space-collection-trace :initform nil)
-   (collection-prepare :accessor space-collection-prepare :initform nil)
-   (collection-release :accessor space-collection-release :initform nil)
-   (collection-reclaim :accessor space-collection-reclaim :initform nil)
-   (collection-contains :accessor space-collection-contains :initform nil)
-   (collection-occupancy :accessor space-collection-occupancy :initform nil)
-   (collection-alloc :accessor space-collection-alloc :initform nil)
-   (collection-free :accessor space-collection-free :initform nil)
-   (collection-reset :accessor space-collection-reset :initform nil))
+    ;; Geometry is authored only for standalone (unit-test) spaces.  A plan's
+    ;; construction derives both slots from the solved managed layout
+    ;; (spaces.tex: "Its start address is a result of layout construction,
+    ;; not authored configuration").
+    (start-page   :initarg :start-page :reader space-start-page)
+    (page-count   :initarg :page-count :reader space-page-count)
+    ;; The managed-layout region this space was assigned by construction;
+    ;; NIL for standalone spaces with authored geometry.
+    (region       :initform nil :accessor space-region)
+    (allocator    :initarg :allocator :accessor space-allocator)
+    (page-resource :initarg :page-resource :initform nil :reader space-page-resource)
+    (policy       :initarg :policy :initform :trace :reader space-policy)
+    (moving       :initarg :moving :initform :none :reader space-moving)
+    (constraints  :initarg :constraints :initform (make-instance 'space-constraints)
+                  :reader space-constraints)
+    (vm           :initarg :vm :accessor space-vm :initform nil)
+    (partner      :initarg :partner :initform nil :accessor space-partner)
+    (default-space-p :initarg :default-space :initform nil :accessor space-default-p)
+    ;; Preferred extent for the layout request, in pages.  Authored by the
+    ;; plan's policy; construction turns it into an :OBJECT-SPACE request.
+    (preferred-pages :initarg :preferred-pages :initform nil :reader space-preferred-pages)
+    (min-pages    :initarg :min-pages :initform 1 :reader space-min-pages)
+    ;; Filled by the boot compiler.  These slots hold effective protocol
+    ;; functions for this exact space/allocator pair; collection never asks the
+    ;; generic function dispatcher to rediscover them.
+    (collection-trace :accessor space-collection-trace :initform nil)
+    (collection-prepare :accessor space-collection-prepare :initform nil)
+    (collection-release :accessor space-collection-release :initform nil)
+    (collection-reclaim :accessor space-collection-reclaim :initform nil)
+    (collection-contains :accessor space-collection-contains :initform nil)
+    (collection-occupancy :accessor space-collection-occupancy :initform nil)
+    (collection-alloc :accessor space-collection-alloc :initform nil)
+    (collection-free :accessor space-collection-free :initform nil)
+    (collection-reset :accessor space-collection-reset :initform nil))
   (:metaclass space-metaclass))
 
 (defun space-p (object)
   "True when OBJECT is a Clamsara space instance."
   (typep object 'space))
+
+;;; ---- paper-v11 component protocol (composition.tex, spaces.tex) ---------
+;;;
+;;; A space is a component: it contributes a named logical object-space
+;;; requirement, its placement request, and its allocator as a dependency.
+;;; Geometry arrives from the solved managed layout (or stays authored for
+;;; standalone spaces); the fallible allocator/storage construction runs in
+;;; the :INITIALIZE phase, and the coherence checks in :VALIDATE.
+
+(defmethod component-dependencies ((s space))
+  (and (slot-boundp s 'allocator) (list (space-allocator s))))
+
+(defmethod component-resources ((s space))
+  ;; The space is the owning provider of its named object-space fact; the
+  ;; layout request carries the same ownership (request :OWNER).
+  (list (make-resource
+         :name (space-name s) :role :provide
+         :size (and (space-preferred-pages s)
+                    (* (space-preferred-pages s) +page-words+))
+         :granularity +page-words+
+         :ownership (space-name s)
+         :lifetime :plan
+         :atomicity :none)))
+
+(defmethod component-placement-requests ((s space))
+  "The managed-layout placement request for this space's object range
+(managed-layout.tex section 3).  Preferred and maximum extents are the plan's
+declared page policy; the minimum is the floor below which the space's own
+algorithms cannot run."
+  (let ((preferred (or (space-preferred-pages s) 1))
+        (minimum (space-min-pages s)))
+    (unless (<= minimum preferred)
+      (error 'clamsara-error
+             :message (format nil "space ~a minimum ~a pages exceeds preferred ~a"
+                              (space-name s) minimum preferred)))
+    (list (make-resource-request
+           :name (space-name s) :owner s :kind :object-space
+           :min-extent (* minimum +page-words+)
+           :preferred-extent (* preferred +page-words+)
+           :max-extent (* preferred +page-words+)
+           :alignment (if (space-vm s)
+                          (vm-min-alignment-words (space-vm s))
+                          1)
+           :access '(:read :write)
+           :lifetime :plan
+           :mobility (space-moving s)
+           :reclaimability (if (eq (space-policy s) nil)
+                               :non-reclaimable :reclaimable)))))
+
+(defun %assign-space-region (s region)
+  "Adopt a solved layout REGION as S's geometry.  Construction calls this
+during the layout phase; geometry becomes immutable once the configuration
+is activated."
+  (setf (space-region s) region
+        (slot-value s 'start-page) (floor (region-start region) +page-words+)
+        (slot-value s 'page-count) (floor (region-extent region) +page-words+))
+  s)
+
+;;; ---- declarative boot storage -------------------------------------------
+;;;
+;;; A space's collector-owned storage (relations, probe sets, compaction
+;;; scratch) is declared, not hand-built: SPACE-STORAGE-PLAN returns an
+;;; alist of (SLOT-NAME . MAKER), each MAKER a function of the space that
+;;; returns the storage object.  One driver fills the still-empty slots;
+;;; a class never rewrites the driver, and the driver never names a class.
+
+(defgeneric space-storage-plan (space)
+  (:documentation "Declarative boot-storage plan of SPACE: an alist of
+  (SLOT-NAME . MAKER).  Each MAKER is called with the space once its
+  geometry is known and its slot still empty.  Storage slots hold NIL
+  until initialized; filled storage is never rebuilt.")
+  (:method ((space space)) nil))
+
+(defun initialize-space-storage (space)
+  "Fill every still-empty storage slot of SPACE's declared plan."
+  (dolist (entry (space-storage-plan space))
+    (let ((slot (car entry)) (maker (cdr entry)))
+      (unless (slot-value space slot)
+        (setf (slot-value space slot) (funcall maker space)))))
+  space)
+
+(defun %reset-storage (storage)
+  (etypecase storage
+    (null)
+    (matrix-stratum (matrix-clear-all storage))
+    (stratum (s-clear storage))
+    (simple-vector (map nil #'%reset-storage storage))
+    (vector (fill storage 0))))
+
+(defgeneric reset-space-state (space)
+  (:documentation "Return SPACE's collector state to its boot content:
+  storage declared by SPACE-STORAGE-PLAN resets to its initialization, and
+  a class adds its own counters with :AFTER methods.  BOOT-RESET-STATE
+  uses this so warm-up collections leave no observable bookkeeping.")
+  (:method ((space space))
+    (dolist (entry (space-storage-plan space))
+      (%reset-storage (slot-value space (car entry))))
+    space))
+
+(defun space-extent-words (space)
+  "Assigned extent of SPACE in words (heap.tex geometry)."
+  (- (space-end-address space) (space-base-address space)))
+
+(defun make-bit-storage (cells)
+  "Maker: a zeroed bit vector of CELLS."
+  (lambda (space) (declare (ignore space))
+    (make-array cells :element-type 'bit :initial-element 0)))
+
+(defun make-fixnum-storage (cells)
+  "Maker: a zeroed fixnum vector of CELLS."
+  (lambda (space) (declare (ignore space))
+    (make-array cells :element-type 'fixnum :initial-element 0)))
+
+(defun make-u64-storage (cells)
+  "Maker: a zeroed (unsigned-byte 64) vector of CELLS."
+  (lambda (space) (declare (ignore space))
+    (make-array cells :element-type '(unsigned-byte 64)
+                       :initial-element 0)))
+
+(defmethod initialize-component ((s space) context)
+  "The :INITIALIZE phase hook for every space, generic over classes:
+  declare a storage plan and it is filled; the allocator follows once the
+  geometry (authored at shared-initialize for standalone spaces, assigned
+  by the layout solution for constructed plans) is present."
+  (declare (ignore context))
+  (initialize-space-storage s)
+  (when (and (slot-boundp s 'start-page) (not (slot-boundp s 'allocator)))
+    (%ensure-allocator s (space-vm s))))
+
+(defmethod validate-component ((s space) configuration)
+  (declare (ignore configuration))
+  (component-validate s))
 
 (defmethod shared-initialize :after ((s space) slot-names &key)
   (declare (ignore slot-names))
@@ -118,7 +261,7 @@
 
 ;; ---- bump allocator (contiguous) -----------------------------------------
 
-(defclass bump-allocator ()
+(defclass bump-allocator (component)
   ((start :initarg :start :accessor ba-start)
    (limit :initarg :limit :accessor ba-limit)
    (cursor :accessor ba-cursor)
@@ -163,7 +306,7 @@
 
 ;; ---- free-list allocator (segregated fit, word granularity) -------------
 
-(defclass free-list-allocator ()
+(defclass free-list-allocator (component)
   ((start :initarg :start :accessor fl-start)
    (limit :initarg :limit :accessor fl-limit)
    ;; Parallel boot-allocated arrays. A maximally fragmented word-addressed
@@ -281,7 +424,7 @@ component dispatch and slot extraction stay in the outer ALLOC method."
   (extents #() :type (simple-array fixnum (*)))
   (base-page 0 :type fixnum))
 
-(defclass los-allocator ()
+(defclass los-allocator (component)
   ((page-resource :initarg :page-resource :accessor los-pr)
    (vm :initarg :vm :accessor los-vm)
    (space :initarg :space :accessor los-space)
@@ -369,7 +512,7 @@ component dispatch and slot extraction stay in the outer ALLOC method."
 
 (defstruct immix-block base cursor live)
 
-(defclass immix-allocator ()
+(defclass immix-allocator (component)
   ((vm :initarg :vm :accessor ix-vm)
    (space :initarg :space :accessor ix-space)
    (start :initarg :start :accessor ix-start)
@@ -667,7 +810,6 @@ into the evacuated blocks and must be rewritten too."
 (defclass claimore-nursery-space (private-immix-space)
   ((nursery-granule :initarg :nursery-granule :initform +g-block+
                     :accessor claimore-nursery-granule)
-   (nursery-node-count :accessor claimore-nursery-node-count :initform 0)
    (nursery-matrix :accessor claimore-nursery-matrix :initform nil)
    (nursery-occupied :accessor claimore-nursery-occupied :initform nil)
    (nursery-dirty :accessor claimore-nursery-dirty :initform nil)
@@ -699,41 +841,42 @@ into the evacuated blocks and must be rewritten too."
                                                  :scope :thread))
   (:metaclass space-metaclass))
 
-(defmethod shared-initialize :after ((s claimore-nursery-space) slot-names
-                                     &key vm)
-  (declare (ignore slot-names))
-  (when (and vm (slot-boundp s 'start-page) (slot-boundp s 'page-count))
-    (let* ((words (- (space-end-address s) (space-base-address s)))
-           (granule (claimore-nursery-granule s))
-           (nodes (max 1 (ceiling words granule))))
-      (setf (claimore-nursery-node-count s) nodes
-            (claimore-nursery-matrix s)
-            (make-matrix-stratum granule nodes)
-            (claimore-nursery-occupied s)
-            (make-array nodes :element-type 'bit :initial-element 0)
-            (claimore-nursery-dirty s)
-            (make-array nodes :element-type 'bit :initial-element 0)
-            (claimore-nursery-probe-roots s)
-            (make-array nodes :element-type 'bit :initial-element 0)
-            (claimore-nursery-probe-live s)
-            (make-array nodes :element-type 'bit :initial-element 0)
-            (claimore-nursery-ovc-scratch s)
-            (make-array words :element-type '(unsigned-byte 64)
-                        :initial-element 0)
-            (claimore-nursery-ovc-source-starts s)
-            (make-array words :element-type 'bit :initial-element 0)
-            (claimore-nursery-ovc-sizes s)
-            (make-array words :element-type 'fixnum :initial-element 0)
-            (claimore-nursery-ovc-age s)
-            (make-array words :element-type 'fixnum :initial-element 0)
-            (claimore-nursery-ovc-public s)
-            (make-array words :element-type 'bit :initial-element 0)
-            (claimore-nursery-ovc-log s)
-            (make-array words :element-type 'bit :initial-element 0)
-            (claimore-nursery-ovc-weak s)
-            (make-array words :element-type 'bit :initial-element 0)
-            (claimore-nursery-ovc-mark s)
-            (make-array words :element-type 'bit :initial-element 0)))))
+(defun claimore-nursery-node-count (s)
+  "Nodes (probe-matrix regions) covering the nursery's assigned extent,
+derived from the geometry rather than stored."
+  (max 1 (ceiling (space-extent-words s) (claimore-nursery-granule s))))
+
+(defmethod reset-space-state :after ((s claimore-nursery-space))
+  ;; The owner-local decision state is collector state too: warm-up must
+  ;; not leave stale counts or a stale last action.
+  (setf (claimore-nursery-recognised-dead s) 0
+        (claimore-nursery-last-action s) nil))
+
+(defmethod space-storage-plan ((s claimore-nursery-space))
+  "Owner-local relations, probe sets, and OVC scratch, sized from the
+assigned geometry: the probe matrix over nursery nodes, four node-granular
+probe bits, and word-granular compaction scratch (a u64 slide area plus
+per-object start/size/age/public/log/weak/mark state preserved across a
+packed destination)."
+  (let ((nodes (claimore-nursery-node-count s))
+        (words (space-extent-words s)))
+    `((nursery-matrix   . ,(lambda (space)
+                             (make-matrix-stratum
+                              (claimore-nursery-granule space)
+                              nodes)))
+      (nursery-occupied . ,(make-bit-storage nodes))
+      (nursery-dirty    . ,(make-bit-storage nodes))
+      (nursery-probe-roots . ,(make-bit-storage nodes))
+      (nursery-probe-live . ,(make-bit-storage nodes))
+      (ovc-scratch      . ,(make-u64-storage words))
+      (ovc-source-starts . ,(make-bit-storage words))
+      (ovc-sizes        . ,(make-fixnum-storage words))
+      (ovc-age          . ,(make-fixnum-storage words))
+      (ovc-public       . ,(make-bit-storage words))
+      (ovc-log          . ,(make-bit-storage words))
+      (ovc-weak         . ,(make-bit-storage words))
+      (ovc-mark         . ,(make-bit-storage words)))))
+
 
 (defun claimore-nursery-node (s address)
   (let ((node (floor (- (ref-strip-or-self (space-vm s) address)
@@ -850,7 +993,11 @@ liveness authority in all cases."
     (setf (aref (vm-rc-table vm) address) 0))
   address)
 
-(defun claimore-nursery-copy-metadata (s vm source destination)
+(defun claimore-nursery-copy-metadata (s vm offset destination)
+  "Recreate a packed object's side metadata from the source snapshot.
+OFFSET is the source's offset from the nursery base: the snapshot arrays
+are indexed by offset, so a nursery at any solved address reads the same
+cells."
   (let ((age (vm-direct-stratum vm :age))
         (public (vm-direct-stratum vm :public))
         (log (vm-direct-stratum vm :log))
@@ -859,20 +1006,21 @@ liveness authority in all cases."
         (os (vm-object-start vm)))
     (when os (s-set-bit os destination))
     (when mark
-      (if (= 1 (sbit (claimore-nursery-ovc-mark s) source))
+      (if (= 1 (sbit (claimore-nursery-ovc-mark s) offset))
           (s-set-bit mark destination)
           (s-clear-bit mark destination)))
-    (when age (s-set age destination (aref (claimore-nursery-ovc-age s) source)))
+    (when age (s-set age destination
+                     (aref (claimore-nursery-ovc-age s) offset)))
     (when public
-      (if (= 1 (sbit (claimore-nursery-ovc-public s) source))
+      (if (= 1 (sbit (claimore-nursery-ovc-public s) offset))
           (s-set-bit public destination)
           (s-clear-bit public destination)))
     (when log
-      (if (= 1 (sbit (claimore-nursery-ovc-log s) source))
+      (if (= 1 (sbit (claimore-nursery-ovc-log s) offset))
           (s-set-bit log destination)
           (s-clear-bit log destination)))
     (when weak
-      (if (= 1 (sbit (claimore-nursery-ovc-weak s) source))
+      (if (= 1 (sbit (claimore-nursery-ovc-weak s) offset))
           (s-set-bit weak destination)
           (s-clear-bit weak destination))))
   destination)
@@ -957,21 +1105,22 @@ source scan."
           when (s-test-bit os address)
             do (let* ((words (vm-direct-object-total-words vm address))
                       (live (and mark (s-test-bit mark address))))
-                 (setf (sbit source-starts (- address base)) 1)
-                 (setf (aref sizes address) words)
-                 (setf (sbit saved-mark address) (if live 1 0))
-                 (when (vm-direct-stratum vm :age)
-                   (setf (aref ages address)
-                         (s-get (vm-direct-stratum vm :age) address)))
-                 (when public-stratum
-                   (setf (sbit public-save address)
-                         (if (s-test-bit public-stratum address) 1 0)))
-                 (when log-stratum
-                   (setf (sbit log-save address)
-                         (if (s-test-bit log-stratum address) 1 0)))
-                 (when weak-stratum
-                   (setf (sbit weak-save address)
-                         (if (s-test-bit weak-stratum address) 1 0)))
+                 (let ((offset (- address base)))
+                   (setf (sbit source-starts offset) 1)
+                   (setf (aref sizes offset) words)
+                   (setf (sbit saved-mark offset) (if live 1 0))
+                   (when (vm-direct-stratum vm :age)
+                     (setf (aref ages offset)
+                           (s-get (vm-direct-stratum vm :age) address)))
+                   (when public-stratum
+                     (setf (sbit public-save offset)
+                           (if (s-test-bit public-stratum address) 1 0)))
+                   (when log-stratum
+                     (setf (sbit log-save offset)
+                           (if (s-test-bit log-stratum address) 1 0)))
+                   (when weak-stratum
+                     (setf (sbit weak-save offset)
+                           (if (s-test-bit weak-stratum address) 1 0))))
                  (when live
                    ;; Keep small objects within a block and start spans at a
                    ;; block boundary, matching the allocator's geometry.
@@ -1007,10 +1156,11 @@ source scan."
             do (claimore-nursery-clear-source-metadata vm address))
     ;; Recreate destination side metadata from the source snapshot.
     (loop for address from base below source-end
-          when (and (= 1 (sbit source-starts (- address base)))
-                    (= 1 (sbit saved-mark address)))
+          for offset = (- address base)
+          when (and (= 1 (sbit source-starts offset))
+                    (= 1 (sbit saved-mark offset)))
             do (claimore-nursery-copy-metadata
-                s vm address (aref (vm-fwd-table vm) address)))
+                s vm offset (aref (vm-fwd-table vm) address)))
     ;; All plan spaces and roots may point into the nursery.
     (heal-every-space (vm-plan vm) (vm-fwd-table vm))
     (vm-direct-memory-fence vm)
@@ -1071,8 +1221,13 @@ source scan."
 
 (defmethod shared-initialize :after ((s space) slot-names &rest keys &key vm)
   (declare (ignore slot-names keys))
-  (when (and vm (slot-boundp s 'start-page) (not (slot-boundp s 'allocator)))
-    (%ensure-allocator s vm)))
+  ;; Standalone spaces with authored geometry build their declared storage
+  ;; and allocator now; the construction path fills both in the :INITIALIZE
+  ;; phase instead, once the layout solution assigned geometry.
+  (when (and vm (slot-boundp s 'start-page))
+    (initialize-space-storage s)
+    (unless (slot-boundp s 'allocator)
+      (%ensure-allocator s vm))))
 
 ;; ---- copy-space (SemiSpace / nurseries): Cheney --------------------------
 
@@ -1529,73 +1684,67 @@ The vector is summary state only; object liveness remains the trace's job."
               (return))))))
   s))
 
-(defmethod shared-initialize :after ((s superblock-space) slot-names &key)
-  (declare (ignore slot-names))
-  (let ((nsb (%sb-count s))
-        (nmbs (%sb-mb-count s))
-        (mps (%sb-mps s))
-        (bpm (%sb-bpm s)))
-    (unless (%sb-refcounts s)
-      (setf (slot-value s 'sb-refcounts)
-            (make-array nsb :element-type 'fixnum :initial-element 0)))
-    (unless (%sb-fine s)
-      (setf (slot-value s 'fine-metablocks)
-            (make-array nmbs :element-type 'bit :initial-element 0)))
-    (unless (slot-value s 'map-source-starts)
-      (setf (slot-value s 'map-source-starts)
-            (make-array (sb-block-words s) :element-type 'bit
-                        :initial-element 0)
-            (slot-value s 'map-source-sizes)
-            (make-array (sb-block-words s) :element-type 'fixnum
-                        :initial-element 0)
-            (slot-value s 'map-source-mark)
-            (make-array (sb-block-words s) :element-type 'bit
-                        :initial-element 0)
-            (slot-value s 'map-source-age)
-            (make-array (sb-block-words s) :element-type 'fixnum
-                        :initial-element 0)
-            (slot-value s 'map-source-public)
-            (make-array (sb-block-words s) :element-type 'bit
-                        :initial-element 0)
-            (slot-value s 'map-source-log)
-            (make-array (sb-block-words s) :element-type 'bit
-                        :initial-element 0)
-            (slot-value s 'map-source-weak)
-            (make-array (sb-block-words s) :element-type 'bit
-                        :initial-element 0)
-            (slot-value s 'map-source-rc)
-            (make-array (sb-block-words s) :element-type 'fixnum
-                        :initial-element 0)))
-    (unless (%sb-mb-matrices s)
-      (setf (slot-value s (quote clamsara::mb-matrices))
-            (make-array nsb :initial-element nil))
-      (dotimes (i nsb)
-        (setf (aref (%sb-mb-matrices s) i)
-              (make-matrix-stratum (sb-words-per-mb s) mps)))
-      (setf (slot-value s (quote clamsara::block-matrices))
-            (make-array nmbs :initial-element nil))
-      (dotimes (i nmbs)
-        (setf (aref (%sb-block-matrices s) i)
-              (make-matrix-stratum (%sb-block-words s) bpm)))
-      (setf (slot-value s (quote clamsara::mb-root-bits))
-            (make-array nsb :initial-element nil)
-            (slot-value s (quote clamsara::reached-mbs))
-            (make-array nsb :initial-element nil)
-            (slot-value s (quote clamsara::pinned))
-            (make-array nsb :element-type 'bit :initial-element 0))
-      (dotimes (i nsb)
-        (setf (aref (%sb-mb-root-bits s) i)
-              (make-array mps :element-type 'bit :initial-element 0)
-              (aref (%sb-reached-mbs s) i)
-              (make-array mps :element-type 'bit :initial-element 0))))
-    ;; The escape stratum is VM-registered; register once per VM.
-    (let ((vm (space-vm s)))
-      (when (and vm (not (vm-direct-stratum vm :block-escape)))
-        (setf (slot-value s (quote clamsara::escape))
-              (vm-register-stratum
-               vm :block-escape
-               (make-stratum :block-escape (%sb-block-words s) :u4
-                             (vm-heap-size vm))))))))
+(defun make-vector-storage (cells element-maker)
+  "Maker: a simple-vector of CELLS cells, each from (ELEMENT-MAKER space i)."
+  (lambda (space)
+    (let ((vector (make-array cells)))
+      (dotimes (i cells vector)
+        (setf (svref vector i) (funcall element-maker space i))))))
+
+(defmethod reset-space-state :after ((s superblock-space))
+  (setf (slot-value s 'map-pages) 0))
+
+(defmethod space-storage-plan ((s superblock-space))
+  "Hierarchy storage sized from the assigned geometry: per-superblock
+incoming counts and pin bits, Fine/Mature metablock state, the map tier's
+one-block scratch, the per-SB and per-MB points-to matrices, and the
+closure work bits.  The block-escape stratum is VM-registered and shared:
+every superblock space of one VM resolves to the same stratum."
+  (let ((nsb (sb-count s))
+        (nmbs (sb-mb-count s))
+        (block-words (sb-block-words s)))
+    `((sb-refcounts     . ,(make-fixnum-storage nsb))
+      (fine-metablocks  . ,(make-bit-storage nmbs))
+      (pinned           . ,(make-bit-storage nsb))
+      (map-source-starts . ,(make-bit-storage block-words))
+      (map-source-sizes . ,(make-fixnum-storage block-words))
+      (map-source-mark  . ,(make-bit-storage block-words))
+      (map-source-age   . ,(make-fixnum-storage block-words))
+      (map-source-public . ,(make-bit-storage block-words))
+      (map-source-log   . ,(make-bit-storage block-words))
+      (map-source-weak  . ,(make-bit-storage block-words))
+      (map-source-rc    . ,(make-fixnum-storage block-words))
+      (mb-matrices      . ,(make-vector-storage
+                            nsb (lambda (space i)
+                                  (declare (ignore i))
+                                  (make-matrix-stratum (sb-words-per-mb space)
+                                                       (sb-mbs-per-superblock space)))))
+      (block-matrices   . ,(make-vector-storage
+                            nmbs (lambda (space i)
+                                   (declare (ignore i))
+                                   (make-matrix-stratum (sb-block-words space)
+                                                        (sb-blocks-per-metablock space)))))
+      (mb-root-bits     . ,(make-vector-storage
+                            nsb (lambda (space i)
+                                  (declare (ignore i))
+                                  (make-array (sb-mbs-per-superblock space)
+                                              :element-type 'bit
+                                              :initial-element 0))))
+      (reached-mbs      . ,(make-vector-storage
+                            nsb (lambda (space i)
+                                  (declare (ignore i))
+                                  (make-array (sb-mbs-per-superblock space)
+                                              :element-type 'bit
+                                              :initial-element 0))))
+      (escape           . ,(lambda (space)
+                             (let ((vm (space-vm space)))
+                               (or (vm-stratum vm :block-escape)
+                                   (vm-register-stratum
+                                    vm :block-escape
+                                    (make-stratum :block-escape
+                                                  (sb-block-words space) :u4
+                                                  (vm-heap-size vm))))))))))
+
 
 (defun superblock-trace-object (s vm ref tracer trace-kind)
   (declare (ignore trace-kind))

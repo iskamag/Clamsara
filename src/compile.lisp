@@ -558,49 +558,10 @@ method lookup.  The generic fallback exists only for an unbooted test space."
                (vm-strata-table vm))
       (fwd-clear vm)
       (rc-clear vm)
+      ;; Space storage and counters reset through the declarative plan;
+      ;; no collector is special-cased here.
       (dolist (space (plan-spaces p))
-        (when (typep space 'claimore-nursery-space)
-          ;; The probe relation is collector state too.  Warm-up must not
-          ;; leave stale occupied nodes or rows influencing the first real
-          ;; owner-local decision after boot.
-          (matrix-clear-all (claimore-nursery-matrix space))
-          (fill (claimore-nursery-occupied space) 0)
-          (fill (claimore-nursery-dirty space) 0)
-          (fill (claimore-nursery-probe-roots space) 0)
-          (fill (claimore-nursery-probe-live space) 0)
-          (setf (claimore-nursery-recognised-dead space) 0
-                (claimore-nursery-last-action space) nil)
-          (fill (claimore-nursery-ovc-source-starts space) 0)
-          (fill (claimore-nursery-ovc-sizes space) 0)
-          (fill (claimore-nursery-ovc-age space) 0)
-          (fill (claimore-nursery-ovc-public space) 0)
-          (fill (claimore-nursery-ovc-log space) 0)
-          (fill (claimore-nursery-ovc-weak space) 0)
-          (fill (claimore-nursery-ovc-mark space) 0))
-        (when (typep space 'superblock-space)
-          (fill (sb-refcounts space) 0)
-          (fill (sb-pinned space) 0)
-          (when (sb-fine-metablocks space)
-            (fill (sb-fine-metablocks space) 0))
-          (when (sb-map-source-starts space)
-            (fill (sb-map-source-starts space) 0)
-            (fill (sb-map-source-sizes space) 0)
-            (fill (sb-map-source-mark space) 0)
-            (fill (sb-map-source-age space) 0)
-            (fill (sb-map-source-public space) 0)
-            (fill (sb-map-source-log space) 0)
-            (fill (sb-map-source-weak space) 0)
-            (fill (sb-map-source-rc space) 0))
-          (setf (slot-value space 'map-pages) 0)
-          (dotimes (i (length (sb-mb-matrices space)))
-            (let ((m (aref (sb-mb-matrices space) i)))
-              (when m (matrix-clear-all m))))
-          (dotimes (i (length (sb-block-matrices space)))
-            (let ((m (aref (sb-block-matrices space) i)))
-              (when m (matrix-clear-all m))))
-          (dotimes (i (length (sb-mb-root-bits space)))
-            (fill (aref (sb-mb-root-bits space) i) 0)
-            (fill (aref (sb-reached-mbs space) i) 0)))
+        (reset-space-state space)
         (boot-reset-allocator-state (space-allocator space)))
       (when (plan-barrier p)
         (setf (fill-pointer (barrier-satb-buffer (plan-barrier p))) 0
@@ -1019,24 +980,3 @@ preserved too."
 (defun resolve-barrier-sequence (plan)
   "The fused list of barrier rules (Axis 5), in application order."
   (when (plan-barrier plan) (barrier-rules (plan-barrier plan))))
-
-;; ---- space layout helpers (used by the plan constructors) ---------------
-
-(defun partition-pages (total-pages fractions)
-  "FRACTIONS is a list of ratios summing to <= 1.  Return (start . count) pairs,
-page 0 reserved for the null sentinel; the last fraction absorbs slack."
-  (let* ((usable (max 0 (1- total-pages)))
-         (n (length fractions))
-         (counts (loop for f in (if (zerop n) fractions (butlast fractions))
-                       collect (floor (* usable f))))
-         (sum (reduce #'+ counts :initial-value 0))
-         (counts (if (zerop n) counts
-                    (append counts (list (max 0 (- usable sum)))))))
-    (let ((start 1) result)
-      (dolist (c counts) (push (cons start c) result) (incf start c))
-      (nreverse result))))
-
-(declaim (inline make-space))
-(defun make-space (class vm start-page page-count &rest initargs)
-  (apply #'make-instance class :vm vm :start-page start-page :page-count page-count
-         :default-space t initargs))

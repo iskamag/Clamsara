@@ -77,11 +77,16 @@
    (coordination-state :initarg :coordination-state
                        :accessor vm-coordination-state
                        :initform (%make-coordination-state))
-   ;; Boot-resolved inner protocol table.  It is deliberately an implementation
-   ;; slot rather than a second public VM API: CLOS selects the methods while
-   ;; the image is booting, and collection calls the captured functions.
-   (collection-ops :accessor vm-collection-ops :initform nil)
-   (plan        :initarg :plan :accessor vm-plan :initform nil))
+    ;; Boot-resolved inner protocol table.  It is deliberately an implementation
+    ;; slot rather than a second public VM API: CLOS selects the methods while
+    ;; the image is booting, and collection calls the captured functions.
+    (collection-ops :accessor vm-collection-ops :initform nil)
+    ;; The installed managed-layout solution (paper-v11 managed-layout.tex):
+    ;; the address-to-space ownership geometry INSTALL-MANAGED-LAYOUT records
+    ;; and LAYOUT-SPACE-AT resolves.  NIL until a plan's construction installs
+    ;; one; the boot-time page partition this replaces.
+    (managed-layout :accessor vm-managed-layout :initform nil)
+    (plan        :initarg :plan :accessor vm-plan :initform nil))
   (:metaclass vm-metaclass))
 
 (defmethod component-validate ((vm vm-binding))

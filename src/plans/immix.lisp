@@ -19,10 +19,9 @@
 
 (defun make-immix-plan (vm heap-size)
   (declare (ignore heap-size))
-  (destructuring-bind (a) (partition-pages (vm-page-count vm) '(1))
-    (let ((space (make-instance 'immix-space :vm vm :start-page (car a)
-                                 :page-count (cdr a) :name :default :default-space t)))
-      (let ((p (make-instance 'immix-plan :name :immix :vm vm :spaces (list space)
-                             :constraints (make-instance 'plan-constraints))))
-        (add-los-space p 1/16)
-        (finalize-plan p) p))))
+  (let ((spaces (make-plan-spaces vm
+                   '((immix-space 1 :default :default-space t)))))
+    (let ((p (make-instance 'immix-plan :name :immix :vm vm
+                            :spaces spaces
+                            :constraints (make-instance 'plan-constraints))))
+      (finalize-plan p))))

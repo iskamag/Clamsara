@@ -91,15 +91,23 @@ has one source of truth.")
 
 ;; ---- plan class ---------------------------------------------------------
 
-(defclass plan ()
+(defclass plan (component)
   ((name :initarg :name :reader plan-name)
-   (vm   :initarg :vm   :reader plan-vm)
-   (spaces :initarg :spaces :accessor plan-spaces)
-   (barrier :initarg :barrier :accessor plan-barrier :initform nil)
-   (publication :initarg :publication :initform nil :accessor plan-publication)
-   (constraints :initarg :constraints :reader plan-constraints)
-   (page-resource :accessor plan-page-resource :initform nil)
-   (stats :accessor plan-stats :initform nil)
+    (vm   :initarg :vm   :reader plan-vm)
+    (spaces :initarg :spaces :accessor plan-spaces)
+    (barrier :initarg :barrier :accessor plan-barrier :initform nil)
+    (publication :initarg :publication :initform nil :accessor plan-publication)
+    (constraints :initarg :constraints :reader plan-constraints)
+    (page-resource :accessor plan-page-resource :initform nil)
+    (stats :accessor plan-stats :initform nil)
+    ;; The published paper-v11 construction product: the activated
+    ;; configuration, the installed managed layout, and the bound logical
+    ;; metadata (one authoritative handle per fact).  All set by
+    ;; CONSTRUCT-PLAN; immutable once the configuration is activated.
+    (configuration :accessor plan-configuration :initform nil)
+    (managed-layout :accessor plan-managed-layout :initform nil)
+    (metadata-binding :accessor plan-metadata-binding :initform nil)
+    (metadata-registry :accessor plan-metadata-registry :initform nil)
    ;; Boot-bound effective method for the mutator's exhausted-allocation seam.
    ;; Runtime invokes this fixed-arity function, never a lazy CLOS DFUN.
    (allocation-failure-function
@@ -355,67 +363,6 @@ any collector path."
 (defun plan-los (plan)
   (find-if (lambda (s) (typep s 'los-space)) (plan-spaces plan)))
 
-(defun add-los-space (plan pages-fraction &key balanced)
-  "Append a large-object space (heap.tex §2: whole-page, treadmill) to PLAN's
-  layout by carving PAGES-FRACTION of the last space's pages.  The last space
-  keeps its start page; only its extent shrinks, so other spaces' addresses
-  are undisturbed.  LOS allocations are exempt from the plan's nursery
-  overrides via PLAN-ALLOCATE's size check.
-
-  BALANCED carves the same total equally from the last TWO spaces instead.
-  Cheney-style plans (SemiSpace, ZGC-like) need it: carving only from the
-  to-space leaves it smaller than the from-space, so a full from-space can
-  never fit into its destination."
-  (let ((vm (plan-vm plan))
-        (spaces (plan-spaces plan)))
-    (when spaces
-      (if (and balanced (cdr spaces))
-          ;; Cheney-style paired spaces: reserve the LOS at the end, then give
-          ;; both halves an equal share of the remainder.  The pair stays
-          ;; contiguous (prev keeps its start page; last is re-anchored right
-          ;; after it), so the whole region still fits the heap.
-          (let* ((last (car (last spaces)))
-                 (prev (car (last spaces 2)))
-                 (first-start (space-start-page prev))
-                 (region-end (+ (space-start-page last)
-                                (space-page-count last)))
-                 (region-pages (- region-end first-start))
-                 (carve (min (max 4 (floor (* region-pages pages-fraction)))
-                             (max 0 (- region-pages 4))))
-                 (first-half (floor (- region-pages carve) 2))
-                 (second-half (- region-pages carve first-half)))
-            (when (plusp carve)
-              (setf (slot-value prev 'page-count) first-half
-                    (slot-value last 'start-page) (+ first-start first-half)
-                    (slot-value last 'page-count) second-half)
-              (slot-makunbound prev 'allocator)
-              (slot-makunbound last 'allocator)
-              (%ensure-allocator prev vm)
-              (%ensure-allocator last vm)
-              (let* ((los-start (+ first-start first-half second-half))
-                     (space (make-instance 'los-space :vm vm
-                                           :start-page los-start
-                                           :page-count carve
-                                           :name :los :default-space nil)))
-                (setf (plan-spaces plan) (append spaces (list space)))
-                space)))
-          ;; Default: carve from the last space only (existing behavior).
-          (let* ((last (car (last spaces)))
-                 (carve (max 4 (floor (* (space-page-count last) pages-fraction))))
-                 (los-count (min carve (max 1 (- (space-page-count last) 2)))))
-            (when (plusp los-count)
-              (decf (slot-value last 'page-count) los-count)
-              (slot-makunbound last 'allocator)
-              (%ensure-allocator last vm)
-              (let* ((los-start (+ (space-start-page last)
-                                   (space-page-count last)))
-                     (space (make-instance 'los-space :vm vm
-                                           :start-page los-start
-                                           :page-count los-count
-                                           :name :los :default-space nil)))
-                (setf (plan-spaces plan) (append spaces (list space)))
-                space)))))))
-
 ;; ---- SFT (Space Function Table, O(1) address->space) --------------------
 
 (defun plan-build-sft (plan)
@@ -560,46 +507,14 @@ heap-sized capacity so registration and collection never grow them."
   plan))
 
 (defun finalize-plan (plan)
-  "Wire spaces, SFT, strata, barrier, then validate.  Idempotent."
+  "Construct and publish the plan's paper-v11 runtime configuration: the
+  component graph compiles through the seven construction phases, solving
+  the managed layout, binding logical metadata, initializing every
+  component's storage, and validating cross-component coherence before
+  publication.  Idempotent."
   (unless (plan-booted-p plan)
-    (let ((vm (plan-vm plan)))
-      (component-validate vm)
-      (plan-install-strata plan vm)
-      ;; Finalization storage is part of normal plan setup, not an optional
-      ;; mutator-side initialization step (weak.tex §2).
-      (%initialize-finalization-vectors plan vm)
-      (dolist (s (plan-spaces plan))
-        (setf (space-vm s) vm)
-        (%ensure-allocator s vm))
-      (plan-build-sft plan)
-      (setf (plan-tracer plan) (make-tracer vm)
-            (plan-stats plan) (or (plan-stats plan) (make-stats)))
-      ;; Warm every standard event slot before collector code can run.  The
-      ;; counters are then just fixnum hash updates on the hot paths.
-      (stats-prepare (plan-stats plan))
-      (when (plan-barrier plan)
-        (initialize-barrier-buffers (plan-barrier plan) vm)
-        (barrier-check (plan-barrier plan) plan))
-      (when (plan-publication plan)
-        (initialize-publication-work (plan-publication plan) vm))
-      ;; space validation runs here, after slots are populated: allocator
-      ;; checks and the concurrent-relocate forwarding rule need the VM.
-      (dolist (s (plan-spaces plan))
-        (component-validate s)
-        (when (space-allocator s)
-          (component-validate (space-allocator s))))
-      (component-validate plan)
-      (setf (plan-booted-p plan) t)))
+    (construct-plan plan))
   plan)
-
-(defgeneric plan-install-strata (plan vm)
-  (:documentation "Register the side strata the plan's policy needs on the VM.")
-  (:method ((p plan) vm)
-    ;; defaults every tracing plan needs; concurrent/generational plans add more.
-    (vm-set-location vm :mark :side)
-    (vm-set-location vm :forwarding :in-header)
-    (vm-register-stratum vm :mark
-      (make-stratum :mark (vm-min-alignment-words vm) :bit (vm-heap-size vm)))))
 
 ;; ---- validation (plans.tex §1) ------------------------------------------
 
@@ -614,9 +529,17 @@ heap-sized capacity so registration and collection never grow them."
         (unless (find :lvb rules :key #'barrier-rule-name)
           (error 'plan-incompatible :plan p
                  :message "concurrent-relocate requires an LVB read barrier"))))
-    (when (eq (constraints-forwarding c) :off-heap)
-      (unless (vm-has-feature-p vm :t0)         ; off-heap table works on any tier
-        (error 'plan-incompatible :plan p :message "off-heap forwarding needs VM access")))
+    ;; After construction the bound placement is the authority: a plan that
+    ;; requires off-object forwarding must have been bound off-object
+    ;; (strata.tex: collectors use the handle, not an assumed placement).
+    (let ((binding (and (slot-boundp p 'metadata-binding)
+                        (plan-metadata-binding p))))
+      (when (and binding (eq (constraints-forwarding c) :off-heap))
+        (let ((handle (find-metadata binding :forwarding)))
+          (unless (and handle (eq (handle-placement handle) :side-vector))
+            (error 'plan-incompatible :plan p
+                   :message
+                   "concurrent-relocate requires an off-object forwarding placement")))))
     (when (member (constraints-scope c) '(:thread :request))
       (unless (plan-publication p)
         (error 'plan-incompatible :plan p

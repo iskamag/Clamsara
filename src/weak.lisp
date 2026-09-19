@@ -69,30 +69,38 @@ untouched, even though they are not marked by the minor trace."
          (os (vm-object-start vm))
          (nursery (and (eq cycle-kind :minor) (plan-nursery plan))))
     (when (and weak os)
-      (s-for-set-cells weak nil
-        (lambda (address)
-          (when (s-test-bit os address)
-            (let* ((referent (vm-direct-object-reference vm address 0))
-                   (stripped (and (vm-valid-reference-p vm referent)
-                                  (ref-strip-or-self vm referent))))
-              (cond
-                ((null-ref-p referent) nil)  ; already cleared
-                ((not stripped) nil)          ; not a reference (raw payload)
-                ;; A minor has no liveness information for mature objects and
-                ;; does not reclaim them.  Leave their weak slots alone rather
-                ;; than treating an unmarked mature object as dead.
-                ((and nursery (not (space-direct-contains-p nursery stripped))) nil)
-                (t
-                 (let ((resolved (resolve-weak-forwarding vm stripped)))
-                   ;; heal the slot before the liveness test
-                   (unless (eql resolved stripped)
-                     (vm-direct-set-object-reference vm address 0 resolved))
-                   ;; Publication is not itself a liveness proof.  A public
-                   ;; bit describes locality/visibility, not reachability; a
-                   ;; public object with no marked/forwarded/RC or root/pin
-                   ;; must still be cleared as a weak referent.
-                   (unless (weak-referent-live-p vm resolved)
-                     (vm-direct-set-object-reference vm address 0 0)))))))))))
+      ;; The visitor is dynamic-extent: the weak phase runs once per
+      ;; collection and must not open a host allocation (weak.tex: the phase
+      ;; is part of the collection's no-allocation window).
+      (flet ((visit (address)
+               (when (s-test-bit os address)
+                 (let* ((referent (vm-direct-object-reference vm address 0))
+                        (stripped (and (vm-valid-reference-p vm referent)
+                                       (ref-strip-or-self vm referent))))
+                   (cond
+                     ((null-ref-p referent) nil)  ; already cleared
+                     ((not stripped) nil)        ; not a reference (raw payload)
+                     ;; A minor has no liveness information for mature objects
+                     ;; and does not reclaim them.  Leave their weak slots
+                     ;; alone rather than treating an unmarked mature object
+                     ;; as dead.
+                     ((and nursery
+                       (not (space-direct-contains-p nursery stripped))) nil)
+                     (t
+                      (let ((resolved (resolve-weak-forwarding vm stripped)))
+                        ;; heal the slot before the liveness test
+                        (unless (eql resolved stripped)
+                          (vm-direct-set-object-reference vm address 0 resolved))
+                        ;; Publication is not itself a liveness proof.  A
+                        ;; public bit describes locality/visibility, not
+                        ;; reachability; a public object with no
+                        ;; marked/forwarded/RC or root/pin must still be
+                        ;; cleared as a weak referent.
+                        (unless (weak-referent-live-p vm resolved)
+                          (vm-direct-set-object-reference
+                           vm address 0 0)))))))))
+        (declare (dynamic-extent #'visit))
+        (s-for-set-cells weak nil #'visit))))
   plan)
 
 ;; ---- finalization trait (weak.tex §2) ------------------------------------

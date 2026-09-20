@@ -277,3 +277,18 @@
                           (uiop:symbol-call :clamsara.runtime.generational.test
                                            :run-generational-capacity-test))
                (error "Optional generational tests failed"))))
+
+(asdf:defsystem :clamsara/quality/generational/test
+  :version "0.1.0"
+  :description "Independent hosted generational oracles; explicitly selected."
+  :depends-on (:clamsara/generational :clamsara/quality/support)
+  :serial t
+  :components ((:file "test/quality/generational")
+               (:file "test/quality/generational-history"))
+  :perform (asdf:test-op (operation component)
+             (declare (ignore operation component))
+             (unless (and (uiop:symbol-call :clamsara.quality.generational
+                                           :run-generational-quality-tests)
+                          (uiop:symbol-call :clamsara.quality.generational
+                                           :run-generational-history-tests))
+               (error "Generational quality tests failed"))))

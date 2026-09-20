@@ -1,4 +1,4 @@
-;;;; Standalone optional generational matrix; not ASDF-activated until green.
+;;;; Native lifecycle/capacity checks for the optional generational profile.
 (defpackage #:clamsara.runtime.generational.test
   (:use #:cl #:clamsara)
   (:export #:run-generational-runtime-tests))

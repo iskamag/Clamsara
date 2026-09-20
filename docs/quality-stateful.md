@@ -99,30 +99,24 @@ The injected invalid operations, Await failure, capacity failures, and one
 callback error are expected test inputs. They are not unexpected suite
 failures.
 
-## Separate generation-correctness matrix: blocked, not run
+## Separate generation-correctness matrix
 
 The stale-reference checks above exercise hosted representation generations
 and stale address encodings. They are **not** generational garbage-collection
-evidence.
+evidence. This original stateful suite still selects only SemiSpace/MarkSweep.
 
-At this independent suite's original baseline, only full collections were
-available. A later optional `:clamsara/generational` implementation now passes
-its own native lifecycle/capacity tests (see `docs/generational.md`). This
-stateful suite does not select or exercise it. The following expanded matrix
-therefore remains independent review work, not skipped-pass or covered evidence:
+The separately selected `:clamsara/quality/generational/test` now exercises the
+optional composition. It covers remembered STORE/CAS edges, minor preservation
+of unreachable mature objects, major reclamation, promotion/root correction,
+overwrite/deletion, major-to-minor remembered-state persistence, 96 weak and
+ephemeron age/root/scope combinations, reversed ephemeron fixed points, and
+explicit recovery from a full mature space. Its independently written histories
+add 288 strong-graph oracle collections across packed/scalar maps and two seeds.
+See `docs/generational.md` for commands, geometry, policy and precise limits.
 
-| Future generational case | Required assertion |
-| --- | --- |
-| Remembered old-to-young edge | an old object's sole strong edge retains the young target through a minor collection |
-| Unreachable old during minor | a minor collection does not reclaim an unreachable old object |
-| Promotion identity and root correction | a promoted object preserves logical identity and every root/edge is corrected to its admitted new representation |
-| Overwrite insertion/deletion | installing old-to-young records the edge; overwriting it removes or safely conservatively retains only the permitted remembered state |
-| Major reclamation | a major collection reclaims unreachable old objects and their old encodings fail normalization |
-| Generational weak/ephemeron closure | old/young key, value, and weak-target combinations follow the common conditional fixed point without a missing incoming edge or strong fallback |
-
-These independent cases must exercise the real optional construction and
-runtime API. A host-only payload model or a simulated remembered set is not
-an acceptable substitute.
+These use real construction, managed payloads, barriers and collection APIs.
+They do not establish full profile admission: the common-core defects found
+by the independent review remain open (`docs/review-ac22bdd.md`).
 
 ## Evidence limits
 

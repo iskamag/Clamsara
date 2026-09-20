@@ -42,10 +42,13 @@ same mistake; it is not a reason to accept uncharged growth now.
 `chapters/validation.tex` labels generational composition an optional profile.
 The user has now requested generation-correctness tests, selecting additional
 work. Current SemiSpace/MarkSweep successes do not establish that profile.
-An optional implementation now passes its initial native lifecycle/capacity
-matrix. Run `(asdf:test-system :clamsara/generational/test)` when selecting it.
-Independent expanded profile review remains open; this is not currently a
-specification complaint.
+An optional implementation now passes its native lifecycle/capacity tests and
+a separately selected independent matrix, including 288 seeded strong-graph
+collections and 96 conditional combinations. Run
+`(asdf:test-system :clamsara/quality/generational/test)` for that matrix.
+See `docs/generational.md` for the repaired major policy and bounded evidence.
+Common-core review findings and broader profile admission remain open; this
+is not currently a specification complaint.
 
 ## Not paper defects
 

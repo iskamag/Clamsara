@@ -15,8 +15,6 @@
    (mature-source-starts :initform nil :accessor %gen-mature-source-starts)
    (promotion-addresses :initform nil :accessor %gen-promotion-addresses)
    (promotion-present :initform nil :accessor %gen-promotion-present)
-   (promotion-destinations :initform nil
-                           :accessor %gen-promotion-destinations)
    (scratch-starts :initform nil :accessor %gen-scratch-starts)
    (scratch-limits :initform nil :accessor %gen-scratch-limits)
    (scratch-count :initform 0 :accessor %gen-scratch-count)
@@ -82,7 +80,7 @@
   (let* ((trace-capacity (%plan-trace-capacity plan))
          (descriptor-capacity
            (%marksweep-descriptor-capacity (%gen-mature plan)))
-         (entries (+ (* 3 trace-capacity) (* 2 descriptor-capacity))))
+         (entries (+ (* 2 trace-capacity) (* 2 descriptor-capacity))))
     (append
      (call-next-method)
      (list (make-resource-contribution
@@ -110,7 +108,7 @@
   (values))
 
 (defun %gen-entry-count (plan)
-  (+ (* 3 (%plan-trace-capacity plan))
+  (+ (* 2 (%plan-trace-capacity plan))
      (* 2 (%marksweep-descriptor-capacity (%gen-mature plan)))))
 
 (defmethod initialize-component :after
@@ -133,14 +131,12 @@
                      (incf offset count))))
           (setf (%gen-promotion-addresses plan) (view trace-capacity)
                 (%gen-promotion-present plan) (view trace-capacity)
-                (%gen-promotion-destinations plan) (view trace-capacity)
                 (%gen-scratch-starts plan) (view descriptor-capacity)
                 (%gen-scratch-limits plan) (view descriptor-capacity)))
         (unless (= offset expected)
           (%runtime-reject :resource-capacity-mismatch)))
       (fill (%gen-promotion-addresses plan) 0)
       (fill (%gen-promotion-present plan) 0)
-      (fill (%gen-promotion-destinations plan) 0)
       (fill (%gen-scratch-starts plan) 0)
       (fill (%gen-scratch-limits plan) 0)
       (setf (%gen-nursery-callback plan)
@@ -153,7 +149,6 @@
               (%gen-visit-mature-start plan key)))
       (dolist (object (list (%gen-promotion-addresses plan)
                             (%gen-promotion-present plan)
-                            (%gen-promotion-destinations plan)
                             (%gen-scratch-starts plan)
                             (%gen-scratch-limits plan)
                             (%gen-nursery-callback plan)
@@ -291,13 +286,6 @@
     (and (<= 0 index) (< index (length (%gen-promotion-addresses plan)))
          index)))
 
-(defun %gen-mature-cell-index (plan address)
-  (let* ((mature (%gen-mature plan))
-         (index (floor (- address (%space-base mature))
-                       (%space-packing-quantum mature))))
-    (and (<= 0 index) (< index (length (%gen-promotion-destinations plan)))
-         index)))
-
 (defun %gen-scratch-allocate (plan bytes alignment)
   (dotimes (index (%gen-scratch-count plan) (values nil nil))
     (let* ((old (aref (%gen-scratch-starts plan) index))
@@ -373,7 +361,6 @@
 (defun %gen-reserve-promotions (plan cycle)
   (fill (%gen-promotion-addresses plan) 0)
   (fill (%gen-promotion-present plan) 0)
-  (fill (%gen-promotion-destinations plan) 0)
   (setf (%gen-nursery-object-count plan) 0
         (%gen-reservation-failure plan) nil
         (%gen-enumeration-cycle plan) cycle)
@@ -405,7 +392,17 @@
       (%gen-snapshot-mature-sources plan cycle)
     (unless (eq status :complete)
       (return-from %prepare-cycle-spaces (values status reason))))
-  (%gen-reserve-promotions plan cycle))
+  ;; A major must be able to reclaim mature garbage even when that space
+  ;; cannot reserve promotions. Equal nursery extents already reserve enough
+  ;; to-space for every young survivor. Only minors require promotion room.
+  (if (eq (%cycle-scope cycle) :all)
+      ;; Mature reclamation still needs its worst-case free-interval reserve.
+      ;; A major adds no promoted mature objects, unlike the minor path below.
+      (if (> (1+ (%gen-mature-object-count plan))
+             (%marksweep-descriptor-capacity (%gen-mature plan)))
+          (values :failed :capacity-exhausted)
+          (values :complete nil))
+      (%gen-reserve-promotions plan cycle)))
 
 ;;; ------------------------------------------------------------------
 ;;; Promotion and scope.
@@ -417,12 +414,6 @@
       (%runtime-reject :fatal-invariant))
     (aref (%gen-promotion-addresses plan) cell)))
 
-(defun %gen-current-promotion-destination-p (plan start)
-  (let* ((mature (%gen-mature plan))
-         (address (reference-address (%space-model mature) start))
-         (cell (%gen-mature-cell-index plan address)))
-    (and cell (eql 1 (aref (%gen-promotion-destinations plan) cell)))))
-
 (defmethod %space-in-cycle-scope-p
     ((space generational-nursery-space) cycle start)
   (declare (ignore start))
@@ -431,12 +422,15 @@
 
 (defmethod %space-in-cycle-scope-p
     ((space generational-mature-space) cycle start)
-  (let ((plan (%cycle-plan cycle)))
-    (and (eq (%cycle-scope cycle) :all)
-         (not (%gen-current-promotion-destination-p plan start)))))
+  (declare (ignore space start))
+  (eq (%cycle-scope cycle) :all))
 
 (defmethod trace-object ((space generational-nursery-space)
                          (context sequential-trace-context) start)
+  (when (eq (%cycle-scope (trace-context-cycle context)) :all)
+    ;; Use the ordinary SemiSpace claim/copy/forwarding protocol on majors.
+    ;; Mature tracing and reclamation still participate in the same cycle.
+    (return-from trace-object (call-next-method)))
   (multiple-value-bind (status claim reservation)
       (trace-claim-object context space start)
     (case status
@@ -457,11 +451,12 @@
               (alignment (object-alignment model start))
               (address (%gen-promotion-destination plan space start))
               (new nil)
-              (destination-start-p nil)
-              (destination-cell (%gen-mature-cell-index plan address)))
-         (unless (and destination-cell (typep bytes '(integer 1 *))
+              (destination-start-p nil))
+         (unless (and (typep bytes '(integer 1 *))
                       (%positive-power-of-two-p alignment)
-                      (<= alignment (%space-packing-quantum space)))
+                      (<= alignment (%space-packing-quantum space))
+                      (<= (%space-base destination) address)
+                      (<= (+ address bytes) (%space-limit destination)))
            (trace-abandon-object context claim reservation :fatal-invariant)
            (return-from trace-object start))
          (handler-case
@@ -470,11 +465,7 @@
                (setf new (initialize-object model address kind bytes descriptor))
                (copy-object-representation model start new)
                (metadata-set (%space-object-start-map destination) address 1)
-               (setf destination-start-p t
-                     (aref (%gen-promotion-destinations plan)
-                           destination-cell) 1)
-               (when (eq (%cycle-scope cycle) :all)
-                 (metadata-set-bit (%space-marks destination) address))
+               (setf destination-start-p t)
                (metadata-set (%space-forwarding space)
                              (%forwarding-key space start) new)
                (setf (%cycle-forwarding-published-p cycle) t)
@@ -494,9 +485,7 @@
                  (progn
                    (when destination-start-p
                      (metadata-reset (%space-object-start-map destination)
-                                     address)
-                     (setf (aref (%gen-promotion-destinations plan)
-                                 destination-cell) 0))
+                                     address))
                    (when new
                      (runtime-retire-object-representation model new))
                    (trace-abandon-object context claim reservation
@@ -628,9 +617,11 @@
           (return-from %prepare-plan-reclamation
             (values :failed (or reason :preflight-failed))))
         (incf ready-participants)))
-    ;; Every reachable nursery object is promoted, and complete mature strong
-    ;; and conditional sources were corrected.  The next nursery is empty.
-    (setf (%gen-remembered-candidate-p plan) nil)
+    ;; Minors promote every young survivor, leaving no nursery targets.
+    ;; Majors copy young survivors within the nursery, so corrected mature
+    ;; slots can still point into it. Keep the whole mature card dirty rather
+    ;; than lose those surviving edges at the next minor.
+    (setf (%gen-remembered-candidate-p plan) (eq (%cycle-scope cycle) :all))
     (values :complete nil)))
 
 (defun %gen-publish-mature-free-candidate (mature)

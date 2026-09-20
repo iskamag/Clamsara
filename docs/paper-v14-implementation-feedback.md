@@ -152,6 +152,53 @@ unregistration returns, which identities must never revive, and how exhaustion
 rejects before changing visible state. Identify external provider ownership
 separately from root-service-owned storage.
 
+## Snapshot executable rules, not just outer containers
+
+The new native probes expose another implementation error: keeping a size or
+alignment closure in an otherwise copied description lets later caller-owned
+lexical state change an already published object's ABI. A mutable private array
+rule even changed destination scanning and lost a child in a complete cycle.
+Ordinary copied input plists and invalid writes to opaque outputs are different
+cases; a guide should not merge them.
+
+**Requested addition:** show a kind-only size/alignment function resolved once
+by its model at binding, alongside an indexed identity function evaluated over
+its admitted finite domain into stable, unique keys. Show bounds, rejection,
+original-token lookup, and charges for both retained originals and executable
+snapshots. Do not propose arbitrary closure-environment copying or assume
+callback purity without a contract.
+
+## Abandonment includes Common Lisp nonlocal exits
+
+Calling a rule during binding exposed an ERROR-only cleanup boundary. Eight
+independent THROW cases left installed layouts and every acquired resource
+owned, although no configuration had been published. This is an implementation
+failure, not permission to reinterpret failed construction as success.
+
+**Requested addition:** a publication-guarded UNWIND-PROTECT example with
+cleanup separate from condition signaling. Pair ERROR with THROW and
+RETURN-FROM histories. Require the original condition or exit values to survive
+unless cleanup itself violates its contract. An outside HANDLER-BIND observer
+should see cleanup complete before the terminal error is signaled. Also show
+postbinding activation failure, reverse cleanup exactly once, and successful
+publication which must not be rolled back.
+
+## Label measured work and storage categories
+
+The independent performance review found asserted per-pass callback counts
+printed as constants, not measured whole-workload totals. It also distinguished
+shallow plane-vector sizes from other charged model storage. Neither a single
+size's correct callback count nor a restricted accessor-call probe proves an
+end-to-end complexity claim.
+
+**Requested addition:** one worked report separating guest logical bytes,
+resource-handle storage, retained auxiliary objects, transient allocation, and
+per-phase work counters. Include fixed capacity-dependent reset work. Record
+selected source paths and content hashes before and after the run; a log made
+before a commit is not independently revision-attested merely by naming that
+later commit. Keep startup-inclusive process time separate from measured
+collection time and complete benchmark acceptance.
+
 ## A useful companion deliverable
 
 A small end-to-end profile could connect:

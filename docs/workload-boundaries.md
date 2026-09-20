@@ -139,6 +139,59 @@ not its full benchmark acceptance. REST conversion, correct guest printing,
 quoted literal identity, boxed payloads, and fixture ownership at application
 shutdown remain open. No Gabriel suite acceptance is claimed.
 
+## Managed integer arithmetic
+
+On `1001b83`, the native FRPOLY execution probe exposed the next failure:
+`400000000000000000000` reached a CONS store as a host bignum. The unchanged
+model correctly rejected it as having no admitted hosted word representation;
+the barrier then reported `:FATAL-INVARIANT`. A separate scalar probe showed
+that arithmetic could also return this host bignum directly into VM values.
+
+`numbers.lisp` now represents arithmetic bignums in a separate managed,
+scan-zero kind. Its payload contains an immediate sign and little-endian
+base-2^30 limbs. Its exact object size is `16 + 8 * (1 + limb-count)` bytes.
+There is no object-to-host-number side table. The existing model word checks
+are unchanged. These objects are not exposed as mutable Lisp arrays. Results
+within the host fixnum range remain immediate. The configured object-size
+limit also bounds bignums; unsupported host limb widths reject during setup.
+
+The explicitly installed arithmetic, integer bit, comparison, and numeric
+predicate functions decode their operands into transient host arithmetic
+scratch, then encode large results before returning to the VM. Scratch is not
+retained guest storage. Every operand is decoded before any managed result
+allocation. Multiple numeric results occupy physical roots while later results
+are allocated; the return path reloads corrected values. Immediate-only
+results do not need this allocation path. Source macro arithmetic still uses
+native host syntax values. EQL, numeric EQUAL leaves, and default MEMBER/ASSOC
+comparisons recognize managed integer values.
+
+This is a bounded hosted numeric bridge, not a complete Common Lisp numeric
+implementation or target/no-allocation admission. Ratios, double-floats, and
+complex results still reject. Numeric arrays retain their existing immediate
+word restrictions. Boxed source constants now reject at `LOAD-LITERAL-INFO`
+rather than leaking host payload into code/VM values: accepting them requires
+in-flight linker ownership, which is still pending. Functions outside the
+explicit numeric installation still need a complete foreign-value boundary
+audit. General type, sequence, printing, and literal semantics are not claimed.
+
+The integrated numeric suite reports 62 checks, plus payload assertions. It
+compares arithmetic against native Lisp, checks signed multi-limb storage,
+fixnum boundaries, canonical results, zero reference callbacks, unchanged
+payload after rejected raw writes, predicates/equality, source macro behavior,
+capacity rejection/recovery, stale references, shared integers, and discharge.
+An exact 16KiB case forces collection between quotient and remainder boxing:
+three objects move (2544 bytes), and both corrected results match the oracle.
+Unchanged TESTFRPOLY now returns from all four original subtests in a diagnostic
+runtime, but returning NIL is not sufficient evidence of correct arithmetic.
+A separate native polynomial oracle found a structural/value mismatch already
+at degree 2, before collection. The initial polynomial agrees. The same wrong
+result appears with native arithmetic in the workload environment and with a
+plain upstream Maclina client using host conses. Thus this is not evidence of
+bignum movement corrupting the polynomial. Its exact cause remains under
+investigation; FRPOLY is not accepted. Fixture globals also remain live and
+close must still reject them. `tools/probe-frpoly.lisp` preserves this failing
+oracle gate without changing the fixture or treating NIL returns as a pass.
+
 ## Published code roots
 
 An active function could lose a managed literal before its first use: a native

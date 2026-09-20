@@ -718,8 +718,8 @@ host graph."
                    while (%guest-cons-p environment cursor)
                    do (funcall function (%guest-car environment cursor)))
              list)
-           (member* (item list &key (test #'eql) (test-not nil test-not-p)
-                              key)
+           (member* (item list &key (test (lambda (a b) (%guest-eql environment a b)))
+                              (test-not nil test-not-p) key)
              (loop for cursor = list then (%guest-cdr environment cursor)
                    while (%guest-cons-p environment cursor)
                    for candidate = (%guest-car environment cursor)
@@ -728,7 +728,7 @@ host graph."
                                      test)
                                  item (if key (funcall key candidate) candidate))
                      do (return cursor)))
-           (assoc* (item alist &key (test #'eql) key)
+           (assoc* (item alist &key (test (lambda (a b) (%guest-eql environment a b))) key)
              (loop for cursor = alist then (%guest-cdr environment cursor)
                    while (%guest-cons-p environment cursor)
                    for pair = (%guest-car environment cursor)
@@ -771,7 +771,7 @@ host graph."
                               (%cons* environment
                                       (%guest-car environment cursor) result)))
                result))
-           (subst* (new old tree &key (test #'eql))
+           (subst* (new old tree &key (test (lambda (a b) (%guest-eql environment a b))))
              (if (funcall test old tree)
                  new
                  (if (%guest-cons-p environment tree)
@@ -790,6 +790,9 @@ host graph."
                                  (%guest-cdr environment right))))
                    ((or (%guest-cons-p environment left)
                         (%guest-cons-p environment right)) nil)
+                   ((or (%guest-bignum-p environment left)
+                        (%guest-bignum-p environment right))
+                    (%guest-eql environment left right))
                    (t (equal left right)))))
     (flet ((fset (name function)
              (%workload-install-data-function client runtime name function)))
@@ -964,6 +967,7 @@ all benchmark warmup before collecting evidence."
     (workload-provider-bind-vm
      (workload-root-provider environment) maclina.vm-cross::*vm*)
     (%install-workload-functions client runtime)
+    (%install-workload-numbers client runtime)
     environment))
 
 (defun workload-eval (environment form)

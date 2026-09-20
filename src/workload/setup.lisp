@@ -21,13 +21,16 @@
   "Construct a real semispace workload environment.
 
 This setup provisions fixed CONS/STRUCT kinds and the host model's opaque
-variable-size generic, single-float and integer array kinds. Array sizes use
-an extent-dependent rule and indexed layouts, never a slot vector proportional
-to element count."
+variable-size generic, single-float and integer array kinds, plus scan-zero
+bignums with immediate sign/limb words. Variable sizes use opaque rules and
+indexed layouts, never a slot vector proportional to element count."
   (unless (and (plusp extent) (plusp quantum) (zerop (mod extent quantum))
                (zerop (mod base quantum)) (> extent (* 2 quantum)))
     (error 'workload-capability-error :operation 'make-workload-runtime
            :reason :invalid-geometry))
+  (unless (typep (1- (ash 1 +workload-limb-bits+)) 'fixnum)
+    (error 'workload-capability-error :operation 'make-workload-runtime
+           :reason :unsupported-host-limb-width))
   (let* ((required-object-capacity (ceiling (* 2 extent) quantum))
          (effective-object-capacity (or object-capacity
                                         required-object-capacity)))
@@ -86,6 +89,13 @@ to element count."
          (integer-kind
            (make-object-kind-description
             model :array-integer :size-rule numeric-array-size-rule
+            :alignment-rule quantum :strong-layout nil))
+         (bignum-kind
+           (make-object-kind-description
+            model :bignum
+            :size-rule (make-host-variable-size-rule
+                        :header-bytes 16 :element-bytes 8
+                        :element-kind :numeric :minimum-elements 2)
             :alignment-rule quantum :strong-layout nil))
          ;; A structure uses one managed type-tag word and up to seven fields.
          (struct-kind
@@ -146,6 +156,16 @@ to element count."
                        :array-integer integer-kind
                        (lambda (count) (+ 16 (* count 8))) quantum
                        :element-type 'integer)
+                      :bignum (make-workload-kind
+                               :bignum bignum-kind
+                               (lambda (count)
+                                 (let ((bytes (+ 16 (* count 8))))
+                                   (when (> bytes max-object-bytes)
+                                     (error 'workload-allocation-error
+                                            :operation 'bignum-allocation
+                                            :reason :max-object-bytes))
+                                   bytes))
+                               quantum)
                       :struct (make-workload-kind :struct struct-kind 64 quantum)))
          (environment
            (make-workload-environment

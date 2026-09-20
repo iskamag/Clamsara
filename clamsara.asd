@@ -152,7 +152,7 @@
   :components ((:module "src/workload" :serial t
                 :components ((:file "protocol") (:file "roots")
                              (:file "source") (:file "maclina")
-                             (:file "control") (:file "setup")
+                             (:file "control") (:file "numbers") (:file "setup")
                              (:file "gabriel") (:file "gcbench")))))
 
 (asdf:defsystem :clamsara/host/atomics/test
@@ -243,7 +243,7 @@
   :depends-on (:clamsara/workload)
   :components ((:file "test/workload/adapter") (:file "test/workload/values")
                (:file "test/workload/teardown") (:file "test/workload/code-roots")
-               (:file "test/workload/selectors"))
+               (:file "test/workload/selectors") (:file "test/workload/numbers"))
   :perform (asdf:test-op (operation component)
              (declare (ignore operation component))
              (unless (and (uiop:symbol-call :clamsara.workload.adapter.test
@@ -255,7 +255,9 @@
                           (uiop:symbol-call :clamsara.workload.code-roots.test
                                            :run-workload-code-root-tests)
                           (uiop:symbol-call :clamsara.workload.selectors.test
-                                           :run-workload-selector-tests))
+                                           :run-workload-selector-tests)
+                          (uiop:symbol-call :clamsara.workload.numbers.test
+                                           :run-workload-number-tests))
                (error "Workload adapter tests failed"))))
 
 (asdf:defsystem :clamsara/generational

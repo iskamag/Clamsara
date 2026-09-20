@@ -72,3 +72,18 @@ Keep the log and source revision. Verify the original fixture hashes in
 `docs/fixture-sha256.json` before and after a reported run. Do not treat the
 older temporary driver's `:STATUS :OK` with `:FINAL-COLLECTION-STATUS :NOT-RUN`
 or a swallowed `GCBENCH-CLOSE-ERROR` as full acceptance.
+
+## FRPOLY result oracle (currently failing)
+
+```sh
+sbcl --noinform --non-interactive --load tools/probe-frpoly.lisp \
+  > /tmp/clamsara-frpoly-oracle.log 2>&1
+```
+
+This loads the unchanged fixture into separate native and managed environments.
+It compares all original degree/base cases after real moving collections.
+It currently stops at the first degree-2 mismatch. The same mismatch occurs
+before collection and in a plain upstream Maclina client with host conses.
+Returning NIL from all four TESTFRPOLY subtests is therefore not acceptance.
+The probe never clears fixture globals for shutdown; even complete value
+comparisons would establish computation, not full benchmark lifecycle success.

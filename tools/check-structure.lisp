@@ -52,7 +52,7 @@
     ("MACLINA.COMPILE::COMPILE-SPECIAL"
      . "WORKLOAD-MACLINA-CLIENT marks cleanup templates and clears compiler-proven dead value registers.")
     ("MACLINA.COMPILE::LOAD-LITERAL-INFO"
-     . "WORKLOAD-MACLINA-CLIENT transfers cleanup ownership markers from compiler objects to linked functions.")))
+     . "WORKLOAD-MACLINA-CLIENT transfers cleanup ownership markers and rejects boxed numeric literals without managed linker ownership.")))
 
 (defparameter *definition-operators*
   '(defun defmacro defgeneric defmethod defclass defstruct define-condition

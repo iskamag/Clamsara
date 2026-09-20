@@ -161,6 +161,33 @@ movement evidence, an empty-root final collection without clearing roots, and
 successful close; either workload or close failure makes the process fail.
 See `tools/README.md`. A fresh full run is required after the close repair.
 
+## Full depth-18 hosted acceptance
+
+Revision `113aa6a` passed `tools/run-gcbench.lisp` in a fresh SBCL process.
+The original checked-in Lisp translation ran at depth 18 with no source or
+parameter changes. Its assertions returned T. The guest geometry was unchanged:
+32MiB active semispace, 64MiB total semispace reserve, 8MiB maximum object.
+All 20 original fixture hashes verified unchanged before and after execution.
+
+Observed evidence from `/tmp/clamsara-gcbench-acceptance.log`:
+
+- Latest automatic SemiSpace cycle: complete; 196611 objects moved,
+  16777328 bytes moved; 262142 objects dead.
+- Explicit final cycle: complete; zero objects discovered or moved;
+  262143 objects dead. The runner did not clear roots.
+- Close: complete. `GCBENCH-ACCEPTED` present and process exit 0.
+- Workload elapsed: 1060.981 seconds; process elapsed: 1069.421 seconds.
+
+Short native validation processes overlapped this run. These times are
+operational evidence, not an isolated performance comparison. The published-code
+root repair was developed while this image was already running; this result
+belongs to `113aa6a`, not retroactively to later revisions. A final current-tree
+benchmark gate remains necessary after completing language adaptation.
+
+This establishes the hosted full GCBench lifecycle for that revision. It does
+not establish the 19 Gabriel benchmarks, full language adaptation, independent
+expanded generational coverage, or Mezzano/supervisor admission.
+
 ## Completed-runtime close
 
 The original close helper erased VM registers, unbound both owned contexts,

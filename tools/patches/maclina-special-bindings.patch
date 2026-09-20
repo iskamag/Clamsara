@@ -1,0 +1,154 @@
+diff --git a/compile/environment.lisp b/compile/environment.lisp
+--- a/compile/environment.lisp
++++ b/compile/environment.lisp
+@@ -158,7 +158,9 @@
+     :name name :expansion expansion))
+ 
+ (defun globally-special-p (symbol env)
+-  (typep (var-info symbol env) 'trucler:global-special-variable-description))
++  ;; A local binding description must not hide a global proclamation.
++  (typep (trucler:describe-variable m:*client* (global-environment env) symbol)
++         'trucler:global-special-variable-description))
+ 
+ (defun make-local-function (name frame-offset cfunction &key ignore)
+   (make-instance 'trucler:local-function-description
+diff --git a/compile/compile.lisp b/compile/compile.lisp
+--- a/compile/compile.lisp
++++ b/compile/compile.lisp
+@@ -1789,7 +1789,16 @@
+             (push-map-info (make-instance 'm:vars-info
+                              :start start :end end :bindings igninfos)
+                            context)))
+-        (setq new-env (add-specials (intersection specials required) new-env)))
++        ;; Required arguments initially occupy lexical carrier slots. Hide
++        ;; those carriers from body/default compilation for every special
++        ;; parameter, including globally proclaimed ones.
++        (setq new-env
++              (add-specials
++               (remove-if-not (lambda (var)
++                                (or (member var specials)
++                                    (globally-special-p var env)))
++                              required)
++               new-env)))
+       (unless (zerop optional-count)
+         (assemble context m:bind-optional-args min-count optional-count)
+         (loop for (opt default -p) in optionals
+diff --git a/test/cross/sham.lisp b/test/cross/sham.lisp
+--- a/test/cross/sham.lisp
++++ b/test/cross/sham.lisp
+@@ -101,6 +101,8 @@
+                  (clostrum:macro-function client environment cl) f)))
+ 
+ (defun define-variables (client environment)
++  (clostrum:make-parameter client environment
++                           'maclina.test::*globally-special-test* 0)
+   ;; Needed for COMPILE-FILE.
+   (loop for var in '(*read-suppress* *read-eval* *features* *read-base*
+ 		     *read-default-float-format*)
+diff --git a/test/ansi/special.lisp b/test/ansi/special.lisp
+--- a/test/ansi/special.lisp
++++ b/test/ansi/special.lisp
+@@ -34,3 +34,103 @@
+       (%f)))
+   a)
+ 
++
++;;; Global proclamations survive lexical carrier slots and local declarations.
++(defvar *globally-special-test* 0)
++
++(deftest special.global-required-setq
++  (flet ((read-current () *globally-special-test*))
++    ((lambda (*globally-special-test*)
++       (setq *globally-special-test* (1+ *globally-special-test*))
++       (values *globally-special-test* (read-current)))
++     17))
++  18 18)
++
++(deftest special.global-required-rebind
++  (flet ((read-current () *globally-special-test*))
++    ((lambda (*globally-special-test*)
++       (declare (special *globally-special-test*))
++       (let ((*globally-special-test* 99)) (read-current)))
++     17))
++  99)
++
++(deftest special.global-optional-default
++  (flet ((read-current () *globally-special-test*))
++    ((lambda (*globally-special-test*
++              &optional (x (progn
++                             (setq *globally-special-test*
++                                   (1+ *globally-special-test*))
++                             (read-current))))
++       (values *globally-special-test* x (read-current)))
++     17))
++  18 18 18)
++
++(deftest special.global-key-default
++  (flet ((read-current () *globally-special-test*))
++    ((lambda (*globally-special-test*
++              &key (x (progn
++                        (setq *globally-special-test*
++                              (1+ *globally-special-test*))
++                        (read-current))))
++       (values *globally-special-test* x (read-current)))
++     17))
++  18 18 18)
++
++(deftest special.global-aux-default
++  (flet ((read-current () *globally-special-test*))
++    ((lambda (*globally-special-test*
++              &aux (x (progn
++                        (setq *globally-special-test*
++                              (1+ *globally-special-test*))
++                        (read-current))))
++       (values *globally-special-test* x (read-current)))
++     17))
++  18 18 18)
++
++(deftest special.global-declared-optional
++  (locally (declare (special *globally-special-test*))
++    (flet ((read-current () *globally-special-test*))
++      ((lambda (&optional (*globally-special-test* 17))
++         (setq *globally-special-test* (1+ *globally-special-test*))
++         (values *globally-special-test* (read-current))))))
++  18 18)
++
++(deftest special.global-declared-key
++  (locally (declare (special *globally-special-test*))
++    (flet ((read-current () *globally-special-test*))
++      ((lambda (&key (*globally-special-test* 17))
++         (setq *globally-special-test* (1+ *globally-special-test*))
++         (values *globally-special-test* (read-current))))))
++  18 18)
++
++(deftest special.global-declared-aux
++  (locally (declare (special *globally-special-test*))
++    (flet ((read-current () *globally-special-test*))
++      ((lambda (&aux (*globally-special-test* 17))
++         (setq *globally-special-test* (1+ *globally-special-test*))
++         (values *globally-special-test* (read-current))))))
++  18 18)
++
++(deftest special.global-callee-writes
++  (flet ((write-current (x) (setq *globally-special-test* x)))
++    ((lambda (*globally-special-test*)
++       (write-current 37)
++       *globally-special-test*)
++     17))
++  37)
++
++(deftest special.global-escaped-reader
++  (let ((reader ((lambda (*globally-special-test*)
++                   #'(lambda () *globally-special-test*))
++                 17)))
++    (let ((*globally-special-test* 88)) (funcall reader)))
++  88)
++
++(deftest special.global-restoration
++  (let ((*globally-special-test* 9))
++    (values ((lambda (*globally-special-test*)
++               (setq *globally-special-test* (1+ *globally-special-test*))
++               *globally-special-test*)
++             17)
++            *globally-special-test*))
++  18 9)

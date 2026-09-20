@@ -73,7 +73,7 @@ Keep the log and source revision. Verify the original fixture hashes in
 older temporary driver's `:STATUS :OK` with `:FINAL-COLLECTION-STATUS :NOT-RUN`
 or a swallowed `GCBENCH-CLOSE-ERROR` as full acceptance.
 
-## FRPOLY result oracle (currently failing)
+## FRPOLY result oracle (fails with the default dependency)
 
 ```sh
 sbcl --noinform --non-interactive --load tools/probe-frpoly.lisp \
@@ -82,11 +82,15 @@ sbcl --noinform --non-interactive --load tools/probe-frpoly.lisp \
 
 This loads the unchanged fixture into separate native and managed environments.
 It compares all original degree/base cases after real moving collections.
-It currently stops at the first degree-2 mismatch. The same mismatch occurs
-before collection and in a plain upstream Maclina client with host conses.
+With the unchanged shared Maclina dependency, it stops at the first degree-2
+mismatch. The same mismatch occurs before collection and with host conses.
+An explicitly selected temporary compiler candidate passes all twelve cases;
+see `docs/maclina-special-bindings.md`. The candidate is not auto-installed.
 Returning NIL from all four TESTFRPOLY subtests is therefore not acceptance.
-The probe never clears fixture globals for shutdown; even complete value
-comparisons would establish computation, not full benchmark lifecycle success.
+After the value comparisons, the probe also calls the original TESTFRPOLY
+entry in the same environment. It never clears fixture globals for shutdown;
+complete value comparisons and that entry's return establish computation,
+not full benchmark lifecycle success.
 
 ## Upstream special-parameter regression (currently failing)
 
@@ -99,3 +103,18 @@ required globally special assignment and nested rebinding with native Lisp.
 It reports all three cases and exits unsuccessfully while any differ. Adding
 an explicit SPECIAL declaration repairs only one of the two failing cases.
 See `docs/workload-boundaries.md` before attempting an adapter workaround.
+
+## Unapplied Maclina candidate and broader binding probe
+
+`tools/patches/maclina-special-bindings.patch` is a dependency patch, not a
+runtime override. Apply it only to an explicitly selected separate checkout.
+`docs/maclina-special-bindings.md` gives the base revision, source-selection
+steps, test evidence, remaining failures, and preserved positive logs.
+
+- `tools/probe-maclina-special-tests.lisp` runs fourteen focused upstream
+  checks in each of the native and cross VMs. It needs FiveAM and asserts that
+  the patch's new tests exist. It does not claim a full upstream-suite pass.
+- `tools/probe-special-bindings.lisp` compares thirty-four native/plain-VM
+  cases without loading Clamsara. It remains a failing gate: fourteen cases
+  differ with the original compiler; two nonlocal-exit cases still fail with
+  the candidate. Errors are reported, not swallowed into passing results.

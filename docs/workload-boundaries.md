@@ -187,10 +187,12 @@ A separate native polynomial oracle found a structural/value mismatch already
 at degree 2, before collection. The initial polynomial agrees. The same wrong
 result appears with native arithmetic in the workload environment and with a
 plain upstream Maclina client using host conses. Thus this is not evidence of
-bignum movement corrupting the polynomial. Its exact cause remains under
-investigation; FRPOLY is not accepted. Fixture globals also remain live and
-close must still reject them. `tools/probe-frpoly.lisp` preserves this failing
-oracle gate without changing the fixture or treating NIL returns as a pass.
+bignum movement corrupting the polynomial. The special-binding defects below
+explain this mismatch. A temporary compiler candidate now passes all twelve
+polynomial comparisons, but it is not installed in the shared dependency.
+FRPOLY is not accepted as a full lifecycle. Fixture globals remain live and
+close must still reject them. `tools/probe-frpoly.lisp` keeps the oracle gate
+without changing the fixture or treating NIL returns as a pass.
 
 ## Upstream globally special parameter blocker
 
@@ -218,11 +220,16 @@ local declaration can consequently hide a global proclamation from a nested
 binding. A correct fix must retain the global classification, not merely add
 SPECIAL declarations to FRPOLY or redirect individual reads and writes.
 
-The relevant binding compiler functions are nongeneric. No dependency source
-or global compiler function has been changed. The Maclina working tree was
-clean when inspected. The next repair belongs in that compiler and needs its
-own binding/default/closure/unwind regressions. This is an implementation bug,
-not a paper-v14 contradiction or a reason to edit the benchmark.
+The relevant binding compiler functions are nongeneric. The shared Maclina
+working tree remains unchanged; no global compiler function is replaced.
+`tools/patches/maclina-special-bindings.patch` contains an explicitly unapplied
+repair and eleven upstream regressions, tested in a temporary copy. Its
+fourteen focused checks pass in both VMs, and the unchanged FRPOLY oracle
+agrees in all twelve cases after moving collections. A broader binding matrix
+still reports two pre-existing nonlocal-exit errors; the full upstream suite
+also has a native compilation blocker. See `docs/maclina-special-bindings.md`
+for exact evidence and reproduction instructions. This is an implementation
+bug, not a paper-v14 contradiction or a reason to edit the benchmark.
 
 ## Published code roots
 

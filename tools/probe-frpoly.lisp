@@ -1,5 +1,6 @@
 ;;;; Independent native result oracle for all original FRPOLY parameter sets.
-;;;; This diagnostic currently fails: returning NIL is not benchmark acceptance.
+;;;; The default dependency fails; the explicit compiler candidate agrees.
+;;;; This is computation only: returning NIL is not benchmark acceptance.
 ;;;; Run from the repository root; fixture globals are never erased for close.
 (require :asdf)
 (asdf:load-system :clamsara/workload)
@@ -44,6 +45,11 @@
   (format t "~&FRPOLY-ORACLE cases=~D moved=~D~%" cases total-moved)
   (assert (= cases 12))
   (assert (plusp total-moved))
+  ;; Run the original entry in this same environment after the independent
+  ;; value comparisons. Its NIL return is not the correctness oracle.
+  (format t "~&FRPOLY-ORIGINAL-ENTRY starting~%")
+  (assert (equal '(nil) (multiple-value-list (workload-eval env '(testfrpoly)))))
+  (format t "~&FRPOLY-ORIGINAL-ENTRY returned; polynomial oracles already checked~%")
   ;; No forced teardown: the fixture's globals are genuinely still live.
   (workload-eval env nil)
   (assert (handler-case (progn (close-workload-runtime rt) nil)

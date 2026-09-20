@@ -1,0 +1,212 @@
+MACLINA-CANDIDATE /tmp/clamsara-maclina-special-id2ma47p/
+WARNING: redefining INVISTRA:CONTROL-STRING in DEFGENERIC
+WARNING: redefining INVISTRA::DIRECTIVE-CHARACTER in DEFGENERIC
+
+; file: /home/iskam/src/vibe/Clamsara/bench/gabriel/reference/frpoly.cl
+; in: DEFUN PCPLUS
+;     (CLAMSARA-FRPOLY-ORACLE::PCPLUS1 CLAMSARA-FRPOLY-ORACLE::C
+;      (CDR CLAMSARA-FRPOLY-ORACLE::P))
+; 
+; caught STYLE-WARNING:
+;   undefined function: CLAMSARA-FRPOLY-ORACLE::PCPLUS1
+
+;     (CLAMSARA-FRPOLY-ORACLE::PSIMP (CAR CLAMSARA-FRPOLY-ORACLE::P)
+;      (CLAMSARA-FRPOLY-ORACLE::PCPLUS1 CLAMSARA-FRPOLY-ORACLE::C
+;       (CDR CLAMSARA-FRPOLY-ORACLE::P)))
+; 
+; caught STYLE-WARNING:
+;   undefined function: CLAMSARA-FRPOLY-ORACLE::PSIMP
+; 
+; compilation unit finished
+;   Undefined functions:
+;     PCPLUS1 PSIMP
+;   caught 2 STYLE-WARNING conditions
+
+; file: /home/iskam/src/vibe/Clamsara/bench/gabriel/reference/frpoly.cl
+; in: DEFUN PCPLUS1
+;     (CLAMSARA-FRPOLY-ORACLE::PPLUS CLAMSARA-FRPOLY-ORACLE::C
+;      (CADR CLAMSARA-FRPOLY-ORACLE::X))
+; 
+; caught STYLE-WARNING:
+;   undefined function: CLAMSARA-FRPOLY-ORACLE::PPLUS
+; 
+; compilation unit finished
+;   Undefined function:
+;     PPLUS
+;   caught 1 STYLE-WARNING condition
+
+; file: /home/iskam/src/vibe/Clamsara/bench/gabriel/reference/frpoly.cl
+; in: DEFUN PCTIMES
+;     (CLAMSARA-FRPOLY-ORACLE::PCTIMES1 CLAMSARA-FRPOLY-ORACLE::C
+;      (CDR CLAMSARA-FRPOLY-ORACLE::P))
+; 
+; caught STYLE-WARNING:
+;   undefined function: CLAMSARA-FRPOLY-ORACLE::PCTIMES1
+
+;     (CLAMSARA-FRPOLY-ORACLE::PSIMP (CAR CLAMSARA-FRPOLY-ORACLE::P)
+;      (CLAMSARA-FRPOLY-ORACLE::PCTIMES1 CLAMSARA-FRPOLY-ORACLE::C
+;       (CDR CLAMSARA-FRPOLY-ORACLE::P)))
+; 
+; caught STYLE-WARNING:
+;   undefined function: CLAMSARA-FRPOLY-ORACLE::PSIMP
+; 
+; compilation unit finished
+;   Undefined functions:
+;     PCTIMES1 PSIMP
+;   caught 2 STYLE-WARNING conditions
+
+; file: /home/iskam/src/vibe/Clamsara/bench/gabriel/reference/frpoly.cl
+; in: DEFUN PCTIMES1
+;     (CLAMSARA-FRPOLY-ORACLE::PTIMES CLAMSARA-FRPOLY-ORACLE::C
+;      (CADR CLAMSARA-FRPOLY-ORACLE::X))
+; 
+; caught STYLE-WARNING:
+;   undefined function: CLAMSARA-FRPOLY-ORACLE::PTIMES
+; 
+; compilation unit finished
+;   Undefined function:
+;     PTIMES
+;   caught 1 STYLE-WARNING condition
+
+; file: /home/iskam/src/vibe/Clamsara/bench/gabriel/reference/frpoly.cl
+; in: DEFUN PPLUS
+;     (CLAMSARA-FRPOLY-ORACLE::PPLUS1 (CDR CLAMSARA-FRPOLY-ORACLE::Y)
+;      (CDR CLAMSARA-FRPOLY-ORACLE::X))
+; 
+; caught STYLE-WARNING:
+;   undefined function: CLAMSARA-FRPOLY-ORACLE::PPLUS1
+
+;     (CLAMSARA-FRPOLY-ORACLE::PSIMP (CAR CLAMSARA-FRPOLY-ORACLE::X)
+;      (CLAMSARA-FRPOLY-ORACLE::PPLUS1 (CDR CLAMSARA-FRPOLY-ORACLE::Y)
+;       (CDR CLAMSARA-FRPOLY-ORACLE::X)))
+; 
+; caught STYLE-WARNING:
+;   undefined function: CLAMSARA-FRPOLY-ORACLE::PSIMP
+; 
+; compilation unit finished
+;   Undefined functions:
+;     PPLUS1 PSIMP
+;   caught 2 STYLE-WARNING conditions
+
+; file: /home/iskam/src/vibe/Clamsara/bench/gabriel/reference/frpoly.cl
+; in: DEFUN PTIMES
+;     (CLAMSARA-FRPOLY-ORACLE::PTIMES1 (CDR CLAMSARA-FRPOLY-ORACLE::X)
+;      (CDR CLAMSARA-FRPOLY-ORACLE::Y))
+; 
+; caught STYLE-WARNING:
+;   undefined function: CLAMSARA-FRPOLY-ORACLE::PTIMES1
+; 
+; compilation unit finished
+;   Undefined function:
+;     PTIMES1
+;   caught 1 STYLE-WARNING condition
+
+; file: /home/iskam/src/vibe/Clamsara/bench/gabriel/reference/frpoly.cl
+; in: DEFUN PTIMES1
+;     (CLAMSARA-FRPOLY-ORACLE::PTIMES2 CLAMSARA-FRPOLY-ORACLE::Y)
+; 
+; caught STYLE-WARNING:
+;   undefined function: CLAMSARA-FRPOLY-ORACLE::PTIMES2
+
+;     (CLAMSARA-FRPOLY-ORACLE::PTIMES3 CLAMSARA-FRPOLY-ORACLE::Y)
+; 
+; caught STYLE-WARNING:
+;   undefined function: CLAMSARA-FRPOLY-ORACLE::PTIMES3
+; 
+; compilation unit finished
+;   Undefined functions:
+;     PTIMES2 PTIMES3
+;   caught 2 STYLE-WARNING conditions
+
+; file: /home/iskam/src/vibe/Clamsara/bench/gabriel/reference/frpoly.cl
+; in: DEFUN PTIMES3
+;     (CLAMSARA-FRPOLY-ORACLE::PDIFFER1 CLAMSARA-FRPOLY-ORACLE::U*
+;      (LIST (CAR CLAMSARA-FRPOLY-ORACLE::V) (CADR CLAMSARA-FRPOLY-ORACLE::V)))
+; 
+; caught STYLE-WARNING:
+;   undefined function: CLAMSARA-FRPOLY-ORACLE::PDIFFER1
+; 
+; compilation unit finished
+;   Undefined function:
+;     PDIFFER1
+;   caught 1 STYLE-WARNING condition
+STYLE-WARNING: using deprecated EVAL-WHEN situation names EVAL LOAD
+
+; file: /home/iskam/src/vibe/Clamsara/bench/gabriel/reference/frpoly.cl
+; in: DEFUN TESTFRPOLY
+;     (CLAMSARA-FRPOLY-ORACLE::TESTFRPOLY-1)
+; 
+; caught STYLE-WARNING:
+;   undefined function: CLAMSARA-FRPOLY-ORACLE::TESTFRPOLY-1
+
+;     (CLAMSARA-FRPOLY-ORACLE::TESTFRPOLY-2)
+; 
+; caught STYLE-WARNING:
+;   undefined function: CLAMSARA-FRPOLY-ORACLE::TESTFRPOLY-2
+
+;     (CLAMSARA-FRPOLY-ORACLE::TESTFRPOLY-3)
+; 
+; caught STYLE-WARNING:
+;   undefined function: CLAMSARA-FRPOLY-ORACLE::TESTFRPOLY-3
+
+;     (CLAMSARA-FRPOLY-ORACLE::TESTFRPOLY-4)
+; 
+; caught STYLE-WARNING:
+;   undefined function: CLAMSARA-FRPOLY-ORACLE::TESTFRPOLY-4
+; 
+; compilation unit finished
+;   Undefined functions:
+;     TESTFRPOLY-1 TESTFRPOLY-2 TESTFRPOLY-3 TESTFRPOLY-4
+;   caught 4 STYLE-WARNING conditions
+WARNING: Unknown operator PSIMP: treating as global function
+WARNING: Unknown operator PCPLUS1: treating as global function
+WARNING: Unknown operator PCPLUS1: treating as global function
+WARNING: Unknown operator PPLUS: treating as global function
+WARNING: Unknown operator PSIMP: treating as global function
+WARNING: Unknown operator PCTIMES1: treating as global function
+WARNING: Unknown operator PTIMES: treating as global function
+WARNING: Unknown operator PCTIMES1: treating as global function
+WARNING: Unknown operator PSIMP: treating as global function
+WARNING: Unknown operator PSIMP: treating as global function
+WARNING: Unknown operator PSIMP: treating as global function
+WARNING: Unknown operator PPLUS1: treating as global function
+WARNING: Unknown operator PPLUS1: treating as global function
+WARNING: Unknown operator PPLUS1: treating as global function
+WARNING: Unknown operator PPLUS1: treating as global function
+WARNING: Unknown operator PTIMES1: treating as global function
+WARNING: Unknown operator PTIMES2: treating as global function
+WARNING: Unknown operator PTIMES3: treating as global function
+WARNING: Unknown operator PTIMES2: treating as global function
+WARNING: Unknown operator PDIFFER1: treating as global function
+WARNING: Unknown operator TESTFRPOLY-1: treating as global function
+WARNING: Unknown operator TESTFRPOLY-2: treating as global function
+WARNING: Unknown operator TESTFRPOLY-3: treating as global function
+WARNING: Unknown operator TESTFRPOLY-4: treating as global function
+FRPOLY-ORACLE checking R degree=2 moved=81
+FRPOLY-ORACLE checking R2 degree=2 moved=81
+FRPOLY-ORACLE checking R3 degree=2 moved=81
+FRPOLY-ORACLE checking R degree=5 moved=218
+FRPOLY-ORACLE checking R2 degree=5 moved=274
+FRPOLY-ORACLE checking R3 degree=5 moved=218
+FRPOLY-ORACLE checking R degree=10 moved=813
+FRPOLY-ORACLE checking R2 degree=10 moved=1099
+FRPOLY-ORACLE checking R3 degree=10 moved=813
+FRPOLY-ORACLE checking R degree=15 moved=2083
+FRPOLY-ORACLE checking R2 degree=15 moved=2899
+FRPOLY-ORACLE checking R3 degree=15 moved=2083
+FRPOLY-ORACLE cases=12 moved=10743
+FRPOLY-ORIGINAL-ENTRY starting
+; elapsed 0.011 seconds
+
+NIL 
+; elapsed 0.173 seconds
+
+NIL 
+; elapsed 2.434 seconds
+
+NIL 
+; elapsed 21.417 seconds
+
+NIL 
+FRPOLY-ORIGINAL-ENTRY returned; polynomial oracles already checked
+FRPOLY-COMPUTATION-ONLY; live fixture globals preserved

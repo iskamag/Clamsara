@@ -1,0 +1,3 @@
+# Preserve literal unified-diff context and verbatim diagnostic output.
+tools/patches/*.patch whitespace=-blank-at-eol,-space-before-tab
+docs/*.log whitespace=-blank-at-eol

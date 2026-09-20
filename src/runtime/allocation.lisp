@@ -69,14 +69,21 @@
   (let* ((configuration (%context-configuration context))
          (model (configuration-object-model configuration))
          (plan (%context-plan context))
+         (maximum (%context-target-maximum
+                   (configuration-construction-context configuration)))
          (expected (handler-case (object-kind-descriptor model kind)
                      (error () nil))))
     (cond ((or (null expected) (not (eq expected descriptor))) :invalid-kind)
           ((not (typep bytes '(integer 1 *))) :invalid-size)
           ((not (%positive-power-of-two-p alignment)) :invalid-alignment)
           ((> alignment (%plan-packing-quantum plan)) :invalid-alignment)
+          ;; Check the rounded charge in the target domain before any raw
+          ;; reservation, refill or collection.  CL integers do not wrap.
+          ((> bytes (- maximum (1- (%plan-packing-quantum plan))))
+           :arithmetic-overflow)
           ((null (%allocation-route plan (%context-domain context))) :invalid-kind)
-          (t nil))))
+          (t (runtime-object-allocation-rejection
+              model expected bytes alignment)))))
 
 (defun %attempt-object-allocation (context kind bytes descriptor)
   (let* ((configuration (%context-configuration context))

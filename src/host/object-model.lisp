@@ -976,16 +976,39 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
      (if (typep strong 'host-indexed-layout)
          (<= (host-indexed-layout-base-offset strong) size)
          (loop for slot across strong
-               always (< (host-slot-description-offset slot) size)))
+               always (<= (host-slot-description-offset slot) (- size 8))))
      (loop for description across
            (host-object-kind-description-weak-descriptions kind)
-           always (< (host-weak-location-description-offset description) size))
+           always (<= (host-weak-location-description-offset description)
+                      (- size 8)))
      (loop for description across
            (host-object-kind-description-ephemeron-descriptions kind)
-           always (and (< (host-ephemeron-description-key-offset description)
-                          size)
-                       (< (host-ephemeron-description-value-offset description)
-                          size))))))
+           always (and (<= (host-ephemeron-description-key-offset description)
+                           (- size 8))
+                       (<= (host-ephemeron-description-value-offset description)
+                           (- size 8)))))))
+
+(defun runtime-object-allocation-rejection (model descriptor bytes alignment)
+  ;; Private hosted runtime bridge, like RUNTIME-START-REFERENCE.  Rule
+  ;; interpretation belongs to the model, not to the allocator or plan.
+  (%host-bound-model model)
+  (let ((kind (%host-kind-description! model descriptor)))
+    (unless (handler-case
+                (and (<= bytes (host-model-max-object-bytes model))
+                     (%host-kind-size-count kind bytes)
+                     (%host-kind-offsets-fit-p kind bytes))
+              (error () nil))
+      (return-from runtime-object-allocation-rejection :invalid-size))
+    (unless (handler-case
+                (let ((required
+                        (%host-positive-rule-value
+                         (host-object-kind-description-alignment-rule kind)
+                         kind "alignment")))
+                  (and (%host-positive-power-of-two-p required)
+                       (>= alignment required)))
+              (error () nil))
+      (return-from runtime-object-allocation-rejection :invalid-alignment))
+    nil))
 
 (defun %host-clear-object-planes (model route address size)
   (let ((byte-start (%host-arena-byte-index route address))

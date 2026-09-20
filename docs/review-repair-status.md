@@ -156,11 +156,42 @@ queue histories passing. The source-only design note in
 object-model/callable representation and actual activation roots. It is a
 proposal, not implemented or accepted functionality.
 
+## Allocation request validation
+
+The hosted allocation path now checks kind-specific size and alignment before
+raw reservation, refill or collection. A private model bridge interprets the
+opaque rules; the allocator does not inspect their representation. Validation
+includes exact fixed sizes, variable header/stride/count limits, maximum hosted
+object size, and full fixed reference-word extents. Requested alignment must
+cover the hosted kind's ABI alignment and fit the route quantum. The rounded
+charge is checked against the construction target's arithmetic limit, not CL's
+unbounded integer arithmetic.
+
+`clamsara/quality/allocation/test`, also selected by the main tests, covers
+168 rejected requests, 36 valid allocation controls and four valid-but-exhausted
+requests across both collectors and both start-map representations. Rejections
+must leave the rooted object, model planes, allocator state and context state
+unchanged. Instrumentation around the real raw/refill/automatic-collection
+methods requires no entry on rejection. It delegates normal operations without
+stubs. Valid exhaustion still takes the normal refill/collection path and reports
+`:heap-exhausted`, rather than being mislabeled as an invalid size.
+
+The native baseline signaled `Invalid hosted object initialization` for a
+positive wrong fixed size. The expanded repaired suite and integrated
+main/tools/workload/optional-generational/structure gates pass. The bounded
+[source-only review](allocation-admission-review.md) found no new concrete defect
+for stable hosted descriptions. Its suggested exact arithmetic/model-size/
+conditional-word boundaries and ordinary signaling-rule checks were then added
+and passed natively. This is not a claim of complete object-model admission: binding-time descriptor snapshots,
+function-rule stability and all other representation capacities still need an
+audit. In particular, source inspection shows that binding currently copies the
+kind vector while retaining its description objects; later mutation/stability
+has not been independently exercised in this repair.
+
 ## Other confirmed review findings
 
-Still open: under-admitted model representation capacity; composed CAS event
-ordering and mismatch exposure-fault closure; invalid positive allocation-size
-admission before collection or other effects. These have not been waived by
+Still open: under-admitted model representation capacity, and composed CAS event
+ordering and mismatch exposure-fault closure. These have not been waived by
 passing existing component suites.
 
 ## Generational recovery

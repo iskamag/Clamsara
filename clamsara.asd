@@ -140,6 +140,7 @@
                              (asdf:test-op :clamsara/runtime/lifecycle/test)
                              (asdf:test-op :clamsara/acceptance/test)
                              (asdf:test-op :clamsara/quality/stateful/test)
+                             (asdf:test-op :clamsara/quality/allocation/test)
                              (asdf:test-op :clamsara/quality/finalizers/test)
                              (asdf:test-op :clamsara/quality/finalizer-drain/test)
                              (asdf:test-op :clamsara/quality/model-resources/test)
@@ -294,6 +295,16 @@
                           (uiop:symbol-call :clamsara.quality.generational
                                            :run-generational-history-tests))
                (error "Generational quality tests failed"))))
+
+(asdf:defsystem :clamsara/quality/allocation/test
+  :version "0.1.0"
+  :depends-on (:clamsara/quality/support)
+  :components ((:file "test/quality/allocation"))
+  :perform (asdf:test-op (operation component)
+             (declare (ignore operation component))
+             (unless (uiop:symbol-call :clamsara.quality.allocation
+                                      :run-allocation-admission-tests)
+               (error "Allocation admission tests failed"))))
 
 (asdf:defsystem :clamsara/quality/finalizers/test
   :version "0.1.0"

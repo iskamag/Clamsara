@@ -156,8 +156,10 @@ guest values."
                     :reason (list :not-numeric-array kind)))))
   value)
 
-(defun %guest-struct-p (environment value)
-  (%description-p environment value :struct))
+(defun %guest-struct-p (environment value &optional name)
+  (and (%description-p environment value :struct)
+       (or (null name)
+           (eq name (workload-read-slot environment value :slot0)))))
 
 (defun %guest-car (environment value)
   (cond ((null value) nil)
@@ -509,21 +511,33 @@ BARRIER-READ/STORE."
       (clostrum:fdefinition client environment designator)
       designator))
 
+(defun %struct-slot-identity (index)
+  ;; Slot zero is the managed structure type tag; seven words remain for data.
+  (svref #(:slot0 :slot1 :slot2 :slot3 :slot4 :slot5 :slot6 :slot7) index))
+
 (defun %parse-simple-struct (form)
   (let* ((name-and-options (second form))
          (name (if (consp name-and-options)
-                   (first name-and-options)
-                   name-and-options))
-         (specs (cddr form))
-         (slots (loop for spec in specs
-                      collect (if (consp spec) (first spec) spec))))
-    (unless (symbolp name)
+                   (first name-and-options) name-and-options))
+         (slots (cddr form)))
+    (unless (and (symbolp name) name (not (eq name t)) (not (keywordp name)))
       (error 'workload-capability-error :operation 'defstruct
              :reason :invalid-name))
-    (dolist (spec specs)
-      (when (and (consp spec) (keywordp (first spec)))
-        (error 'workload-capability-error :operation 'defstruct
-               :reason (list :unsupported-slot-option spec))))
+    ;; Reject unimplemented options/defaults rather than silently discarding
+    ;; their semantics. The currently admitted shape uses bare slot names.
+    (when (and (consp name-and-options) (cdr name-and-options))
+      (error 'workload-capability-error :operation 'defstruct
+             :reason :unsupported-structure-options))
+    (unless (every #'symbolp slots)
+      (error 'workload-capability-error :operation 'defstruct
+             :reason :unsupported-slot-specification))
+    (unless (= (length slots)
+               (length (remove-duplicates slots :key #'symbol-name :test #'string=)))
+      (error 'workload-capability-error :operation 'defstruct
+             :reason :duplicate-slot-name))
+    (when (> (length slots) 7)
+      (error 'workload-capability-error :operation 'defstruct
+             :reason :structure-slot-capacity))
     (values name slots)))
 
 (defun %struct-accessor-name (name slot)
@@ -532,54 +546,50 @@ BARRIER-READ/STORE."
 
 (defun %install-struct (client runtime form)
   (let ((environment (workload-client-workload client)))
-  (multiple-value-bind (name slots) (%parse-simple-struct form)
-    (let ((constructor (intern (format nil "MAKE-~A" name)
+    (multiple-value-bind (name slots) (%parse-simple-struct form)
+      (let ((constructor (intern (format nil "MAKE-~A" name)
+                                 (or (symbol-package name) *package*)))
+            (predicate (intern (format nil "~A-P" name)
                                (or (symbol-package name) *package*)))
-          (predicate (intern (format nil "~A-P" name)
-                             (or (symbol-package name) *package*))))
-      (setf (clostrum:fdefinition client runtime predicate)
-            (lambda (value) (%guest-struct-p environment value)))
-      (setf (clostrum:fdefinition client runtime constructor)
-            (lambda (&rest arguments)
-              (declare (dynamic-extent arguments))
-              (let ((values (make-array (length slots) :initial-element nil)))
-                (loop for key in arguments by #'cddr
-                      for value in (rest arguments) by #'cddr
-                      for slot-index = (position
-                                        (if (keywordp key)
-                                            (intern (subseq (symbol-name key) 1)
-                                                    (symbol-package name))
-                                            key)
-                                        slots :test #'eq)
-                      do (when slot-index (setf (aref values slot-index) value)))
-                (%allocate-guest
-                 environment :struct (length slots)
-                 (coerce values 'list)
-                 (lambda (object)
-                   (loop for index below (length slots)
-                         do (workload-write-slot
-                             environment object index
-                             (workload-temporary-root-load environment index)))
-                   object)))))
-      (loop for slot in slots
-            for index from 0
-            for accessor = (%struct-accessor-name name slot)
-            do (setf (clostrum:fdefinition client runtime accessor)
-                     (let ((i index))
-                       (lambda (object)
-                         (unless (%guest-struct-p environment object)
-                           (error 'type-error :datum object
-                                  :expected-type 'structure-object))
-                         (workload-read-slot environment object i))))
-               (setf (clostrum:fdefinition client runtime
-                                            `(setf ,accessor))
-                     (let ((i index))
-                       (lambda (value object)
-                         (unless (%guest-struct-p environment object)
-                           (error 'type-error :datum object
-                                  :expected-type 'structure-object))
-                         (workload-write-slot environment object i value))))))
-  nil)))
+            (keywords (mapcar (lambda (slot)
+                                (intern (symbol-name slot) (find-package "KEYWORD")))
+                              slots)))
+        (setf (clostrum:fdefinition client runtime predicate)
+              (lambda (value) (%guest-struct-p environment value name)))
+        (setf (clostrum:fdefinition client runtime constructor)
+              (lambda (&rest arguments)
+                (declare (dynamic-extent arguments))
+                (unless (evenp (length arguments)) (error 'program-error))
+                (unless (getf arguments :allow-other-keys)
+                  (loop for (key value) on arguments by #'cddr
+                        do (unless (or (eq key :allow-other-keys)
+                                       (member key keywords :test #'eq))
+                             (error 'program-error))))
+                ;; GETF implements the leftmost-keyword rule. Use the shared
+                ;; allocation path so object, values, and store scratch never
+                ;; alias temporary roots, including across collection.
+                (workload-allocate
+                 environment :struct (1+ (length slots))
+                 (cons (list :slot0 name)
+                       (loop for keyword in keywords
+                             for index from 1
+                             collect (list (%struct-slot-identity index)
+                                           (getf arguments keyword)))))))
+        (loop for slot in slots
+              for index from 1
+              for accessor = (%struct-accessor-name name slot)
+              do (let ((identity (%struct-slot-identity index)))
+                   (setf (clostrum:fdefinition client runtime accessor)
+                         (lambda (object)
+                           (unless (%guest-struct-p environment object name)
+                             (error 'type-error :datum object :expected-type name))
+                           (workload-read-slot environment object identity)))
+                   (setf (clostrum:fdefinition client runtime `(setf ,accessor))
+                         (lambda (value object)
+                           (unless (%guest-struct-p environment object name)
+                             (error 'type-error :datum object :expected-type name))
+                           (workload-write-slot environment object identity value))))))))
+  nil)
 
 (defun %literal-expression (value)
   "Lower a quoted host list to source-level CONS calls.

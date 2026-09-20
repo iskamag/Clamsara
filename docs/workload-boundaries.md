@@ -39,6 +39,30 @@ unchanged global-cell counts, unknown non-keyword lookup, multiple keyword
 values, and calls using the benchmark's `:LEFT` and `:RIGHT` argument shape.
 The benchmark source and parameters remain unchanged.
 
+## Managed structures
+
+The admitted structure shape has a bare name and at most seven bare slot
+names, initially NIL. Each object uses the existing 64-byte managed kind:
+`:SLOT0` holds the structure-name symbol and `:SLOT1` through `:SLOT7` hold
+fields. Named predicates and accessors check this managed tag. No host
+structure instance or object-to-type side table stores guest state.
+
+The initial GCBench constructor used integer identities that were not declared
+by this fixed layout. Its keyword parser also removed the first character of
+`SYMBOL-NAME`. Both errors are repaired. Constructors use `WORKLOAD-ALLOCATE`,
+which keeps input values, the new object, and store scratch in distinct roots.
+Keyword handling preserves the leftmost value, rejects odd/unknown arguments,
+and supports `:ALLOW-OTHER-KEYS`. Unsupported DEFSTRUCT options, default-value
+specifications, duplicate names, and excess fields reject explicitly rather
+than being silently ignored. This is not full ANSI DEFSTRUCT support.
+
+The adapter suite now includes the unchanged GCBench tree functions in a
+bounded 16KiB test. After 240 discarded nodes, building a depth-4 tree triggers
+an automatic collection. The observed run moves 16 live nodes and checks all
+31 final nodes for distinct identity, valid type tags, and intact edges.
+This test is not a reduced-parameter replacement for full depth-18 acceptance.
+The adapter suite reports 36 passing checks.
+
 This is not a claim of complete language adaptation. Managed REST lists,
 constant/module roots, active closures, foreign primitive argument lifetimes,
 macro side effects crossing phase boundaries, general teardown, and the

@@ -87,6 +87,7 @@ to element count."
            (make-object-kind-description
             model :array-integer :size-rule numeric-array-size-rule
             :alignment-rule quantum :strong-layout nil))
+         ;; A structure uses one managed type-tag word and up to seven fields.
          (struct-kind
            (make-object-kind-description
             model :struct :size-rule 64 :alignment-rule quantum

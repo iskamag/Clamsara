@@ -1,0 +1,699 @@
+;;;; src/workload/maclina.lisp -- Maclina interpreter over v14.
+;;;;
+;;;; Maclina remains the compiler/bytecode engine.  Guest CONS, ARRAY and
+;;;; STRUCT payloads are allocated only through the v14 context; the host CL
+;;;; objects used by Maclina for code, environments and closures are not
+;;;; silently treated as managed references.  This file deliberately uses the
+;;;; upstream public Maclina client seams and CLAMSARA generics.
+
+(in-package #:clamsara)
+
+(defclass workload-maclina-client (maclina.vm-cross:client)
+  ((workload :initarg :workload :reader workload-client-workload)
+   (global-cells :initform (make-array 4096 :initial-element nil)
+                 :reader workload-client-global-cells)
+   (global-cell-count :initform 0 :accessor workload-client-global-cell-count)
+   (properties :initform (make-hash-table :test #'equal)
+               :reader workload-client-properties)))
+
+(defvar *workload-environment* nil)
+(defvar *workload-read-depth* 0)
+
+
+(defun %register-global-cell (client cell)
+  (let* ((cells (workload-client-global-cells client))
+         (count (workload-client-global-cell-count client)))
+    (when (>= count (length cells))
+      (error 'workload-capability-error :operation 'global-root-provider
+             :reason :capacity-exhausted))
+    (setf (aref cells count) cell
+          (workload-client-global-cell-count client) (1+ count))
+    cell))
+
+(defmethod clostrum-basic:make-variable-cell
+    ((client workload-maclina-client) environment name)
+  (declare (ignore environment name))
+  (%register-global-cell client (call-next-method)))
+
+(defun %register-existing-global-cells (client runtime)
+  (let ((table (clostrum-basic::variables runtime)))
+    (loop for name being each hash-key of table
+          for entry = (gethash name table)
+          when (and entry (slot-boundp entry 'clostrum-basic::cell))
+            do (%register-global-cell client (clostrum-basic::cell entry))))
+  client)
+
+(defun %guest-ref-p (environment value)
+  (and (not (null value))
+       (valid-reference-p (workload-model environment) value)))
+
+(defun %description-p (environment value kind-name)
+  (and (%guest-ref-p environment value)
+       (eq (object-kind (workload-model environment) value)
+           (workload-kind-description (%workload-kind environment kind-name)))))
+
+(defun %guest-cons-p (environment value)
+  (%description-p environment value :cons))
+
+(defun %guest-array-kind-name (environment value)
+  (loop for name in '(:array :array-single-float :array-integer)
+        for kind = (getf (workload-kinds environment) name)
+        when (and kind (%guest-ref-p environment value)
+                  (eq (object-kind (workload-model environment) value)
+                      (workload-kind-description kind)))
+          do (return name)))
+
+(defun %guest-array-p (environment value)
+  (not (null (%guest-array-kind-name environment value))))
+
+(defun %guest-array-numeric-p (environment value)
+  (let ((name (%guest-array-kind-name environment value)))
+    (member name '(:array-single-float :array-integer))))
+
+(defun %guest-struct-p (environment value)
+  (%description-p environment value :struct))
+
+(defun %guest-car (environment value)
+  (cond ((null value) nil)
+        ((%guest-cons-p environment value)
+         (workload-read-slot environment value :car))
+        (t (error 'type-error :datum value :expected-type 'cons))))
+
+(defun %guest-cdr (environment value)
+  (cond ((null value) nil)
+        ((%guest-cons-p environment value)
+         (workload-read-slot environment value :cdr))
+        (t (error 'type-error :datum value :expected-type 'cons))))
+
+(defun %temporary-root-location (environment index)
+  (let ((locations (workload-root-locations environment)))
+    (unless (< -1 index (length locations))
+      (error 'workload-capability-error :operation 'temporary-root
+             :reason (list :index index :capacity (length locations))))
+    (aref locations index)))
+
+(defun %store-temporary-root (environment index value)
+  (multiple-value-bind (effective status)
+      (root-provider-store (workload-root-client environment)
+                           (workload-context environment)
+                           (workload-root-token environment)
+                           (%temporary-root-location environment index)
+                           value)
+    (case status
+      (:stored effective)
+      (:retry (error 'workload-error :operation 'root-provider-store
+                     :reason :retry))
+      (otherwise (error 'workload-error :operation 'root-provider-store
+                        :reason status)))))
+
+(defun %allocate-guest (environment kind-name count values &optional initializer)
+  "Allocate one object while VALUES occupy caller-provided root slots.
+INITIALIZER runs before those slots are cleared, so it can reload moved
+arguments and initialize the new object without retaining stale encodings."
+  (declare (type list values))
+  (let ((environment (%require-open environment 'allocate-object)))
+    (loop for value in values
+          for index from 0
+          do (%store-temporary-root environment index value))
+    (unwind-protect
+         (multiple-value-bind (kind bytes alignment descriptor)
+             (%workload-kind-allocation environment kind-name count)
+           (multiple-value-bind (reference status reason)
+               (allocate-object (workload-context environment)
+                                kind bytes alignment descriptor)
+             (case status
+               (:allocated
+                (if initializer
+                    (funcall initializer reference)
+                    reference))
+               (:failed (error 'workload-allocation-error
+                              :operation 'allocate-object :reason reason))
+               (otherwise
+                (error 'workload-allocation-error :operation 'allocate-object
+                       :reason (or reason status))))))
+      (loop for index from 0 below (length values)
+            do (%store-temporary-root environment index nil)))))
+
+(defun %cons* (environment car cdr)
+  (%allocate-guest
+   environment :cons 2 (list car cdr)
+   (lambda (object)
+     ;; INITIALIZER runs while allocation argument roots remain live.
+     (workload-write-slot environment object :car
+                           (workload-temporary-root-load environment 0))
+     (workload-write-slot environment object :cdr
+                           (workload-temporary-root-load environment 1))
+     object)))
+
+(defun %list* (environment values)
+  (if (null values)
+      nil
+      (%cons* environment (first values)
+               (%list* environment (rest values)))))
+
+(defun %proper-guest-list-p (environment value)
+  (loop for cursor = value then (%guest-cdr environment cursor)
+        while (%guest-cons-p environment cursor)
+        finally (return (null cursor))))
+
+(defun %guest-list->host (environment value)
+  "Copy a proper guest list to a host list for compiler/ANSI services.
+This is an explicit boundary conversion, never an implicit host fallback for
+CAR/CDR or storage."
+  (if (null value)
+      nil
+      (progn
+        (unless (%proper-guest-list-p environment value)
+          (error 'type-error :datum value :expected-type 'list))
+        (loop for cursor = value then (%guest-cdr environment cursor)
+              while (%guest-cons-p environment cursor)
+              collect (%guest-car environment cursor)))))
+
+(defun %host-list->guest (environment values)
+  (%list* environment
+          (loop for value in values
+                collect value)))
+
+(defun %guest-atom-p (environment value)
+  (not (%guest-cons-p environment value)))
+
+(defun %guest-length (environment value)
+  (cond ((null value) 0)
+        ((%guest-array-p environment value)
+         (let* ((bytes (object-size (workload-model environment) value))
+                (payload (- bytes (workload-array-header-bytes environment))))
+           (unless (and (plusp (workload-word-bytes environment))
+                        (>= payload 0)
+                        (zerop (mod payload (workload-word-bytes environment))))
+             (error 'workload-capability-error :operation 'array-length
+                    :reason :nonintegral-representation-size))
+           (/ payload (workload-word-bytes environment))))
+        ((%guest-cons-p environment value)
+         (loop for cursor = value then (%guest-cdr environment cursor)
+               while (%guest-cons-p environment cursor)
+               count 1))
+        (t (error 'type-error :datum value :expected-type 'sequence))))
+
+(defun %with-array-element-location (environment object index function)
+  "Borrow an exact raw array element location from the simulator model.
+Numeric elements are not references and therefore must not be sent through
+BARRIER-READ/STORE."
+  (let* ((package (find-package '#:clamsara))
+         (name (and package
+                     (find-symbol "%CALL-WITH-SIMULATOR-ARRAY-ELEMENT"
+                                  package)))
+         (resolver (and name (fboundp name) (symbol-function name))))
+    (unless resolver
+      (error 'workload-capability-error :operation 'array-element-location
+             :reason :missing-model-resolver))
+    (multiple-value-bind (result status reason)
+        (funcall resolver (workload-model environment) object index function)
+      (case status
+        ((:present :complete) result)
+        (:stale (error 'workload-error :operation 'array-element-location
+                       :reason :stale))
+        (:retry (error 'workload-error :operation 'array-element-location
+                       :reason :retry))
+        (otherwise
+         (if (null status) result
+             (error 'workload-capability-error
+                    :operation 'array-element-location
+                    :reason (or reason status))))))))
+
+(defun %guest-array-ref (environment array index)
+  (unless (%guest-array-p environment array)
+    (error 'type-error :datum array :expected-type 'array))
+  (unless (and (integerp index) (<= 0 index)
+               (< index (%guest-length environment array)))
+    (error 'type-error :datum index :expected-type '(integer 0)))
+  (if (%guest-array-numeric-p environment array)
+      (%with-array-element-location environment array index
+                                     (lambda (location)
+                                       (load-reference
+                                        (workload-model environment) location)))
+      (workload-read-slot environment array index)))
+
+(defun %guest-array-set (environment value array index)
+  (unless (%guest-array-p environment array)
+    (error 'type-error :datum array :expected-type 'array))
+  (unless (and (integerp index) (<= 0 index)
+               (< index (%guest-length environment array)))
+    (error 'type-error :datum index :expected-type '(integer 0)))
+  (if (%guest-array-numeric-p environment array)
+      (%with-array-element-location
+       environment array index
+       (lambda (location)
+         (store-reference-raw (workload-model environment) location value)))
+      (workload-write-slot environment array index value)))
+
+
+(defun %array-dimension (environment dimensions)
+  (cond ((integerp dimensions) dimensions)
+        ((%guest-cons-p environment dimensions)
+         (let ((host (%guest-list->host environment dimensions)))
+           (unless (and (= (length host) 1) (integerp (first host)))
+             (error 'workload-capability-error :operation 'make-array
+                    :reason :only-one-dimensional-arrays))
+           (first host)))
+        (t (error 'type-error :datum dimensions :expected-type '(or integer list)))))
+
+(defun %array-kind-for-element-type (environment element-type)
+  (declare (ignore environment))
+  (cond ((or (null element-type) (eq element-type t)) :array)
+        ((or (eq element-type 'single-float)
+             (equal element-type '(single-float)))
+         :array-single-float)
+        ((or (eq element-type 'integer)
+             (equal element-type '(integer)))
+         :array-integer)
+        (t (error 'workload-capability-error :operation 'make-array
+                  :reason (list :unsupported-element-type element-type)))))
+
+(defun %make-array* (environment dimensions &rest options)
+  (declare (dynamic-extent options))
+  (let ((length (%array-dimension environment dimensions))
+        (element-type nil)
+        (initial-element nil)
+        (initial-element-p nil)
+        (initial-contents nil)
+        (initial-contents-p nil))
+    (loop for tail on options by #'cddr
+          for key = (first tail)
+          for value = (second tail)
+          do (case key
+               (:element-type (setf element-type value))
+               (:initial-element
+                (setf initial-element value initial-element-p t))
+               (:initial-contents
+                (setf initial-contents value initial-contents-p t))
+               (:adjustable (unless (null value)
+                              (error 'workload-capability-error
+                                     :operation 'make-array
+                                     :reason :adjustable-not-supported)))
+               (:fill-pointer (when value
+                                (error 'workload-capability-error
+                                       :operation 'make-array
+                                       :reason :fill-pointer-not-supported)))
+               (otherwise
+                (error 'workload-capability-error :operation 'make-array
+                       :reason (list :unsupported-option key)))))
+    (unless (and (integerp length) (<= 0 length))
+      (error 'type-error :datum length :expected-type '(integer 0)))
+    (when (and initial-contents-p initial-element-p)
+      (error 'workload-capability-error :operation 'make-array
+             :reason :both-initializers))
+    ;; ANSI typed numeric arrays have a representable zero initializer when
+    ;; INITIAL-ELEMENT is omitted.  Do not put NIL into a numeric payload.
+    (unless (or initial-element-p initial-contents-p)
+      (setf initial-element
+            (cond ((or (eq element-type 'single-float)
+                       (equal element-type '(single-float))) 0.0s0)
+                  ((or (eq element-type 'integer)
+                       (equal element-type '(integer))) 0)
+                  (t nil))
+            initial-element-p t))
+    (let* ((kind-name (%array-kind-for-element-type environment element-type))
+           (kind (getf (workload-kinds environment) kind-name)))
+      (unless kind
+        (error 'workload-capability-error :operation 'make-array
+               :reason (list :unsupported-array-kind kind-name)))
+      (%allocate-guest
+       environment kind-name length nil
+       (lambda (object)
+         ;; Keep the newly allocated array rooted while initialization stores run.
+         (%store-temporary-root environment 1 object)
+         (unwind-protect
+              (progn
+                (when initial-contents-p
+                  (%store-temporary-root environment 2 initial-contents)
+                  (unwind-protect
+                       (progn
+                         (dotimes (index length)
+                           (let ((cursor (workload-temporary-root-load
+                                          environment 2)))
+                             (unless (%guest-cons-p environment cursor)
+                               (error 'workload-capability-error
+                                      :operation 'make-array
+                                      :reason :too-few-initial-contents))
+                             (%guest-array-set
+                              environment (%guest-car environment cursor)
+                              (workload-temporary-root-load environment 1)
+                              index)
+                             (%store-temporary-root
+                              environment 2 (%guest-cdr environment cursor))))
+                         (when (%guest-cons-p
+                                environment
+                                (workload-temporary-root-load environment 2))
+                           (error 'workload-capability-error
+                                  :operation 'make-array
+                                  :reason :too-many-initial-contents)))
+                    (workload-temporary-root-clear environment 2)))
+                (unless initial-contents-p
+                  (dotimes (index length)
+                    (%guest-array-set
+                     environment
+                     (if initial-element-p initial-element nil)
+                     (workload-temporary-root-load environment 1)
+                     index)))
+                (workload-temporary-root-load environment 1))
+           (workload-temporary-root-clear environment 1)))))))
+
+(defun %property-key (symbol indicator)
+  (cons symbol indicator))
+
+(defun %property-value (client symbol indicator &optional default)
+  (multiple-value-bind (value present)
+      (gethash (%property-key symbol indicator)
+               (workload-client-properties client))
+    (if present value default)))
+
+(defun %set-property-value (client value symbol indicator)
+  (setf (gethash (%property-key symbol indicator)
+                 (workload-client-properties client)) value)
+  value)
+
+(defun %lookup-fdefinition (client environment designator)
+  (if (symbolp designator)
+      (clostrum:fdefinition client environment designator)
+      designator))
+
+(defun %parse-simple-struct (form)
+  (let* ((name-and-options (second form))
+         (name (if (consp name-and-options)
+                   (first name-and-options)
+                   name-and-options))
+         (specs (cddr form))
+         (slots (loop for spec in specs
+                      collect (if (consp spec) (first spec) spec))))
+    (unless (symbolp name)
+      (error 'workload-capability-error :operation 'defstruct
+             :reason :invalid-name))
+    (dolist (spec specs)
+      (when (and (consp spec) (keywordp (first spec)))
+        (error 'workload-capability-error :operation 'defstruct
+               :reason (list :unsupported-slot-option spec))))
+    (values name slots)))
+
+(defun %struct-accessor-name (name slot)
+  (intern (format nil "~A-~A" name slot)
+          (or (symbol-package name) *package*)))
+
+(defun %install-struct (client environment form)
+  (multiple-value-bind (name slots) (%parse-simple-struct form)
+    (let ((constructor (intern (format nil "MAKE-~A" name)
+                               (or (symbol-package name) *package*)))
+          (predicate (intern (format nil "~A-P" name)
+                             (or (symbol-package name) *package*))))
+      (setf (clostrum:fdefinition client environment predicate)
+            (lambda (value) (%guest-struct-p environment value)))
+      (setf (clostrum:fdefinition client environment constructor)
+            (lambda (&rest arguments)
+              (declare (dynamic-extent arguments))
+              (let ((values (make-array (length slots) :initial-element nil)))
+                (loop for key in arguments by #'cddr
+                      for value in (rest arguments) by #'cddr
+                      for slot-index = (position
+                                        (if (keywordp key)
+                                            (intern (subseq (symbol-name key) 1)
+                                                    (symbol-package name))
+                                            key)
+                                        slots :test #'eq)
+                      do (when slot-index (setf (aref values slot-index) value)))
+                (let ((object
+                        (%allocate-guest environment :struct (length slots)
+                                         (coerce values 'list))))
+                  (loop for slot in slots
+                        for index from 0
+                        do (workload-write-slot environment object index
+                                                (aref values index)))
+                  object))))
+      (loop for slot in slots
+            for index from 0
+            for accessor = (%struct-accessor-name name slot)
+            do (setf (clostrum:fdefinition client environment accessor)
+                     (let ((i index))
+                       (lambda (object)
+                         (unless (%guest-struct-p environment object)
+                           (error 'type-error :datum object
+                                  :expected-type 'structure-object))
+                         (workload-read-slot environment object i))))
+               (setf (clostrum:fdefinition client environment
+                                            `(setf ,accessor))
+                     (let ((i index))
+                       (lambda (value object)
+                         (unless (%guest-struct-p environment object)
+                           (error 'type-error :datum object
+                                  :expected-type 'structure-object))
+                         (workload-write-slot environment object i value))))))
+  nil))
+
+(defun %literal-expression (value)
+  "Lower a quoted host list to source-level CONS calls.
+The source bytes remain untouched; this is the interpreter's quote semantics,
+ensuring every literal list is a managed object graph rather than a hidden
+host graph."
+  (cond ((consp value)
+         `(cl:cons ,(%literal-expression (car value))
+                    ,(%literal-expression (cdr value))))
+        ((or (symbolp value) (characterp value) (numberp value)
+             (stringp value) (null value))
+         `(quote ,value))
+        (t (error 'workload-capability-error :operation 'quote
+                  :reason (list :unsupported-literal value)))))
+
+(defun %rewrite-quoted (form)
+  (if (consp form)
+      (if (and (eq (first form) 'quote) (= (length form) 2)
+               (consp (second form)))
+          (%literal-expression (second form))
+          (loop for item in form collect (%rewrite-quoted item)))
+      form))
+
+(defun %normalize-proclamation (environment value)
+  (let ((host (%guest-list->host environment value)))
+    (if (and (consp host) (symbolp (first host))
+             (not (member (first host)
+                          '(cl:type cl:ftype cl:special cl:inline cl:notinline
+                            cl:optimize cl:declaration))))
+        (cons 'cl:type host)
+        host)))
+
+(defun %install-workload-functions (client environment)
+  (labels ((cons* (car cdr) (%cons* environment car cdr))
+           (car* (value) (%guest-car environment value))
+           (cdr* (value) (%guest-cdr environment value))
+           (consp* (value) (%guest-cons-p environment value))
+           (atom* (value) (%guest-atom-p environment value))
+           (rplaca* (object value)
+             (workload-write-slot environment object :car value)
+             object)
+           (rplacd* (object value)
+             (workload-write-slot environment object :cdr value)
+             object)
+           (list-fn (&rest values)
+             (declare (dynamic-extent values))
+             (%list* environment values))
+           (length* (value) (%guest-length environment value))
+           (mapcar* (function list)
+             (let ((result nil))
+               (loop for cursor = list then (%guest-cdr environment cursor)
+                     while (%guest-cons-p environment cursor)
+                     do (setf result
+                              (%cons* environment
+                                      (funcall function
+                                               (%guest-car environment cursor))
+                                      result)))
+               (let ((forward nil))
+                 (loop for cursor = result
+                       while (%guest-cons-p environment cursor)
+                       do (push (%guest-car environment cursor) forward)
+                          (setf cursor (%guest-cdr environment cursor)))
+                 (%list* environment forward))))
+           (mapc* (function list)
+             (loop for cursor = list then (%guest-cdr environment cursor)
+                   while (%guest-cons-p environment cursor)
+                   do (funcall function (%guest-car environment cursor)))
+             list)
+           (member* (item list &key (test #'eql) (test-not nil test-not-p)
+                              key)
+             (loop for cursor = list then (%guest-cdr environment cursor)
+                   while (%guest-cons-p environment cursor)
+                   for candidate = (%guest-car environment cursor)
+                   when (funcall (if test-not-p
+                                     (lambda (a b) (not (funcall test-not a b)))
+                                     test)
+                                 item (if key (funcall key candidate) candidate))
+                     do (return cursor)))
+           (assoc* (item alist &key (test #'eql) key)
+             (loop for cursor = alist then (%guest-cdr environment cursor)
+                   while (%guest-cons-p environment cursor)
+                   for pair = (%guest-car environment cursor)
+                   when (and (%guest-cons-p environment pair)
+                             (funcall test item
+                                      (if key (funcall key (%guest-car environment pair))
+                                          (%guest-car environment pair))))
+                     do (return pair)))
+           (append* (&rest lists)
+             (declare (dynamic-extent lists))
+             (labels ((copy (list tail)
+                        (if (%guest-cons-p environment list)
+                            (%cons* environment (%guest-car environment list)
+                                    (copy (%guest-cdr environment list) tail))
+                            tail)))
+               (reduce (lambda (left right) (copy left right))
+                       lists :from-end t :initial-value nil)))
+           (copy-tree* (value)
+             (if (%guest-cons-p environment value)
+                 (%cons* environment
+                         (copy-tree* (%guest-car environment value))
+                         (copy-tree* (%guest-cdr environment value)))
+                 value))
+           (nconc* (&rest lists)
+             (declare (dynamic-extent lists))
+             (let ((head nil) (tail nil))
+               (dolist (list lists head)
+                 (unless (null list)
+                   (if (null head) (setf head list)
+                       (workload-write-slot environment tail :cdr list))
+                   (setf tail list)
+                   (loop while (%guest-cons-p environment
+                                               (%guest-cdr environment tail))
+                         do (setf tail (%guest-cdr environment tail)))))))
+           (reverse* (list)
+             (let ((result nil))
+               (loop for cursor = list then (%guest-cdr environment cursor)
+                     while (%guest-cons-p environment cursor)
+                     do (setf result
+                              (%cons* environment
+                                      (%guest-car environment cursor) result)))
+               result))
+           (subst* (new old tree &key (test #'eql))
+             (if (funcall test old tree)
+                 new
+                 (if (%guest-cons-p environment tree)
+                     (%cons* environment
+                             (subst* new old (%guest-car environment tree)
+                                     :test test)
+                             (subst* new old (%guest-cdr environment tree)
+                                     :test test))
+                     tree)))
+           (equal* (left right)
+             (cond ((and (%guest-cons-p environment left)
+                         (%guest-cons-p environment right))
+                    (and (equal* (%guest-car environment left)
+                                 (%guest-car environment right))
+                         (equal* (%guest-cdr environment left)
+                                 (%guest-cdr environment right))))
+                   ((or (%guest-cons-p environment left)
+                        (%guest-cons-p environment right)) nil)
+                   (t (equal left right)))))
+    (flet ((fset (name function)
+             (setf (clostrum:fdefinition client environment name) function)))
+      (fset 'cl:cons #'cons*) (fset 'cl:car #'car*) (fset 'cl:cdr #'cdr*)
+      (fset 'cl:consp #'consp*) (fset 'cl:atom #'atom*)
+      (fset 'cl:rplaca #'rplaca*) (fset 'cl:rplacd #'rplacd*)
+      (fset 'cl:list #'list-fn) (fset 'cl:length #'length*)
+      (fset 'cl:mapcar #'mapcar*) (fset 'cl:mapc #'mapc*)
+      (fset 'cl:member #'member*) (fset 'cl:assoc #'assoc*)
+      (fset 'cl:append #'append*) (fset 'cl:nconc #'nconc*)
+      (fset 'cl:reverse #'reverse*) (fset 'cl:subst #'subst*)
+      (fset 'cl:copy-tree #'copy-tree*)
+      (fset 'cl:equal #'equal*)
+      (fset 'cl:aref (lambda (array index)
+                      (%guest-array-ref environment array index)))
+      (fset '(setf cl:aref)
+            (lambda (value array index)
+              (%guest-array-set environment value array index)))
+      (fset 'cl:make-array
+            (lambda (dimensions &rest options)
+              (declare (dynamic-extent options))
+              (apply #'%make-array* environment dimensions options)))
+      (fset 'cl:arrayp (lambda (value) (%guest-array-p environment value)))
+      (fset 'cl:vectorp (lambda (value) (%guest-array-p environment value)))
+      (fset 'cl:array-element-type
+            (lambda (value)
+              (let ((kind-name (%guest-array-kind-name environment value)))
+                (unless kind-name
+                  (error 'type-error :datum value :expected-type 'array))
+                (or (workload-kind-element-type
+                     (%workload-kind environment kind-name))
+                    (case kind-name
+                      (:array-single-float 'single-float)
+                      (:array-integer 'integer)
+                      (otherwise t))))))
+      (fset 'cl:get
+            (lambda (symbol indicator &optional default)
+              (%property-value client symbol indicator default)))
+      (fset '(setf cl:get)
+            (lambda (value symbol indicator)
+              (%set-property-value client value symbol indicator)))
+      (fset 'cl:proclaim
+            (let ((original (clostrum:fdefinition client environment 'cl:proclaim)))
+              (lambda (declaration)
+                (funcall original (%normalize-proclamation environment declaration)))))
+      (setf (clostrum:macro-function client environment 'cl:defstruct)
+            (lambda (form macro-environment)
+              (declare (ignore macro-environment))
+              (%install-struct client environment form)))
+      ;; Source ASSERT is absent from some Extrinsicl installations.
+      (setf (clostrum:macro-function client environment 'cl:assert)
+            (lambda (form macro-environment)
+              (declare (ignore macro-environment))
+              `(if ,(second form) t
+                   (error "Assertion failed: ~S" ',(second form))))))
+  environment))
+
+(defun setup-workload-maclina (environment)
+  "Install Maclina and the strict managed-value primitive set.
+Compilation and source loading occur only after setup; callers should perform
+all benchmark warmup before collecting evidence."
+  (%require-open environment 'setup-workload-maclina)
+  (let* ((client (make-instance 'workload-maclina-client :workload environment))
+         (runtime (make-instance 'clostrum-basic:run-time-environment)))
+    (extrinsicl:install-cl (make-instance 'trucler-native:client) runtime)
+    ;; INSTALL-CL creates initial cells before our specialized cell method is
+    ;; active; register them explicitly in the fixed client vector.
+    (%register-existing-global-cells client runtime)
+    (extrinsicl::install-environment-accessors client runtime)
+    (extrinsicl::install-proclaim client runtime)
+    (extrinsicl.maclina:install-eval client runtime)
+    (setf maclina.machine:*client* client
+          (workload-maclina-client environment) client
+          (workload-maclina-environment environment) runtime)
+    ;; VM state and root-provider source descriptors are provisioned before
+    ;; the first source form executes.  The provider/token themselves were
+    ;; registered by MAKE-WORKLOAD-ENVIRONMENT's caller.
+    (maclina.vm-cross:initialize-vm (workload-stack-size environment) client)
+    (workload-provider-bind-maclina
+     (workload-root-provider environment) client runtime)
+    (workload-provider-bind-vm
+     (workload-root-provider environment) maclina.vm-cross::*vm*)
+    (%install-workload-functions client runtime)
+    environment))
+
+(defun workload-eval (environment form)
+  "Evaluate FORM through Maclina.  Source literal lists are lowered into
+managed CONS graphs by the interpreter boundary."
+  (%require-open environment 'workload-eval)
+  (let ((client (workload-maclina-client environment))
+        (runtime (workload-maclina-environment environment)))
+    (unless (and client runtime)
+      (error 'workload-capability-error :operation 'workload-eval
+             :reason :maclina-not-installed))
+    (let ((*workload-environment* environment))
+      (funcall (clostrum:fdefinition client runtime 'cl:eval)
+               (%rewrite-quoted form)))))
+
+(defun workload-load (environment pathname)
+  "Read PATHNAME once per top-level form and evaluate it without editing the
+source bytes.  Reader/compiler work is setup, not collection evidence."
+  (%require-open environment 'workload-load)
+  (with-open-file (stream pathname)
+    (let ((*package* (find-package '#:clamsara)))
+      (loop for form = (read stream nil :eof)
+            until (eq form :eof)
+            do (workload-eval environment form))))
+  t)
+
+(export '(workload-maclina-client setup-workload-maclina workload-eval
+          workload-load *workload-environment*))

@@ -1,0 +1,22 @@
+{
+  "bench/gabriel/reference/boyer.cl": "2b101d18fa3d0f4da7169023e0e26762581affb1dd85881f5f64bd4a081aeb2a",
+  "bench/gabriel/reference/browse.cl": "4d63b927f696a73d0d8b25d18f9e23bb55d5a923db38854e95137c6c3f49f535",
+  "bench/gabriel/reference/ctak.cl": "b69917093d7111460568dc50c8705fdc3e1cbeaa5bbac9bba3c1ed56e5dd2c37",
+  "bench/gabriel/reference/dderiv.cl": "e5a328d3c19133cfb789bd6e00b2a29f838496e6e48af71a0a39cf20f643cba2",
+  "bench/gabriel/reference/deriv.cl": "ecd0f4aa792c17e9d2b11d9157b04a030fa1086d81b78b8daae42e58f976f96d",
+  "bench/gabriel/reference/destru.cl": "39e87f89ec5949f00e9a292908646ddc0d674a5481797f6c4856347ebb606e26",
+  "bench/gabriel/reference/div2.cl": "026a7266775af158f9438ed2f63fe2225c0c0186ff2c7f66ce25538783f8e073",
+  "bench/gabriel/reference/fft.cl": "9ae6c7ee2a95b60eff642a545238d77963072c8a50d3f97ad6a7212149182b05",
+  "bench/gabriel/reference/fprint.cl": "5c729e515bfaf013ed07ad91cee40ae8ad0bf5a211e939bd8fb192bc8ba0f7ab",
+  "bench/gabriel/reference/fread.cl": "c2085afd915b6605ffa114adfe9a88a3feb3bdba6d351a630b36dedd06e7eee3",
+  "bench/gabriel/reference/frpoly.cl": "9fe598964c0e4e0456f1f170a0f4b0858c596d075dc173fbbb1ca11d2acfd6f6",
+  "bench/gabriel/reference/puzzle.cl": "614ad64d1d8b7a07c29c2d962d597a668b4d2509a29788479404c6d7fecf5c63",
+  "bench/gabriel/reference/stak.cl": "731a4cd95db02533f7b6c68970831a665fa900a819d4e1cb4c8a6ce529409a04",
+  "bench/gabriel/reference/tak.cl": "f364648b26e86e31c609979fa12f1ac35ad874d42c7e806d96f41270970ba590",
+  "bench/gabriel/reference/takl.cl": "43dac7dbc09621ab21f685c2bf9e0dc82d05934c960a91207ef589bd5122aad6",
+  "bench/gabriel/reference/takr.cl": "f8a8e9051b5a4343089dfe443b90a7039477bb35842277a231011715625db407",
+  "bench/gabriel/reference/tprint.cl": "f5faaf2067967fb8096b9a911cd52adc86d4829c7b075e67f43a04f533f327f6",
+  "bench/gabriel/reference/traverse.cl": "45a8ea94a3dcb073d131724357adaa98de2bb5ce049a264d2113eb0e76d0e5db",
+  "bench/gabriel/reference/triang.cl": "d5e2deac6ad983650f40576904caedc1cf6517780678b575aed6816fea0c39e8",
+  "test/fixtures/boehm-gc.lisp": "0a2af82bc5a1c0e2246d3d0709111c43a67577a51445b7ab2860abb346603153"
+}

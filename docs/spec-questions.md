@@ -4,6 +4,11 @@
 errata list or permission to relax acceptance. No contradiction has yet been
 established for the questions below.
 
+For concrete implementation-guide feedback and proposed worked traces, see
+[Implementation feedback on paper-v14](paper-v14-implementation-feedback.md).
+That note separates unclear integration guidance from confirmed implementation
+bugs; it does not change the normative paper.
+
 ## Hosted residency boundary — open question
 
 Make the acceptance evidence distinguish:

@@ -23,7 +23,8 @@
   (* (ceiling value alignment) alignment))
 
 (defun make-model-world (&key (extent 4096) (model-capacity nil model-capacity-p)
-                           (max-object-bytes 1024) (variant-capacity 32)
+                           (max-object-bytes 1024)
+                           (variant-capacity nil variant-capacity-p)
                            (location-capacity 4) (handle-capacity 16)
                            (stage-capacity 2) (tag-capacity 4)
                            (maximum-array-elements 1024)
@@ -54,7 +55,10 @@
             ;; admitted offer only when omitted; never repair an explicit cap.
             :capacity (if model-capacity-p model-capacity (/ (* 2 actual-extent) q))
             :max-object-bytes max-object-bytes
-            :variant-capacity variant-capacity
+            ;; The general fixture exercises three canonical nonbase forms.
+            ;; Never repair an explicit offer, including zero or an undersize.
+            :variant-capacity (if variant-capacity-p variant-capacity
+                                  (* 3 (/ (* 2 actual-extent) q)))
             :location-capacity location-capacity
             :handle-capacity handle-capacity :stage-capacity stage-capacity
             :max-interior-displacement 64 :tag-capacity tag-capacity
@@ -554,7 +558,9 @@
                  (equalp words (clamsara::host-staged-object-words stage)))
             "staging-capacity rejection disturbed active stage")))))
    :extent 4096 :model-capacity 512 :max-object-bytes 128
-   :variant-capacity 1 :location-capacity 1 :handle-capacity 1
+   ;; One complete code row over the existing 512 descriptor cells. A second
+   ;; distinct form must still fail before changing the first encoding.
+   :variant-capacity 512 :location-capacity 1 :handle-capacity 1
    :stage-capacity 1 :maximum-array-elements 8)
   t)
 
@@ -1171,9 +1177,8 @@
                 (clamsara::host-model-descriptor-counts model)
                 (clamsara::host-model-base-references model)
                 (clamsara::host-model-variants model)
-                (clamsara::host-model-variant-hash-descriptors model)
-                (clamsara::host-model-variant-hash-codes model)
-                (clamsara::host-model-variant-hash-indices model)
+                (clamsara::host-model-variant-code-keys model)
+                (clamsara::host-model-variant-code-rows model)
                 (clamsara::host-model-locations model)
                 (clamsara::host-model-handles model)
                 (clamsara::host-model-stages model))))
@@ -1351,7 +1356,7 @@
          (check (equalp account-before (capacity-account-snapshot configuration))
                 "guest payload activity changed fixed hosted charge")))
      :extent 4096 :model-capacity 512 :max-object-bytes 512
-     :variant-capacity 8 :location-capacity 2 :handle-capacity 4
+     :variant-capacity 0 :location-capacity 2 :handle-capacity 4
      :stage-capacity 1 :maximum-array-elements elements))
   t)
 
@@ -1573,7 +1578,7 @@
                               :objects-discovered discovered
                               :objects-moved moved :bytes-moved moved-bytes)))))))))))
      :extent extent :model-capacity (/ (* 2 extent) 16) :max-object-bytes bytes
-     :variant-capacity 8 :location-capacity 2 :handle-capacity 4
+     :variant-capacity 0 :location-capacity 2 :handle-capacity 4
      :stage-capacity 1 :maximum-array-elements element-count)
     evidence))
 

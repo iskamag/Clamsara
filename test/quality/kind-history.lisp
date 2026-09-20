@@ -162,7 +162,7 @@
          (size-rule (lambda (kind) (declare (ignore kind)) (incf size-calls) size))
          (alignment-rule (lambda (kind) (declare (ignore kind)) (incf alignment-calls) alignment))
          (offer (make-host-object-model :capacity 128 :max-object-bytes 128
-                  :kind-capacity 8 :slot-capacity 8 :variant-capacity 16
+                  :kind-capacity 8 :slot-capacity 8 :variant-capacity 0
                   :location-capacity 8 :handle-capacity 16 :stage-capacity 2))
          (node (make-object-kind-description offer :quality-node :size-rule 32
                  :alignment-rule 16 :strong-layout '(:id :left :right)))

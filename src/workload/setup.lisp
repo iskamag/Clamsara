@@ -56,6 +56,8 @@ indexed layouts, never a slot vector proportional to element count."
                          :coordinator coordinator))
          (model (make-host-object-model
                  :capacity effective-object-capacity
+                 ;; This adapter publishes base encodings, not private host tags.
+                 :variant-capacity 0
                  :max-object-bytes max-object-bytes
                  :location-capacity 32 :handle-capacity 2048
                  :stage-capacity 8 :kind-capacity 16 :slot-capacity 8))

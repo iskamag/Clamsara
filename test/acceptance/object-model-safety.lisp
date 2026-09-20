@@ -87,7 +87,7 @@
                   :alignment q :page-size 256 :ownership-capacity 2))
          (offered (make-host-object-model
                    :capacity (/ (- limit base) q) :max-object-bytes 1024
-                   :variant-capacity 32 :location-capacity 8
+                   :variant-capacity (* 3 (/ (- limit base) q)) :location-capacity 8
                    :handle-capacity 16 :stage-capacity 2
                    :max-interior-displacement 64 :tag-capacity 4
                    :kind-capacity 4 :slot-capacity 8))

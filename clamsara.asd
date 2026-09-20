@@ -143,6 +143,7 @@
                              (asdf:test-op :clamsara/quality/allocation/test)
                              (asdf:test-op :clamsara/quality/kind-snapshots/test)
                              (asdf:test-op :clamsara/quality/representation-capacity/test)
+                             (asdf:test-op :clamsara/quality/reference-variants/test)
                              (asdf:test-op :clamsara/quality/finalizers/test)
                              (asdf:test-op :clamsara/quality/finalizer-drain/test)
                              (asdf:test-op :clamsara/quality/model-resources/test)
@@ -286,17 +287,40 @@
 (asdf:defsystem :clamsara/quality/generational/test
   :version "0.1.0"
   :description "Independent hosted generational oracles; explicitly selected."
-  :depends-on (:clamsara/generational :clamsara/quality/support)
+  :depends-on (:clamsara/generational :clamsara/quality/support
+               :clamsara/quality/reference-variants/test)
   :serial t
   :components ((:file "test/quality/generational")
-               (:file "test/quality/generational-history"))
+               (:file "test/quality/generational-history")
+               (:file "test/quality/reference-variants-generational"))
   :perform (asdf:test-op (operation component)
              (declare (ignore operation component))
              (unless (and (uiop:symbol-call :clamsara.quality.generational
                                            :run-generational-quality-tests)
                           (uiop:symbol-call :clamsara.quality.generational
-                                           :run-generational-history-tests))
+                                           :run-generational-history-tests)
+                          (uiop:symbol-call :clamsara.quality.reference-variants
+                                           :run-row-generational-acceptance))
                (error "Generational quality tests failed"))))
+
+(asdf:defsystem :clamsara/quality/reference-variants/test
+  :version "0.1.0"
+  :description "Immutable nonbase code rows over the complete descriptor domain."
+  :depends-on (:clamsara/quality/support)
+  :serial t
+  :components ((:file "test/quality/reference-variant-fixture")
+               (:file "test/quality/reference-variants")
+               (:file "test/quality/reference-variant-directory")
+               (:file "test/quality/reference-variant-edges"))
+  :perform (asdf:test-op (operation component)
+             (declare (ignore operation component))
+             (unless (and (uiop:symbol-call :clamsara.quality.reference-variants
+                                           :run-row-acceptance)
+                          (uiop:symbol-call :clamsara.quality.reference-variants
+                                           :run-row-directory-tests)
+                          (uiop:symbol-call :clamsara.quality.reference-variants
+                                           :run-additional-row-checks))
+               (error "Reference variant acceptance failed"))))
 
 (asdf:defsystem :clamsara/quality/representation-capacity/test
   :version "0.1.0"

@@ -150,7 +150,7 @@ ALGORITHM is :SEMISPACE or :MARKSWEEP.  OBJECT-STARTS is :PACKED or :SCALAR."
          (model
            (make-host-object-model
             :capacity object-capacity :kind-capacity 16 :slot-capacity 16
-            :variant-capacity 256 :location-capacity 32
+            :variant-capacity 0 :location-capacity 32
             :handle-capacity 256 :stage-capacity 16
             :max-object-bytes 256))
          ;; Slot zero is a managed immediate ID.  Slots one and two are the

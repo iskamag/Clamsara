@@ -1,0 +1,821 @@
+SOURCE /tmp/clamsara-description-review-7p14doks/
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 0))
+ROW :FAIL ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 0) :CONDITION
+           "Invalid hosted object-model capacity" :PRESERVED-WORLDS 0)
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 1))
+ROW :FAIL ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 1) :CONDITION
+           "Positive H<C was not rejected at binding" :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 63))
+ROW :FAIL ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 63)
+           :CONDITION "Positive H<C was not rejected at binding"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 64))
+ROW :FAIL ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 64)
+           :CONDITION
+           "New code 10000008 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1206460603}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4104
+                                                                       :KIND :INTERIOR
+                                                                       :TAG 0
+                                                                       :DISPLACEMENT 8))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 127))
+ROW :FAIL ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 127)
+           :CONDITION
+           "New code 10000008 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {12026C6883}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4104
+                                                                       :KIND :INTERIOR
+                                                                       :TAG 0
+                                                                       :DISPLACEMENT 8))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 128))
+ROW :FAIL ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 128)
+           :CONDITION
+           "New code 20000002 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1202CFC9B3}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4096
+                                                                       :KIND :TAGGED-BASE
+                                                                       :TAG 2
+                                                                       :DISPLACEMENT 0))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 131))
+ROW :FAIL ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 131)
+           :CONDITION
+           "New code 20000002 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {120407B153}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4096
+                                                                       :KIND :TAGGED-BASE
+                                                                       :TAG 2
+                                                                       :DISPLACEMENT 0))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:HISTORY :SEMISPACE :PACKED 16 536870913))
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :PACKED 16 536870913) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :PACKED 16 536870913) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :PACKED 16 536870913) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :PASS ((:HISTORY :SEMISPACE :PACKED 16 536870913))
+ROW :BEGIN ((:HISTORY :SEMISPACE :PACKED 16 268435464))
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :PACKED 16 268435464) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :PACKED 16 268435464) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :PACKED 16 268435464) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :PASS ((:HISTORY :SEMISPACE :PACKED 16 268435464))
+ROW :BEGIN ((:ALL-CELLS :SEMISPACE :PACKED 16))
+ROW :ALL-DESCRIPTOR-CELLS (:CELLS 64 :PASSES 2 :GRANULARITIES (16 16))
+ROW :PASS ((:ALL-CELLS :SEMISPACE :PACKED 16))
+ROW :BEGIN ((:FUTURE-LARGE :SEMISPACE :PACKED 16))
+ROW :FAIL ((:FUTURE-LARGE :SEMISPACE :PACKED 16) :CONDITION
+           "New code 20000001 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1203B6A243}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4096
+                                                                       :KIND :TAGGED-BASE
+                                                                       :TAG 1
+                                                                       :DISPLACEMENT 0))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:STAGED :SEMISPACE :PACKED 16))
+ROW :CYCLE (:CASE (:STAGED :SEMISPACE :PACKED 16) :ROUND 0 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:STAGED :SEMISPACE :PACKED 16) :ROUND 1 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:STAGED :SEMISPACE :PACKED 16) :ROUND 2 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :PASS ((:STAGED :SEMISPACE :PACKED 16))
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 0))
+ROW :FAIL ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 0) :CONDITION
+           "Invalid hosted object-model capacity" :PRESERVED-WORLDS 0)
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 1))
+ROW :FAIL ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 1) :CONDITION
+           "Positive H<C was not rejected at binding" :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 127))
+ROW :FAIL ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 127)
+           :CONDITION "Positive H<C was not rejected at binding"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 128))
+ROW :FAIL ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 128)
+           :CONDITION
+           "New code 10000008 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1204AD5A13}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4104
+                                                                       :KIND :INTERIOR
+                                                                       :TAG 0
+                                                                       :DISPLACEMENT 8))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 255))
+ROW :FAIL ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 255)
+           :CONDITION
+           "New code 10000008 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1204EFDA13}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4104
+                                                                       :KIND :INTERIOR
+                                                                       :TAG 0
+                                                                       :DISPLACEMENT 8))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 256))
+ROW :FAIL ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 256)
+           :CONDITION
+           "New code 20000002 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1205455A13}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4096
+                                                                       :KIND :TAGGED-BASE
+                                                                       :TAG 2
+                                                                       :DISPLACEMENT 0))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 259))
+ROW :FAIL ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 259)
+           :CONDITION
+           "New code 20000002 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {12058ADA13}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4096
+                                                                       :KIND :TAGGED-BASE
+                                                                       :TAG 2
+                                                                       :DISPLACEMENT 0))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:HISTORY :SEMISPACE :PACKED 8 536870913))
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :PACKED 8 536870913) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :PACKED 8 536870913) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :PACKED 8 536870913) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :PASS ((:HISTORY :SEMISPACE :PACKED 8 536870913))
+ROW :BEGIN ((:HISTORY :SEMISPACE :PACKED 8 268435464))
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :PACKED 8 268435464) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :PACKED 8 268435464) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :PACKED 8 268435464) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :PASS ((:HISTORY :SEMISPACE :PACKED 8 268435464))
+ROW :BEGIN ((:ALL-CELLS :SEMISPACE :PACKED 8))
+ROW :ALL-DESCRIPTOR-CELLS (:CELLS 128 :PASSES 2 :GRANULARITIES (8 8))
+ROW :PASS ((:ALL-CELLS :SEMISPACE :PACKED 8))
+ROW :BEGIN ((:FUTURE-LARGE :SEMISPACE :PACKED 8))
+ROW :FAIL ((:FUTURE-LARGE :SEMISPACE :PACKED 8) :CONDITION
+           "New code 20000001 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1206D10AF3}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4096
+                                                                       :KIND :TAGGED-BASE
+                                                                       :TAG 1
+                                                                       :DISPLACEMENT 0))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:STAGED :SEMISPACE :PACKED 8))
+ROW :CYCLE (:CASE (:STAGED :SEMISPACE :PACKED 8) :ROUND 0 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:STAGED :SEMISPACE :PACKED 8) :ROUND 1 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:STAGED :SEMISPACE :PACKED 8) :ROUND 2 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :PASS ((:STAGED :SEMISPACE :PACKED 8))
+ROW :BEGIN ((:OBSERVER-CONTROL :SEMISPACE :PACKED))
+ROW :BUILDER-RELEASED (:ACQUIRED 11 :RELEASED 12)
+ROW :PASS ((:OBSERVER-CONTROL :SEMISPACE :PACKED))
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 0))
+ROW :FAIL ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 0) :CONDITION
+           "Invalid hosted object-model capacity" :PRESERVED-WORLDS 0)
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 1))
+ROW :FAIL ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 1) :CONDITION
+           "Positive H<C was not rejected at binding" :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 63))
+ROW :FAIL ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 63)
+           :CONDITION "Positive H<C was not rejected at binding"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 64))
+ROW :FAIL ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 64)
+           :CONDITION
+           "New code 10000008 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {120739DA13}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4104
+                                                                       :KIND :INTERIOR
+                                                                       :TAG 0
+                                                                       :DISPLACEMENT 8))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 127))
+ROW :FAIL ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 127)
+           :CONDITION
+           "New code 10000008 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {12074B5CF3}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4104
+                                                                       :KIND :INTERIOR
+                                                                       :TAG 0
+                                                                       :DISPLACEMENT 8))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 128))
+ROW :FAIL ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 128)
+           :CONDITION
+           "New code 20000002 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {12075EDA13}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4096
+                                                                       :KIND :TAGGED-BASE
+                                                                       :TAG 2
+                                                                       :DISPLACEMENT 0))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 131))
+ROW :FAIL ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 131)
+           :CONDITION
+           "New code 20000002 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {120771DA13}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4096
+                                                                       :KIND :TAGGED-BASE
+                                                                       :TAG 2
+                                                                       :DISPLACEMENT 0))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:HISTORY :SEMISPACE :SCALAR 16 536870913))
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :SCALAR 16 536870913) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :SCALAR 16 536870913) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :SCALAR 16 536870913) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :PASS ((:HISTORY :SEMISPACE :SCALAR 16 536870913))
+ROW :BEGIN ((:HISTORY :SEMISPACE :SCALAR 16 268435464))
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :SCALAR 16 268435464) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :SCALAR 16 268435464) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :SCALAR 16 268435464) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :PASS ((:HISTORY :SEMISPACE :SCALAR 16 268435464))
+ROW :BEGIN ((:ALL-CELLS :SEMISPACE :SCALAR 16))
+ROW :ALL-DESCRIPTOR-CELLS (:CELLS 64 :PASSES 2 :GRANULARITIES (16 16))
+ROW :PASS ((:ALL-CELLS :SEMISPACE :SCALAR 16))
+ROW :BEGIN ((:FUTURE-LARGE :SEMISPACE :SCALAR 16))
+ROW :FAIL ((:FUTURE-LARGE :SEMISPACE :SCALAR 16) :CONDITION
+           "New code 20000001 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1207BE7003}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4096
+                                                                       :KIND :TAGGED-BASE
+                                                                       :TAG 1
+                                                                       :DISPLACEMENT 0))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:STAGED :SEMISPACE :SCALAR 16))
+ROW :CYCLE (:CASE (:STAGED :SEMISPACE :SCALAR 16) :ROUND 0 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:STAGED :SEMISPACE :SCALAR 16) :ROUND 1 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:STAGED :SEMISPACE :SCALAR 16) :ROUND 2 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :PASS ((:STAGED :SEMISPACE :SCALAR 16))
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 0))
+ROW :FAIL ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 0) :CONDITION
+           "Invalid hosted object-model capacity" :PRESERVED-WORLDS 0)
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 1))
+ROW :FAIL ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 1) :CONDITION
+           "Positive H<C was not rejected at binding" :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 127))
+ROW :FAIL ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 127)
+           :CONDITION "Positive H<C was not rejected at binding"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 128))
+ROW :FAIL ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 128)
+           :CONDITION
+           "New code 10000008 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1202CFBD73}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4104
+                                                                       :KIND :INTERIOR
+                                                                       :TAG 0
+                                                                       :DISPLACEMENT 8))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 255))
+ROW :FAIL ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 255)
+           :CONDITION
+           "New code 10000008 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1203345EF3}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4104
+                                                                       :KIND :INTERIOR
+                                                                       :TAG 0
+                                                                       :DISPLACEMENT 8))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 256))
+ROW :FAIL ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 256)
+           :CONDITION
+           "New code 20000002 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1204272FB3}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4096
+                                                                       :KIND :TAGGED-BASE
+                                                                       :TAG 2
+                                                                       :DISPLACEMENT 0))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 259))
+ROW :FAIL ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 259)
+           :CONDITION
+           "New code 20000002 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {120492E0C3}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4096
+                                                                       :KIND :TAGGED-BASE
+                                                                       :TAG 2
+                                                                       :DISPLACEMENT 0))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:HISTORY :SEMISPACE :SCALAR 8 536870913))
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :SCALAR 8 536870913) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :SCALAR 8 536870913) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :SCALAR 8 536870913) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :PASS ((:HISTORY :SEMISPACE :SCALAR 8 536870913))
+ROW :BEGIN ((:HISTORY :SEMISPACE :SCALAR 8 268435464))
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :SCALAR 8 268435464) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :SCALAR 8 268435464) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :SCALAR 8 268435464) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :PASS ((:HISTORY :SEMISPACE :SCALAR 8 268435464))
+ROW :BEGIN ((:ALL-CELLS :SEMISPACE :SCALAR 8))
+ROW :ALL-DESCRIPTOR-CELLS (:CELLS 128 :PASSES 2 :GRANULARITIES (8 8))
+ROW :PASS ((:ALL-CELLS :SEMISPACE :SCALAR 8))
+ROW :BEGIN ((:FUTURE-LARGE :SEMISPACE :SCALAR 8))
+ROW :FAIL ((:FUTURE-LARGE :SEMISPACE :SCALAR 8) :CONDITION
+           "New code 20000001 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {12020966F3}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4096
+                                                                       :KIND :TAGGED-BASE
+                                                                       :TAG 1
+                                                                       :DISPLACEMENT 0))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:STAGED :SEMISPACE :SCALAR 8))
+ROW :CYCLE (:CASE (:STAGED :SEMISPACE :SCALAR 8) :ROUND 0 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:STAGED :SEMISPACE :SCALAR 8) :ROUND 1 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:STAGED :SEMISPACE :SCALAR 8) :ROUND 2 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :PASS ((:STAGED :SEMISPACE :SCALAR 8))
+ROW :BEGIN ((:OBSERVER-CONTROL :SEMISPACE :SCALAR))
+ROW :BUILDER-RELEASED (:ACQUIRED 11 :RELEASED 12)
+ROW :PASS ((:OBSERVER-CONTROL :SEMISPACE :SCALAR))
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 0))
+ROW :FAIL ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 0) :CONDITION
+           "Invalid hosted object-model capacity" :PRESERVED-WORLDS 0)
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 1))
+ROW :FAIL ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 1) :CONDITION
+           "Positive H<C was not rejected at binding" :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 31))
+ROW :FAIL ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 31)
+           :CONDITION "Positive H<C was not rejected at binding"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 32))
+ROW :FAIL ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 32)
+           :CONDITION
+           "New code 10000008 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1205606BB3}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4104
+                                                                       :KIND :INTERIOR
+                                                                       :TAG 0
+                                                                       :DISPLACEMENT 8))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 63))
+ROW :FAIL ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 63)
+           :CONDITION
+           "New code 10000008 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1205F75213}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4104
+                                                                       :KIND :INTERIOR
+                                                                       :TAG 0
+                                                                       :DISPLACEMENT 8))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 64))
+ROW :FAIL ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 64)
+           :CONDITION
+           "New code 20000002 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1206801AA3}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4096
+                                                                       :KIND :TAGGED-BASE
+                                                                       :TAG 2
+                                                                       :DISPLACEMENT 0))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 67))
+ROW :FAIL ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 67)
+           :CONDITION
+           "New code 20000002 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1206A3C2A3}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4096
+                                                                       :KIND :TAGGED-BASE
+                                                                       :TAG 2
+                                                                       :DISPLACEMENT 0))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:HISTORY :MARKSWEEP :PACKED 16 536870913))
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :PACKED 16 536870913) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :PACKED 16 536870913) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :PACKED 16 536870913) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :PASS ((:HISTORY :MARKSWEEP :PACKED 16 536870913))
+ROW :BEGIN ((:HISTORY :MARKSWEEP :PACKED 16 268435464))
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :PACKED 16 268435464) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :PACKED 16 268435464) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :PACKED 16 268435464) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :PASS ((:HISTORY :MARKSWEEP :PACKED 16 268435464))
+ROW :BEGIN ((:ALL-CELLS :MARKSWEEP :PACKED 16))
+ROW :ALL-DESCRIPTOR-CELLS (:CELLS 32 :PASSES 2 :GRANULARITIES (16))
+ROW :PASS ((:ALL-CELLS :MARKSWEEP :PACKED 16))
+ROW :BEGIN ((:FUTURE-LARGE :MARKSWEEP :PACKED 16))
+ROW :FAIL ((:FUTURE-LARGE :MARKSWEEP :PACKED 16) :CONDITION
+           "New code 20000001 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1207454BD3}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4096
+                                                                       :KIND :TAGGED-BASE
+                                                                       :TAG 1
+                                                                       :DISPLACEMENT 0))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:STAGED :MARKSWEEP :PACKED 16))
+ROW :CYCLE (:CASE (:STAGED :MARKSWEEP :PACKED 16) :ROUND 0 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:STAGED :MARKSWEEP :PACKED 16) :ROUND 1 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:STAGED :MARKSWEEP :PACKED 16) :ROUND 2 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :PASS ((:STAGED :MARKSWEEP :PACKED 16))
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 0))
+ROW :FAIL ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 0) :CONDITION
+           "Invalid hosted object-model capacity" :PRESERVED-WORLDS 0)
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 1))
+ROW :FAIL ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 1) :CONDITION
+           "Positive H<C was not rejected at binding" :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 63))
+ROW :FAIL ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 63) :CONDITION
+           "Positive H<C was not rejected at binding" :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 64))
+ROW :FAIL ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 64) :CONDITION
+           "New code 10000008 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1207A3C2A3}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4104
+                                                                       :KIND :INTERIOR
+                                                                       :TAG 0
+                                                                       :DISPLACEMENT 8))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 127))
+ROW :FAIL ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 127)
+           :CONDITION
+           "New code 10000008 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1207B442A3}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4104
+                                                                       :KIND :INTERIOR
+                                                                       :TAG 0
+                                                                       :DISPLACEMENT 8))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 128))
+ROW :FAIL ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 128)
+           :CONDITION
+           "New code 20000002 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1207CD42A3}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4096
+                                                                       :KIND :TAGGED-BASE
+                                                                       :TAG 2
+                                                                       :DISPLACEMENT 0))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 131))
+ROW :FAIL ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 131)
+           :CONDITION
+           "New code 20000002 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1207E042A3}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4096
+                                                                       :KIND :TAGGED-BASE
+                                                                       :TAG 2
+                                                                       :DISPLACEMENT 0))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:HISTORY :MARKSWEEP :PACKED 8 536870913))
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :PACKED 8 536870913) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :PACKED 8 536870913) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :PACKED 8 536870913) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :PASS ((:HISTORY :MARKSWEEP :PACKED 8 536870913))
+ROW :BEGIN ((:HISTORY :MARKSWEEP :PACKED 8 268435464))
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :PACKED 8 268435464) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :PACKED 8 268435464) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :PACKED 8 268435464) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :PASS ((:HISTORY :MARKSWEEP :PACKED 8 268435464))
+ROW :BEGIN ((:ALL-CELLS :MARKSWEEP :PACKED 8))
+ROW :ALL-DESCRIPTOR-CELLS (:CELLS 64 :PASSES 2 :GRANULARITIES (8))
+ROW :PASS ((:ALL-CELLS :MARKSWEEP :PACKED 8))
+ROW :BEGIN ((:FUTURE-LARGE :MARKSWEEP :PACKED 8))
+ROW :FAIL ((:FUTURE-LARGE :MARKSWEEP :PACKED 8) :CONDITION
+           "New code 20000001 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {120839D903}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4096
+                                                                       :KIND :TAGGED-BASE
+                                                                       :TAG 1
+                                                                       :DISPLACEMENT 0))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:STAGED :MARKSWEEP :PACKED 8))
+ROW :CYCLE (:CASE (:STAGED :MARKSWEEP :PACKED 8) :ROUND 0 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:STAGED :MARKSWEEP :PACKED 8) :ROUND 1 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:STAGED :MARKSWEEP :PACKED 8) :ROUND 2 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :PASS ((:STAGED :MARKSWEEP :PACKED 8))
+ROW :BEGIN ((:OBSERVER-CONTROL :MARKSWEEP :PACKED))
+ROW :BUILDER-RELEASED (:ACQUIRED 9 :RELEASED 10)
+ROW :PASS ((:OBSERVER-CONTROL :MARKSWEEP :PACKED))
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 0))
+ROW :FAIL ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 0) :CONDITION
+           "Invalid hosted object-model capacity" :PRESERVED-WORLDS 0)
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 1))
+ROW :FAIL ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 1) :CONDITION
+           "Positive H<C was not rejected at binding" :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 31))
+ROW :FAIL ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 31)
+           :CONDITION "Positive H<C was not rejected at binding"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 32))
+ROW :FAIL ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 32)
+           :CONDITION
+           "New code 10000008 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {12088242A3}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4104
+                                                                       :KIND :INTERIOR
+                                                                       :TAG 0
+                                                                       :DISPLACEMENT 8))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 63))
+ROW :FAIL ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 63)
+           :CONDITION
+           "New code 10000008 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {12089242A3}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4104
+                                                                       :KIND :INTERIOR
+                                                                       :TAG 0
+                                                                       :DISPLACEMENT 8))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 64))
+ROW :FAIL ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 64)
+           :CONDITION
+           "New code 20000002 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1208A242A3}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4096
+                                                                       :KIND :TAGGED-BASE
+                                                                       :TAG 2
+                                                                       :DISPLACEMENT 0))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 67))
+ROW :FAIL ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 67)
+           :CONDITION
+           "New code 20000002 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1208B242A3}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4096
+                                                                       :KIND :TAGGED-BASE
+                                                                       :TAG 2
+                                                                       :DISPLACEMENT 0))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:HISTORY :MARKSWEEP :SCALAR 16 536870913))
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :SCALAR 16 536870913) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :SCALAR 16 536870913) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :SCALAR 16 536870913) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :PASS ((:HISTORY :MARKSWEEP :SCALAR 16 536870913))
+ROW :BEGIN ((:HISTORY :MARKSWEEP :SCALAR 16 268435464))
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :SCALAR 16 268435464) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :SCALAR 16 268435464) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :SCALAR 16 268435464) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :PASS ((:HISTORY :MARKSWEEP :SCALAR 16 268435464))
+ROW :BEGIN ((:ALL-CELLS :MARKSWEEP :SCALAR 16))
+ROW :ALL-DESCRIPTOR-CELLS (:CELLS 32 :PASSES 2 :GRANULARITIES (16))
+ROW :PASS ((:ALL-CELLS :MARKSWEEP :SCALAR 16))
+ROW :BEGIN ((:FUTURE-LARGE :MARKSWEEP :SCALAR 16))
+ROW :FAIL ((:FUTURE-LARGE :MARKSWEEP :SCALAR 16) :CONDITION
+           "New code 20000001 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1208F5CBD3}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4096
+                                                                       :KIND :TAGGED-BASE
+                                                                       :TAG 1
+                                                                       :DISPLACEMENT 0))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:STAGED :MARKSWEEP :SCALAR 16))
+ROW :CYCLE (:CASE (:STAGED :MARKSWEEP :SCALAR 16) :ROUND 0 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:STAGED :MARKSWEEP :SCALAR 16) :ROUND 1 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:STAGED :MARKSWEEP :SCALAR 16) :ROUND 2 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :PASS ((:STAGED :MARKSWEEP :SCALAR 16))
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 0))
+ROW :FAIL ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 0) :CONDITION
+           "Invalid hosted object-model capacity" :PRESERVED-WORLDS 0)
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 1))
+ROW :FAIL ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 1) :CONDITION
+           "Positive H<C was not rejected at binding" :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 63))
+ROW :FAIL ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 63) :CONDITION
+           "Positive H<C was not rejected at binding" :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 64))
+ROW :FAIL ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 64) :CONDITION
+           "New code 10000008 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1204642713}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4104
+                                                                       :KIND :INTERIOR
+                                                                       :TAG 0
+                                                                       :DISPLACEMENT 8))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 127))
+ROW :FAIL ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 127)
+           :CONDITION
+           "New code 10000008 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {12050C2193}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4104
+                                                                       :KIND :INTERIOR
+                                                                       :TAG 0
+                                                                       :DISPLACEMENT 8))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 128))
+ROW :FAIL ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 128)
+           :CONDITION
+           "New code 20000002 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1205970653}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4096
+                                                                       :KIND :TAGGED-BASE
+                                                                       :TAG 2
+                                                                       :DISPLACEMENT 0))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 131))
+ROW :FAIL ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 131)
+           :CONDITION
+           "New code 20000002 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {120634F993}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4096
+                                                                       :KIND :TAGGED-BASE
+                                                                       :TAG 2
+                                                                       :DISPLACEMENT 0))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:HISTORY :MARKSWEEP :SCALAR 8 536870913))
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :SCALAR 8 536870913) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :SCALAR 8 536870913) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :SCALAR 8 536870913) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :PASS ((:HISTORY :MARKSWEEP :SCALAR 8 536870913))
+ROW :BEGIN ((:HISTORY :MARKSWEEP :SCALAR 8 268435464))
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :SCALAR 8 268435464) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :SCALAR 8 268435464) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :SCALAR 8 268435464) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :PASS ((:HISTORY :MARKSWEEP :SCALAR 8 268435464))
+ROW :BEGIN ((:ALL-CELLS :MARKSWEEP :SCALAR 8))
+ROW :ALL-DESCRIPTOR-CELLS (:CELLS 64 :PASSES 2 :GRANULARITIES (8))
+ROW :PASS ((:ALL-CELLS :MARKSWEEP :SCALAR 8))
+ROW :BEGIN ((:FUTURE-LARGE :MARKSWEEP :SCALAR 8))
+ROW :FAIL ((:FUTURE-LARGE :MARKSWEEP :SCALAR 8) :CONDITION
+           "New code 20000001 was admitted without a whole unused row (returned #S(CLAMSARA::HOST-REFERENCE
+                                                                       :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1203C02EB3}>
+                                                                       :DESCRIPTOR 0
+                                                                       :ADDRESS 4096
+                                                                       :KIND :TAGGED-BASE
+                                                                       :TAG 1
+                                                                       :DISPLACEMENT 0))"
+           :PRESERVED-WORLDS 1)
+ROW :BEGIN ((:STAGED :MARKSWEEP :SCALAR 8))
+ROW :CYCLE (:CASE (:STAGED :MARKSWEEP :SCALAR 8) :ROUND 0 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:STAGED :MARKSWEEP :SCALAR 8) :ROUND 1 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:STAGED :MARKSWEEP :SCALAR 8) :ROUND 2 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :PASS ((:STAGED :MARKSWEEP :SCALAR 8))
+ROW :BEGIN ((:OBSERVER-CONTROL :MARKSWEEP :SCALAR))
+ROW :BUILDER-RELEASED (:ACQUIRED 9 :RELEASED 10)
+ROW :PASS ((:OBSERVER-CONTROL :MARKSWEEP :SCALAR))
+ROW :BEGIN ((:MIXED-GRANULARITY-HISTORY :PACKED))
+ROW :CYCLE (:CASE (:MIXED-GRANULARITY-HISTORY :PACKED) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:MIXED-GRANULARITY-HISTORY :PACKED) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:MIXED-GRANULARITY-HISTORY :PACKED) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :PASS ((:MIXED-GRANULARITY-HISTORY :PACKED))
+ROW :BEGIN ((:MIXED-GRANULARITY-ALL-CELLS :PACKED))
+ROW :ALL-DESCRIPTOR-CELLS (:CELLS 96 :PASSES 2 :GRANULARITIES (8 16))
+ROW :PASS ((:MIXED-GRANULARITY-ALL-CELLS :PACKED))
+ROW :BEGIN ((:GENERATION-PROMOTION :PACKED 536870913))
+ROW :PROMOTION (:SCOPE :MINOR :STATUS :COMPLETE :REASON :COMPLETE :MOVED 2
+                :DISCOVERED 2)
+ROW :PROMOTION (:SCOPE :MINOR :STATUS :COMPLETE :REASON :COMPLETE :MOVED 0
+                :DISCOVERED 0)
+ROW :PROMOTION (:SCOPE :ALL :STATUS :COMPLETE :REASON :COMPLETE :MOVED 0
+                :DISCOVERED 2)
+ROW :PASS ((:GENERATION-PROMOTION :PACKED 536870913))
+ROW :BEGIN ((:GENERATION-PROMOTION :PACKED 268435464))
+ROW :PROMOTION (:SCOPE :MINOR :STATUS :COMPLETE :REASON :COMPLETE :MOVED 2
+                :DISCOVERED 2)
+ROW :PROMOTION (:SCOPE :MINOR :STATUS :COMPLETE :REASON :COMPLETE :MOVED 0
+                :DISCOVERED 0)
+ROW :PROMOTION (:SCOPE :ALL :STATUS :COMPLETE :REASON :COMPLETE :MOVED 0
+                :DISCOVERED 2)
+ROW :PASS ((:GENERATION-PROMOTION :PACKED 268435464))
+ROW :BEGIN ((:MIXED-GRANULARITY-HISTORY :SCALAR))
+ROW :CYCLE (:CASE (:MIXED-GRANULARITY-HISTORY :SCALAR) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:MIXED-GRANULARITY-HISTORY :SCALAR) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:MIXED-GRANULARITY-HISTORY :SCALAR) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :PASS ((:MIXED-GRANULARITY-HISTORY :SCALAR))
+ROW :BEGIN ((:MIXED-GRANULARITY-ALL-CELLS :SCALAR))
+ROW :ALL-DESCRIPTOR-CELLS (:CELLS 96 :PASSES 2 :GRANULARITIES (8 16))
+ROW :PASS ((:MIXED-GRANULARITY-ALL-CELLS :SCALAR))
+ROW :BEGIN ((:GENERATION-PROMOTION :SCALAR 536870913))
+ROW :PROMOTION (:SCOPE :MINOR :STATUS :COMPLETE :REASON :COMPLETE :MOVED 2
+                :DISCOVERED 2)
+ROW :PROMOTION (:SCOPE :MINOR :STATUS :COMPLETE :REASON :COMPLETE :MOVED 0
+                :DISCOVERED 0)
+ROW :PROMOTION (:SCOPE :ALL :STATUS :COMPLETE :REASON :COMPLETE :MOVED 0
+                :DISCOVERED 2)
+ROW :PASS ((:GENERATION-PROMOTION :SCALAR 536870913))
+ROW :BEGIN ((:GENERATION-PROMOTION :SCALAR 268435464))
+ROW :PROMOTION (:SCOPE :MINOR :STATUS :COMPLETE :REASON :COMPLETE :MOVED 2
+                :DISCOVERED 2)
+ROW :PROMOTION (:SCOPE :MINOR :STATUS :COMPLETE :REASON :COMPLETE :MOVED 0
+                :DISCOVERED 0)
+ROW :PROMOTION (:SCOPE :ALL :STATUS :COMPLETE :REASON :COMPLETE :MOVED 0
+                :DISCOVERED 2)
+ROW :PASS ((:GENERATION-PROMOTION :SCALAR 268435464))
+ROW :FINISHED (:PASSED 44 :FAILED 64 :PRESERVED-WORLDS 56)
+Unhandled SIMPLE-ERROR in thread #<SB-THREAD:THREAD tid=1682 "main thread" RUNNING
+                                    {1200450003}>:
+  Whole-code-row acceptance failed: 64 requirement failures (44 passes)
+
+Backtrace for: #<SB-THREAD:THREAD tid=1682 "main thread" RUNNING {1200450003}>
+0: (SB-DEBUG::DEBUGGER-DISABLED-HOOK #<SIMPLE-ERROR "Whole-code-row acceptance failed: ~D requirement failures (~D passes)" {1206308473}> #<unused argument> :QUIT T)
+1: (SB-DEBUG::RUN-HOOK *INVOKE-DEBUGGER-HOOK* #<SIMPLE-ERROR "Whole-code-row acceptance failed: ~D requirement failures (~D passes)" {1206308473}>)
+2: (INVOKE-DEBUGGER #<SIMPLE-ERROR "Whole-code-row acceptance failed: ~D requirement failures (~D passes)" {1206308473}>)
+3: (ERROR "Whole-code-row acceptance failed: ~D requirement failures (~D passes)" 64 44)
+4: (WHOLE-CODE-ROW-ACCEPTANCE:RUN-ROW-ACCEPTANCE)
+5: (SB-INT:SIMPLE-EVAL-IN-LEXENV (WHOLE-CODE-ROW-ACCEPTANCE:RUN-ROW-ACCEPTANCE) #<NULL-LEXENV>)
+6: (EVAL-TLF (WHOLE-CODE-ROW-ACCEPTANCE:RUN-ROW-ACCEPTANCE) 10 NIL)
+7: ((LABELS SB-FASL::EVAL-FORM :IN SB-INT:LOAD-AS-SOURCE) (WHOLE-CODE-ROW-ACCEPTANCE:RUN-ROW-ACCEPTANCE) 10)
+8: ((LAMBDA (SB-KERNEL:FORM &KEY :CURRENT-INDEX &ALLOW-OTHER-KEYS) :IN SB-INT:LOAD-AS-SOURCE) (WHOLE-CODE-ROW-ACCEPTANCE:RUN-ROW-ACCEPTANCE) :CURRENT-INDEX 10)
+9: (SB-C::%DO-FORMS-FROM-INFO #<FUNCTION (LAMBDA (SB-KERNEL:FORM &KEY :CURRENT-INDEX &ALLOW-OTHER-KEYS) :IN SB-INT:LOAD-AS-SOURCE) {7FF6FF0F73DB}> #<SB-C::SOURCE-INFO {12004CD993}> SB-C::INPUT-ERROR-IN-LOAD)
+10: (SB-INT:LOAD-AS-SOURCE #<SB-SYS:FD-STREAM for "file /tmp/clamsara-description-review-7p14doks/independent-review/variant-capacity/row-acceptance/bootstrap-02.lisp" {1200451CC3}> :VERBOSE NIL :PRINT NIL :CONTEXT "loading")
+11: ((LABELS SB-FASL::LOAD-STREAM-1 :IN LOAD) #<SB-SYS:FD-STREAM for "file /tmp/clamsara-description-review-7p14doks/independent-review/variant-capacity/row-acceptance/bootstrap-02.lisp" {1200451CC3}> NIL)
+12: (SB-FASL::CALL-WITH-LOAD-BINDINGS #<FUNCTION (LABELS SB-FASL::LOAD-STREAM-1 :IN LOAD) {7FF6FF0F779B}> #<SB-SYS:FD-STREAM for "file /tmp/clamsara-description-review-7p14doks/independent-review/variant-capacity/row-acceptance/bootstrap-02.lisp" {1200451CC3}> NIL #<SB-SYS:FD-STREAM for "file /tmp/clamsara-description-review-7p14doks/independent-review/variant-capacity/row-acceptance/bootstrap-02.lisp" {1200451CC3}>)
+13: (LOAD #<SB-SYS:FD-STREAM for "file /tmp/clamsara-description-review-7p14doks/independent-review/variant-capacity/row-acceptance/bootstrap-02.lisp" {1200451CC3}> :VERBOSE NIL :PRINT NIL :IF-DOES-NOT-EXIST :ERROR :EXTERNAL-FORMAT :DEFAULT)
+14: ((FLET SB-IMPL::LOAD-SCRIPT :IN SB-IMPL::PROCESS-SCRIPT) #<SB-SYS:FD-STREAM for "file /tmp/clamsara-description-review-7p14doks/independent-review/variant-capacity/row-acceptance/bootstrap-02.lisp" {1200451CC3}>)
+15: ((FLET SB-UNIX::BODY :IN SB-IMPL::PROCESS-SCRIPT))
+16: ((FLET "WITHOUT-INTERRUPTS-BODY-" :IN SB-IMPL::PROCESS-SCRIPT))
+17: (SB-IMPL::PROCESS-SCRIPT "/tmp/clamsara-description-review-7p14doks/independent-review/variant-capacity/row-acceptance/bootstrap-02.lisp")
+18: (SB-IMPL::TOPLEVEL-INIT)
+19: ((FLET SB-UNIX::BODY :IN SB-IMPL::START-LISP))
+20: ((FLET "WITHOUT-INTERRUPTS-BODY-3" :IN SB-IMPL::START-LISP))
+21: (SB-IMPL::%START-LISP)
+
+unhandled condition in --disable-debugger mode, quitting

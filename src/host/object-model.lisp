@@ -143,15 +143,16 @@ actual admitted element count; no per-object layout vector is made."
    (base-references :initarg :base-references :initform nil
                     :reader host-model-base-references)
    (live-count :initform 0 :accessor host-model-live-count)
-   ;; Sparse, actual-use non-base reference encodings and fixed lookup table.
+   ;; Immutable nonbase encodings, provisioned in complete code rows over the
+   ;; fixed descriptor domain. COUNT includes reserved, permanently unusable
+   ;; cells; no returned record is recycled or retargeted.
    (variants :initarg :variants :initform nil :reader host-model-variants)
    (variant-count :initform 0 :accessor host-model-variant-count)
-   (variant-hash-descriptors :initarg :variant-hash-descriptors :initform nil
-                             :reader host-model-variant-hash-descriptors)
-   (variant-hash-codes :initarg :variant-hash-codes :initform nil
-                       :reader host-model-variant-hash-codes)
-   (variant-hash-indices :initarg :variant-hash-indices :initform nil
-                         :reader host-model-variant-hash-indices)
+   (variant-code-keys :initarg :variant-code-keys :initform nil
+                      :reader host-model-variant-code-keys)
+   (variant-code-rows :initarg :variant-code-rows :initform nil
+                      :reader host-model-variant-code-rows)
+   (variant-publishing-p :initform nil :accessor host-model-variant-publishing-p)
    ;; Bounded borrowed/runtime pools.
    (locations :initarg :locations :initform nil :reader host-model-locations)
    (handles :initarg :handles :initform nil :reader host-model-handles)
@@ -172,6 +173,11 @@ actual admitted element count; no per-object layout vector is made."
 CAPACITY must cover all descriptor cells in the installed layout, including
 reserve ranges, at the actual object-start map granularities. Binding rejects
 an insufficient explicit offer; it never raises CAPACITY or enlarges a heap.
+VARIANT-CAPACITY is the exact number H of preallocated immutable nonbase records.
+Zero offers only base encodings. Otherwise H must cover at least one complete
+row of C installed descriptor cells. Each canonical nonbase code reserves C
+records before its first value escapes; at most FLOOR(H/C) historical codes
+are admitted. Nonbase rows require fixnum addresses and 46-bit fixnum codes.
 MAX-DISPLACEMENT is accepted only as a compatibility alias; the established
 caller ABI is MAX-INTERIOR-DISPLACEMENT."
   (let ((maximum-displacement
@@ -180,9 +186,10 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
       (error "Unsupported hosted object-model profile ~S" profile))
     (unless (and (every (lambda (value)
                           (and (integerp value) (plusp value)))
-                        (list capacity max-object-bytes variant-capacity
+                        (list capacity max-object-bytes
                               location-capacity handle-capacity stage-capacity
                               kind-capacity slot-capacity))
+                 (typep variant-capacity '(integer 0 #.most-positive-fixnum))
                  (integerp maximum-displacement)
                  (<= 0 maximum-displacement)
                  (integerp tag-capacity) (<= 0 tag-capacity))
@@ -649,6 +656,21 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
       (when (< (host-model-capacity model) total-cells)
         (error "Hosted representation capacity ~D is below required ~D"
                (host-model-capacity model) total-cells))
+      (when (plusp (host-model-variant-capacity model))
+        (when (< (host-model-variant-capacity model) total-cells)
+          (error "Hosted variant capacity ~D is below one complete code row ~D"
+                 (host-model-variant-capacity model) total-cells))
+        ;; Group publication does only bounded fixnum arithmetic and writes to
+        ;; existing records. Do not introduce retained boxed address arithmetic.
+        (unless (typep #x3fffffffffff 'fixnum)
+          (error "Hosted nonbase codes require 46-bit fixnums"))
+        (dotimes (index (length parent-ranges))
+          (let ((range (aref parent-ranges index)))
+            (unless (and (typep (%host-range-field range "BASE")
+                                '(integer 0 #.most-positive-fixnum))
+                         (typep (%host-range-field range "LIMIT")
+                                '(integer 0 #.most-positive-fixnum)))
+              (error "Hosted nonbase code rows require fixnum address bounds")))))
       (let* ((snapshot-data (multiple-value-list (%host-snapshot-kind-catalogue model)))
              (kind-snapshots (first snapshot-data))
              (description-snapshots (second snapshot-data))
@@ -662,11 +684,10 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
              (counts (make-array total-cells :initial-element 0))
              (base-references (make-array total-cells))
              (variants (make-array (host-model-variant-capacity model)))
-             (hash-size (%host-next-power-of-two
-                         (max 4 (* 2 (host-model-variant-capacity model)))))
-             (hash-descriptors (make-array hash-size :initial-element -1))
-             (hash-codes (make-array hash-size :initial-element 0))
-             (hash-indices (make-array hash-size :initial-element -1))
+             (code-capacity (floor (host-model-variant-capacity model) total-cells))
+             (hash-size (%host-next-power-of-two (max 4 (* 2 code-capacity))))
+             (code-keys (make-array hash-size :initial-element -1))
+             (code-rows (make-array hash-size :initial-element -1))
              (locations (make-array (host-model-location-capacity model)))
              (handles (make-array (host-model-handle-capacity model)))
              (stages (make-array (host-model-stage-capacity model)))
@@ -695,9 +716,8 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
                  :descriptor-generations generations
                  :descriptor-counts counts :base-references base-references
                  :variants variants
-                 :variant-hash-descriptors hash-descriptors
-                 :variant-hash-codes hash-codes
-                 :variant-hash-indices hash-indices
+                 :variant-code-keys code-keys
+                 :variant-code-rows code-rows
                  :locations locations :handles handles :stages stages
                  :bound-p t)))
         (replace kinds (host-model-kinds model) :end2 kind-count)
@@ -933,45 +953,68 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
        (otherwise 0))
      (ash tag 2) (ash displacement 18)))
 
-(defun %host-variant-table-slot (model descriptor code)
-  (let* ((keys (host-model-variant-hash-descriptors model))
-         (codes (host-model-variant-hash-codes model))
-         (mask (1- (length keys)))
-         (initial (logand (+ (* descriptor 65599) code) mask)))
+(defun %host-variant-code-slot (keys code)
+  (let* ((mask (1- (length keys)))
+         (initial (logand (logxor code (ash code -18)) mask)))
     (dotimes (probe (length keys))
       (let* ((slot (logand (+ initial probe) mask))
              (seen (aref keys slot)))
-        (when (or (= seen -1)
-                  (and (= seen descriptor) (= (aref codes slot) code)))
-          (return-from %host-variant-table-slot slot))))
+        (when (or (= seen -1) (= seen code))
+          (return-from %host-variant-code-slot slot))))
     nil))
 
 (defun %host-find-or-publish-variant
-    (model descriptor start kind tag displacement)
+    (model descriptor kind tag displacement)
+  ;; This profile is serialized. Row filling invokes no client callback or
+  ;; collection entry and allocates no representation storage. A partial row
+  ;; is never directory-visible; this is not target CLOS/allocation admission.
+  (when (host-model-variant-publishing-p model)
+    (error "Reference encoding row publication is already active"))
   (let* ((code (%host-variant-code kind tag displacement))
-         (slot (%host-variant-table-slot model descriptor code)))
-    (unless slot (error "Reference encoding lookup table exhausted"))
-    (let ((seen (aref (host-model-variant-hash-descriptors model) slot)))
-      (if (/= seen -1)
-          (aref (host-model-variants model)
-                (aref (host-model-variant-hash-indices model) slot))
-          (let ((index (host-model-variant-count model)))
-            (when (>= index (length (host-model-variants model)))
-              (error "Reference encoding capacity exhausted"))
-            (let ((reference (aref (host-model-variants model) index)))
-              ;; This preallocated record has never been published.  Fill it
-              ;; completely, then publish its table index as the last effect.
-              (setf (host-reference-descriptor reference) descriptor
-                    (host-reference-address reference) (+ start displacement)
-                    (host-reference-kind reference) kind
-                    (host-reference-tag reference) tag
-                    (host-reference-displacement reference) displacement
-                    (aref (host-model-variant-hash-codes model) slot) code
-                    (aref (host-model-variant-hash-indices model) slot) index
-                    (aref (host-model-variant-hash-descriptors model) slot)
-                    descriptor)
-              (incf (host-model-variant-count model))
-              reference))))))
+         (keys (host-model-variant-code-keys model))
+         (rows (host-model-variant-code-rows model))
+         (variants (host-model-variants model))
+         (slot (%host-variant-code-slot keys code)))
+    (unless slot (error "Reference code directory exhausted"))
+    (if (/= (aref keys slot) -1)
+        (aref variants (+ (aref rows slot) descriptor))
+        (let* ((start (host-model-variant-count model))
+               (bases (host-model-base-references model))
+               (cells (length bases)))
+          ;; Check the whole row before changing any record/count/directory.
+          ;; Keys has >=2*FLOOR(H/C) entries, so admitted rows never fill it.
+          (when (> cells (- (length variants) start))
+            (error "Reference encoding code-row capacity exhausted"))
+          (setf (host-model-variant-publishing-p model) t)
+          (unwind-protect
+               (progn
+                 (loop for route across (host-model-routes model)
+                       do (let ((first (host-route-descriptor-offset route))
+                                (limit (host-route-limit route)))
+                            (dotimes (local (host-route-cell-count route))
+                              (let* ((index (+ first local))
+                                     (address (host-reference-address
+                                               (aref bases index))))
+                                ;; Skip only a permanently impossible offset,
+                                ;; never an inactive/reserve/currently small cell.
+                                ;; The subtraction also proves ADDRESS+DISPLACEMENT
+                                ;; fits the admitted fixnum address domain.
+                                (when (< displacement (- limit address))
+                                  (let ((reference (aref variants (+ start index))))
+                                    (setf (host-reference-descriptor reference) index
+                                          (host-reference-address reference)
+                                          (+ address displacement)
+                                          (host-reference-kind reference) kind
+                                          (host-reference-tag reference) tag
+                                          (host-reference-displacement reference)
+                                          displacement)))))))
+                 ;; All records are ready. These non-failing writes publish one
+                 ;; canonical code atomically with respect to admitted callers.
+                 (setf (aref rows slot) start
+                       (host-model-variant-count model) (+ start cells)
+                       (aref keys slot) code)
+                 (aref variants (+ start descriptor)))
+            (setf (host-model-variant-publishing-p model) nil))))))
 
 (defmethod rebuild-reference
     ((model host-object-model) new-start descriptor)
@@ -981,8 +1024,7 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
       (error "Reference rebuild destination is not an active base encoding"))
     (multiple-value-bind (kind tag displacement)
         (%host-decode-reference-descriptor descriptor)
-      (let* ((size (aref (host-model-sizes model) descriptor-index))
-             (start (host-reference-address new-start)))
+      (let ((size (aref (host-model-sizes model) descriptor-index)))
         (unless (and (< displacement size)
                      (<= displacement
                          (host-model-max-interior-displacement model))
@@ -1002,7 +1044,7 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
         (if (eq kind :base)
             new-start
             (%host-find-or-publish-variant
-             model descriptor-index start kind tag displacement))))))
+             model descriptor-index kind tag displacement))))))
 
 (defmethod reference-address ((model host-object-model) start)
   (%host-bound-model model)
@@ -2026,9 +2068,8 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
     (register (host-model-descriptor-counts model))
     (register-vector (host-model-base-references model) t)
     (register-vector (host-model-variants model) t)
-    (register (host-model-variant-hash-descriptors model))
-    (register (host-model-variant-hash-codes model))
-    (register (host-model-variant-hash-indices model))
+    (register (host-model-variant-code-keys model))
+    (register (host-model-variant-code-rows model))
     (register-vector (host-model-locations model) t)
     (register-vector (host-model-handles model) t)
     (register-vector (host-model-stages model) t)

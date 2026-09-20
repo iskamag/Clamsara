@@ -1,3 +1,6 @@
 # Preserve literal unified-diff context and verbatim diagnostic output.
 tools/patches/*.patch whitespace=-blank-at-eol,-space-before-tab
 docs/*.log whitespace=-blank-at-eol
+
+# Preserve exact native/source evidence bytes, including diagnostic whitespace.
+docs/evidence/variant-rows-4e7c28f/** -whitespace

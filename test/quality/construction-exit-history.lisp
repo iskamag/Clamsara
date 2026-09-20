@@ -83,7 +83,7 @@
          (address-client (make-simulator-address-space :base 4096 :byte-extent 512
                            :alignment 16 :page-size 256 :coordinator coordinator))
          (model (make-host-object-model :capacity 64 :kind-capacity 4 :slot-capacity 4
-                  :max-object-bytes 64 :variant-capacity 8 :location-capacity 4
+                  :max-object-bytes 64 :variant-capacity 0 :location-capacity 4
                   :handle-capacity 4 :stage-capacity 1))
          (kind (make-object-kind-description model :node :size-rule 32 :alignment-rule 16))
          (diagnostics (make-simulator-diagnostics))

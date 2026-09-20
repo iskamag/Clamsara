@@ -1,0 +1,6 @@
+(require :asdf)
+(asdf:test-system :clamsara/quality/reference-variants/test)
+(asdf:test-system :clamsara/acceptance/test)
+(asdf:test-system :clamsara/quality/model-resources/test)
+(asdf:test-system :clamsara/quality/generational/test)
+(format t "~&VARIANT-ROW-INTEGRATED-PASS~%")

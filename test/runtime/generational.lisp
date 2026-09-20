@@ -32,7 +32,7 @@
             :alignment q :page-size 256 :coordinator coordinator))
          (model (clamsara::make-host-object-model
                  :capacity 512 :kind-capacity 8 :slot-capacity 8
-                 :variant-capacity 128 :location-capacity 8
+                 :variant-capacity 0 :location-capacity 8
                  :handle-capacity 128 :stage-capacity 4
                  :max-object-bytes 128))
          (node-kind (make-object-kind-description

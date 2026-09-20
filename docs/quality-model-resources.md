@@ -390,6 +390,40 @@ array-performance, no-allocation or target acceptance follows. Unchanged probe,
 runner, six logs, pooled data and hashes are in
 `docs/evidence/trace-capacity-9dd8629/`; eight earlier process logs are unavailable.
 
+## Whole-code-row repair storage check
+
+The next 500,000-element run, on the row-repair patch based on `4e7c28f`, passes:
+`/tmp/clamsara-variant-row-500k.log`. Each space remains 8,001,056 bytes, each
+array 4,000,016 bytes, Q=16 and C=1,000,132. The fixture only creates base
+encodings, so its offer is now explicitly H=0 instead of the old unused H=8.
+Nonbase tests separately provision complete rows and retain exhaustion checks.
+
+```text
+TOP-LEVEL-MODEL-PLANE-BYTES      80010912
+BASE-REFERENCE-RECORD-BYTES      64008448
+STAGING-BACKING-BYTES            8000064
+PARTIAL-MODEL-SUBTOTAL-BYTES     152019424
+ACCOUNT-PHYSICAL-BYTES           48133504
+ACCOUNT-AUXILIARY-BYTES          160291392
+EXPLICIT-REFERENCE-SCAN-CALLBACKS (500000 500000)
+EXPLICIT-NUMERIC-SCAN-CALLBACKS  0
+COLLECTOR-SCAN-CALLBACKS         :NOT-MEASURED
+OBJECTS-DISCOVERED/MOVED         2/2
+BYTES-MOVED                      8000032
+```
+
+The shallow planes and partial subtotal decrease by 400 bytes; the observed
+whole auxiliary account decreases by 976 bytes. These are new measurements,
+not revised historical totals. The two code-directory vectors replace three
+per-address lookup vectors; all H records, including unused row/tail cells,
+remain charged in configurations with H>0. The bound-model manifest test
+checks the new vectors and their retained primitive records.
+
+The 6.048-second process includes startup and reporting; it is not an isolated
+performance comparison. No collector callback total or complexity proof was
+added. See [reference-variant-row-design.md](reference-variant-row-design.md)
+for the row policy, explicit admission changes and scoped correctness evidence.
+
 ## Evidence limits
 
 - The complete combined entry and the 500,000-element stress are green at the

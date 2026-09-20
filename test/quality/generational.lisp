@@ -30,7 +30,7 @@
                          :page-size 16 :coordinator coordinator))
          (model (make-host-object-model
                  :capacity capacity :kind-capacity 8 :slot-capacity 16
-                 :variant-capacity 128 :location-capacity 16
+                 :variant-capacity 0 :location-capacity 16
                  :handle-capacity 128 :stage-capacity 4 :max-object-bytes 32))
          (node (make-object-kind-description
                 model :quality-node :size-rule 32 :alignment-rule quantum

@@ -177,6 +177,17 @@
                      (zerop (mod (- (car range) base) granularity))
                      (zerop (mod (- (cdr range) base) granularity)))
           (return-from prepare-space-ownership-update (reject :uncovered-object-start-map))))
+      ;; Bound representations index this physical range at its admitted
+      ;; granularity. Ownership/generation may change; cell geometry may not.
+      (multiple-value-bind (old-base old-limit old-granularity)
+          (metadata-bounds (%simulator-layout-range-map target))
+        (declare (ignore old-base old-limit))
+        (multiple-value-bind (new-base new-limit new-granularity)
+            (metadata-bounds map)
+          (declare (ignore new-base new-limit))
+          (unless (= old-granularity new-granularity)
+            (return-from prepare-space-ownership-update
+              (reject :incompatible-object-start-granularity)))))
       (when (%simulator-layout-range-pending target)
         (return-from prepare-space-ownership-update (reject :ownership-update-pending)))
       (when (= most-positive-fixnum (%simulator-layout-range-generation target))

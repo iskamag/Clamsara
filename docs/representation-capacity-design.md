@@ -178,3 +178,12 @@ For the credit-based alternative, add threshold tests for nursery versus mature
 allocation, full-garbage GC progress, all-survivor allocation failure with an open
 valid plan, and all prepublication rollback paths. The constructor-only repair
 does not claim to preserve low-capacity admission or implement those credits.
+
+## Separate nonbase follow-up
+
+The base-cell bound above does not cover historical tagged/interior encodings.
+The later [canonical-code row repair](reference-variant-row-design.md) separately
+provisions every legal relocation destination before returning the first
+nonbase value of that code. It retains an exact finite record offer and rejects
+changes to the fixed descriptor granularity. Read its own evidence and limits;
+those do not follow from this base-representation proof alone.

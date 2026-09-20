@@ -32,7 +32,7 @@
          (model
            (clamsara::make-host-object-model
             :capacity 512 :kind-capacity 16 :slot-capacity 16
-            :variant-capacity 256 :location-capacity 16
+            :variant-capacity 0 :location-capacity 16
             :handle-capacity 128 :stage-capacity 8
             :max-object-bytes 128))
          (weak-description

@@ -33,7 +33,7 @@
             :coordinator coordinator))
          (model (clamsara::make-host-object-model
                  :capacity 256 :kind-capacity 8 :slot-capacity 8
-                 :variant-capacity 64 :location-capacity 8
+                 :variant-capacity 0 :location-capacity 8
                  :handle-capacity 64 :stage-capacity 4
                  :max-object-bytes 128))
          (weak-description

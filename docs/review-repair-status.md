@@ -264,7 +264,7 @@ mutable compound names, other representation pools, and target admission remain
 open. This is not a claim that every object description or model profile is now
 admitted.
 
-## Nonbase reference encoding capacity: separate open defect
+## Nonbase reference encoding capacity: counterexample and row repair
 
 The fixed `9dd8629` probe in
 [reference-variant-capacity-review.md](reference-variant-capacity-review.md)
@@ -280,6 +280,25 @@ all MarkSweep controls complete three cycles and discharge. The test's initial
 nonbase descriptor uses the explicit private hosted encoding ABI; the report
 keeps that boundary distinct from a pure opaque-protocol input. No encoding-pool
 repair is included in the geometry patch or the reporting-only edits.
+
+The subsequent repair preallocates complete canonical-code rows over every
+installed descriptor cell. Exact H records admit FLOOR(H/C) historical forms;
+H=0 is base-only, positive H<C rejects binding and its real resources unwind.
+No record is retargeted, recycled or allocated during collector correction.
+Same-granularity ownership changes remain supported; changing the fixed cell
+geometry rejects before consuming a capability.
+
+Parent native gates now pass all 108 independent row cases, four additional
+directory/collision histories, the ownership-granularity controls, full main/
+tools/workload/optional-generation/structure suites and the 500,000-element
+stress. Independent fixed-snapshot replay passes those 108 cases and 12 new
+edge/account cases. The [bounded fixed-snapshot review](reference-variant-row-fixed-review.md)
+found no blocker in the serialized hosted row-closure contract. The original aggregate runner's CL-zero
+truth bug and the parent fixture setup failures are
+disclosed, not counted as implementation successes. See
+[reference-variant-row-design.md](reference-variant-row-design.md) for the exact
+proof, budget change, red/green provenance and limits. This does not close the
+remaining description, callable, CAS, benchmark or target work.
 
 ## Other confirmed review findings
 

@@ -112,6 +112,26 @@ Mezzano admission evidence. Host-condition cleanup semantics, complete literal
 and module ownership, and the other language boundaries below still need their
 own acceptance. Full depth-18 and Gabriel acceptance are separate gates.
 
+## Full depth-18 computation checkpoint (not full acceptance)
+
+The `90fddf3` image completed the unchanged depth-18 source and its assertions:
+`:STATUS :OK`, `:VALUE T`, elapsed 1066.1439 seconds. It used a 32MiB active
+semispace, 64MiB total semispace reserve, and an 8MiB maximum object. All 20
+original fixture hashes remained unchanged. Short native diagnostic processes
+also ran during this attempt; the elapsed time is not an isolated performance
+comparison.
+
+That temporary driver omitted final collection evidence and reported
+`:FINAL-COLLECTION-STATUS :NOT-RUN`. Its old close helper then failed with
+`:REACHABLE-OBJECTS-NOT-DISCHARGED`. The driver swallowed that close error and
+exited 0. This is computation evidence only, not a successful full lifecycle.
+The log is `/tmp/clamsara-gcbench-postcontrol.log`.
+
+`tools/run-gcbench.lisp` is the reproducible replacement. It requires automatic
+movement evidence, an empty-root final collection without clearing roots, and
+successful close; either workload or close failure makes the process fail.
+See `tools/README.md`. A fresh full run is required after the close repair.
+
 ## Completed-runtime close
 
 The original close helper erased VM registers, unbound both owned contexts,

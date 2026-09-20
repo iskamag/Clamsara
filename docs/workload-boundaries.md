@@ -192,6 +192,38 @@ investigation; FRPOLY is not accepted. Fixture globals also remain live and
 close must still reject them. `tools/probe-frpoly.lisp` preserves this failing
 oracle gate without changing the fixture or treating NIL returns as a pass.
 
+## Upstream globally special parameter blocker
+
+The FRPOLY mutation trace isolates `PTIMES1` assigning its required parameter
+`*X*`. The function's own later reads see the assignment, but `PTIMES3` still
+sees the original dynamic value. This occurs with plain Maclina and host conses,
+without a collection. A numeric-only reproducer is
+`tools/probe-required-special.lisp`; it loads no Clamsara implementation.
+
+On Maclina `d92e9254b45da4e508503b984f02403c6fb6677a`:
+
+- A required globally special parameter is incremented from 17 to 18. Native
+  Lisp returns `(18 18)` from the parameter and a called reader. Maclina returns
+  `(18 17)`.
+- An explicit SPECIAL declaration makes that assignment case agree.
+- It is not a sufficient workaround: nested LET rebinding should return 99,
+  but Maclina returns the enclosing value 17.
+
+`COMPILE-WITH-LAMBDA-LIST` emits the dynamic binding for a globally special
+required parameter, then updates its body environment only for explicitly
+special parameters. The required lexical carrier therefore shadows the global
+special description. Further, `ADD-SPECIALS` installs a local special
+description, while `GLOBALLY-SPECIAL-P` examines the nearest description. A
+local declaration can consequently hide a global proclamation from a nested
+binding. A correct fix must retain the global classification, not merely add
+SPECIAL declarations to FRPOLY or redirect individual reads and writes.
+
+The relevant binding compiler functions are nongeneric. No dependency source
+or global compiler function has been changed. The Maclina working tree was
+clean when inspected. The next repair belongs in that compiler and needs its
+own binding/default/closure/unwind regressions. This is an implementation bug,
+not a paper-v14 contradiction or a reason to edit the benchmark.
+
 ## Published code roots
 
 An active function could lose a managed literal before its first use: a native

@@ -87,3 +87,15 @@ before collection and in a plain upstream Maclina client with host conses.
 Returning NIL from all four TESTFRPOLY subtests is therefore not acceptance.
 The probe never clears fixture globals for shutdown; even complete value
 comparisons would establish computation, not full benchmark lifecycle success.
+
+## Upstream special-parameter regression (currently failing)
+
+```sh
+sbcl --noinform --non-interactive --load tools/probe-required-special.lisp
+```
+
+This loads only Maclina/Extrinsicl/Clostrum/Trucler, not Clamsara. It compares
+required globally special assignment and nested rebinding with native Lisp.
+It reports all three cases and exits unsuccessfully while any differ. Adding
+an explicit SPECIAL declaration repairs only one of the two failing cases.
+See `docs/workload-boundaries.md` before attempting an adapter workaround.

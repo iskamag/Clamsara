@@ -140,6 +140,7 @@
                              (asdf:test-op :clamsara/runtime/lifecycle/test)
                              (asdf:test-op :clamsara/acceptance/test)
                              (asdf:test-op :clamsara/quality/stateful/test)
+                             (asdf:test-op :clamsara/quality/finalizers/test)
                              (asdf:test-op :clamsara/quality/model-resources/test)
                              (asdf:test-op :clamsara/quality/test))))
 
@@ -292,3 +293,14 @@
                           (uiop:symbol-call :clamsara.quality.generational
                                            :run-generational-history-tests))
                (error "Generational quality tests failed"))))
+
+(asdf:defsystem :clamsara/quality/finalizers/test
+  :version "0.1.0"
+  :description "Hosted finalizer registration histories; not full callback admission."
+  :depends-on (:clamsara/quality/support)
+  :components ((:file "test/quality/finalizers"))
+  :perform (asdf:test-op (operation component)
+             (declare (ignore operation component))
+             (unless (uiop:symbol-call :clamsara.quality.finalizers
+                                      :run-finalizer-registration-tests)
+               (error "Finalizer registration tests failed"))))

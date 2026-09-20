@@ -50,6 +50,27 @@ See `docs/generational.md` for the repaired major policy and bounded evidence.
 Common-core review findings and broader profile admission remain open; this
 is not currently a specification complaint.
 
+## Finalizer cancellation outcomes — narrow clarification
+
+`chapters/clients.tex`, “Finalizer registry,” requires an opaque token to identify
+one record generation, idempotent cancellation before freeze, and
+`:already-finalized` afterward. Cross-registry aliasing and a stale token naming
+a successor are implementation defects, not ambiguous permissions.
+
+The following return conventions need a precise statement:
+
+- After a successful cancellation, does repeating that cancellation return
+  `:canceled` or `:already-finalized`, including after its physical slot is reused?
+- Does cancellation with another registry's token signal an invalid-token
+  condition, or may it return `:already-finalized` without effects?
+
+The hosted implementation currently returns `:already-finalized` without effects
+for inactive or foreign tokens. Its token repair preserves that convention;
+it does not claim the paper explicitly chooses it. The invariant is tested
+independently: neither request can alter a successor or another registry's record.
+For referent correction, the specification already explicitly requires `:stale`
+on a token/state/encoding mismatch.
+
 ## Not paper defects
 
 Duplicate method definitions, ignored initializers, permissive identity

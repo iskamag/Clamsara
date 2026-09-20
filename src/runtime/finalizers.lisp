@@ -23,8 +23,22 @@
       (:referent (setf (aref (%registry-referents registry) index) value))
       (:support (setf (aref (%registry-supports registry) index) value)))))
 
+(defstruct (finalizer-owner-key (:constructor %make-finalizer-owner-key)))
+
+(defstruct (sequential-finalizer-token
+             (:constructor %make-finalizer-token (owner generation)))
+  ;; Each object belongs to one historical registration and is never recycled.
+  ;; INDEX is filled once, before the token is exposed to its caller.
+  (owner nil :read-only t)
+  (generation 0 :type fixnum :read-only t)
+  (index -1 :type fixnum))
+
 (defclass sequential-finalizer-registry (component)
   ((capacity :initarg :capacity :reader %registry-capacity)
+   (registration-capacity :initarg :registration-capacity
+                          :reader %registry-registration-capacity)
+   (token-reserve :initform nil :accessor %registry-token-reserve)
+   (token-owner :initform nil :accessor %registry-token-owner)
    (root-client :initarg :root-client :reader %registry-root-client)
    (resource-id :initform (gensym "FINALIZER-OBJECTS-")
                 :reader %registry-resource-id)
@@ -44,14 +58,25 @@
    (configuration :initform nil :accessor %registry-configuration)
    (callback-failure-count :initform 0 :accessor %registry-callback-failure-count)))
 
-(defun make-sequential-finalizer-registry (&key capacity root-client)
-  (unless (typep capacity '(integer 1 *))
+(defun make-sequential-finalizer-registry
+    (&key capacity root-client (registration-capacity nil registration-capacity-p))
+  "CAPACITY bounds live records; REGISTRATION-CAPACITY bounds lifetime tokens.
+Historical tokens are fixed during construction, never recycled or allocated
+by registration. Exhaustion rejects before publishing a record."
+  (unless (typep capacity '(integer 1 #.most-positive-fixnum))
+    (%runtime-reject :invalid-finalizer-capacity))
+  (unless registration-capacity-p
+    (setf registration-capacity (max capacity 64)))
+  (unless (and (typep registration-capacity '(integer 1 #.most-positive-fixnum))
+               (>= registration-capacity capacity))
     (%runtime-reject :invalid-finalizer-capacity))
   (make-instance 'sequential-finalizer-registry
-                 :capacity capacity :root-client root-client))
+                 :capacity capacity :root-client root-client
+                 :registration-capacity registration-capacity))
 
 (defmethod component-resources ((registry sequential-finalizer-registry))
-  (let ((capacity (%registry-capacity registry)))
+  (let ((capacity (%registry-capacity registry))
+        (history (%registry-registration-capacity registry)))
     (list
      (make-resource-contribution
       registry (%registry-resource-id registry) :runtime-object-vector
@@ -61,12 +86,15 @@
       :exhaustion-action :reject-before-publication)
      (make-resource-contribution
       registry (%registry-index-resource-id registry) :runtime-index-vector
-      :minimum-physical-bytes (+ 16 (* 8 (* 2 capacity))) :logical-entry-bound (* 2 capacity)
-      :auxiliary-bytes 64 :allocation-context :construction-only
+      :minimum-physical-bytes (+ 16 (* 8 (+ (* 2 capacity) history)))
+      :logical-entry-bound (+ (* 2 capacity) history)
+      :auxiliary-bytes (+ 64 (* 64 history))
+      :allocation-context :construction-only
       :exhaustion-action :reject-before-publication))))
 
 (defmethod initialize-component ((registry sequential-finalizer-registry) context)
-  (let ((capacity (%registry-capacity registry)))
+  (let ((capacity (%registry-capacity registry))
+        (history (%registry-registration-capacity registry)))
     (multiple-value-bind (objects present-p physical entries auxiliary)
         (construction-resource context (%registry-resource-id registry))
       (unless (and present-p (typep objects 'simple-vector)
@@ -92,22 +120,34 @@
     (multiple-value-bind (indices present-p physical entries auxiliary)
         (construction-resource context (%registry-index-resource-id registry))
       (unless (and present-p (typep indices 'simple-vector)
-                   (>= physical (+ 16 (* 8 (* 2 capacity))))
-                   (>= auxiliary 64)
-                   (>= entries (* 2 capacity))
-                   (>= (length indices) (* 2 capacity)))
+                   (>= physical (+ 16 (* 8 (+ (* 2 capacity) history))))
+                   (>= auxiliary (+ 64 (* 64 history)))
+                   (>= entries (+ (* 2 capacity) history))
+                   (>= (length indices) (+ (* 2 capacity) history)))
         (%runtime-reject :finalizer-resource-capacity))
       (setf (%registry-tokens registry)
             (make-array capacity :displaced-to indices)
             (%registry-pending registry)
             (make-array capacity :displaced-to indices
-                        :displaced-index-offset capacity)))
+                        :displaced-index-offset capacity)
+            (%registry-token-reserve registry)
+            (make-array history :displaced-to indices
+                        :displaced-index-offset (* 2 capacity))))
+    (setf (%registry-token-owner registry) (%make-finalizer-owner-key))
+    (%register-resource-auxiliary context (%registry-index-resource-id registry)
+                                  (%registry-token-owner registry))
+    (dotimes (index history)
+      (let ((token (%make-finalizer-token (%registry-token-owner registry)
+                                         (1+ index))))
+        (setf (aref (%registry-token-reserve registry) index) token)
+        (%register-resource-auxiliary context (%registry-index-resource-id registry)
+                                      token)))
     (fill (%registry-registrations registry) nil)
     (fill (%registry-referents registry) nil)
     (fill (%registry-supports registry) nil)
     (fill (%registry-callbacks registry) nil)
     (fill (%registry-states registry) :free)
-    (fill (%registry-tokens registry) 0)
+    (fill (%registry-tokens registry) nil)
     (fill (%registry-pending registry) 0)
     (let ((locations (make-array (* 2 capacity))))
       (dotimes (index capacity)
@@ -130,7 +170,8 @@
         (%register-resource-auxiliary context (%registry-resource-id registry)
                                       (aref locations index))))
     (dolist (object (list (%registry-tokens registry)
-                          (%registry-pending registry)))
+                          (%registry-pending registry)
+                          (%registry-token-reserve registry)))
       (%register-resource-auxiliary context
                                     (%registry-index-resource-id registry)
                                     object))
@@ -157,9 +198,32 @@
   (values))
 
 (defun %registry-token-index (registry token)
-  (when (typep token '(integer 1 *))
-    (let ((index (mod (1- token) (%registry-capacity registry))))
-      (when (= token (aref (%registry-tokens registry) index)) index))))
+  (when (and (sequential-finalizer-token-p token)
+             (eq (%registry-token-owner registry)
+                 (sequential-finalizer-token-owner token)))
+    (let ((index (sequential-finalizer-token-index token)))
+      (when (and (<= 0 index) (< index (%registry-capacity registry))
+                 (eq token (aref (%registry-tokens registry) index)))
+        index))))
+
+(defun %registry-local-referent-p (registry referent)
+  ;; Encoding recognition is not a liveness test. Normalize, then require the
+  ;; authoritative allocated-object entry in this configuration's own spaces.
+  (let* ((configuration (%registry-configuration registry))
+         (model (configuration-object-model configuration)))
+    (and (valid-reference-p model referent)
+         (handler-case
+             (multiple-value-bind (start descriptor)
+                 (normalize-reference model referent)
+               (declare (ignore descriptor))
+               (let ((space (space-of-reference
+                             (configuration-layout configuration) start)))
+                 (and (member space (%plan-spaces
+                                     (%configuration-runtime-plan configuration))
+                              :test #'eq)
+                      (%metadata-present-p (%space-object-start-map space)
+                                           (reference-address model start)))))
+           (error () nil)))))
 
 (defmethod register-finalizer ((registry sequential-finalizer-registry)
                                (context sequential-execution-context)
@@ -171,11 +235,17 @@
     (%runtime-reject :invalid-finalizer-registration))
   (unless (eq (%plan-state (%context-plan context)) :open)
     (%runtime-reject :collection-busy))
+  (unless (%registry-local-referent-p registry referent)
+    (%runtime-reject :invalid-finalizer-registration))
   (let ((index (position :free (%registry-states registry) :test #'eq)))
     (unless index (%runtime-reject :weak-storage-exhausted))
-    (when (= (%registry-next-token registry) most-positive-fixnum)
+    (when (>= (%registry-next-token registry)
+              (%registry-registration-capacity registry))
       (%runtime-reject :generation-exhausted))
-    (let ((token (incf (%registry-next-token registry))))
+    (let ((token (aref (%registry-token-reserve registry)
+                       (%registry-next-token registry))))
+      (setf (sequential-finalizer-token-index token) index)
+      (incf (%registry-next-token registry))
       ;; Active registrations are conditional registry entries, not strong
       ;; roots.  Their provider root slot stays NIL until a candidate freezes.
       (setf (aref (%registry-registrations registry) index) referent

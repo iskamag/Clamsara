@@ -68,7 +68,8 @@ bounded independent review in `docs/review-ac22bdd.md`.
 This is bounded sequential hosted evidence, **not complete profile admission**.
 The profile shares the independently confirmed finalizer, copy-capacity
 admission, allocation-validation and composed-CAS defects recorded in that
-review. The tests above do not repair or waive those common-core defects.
+review. See `docs/review-repair-status.md` for subsequent fixes and remaining
+open cases. The tests above do not repair or waive those common-core defects.
 
 Explicit major recovery does not establish automatic recovery after every
 minor reservation failure. In particular, a retained collection result must

@@ -91,6 +91,8 @@
                              (trace-capacity 128)
                              (conditional-capacity 128)
                              (finalizer-capacity 16)
+                             (finalizer-registration-capacity
+                               (max finalizer-capacity 64))
                              (stop-capacity 64)
                              (await-bound 32)
                              await-fail-after
@@ -143,7 +145,8 @@ ALGORITHM is :SEMISPACE or :MARKSWEEP.  OBJECT-STARTS is :PACKED or :SCALAR."
             :diagnostics diagnostics))
          (registry
            (make-sequential-finalizer-registry
-            :capacity finalizer-capacity :root-client roots))
+            :capacity finalizer-capacity :root-client roots
+            :registration-capacity finalizer-registration-capacity))
          (domain-0
            (make-metadata-domain
             :base base :limit (+ base extent) :granularity packing-quantum))

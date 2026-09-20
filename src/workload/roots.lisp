@@ -183,6 +183,8 @@ arguments; collector refresh never retargets or clears those tokens."
     (:cell (car (workload-location-source location)))
     (:lexical-cell (maclina.vm-cross::cell-value
                     (workload-location-source location)))
+    (:literal (aref (maclina.machine:literals (workload-location-source location))
+                    (workload-location-source-index location)))
     (:property (gethash (workload-location-source-index location)
                         (workload-location-source location)))
     (:closure
@@ -208,6 +210,9 @@ arguments; collector refresh never retargets or clears those tokens."
     (:cell (setf (car (workload-location-source location)) value))
     (:lexical-cell (setf (maclina.vm-cross::cell-value
                           (workload-location-source location)) value))
+    (:literal (setf (aref (maclina.machine:literals
+                           (workload-location-source location))
+                          (workload-location-source-index location)) value))
     (:property
      (setf (gethash (workload-location-source-index location)
                     (workload-location-source location)) value))
@@ -258,10 +263,12 @@ arguments; collector refresh never retargets or clears those tokens."
     (1+ cursor)))
 
 
-(defun %provider-activate-closure (provider cursor value)
+(defun %provider-enqueue-control (provider cursor value)
   ;; Queue only known interpreter control objects. Never traverse arbitrary
   ;; host containers as if they were an admitted guest representation.
   (when (and (or (typep value 'maclina.machine:closure)
+                 (typep value 'maclina.machine:function)
+                 (typep value 'maclina.machine:module)
                  (typep value 'maclina.vm-cross::cell))
              (not (gethash value (workload-provider-control-seen provider))))
     (let ((count (workload-provider-control-count provider)))
@@ -278,14 +285,28 @@ arguments; collector refresh never retargets or clears those tokens."
         while (< index (workload-provider-control-count provider))
         for object = (aref (workload-provider-control-queue provider) index)
         do (etypecase object
+             (maclina.machine:function
+              (%provider-enqueue-control provider cursor (maclina.machine:module object)))
+             (maclina.machine:module
+              (let ((literals (maclina.machine:literals object))
+                    (environment (workload-client-workload
+                                  (workload-provider-client provider))))
+                (dotimes (i (length literals))
+                  (let ((value (aref literals i)))
+                    ;; A literal slot itself is writable, unlike a detached
+                    ;; copy of its current value. Host syntax is not traversed.
+                    (when (workload-reference-p environment value)
+                      (setf cursor (%provider-activate provider cursor :literal object i)))
+                    (%provider-enqueue-control provider cursor value)))))
              (maclina.machine:closure
+              (%provider-enqueue-control provider cursor (maclina.machine:template object))
               (let ((environment (maclina.machine:environment object)))
                 (dotimes (i (length environment))
                   (setf cursor (%provider-activate provider cursor :closure object i))
-                  (%provider-activate-closure provider cursor (aref environment i)))))
+                  (%provider-enqueue-control provider cursor (aref environment i)))))
              (maclina.vm-cross::cell
               (setf cursor (%provider-activate provider cursor :lexical-cell object))
-              (%provider-activate-closure provider cursor
+              (%provider-enqueue-control provider cursor
                                           (maclina.vm-cross::cell-value object)))))
   cursor)
 
@@ -306,7 +327,7 @@ exhaustion is reported as a capability failure rather than dropping roots."
       (dotimes (index (maclina.vm-cross::vm-stack-top vm))
         (setf cursor (%provider-activate provider cursor :stack vm index))
         (setf cursor
-              (%provider-activate-closure
+              (%provider-enqueue-control
                provider cursor
                (svref (maclina.vm-cross::vm-stack vm) index))))
       ;; VM-VALUES is a host list.  Each cons cell is a stable physical source
@@ -316,7 +337,7 @@ exhaustion is reported as a capability failure rather than dropping roots."
             while (consp value-cell)
             do (setf cursor (%provider-activate
                              provider cursor :values value-cell))
-               (setf cursor (%provider-activate-closure
+               (setf cursor (%provider-enqueue-control
                              provider cursor (car value-cell))))
       ;; Dynamic special-binding/progv cells are host conses holding managed
       ;; values.  They are active roots for the current bytecode extent.
@@ -325,24 +346,24 @@ exhaustion is reported as a capability failure rather than dropping roots."
           (maclina.vm-cross::sbind-dynenv
            (let ((cell (maclina.vm-cross::sbind-dynenv-cell dynenv)))
              (setf cursor (%provider-activate provider cursor :cell cell))
-             (%provider-activate-closure provider cursor (car cell))))
+             (%provider-enqueue-control provider cursor (car cell))))
           (maclina.vm-cross::progv-dynenv
            (dolist (pair (maclina.vm-cross::progv-dynenv-mapping dynenv))
              (setf cursor (%provider-activate provider cursor :cell (cdr pair)))
-             (%provider-activate-closure provider cursor (cadr pair))))
+             (%provider-enqueue-control provider cursor (cadr pair))))
           (maclina.vm-cross::protection-dynenv
            (setf cursor
-                 (%provider-activate-closure
+                 (%provider-enqueue-control
                   provider cursor
                   (maclina.vm-cross::protection-dynenv-cleanup dynenv)))))))
     ;; Active callees can have left the operand stack. Saved cleanup values
     ;; outlive changes to VM-VALUES and must update the original host conses.
     (dotimes (frame (workload-provider-frame-count provider))
-      (%provider-activate-closure
+      (%provider-enqueue-control
        provider cursor (aref (workload-provider-functions provider) frame))
       (loop for cell on (aref (workload-provider-saved-values provider) frame)
             do (setf cursor (%provider-activate provider cursor :values cell))
-               (%provider-activate-closure provider cursor (car cell))))
+               (%provider-enqueue-control provider cursor (car cell))))
     ;; Symbol/property values are host hash-table payloads but are managed
     ;; references.  Retarget a fixed location directly to each hash entry.
     (when client
@@ -350,7 +371,7 @@ exhaustion is reported as a capability failure rather than dropping roots."
                  (setf cursor (%provider-activate
                                provider cursor :property
                                (workload-client-properties client) key))
-                 (%provider-activate-closure provider cursor value))
+                 (%provider-enqueue-control provider cursor value))
                (workload-client-properties client)))
     ;; Registered global cells are maintained in a fixed client vector by the
     ;; adapter.  They are covered even when their value is NIL.
@@ -359,8 +380,34 @@ exhaustion is reported as a capability failure rather than dropping roots."
         (setf cursor (%provider-activate
                       provider cursor :cell
                       (aref (workload-client-global-cells client) index)))
-        (%provider-activate-closure
+        (%provider-enqueue-control
          provider cursor (car (aref (workload-client-global-cells client) index)))))
+    ;; Follow the current environment's declared code owners. Rebinding or
+    ;; FMAKUNBOUND naturally releases the previous definition; no history of
+    ;; every compiled function is promoted into a permanent root registry.
+    (let ((environment (workload-provider-environment provider)))
+      (when environment
+        (maphash
+         (lambda (name entry)
+           (declare (ignore name))
+           (%provider-enqueue-control provider cursor (car (clostrum-basic::cell entry)))
+           (%provider-enqueue-control provider cursor
+                                       (clostrum-basic::compiler-macro-function entry))
+           (%provider-enqueue-control provider cursor
+                                       (clostrum-basic::setf-expander entry)))
+         (clostrum-basic::functions environment))
+        (maphash
+         (lambda (name entry)
+           (declare (ignore name))
+           (when (slot-boundp entry 'clostrum-basic::symbol-macro-expander)
+             (%provider-enqueue-control provider cursor
+                                         (clostrum-basic::symbol-macro-expander entry))))
+         (clostrum-basic::variables environment))
+        (maphash
+         (lambda (name entry)
+           (declare (ignore name))
+           (%provider-enqueue-control provider cursor (clostrum-basic::type-expander entry)))
+         (clostrum-basic::types environment))))
     (%provider-drain-control-roots provider cursor)))
 
 (defmethod map-provider-roots

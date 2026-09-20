@@ -112,6 +112,35 @@ Mezzano admission evidence. Host-condition cleanup semantics, complete literal
 and module ownership, and the other language boundaries below still need their
 own acceptance. Full depth-18 and Gabriel acceptance are separate gates.
 
+## Published code roots
+
+An active function could lose a managed literal before its first use: a native
+16KiB test allocated garbage, collected, and then failed with "Stale or corrupt
+hosted reference" when the function finally read its literal. Global function
+and macro definitions also retained closures outside the active call frames.
+
+The bounded control traversal now follows functions to their modules, closures
+to their templates and environments, and modules to literal slots. Managed
+literals use writable locations in the original literal vector. Shared/cyclic
+code graphs use the existing identity-deduplicated queue; arbitrary host lists
+or vectors are not traversed as guest payload.
+
+Traversal starts from active VM roots and the current Clostrum environment's
+operator, compiler-macro, setf-expander, symbol-macro-expander, and type-expander
+fields. It does not keep a registry of every function ever compiled. Removing
+a definition can therefore release its captured or literal payload.
+
+Four native cases in `:clamsara/workload/test` cover an active literal before
+first use, a global function literal, a global closure capture, and a global
+macro closure capture. Each published-code case moves and corrects its payload,
+then proves zero discoveries after FMAKUNBOUND and result release. Existing
+root/control capacities are unchanged.
+
+This covers linked code and the known environment fields above. It does not
+establish in-flight compiler/linker ownership, LOAD-TIME-VALUE lifetime, quoted
+literal identity/conversion, arbitrary host closure captures, or other missing
+guest representations. Those remain separate acceptance work.
+
 ## Full depth-18 computation checkpoint (not full acceptance)
 
 The `90fddf3` image completed the unchanged depth-18 source and its assertions:
@@ -164,7 +193,7 @@ This proves these bounded hosted lifecycles, not all possible failure recovery
 or ownership of language representations that remain unimplemented.
 
 This is not a claim of complete language adaptation. Managed REST lists,
-constant/module and global-function closure roots, foreign primitive argument
-lifetimes, macro side effects crossing phase boundaries, host-condition cleanup,
+in-flight compiler/linker roots and literal identity/conversion, foreign primitive
+argument lifetimes, macro side effects crossing phase boundaries, host-condition cleanup,
 and the remaining guest representations still need explicit acceptance.
 A successful macro expansion is not full benchmark evidence.

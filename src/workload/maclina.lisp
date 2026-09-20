@@ -51,15 +51,24 @@
         (%call-with-workload-function client function
                                       (or source-entry entry) arguments)))))
 
+(defun %workload-cxr-name-p (name)
+  (and (symbolp name) (eq (symbol-package name) (find-package :common-lisp))
+       (let* ((text (symbol-name name)) (length (length text)))
+         (and (<= 4 length 6) (char= #\C (char text 0))
+              (char= #\R (char text (1- length)))
+              (loop for i from 1 below (1- length)
+                    always (find (char text i) "AD"))))))
+
 (defun %workload-install-data-function (client runtime name function)
   (let ((source-entry
-          (and (member name '(cl:cons cl:car cl:cdr cl:consp cl:atom
+          (and (or (%workload-cxr-name-p name)
+                   (member name '(cl:cons cl:car cl:cdr cl:consp cl:atom
                               cl:rplaca cl:rplacd cl:list cl:length
                               cl:mapcar cl:mapc cl:member cl:assoc cl:append
                               cl:nconc cl:reverse cl:subst cl:copy-tree cl:equal
                               cl:aref (setf cl:aref) cl:make-array cl:arrayp
                               cl:vectorp cl:array-element-type)
-                       :test #'equal)
+                           :test #'equal))
                (fdefinition name))))
     (setf (clostrum:fdefinition client runtime name)
           (cond
@@ -630,6 +639,48 @@ host graph."
         (cons 'cl:type host)
         host)))
 
+(defun %install-workload-cxr-functions (client runtime)
+  (let ((environment (workload-client-workload client)))
+    (loop for width from 2 to 4 do
+      (dotimes (bits (ash 1 width))
+        (let* ((path (coerce (loop for i below width
+                                   collect (if (logbitp i bits) #\D #\A))
+                            'string))
+               (name (find-symbol (format nil "C~AR" path) :common-lisp)))
+          (assert (%workload-cxr-name-p name))
+          (%workload-install-data-function
+           client runtime name
+           (lambda (object)
+             ;; The rightmost operation is innermost. These reads do not
+             ;; allocate guest storage or unwrap a managed list into a host list.
+             (loop for i downfrom (1- (length path)) to 0
+                   do (setf object (if (char= (char path i) #\A)
+                                       (%guest-car environment object)
+                                       (%guest-cdr environment object))))
+             object))
+          ;; The environment's general SETF expander calls these definitions.
+          ;; Syntax mutation remains host-only inside compiler source execution.
+          (%workload-install-data-function
+           client runtime (list 'setf name)
+           (lambda (value object)
+             (loop for i downfrom (1- (length path)) above 0
+                   do (setf object
+                            (if *workload-source-execution-p*
+                                (if (char= (char path i) #\A) (car object) (cdr object))
+                                (if (char= (char path i) #\A)
+                                    (%guest-car environment object)
+                                    (%guest-cdr environment object)))))
+             (if *workload-source-execution-p*
+                 (if (char= (char path 0) #\A)
+                     (rplaca object value) (rplacd object value))
+                 (progn
+                   (unless (%guest-cons-p environment object)
+                     (error 'type-error :datum object :expected-type 'cons))
+                   (workload-write-slot environment object
+                                        (if (char= (char path 0) #\A) :car :cdr)
+                                        value)))
+             value)))))))
+
 (defun %install-workload-functions (client runtime)
   (let ((environment (workload-client-workload client)))
   (labels ((cons* (car cdr) (%cons* environment car cdr))
@@ -744,6 +795,7 @@ host graph."
              (%workload-install-data-function client runtime name function)))
       (fset 'cl:cons #'cons*) (fset 'cl:car #'car*) (fset 'cl:cdr #'cdr*)
       (fset 'cl:consp #'consp*) (fset 'cl:atom #'atom*)
+      (%install-workload-cxr-functions client runtime)
       (fset 'cl:rplaca #'rplaca*) (fset 'cl:rplacd #'rplacd*)
       (fset 'cl:list #'list-fn) (fset 'cl:length #'length*)
       (fset 'cl:mapcar #'mapcar*) (fset 'cl:mapc #'mapc*)

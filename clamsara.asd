@@ -242,7 +242,8 @@
   :description "Bounded adapter regressions, not the full benchmark gate."
   :depends-on (:clamsara/workload)
   :components ((:file "test/workload/adapter") (:file "test/workload/values")
-               (:file "test/workload/teardown") (:file "test/workload/code-roots"))
+               (:file "test/workload/teardown") (:file "test/workload/code-roots")
+               (:file "test/workload/selectors"))
   :perform (asdf:test-op (operation component)
              (declare (ignore operation component))
              (unless (and (uiop:symbol-call :clamsara.workload.adapter.test
@@ -252,7 +253,9 @@
                           (uiop:symbol-call :clamsara.workload.teardown.test
                                            :run-workload-teardown-tests)
                           (uiop:symbol-call :clamsara.workload.code-roots.test
-                                           :run-workload-code-root-tests))
+                                           :run-workload-code-root-tests)
+                          (uiop:symbol-call :clamsara.workload.selectors.test
+                                           :run-workload-selector-tests))
                (error "Workload adapter tests failed"))))
 
 (asdf:defsystem :clamsara/generational

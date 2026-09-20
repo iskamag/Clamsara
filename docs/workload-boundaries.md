@@ -112,6 +112,33 @@ Mezzano admission evidence. Host-condition cleanup semantics, complete literal
 and module ownership, and the other language boundaries below still need their
 own acceptance. Full depth-18 and Gabriel acceptance are separate gates.
 
+## Composed cons accessors and the first Gabriel attempt
+
+A full 19-source diagnostic attempt at `6b8adcd` completed TAK and TAKR with
+scalar result 7. TAKL returned, but native PRINT displayed an opaque host
+reference rather than a Lisp list. That is not accepted guest printing.
+The attempt stopped while loading unchanged FRPOLY. A bounded native
+pre-unwind backtrace identified host `CADR` receiving a managed reference.
+The separate close rejection correctly preserved still-live fixture globals.
+
+The adapter now installs all 28 composed CAR/CDR readers of depths two through
+four, plus their SETF functions, in the guest environment. Reads and writes use
+the managed slot/barrier paths, not a host-list conversion. Macro execution
+keeps its explicit host-syntax behavior. The host COMMON-LISP functions are not
+replaced. A setter checks its final target and returns the new value.
+
+The native selector suite has 95 checks: all 28 readers, NIL behavior, all 28
+setters and returned values, dotted/nonmanaged input rejection, one-time place
+and value evaluation, unchanged host function identity, global/local macro
+source reads, source SETF, and a real collection preserving the 15 nodes of a
+managed tree before a composed read. It is included in
+`:clamsara/workload/test`.
+
+Unchanged FRPOLY now loads in the bounded diagnostic (`:STATUS :OK`). This is
+not its full benchmark acceptance. REST conversion, correct guest printing,
+quoted literal identity, boxed payloads, and fixture ownership at application
+shutdown remain open. No Gabriel suite acceptance is claimed.
+
 ## Published code roots
 
 An active function could lose a managed literal before its first use: a native

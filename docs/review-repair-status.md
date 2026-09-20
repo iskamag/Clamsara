@@ -226,10 +226,43 @@ by this descriptor-count bound.
 
 The 500,000-element stress also passes with the original two 8,001,056-byte
 semispaces. It now reports capacity and descriptor count 1,000,132. Fixed model
-planes remain exactly 80,011,312 bytes; 500,000 reference callbacks, zero numeric
-callbacks and 8,000,032 copied bytes for two objects remain unchanged. See
+planes remain exactly 80,011,312 bytes and two objects copy 8,000,032 bytes.
+Each explicit reference scan asserts 500,000 slots; numeric scans assert zero.
+The old printed callback fields are these per-pass constants, not measured
+whole-workload callback totals. See
 [quality-model-resources.md](quality-model-resources.md) for current accounting
 and the separate historical results.
+
+## Hosted allocation geometry and construction nonlocal exits
+
+The hosted model now separates stable original allocation tokens from bound
+executable descriptions. It resolves fixed size/alignment functions once per
+binding and copies finite variable geometry, normalized layouts, and conditional
+records. Both retained token and snapshot graphs are accounted for. Invalid
+binding-time rule results unwind actual resources/layout before the terminal
+construction error is signaled.
+
+The independent geometry review found a second defect introduced at that
+boundary: evaluating a caller rule during binding exposed an existing
+ERROR-only construction unwind. The builder now guards cleanup with actual
+publication state using UNWIND-PROTECT. It preserves ordinary error identity and
+non-error exit values unless cleanup itself violates its contract. Independent
+postbinding initialization/activation cases verify reverse cleanup exactly once,
+error visibility after cleanup, cleanup-fault aggregation, and the successful
+publication guard.
+
+The main-selected `:clamsara/quality/kind-snapshots/test` combines 12 geometry
+histories, 8 ERROR rejections, 8 THROW cleanups, 35 independently authored
+geometry histories and 9 independent late-exit histories. Shared test observers
+avoid silently replacing identical CLOS method specializers when suites load in
+one image. Focused and full main/tools/workload/optional-generational/structure
+ASDF gates pass, including 105 construction checks and 288 generation histories.
+
+See [geometry-snapshot-repair.md](geometry-snapshot-repair.md) for the exact
+red/green evidence and unchanged independent reports. Indexed identity callbacks,
+mutable compound names, other representation pools, and target admission remain
+open. This is not a claim that every object description or model profile is now
+admitted.
 
 ## Other confirmed review findings
 

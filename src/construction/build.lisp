@@ -573,8 +573,8 @@ backing it.  Component/client/host objects are registered by their owners."
                    (%resource-state-auxiliary-bytes state))))
   account)
 
-(defun %prepublication-unwind (configuration original-condition address-client)
-  (declare (ignore address-client))
+(defun %prepublication-unwind (configuration original-failure)
+  "Release abandoned private construction; signal only cleanup-contract faults."
   (let* ((construction (%configuration-construction configuration))
          (faults nil))
     (setf (%context-state construction) :unwinding
@@ -589,11 +589,11 @@ backing it.  Component/client/host objects are registered by their owners."
       (handler-case (%release-transaction-entry entry configuration)
         (error (condition) (push condition faults))))
     (setf (%context-state construction) :released)
-    (if faults
-        (error 'construction-rejected :reason :cleanup-contract-fault
-               :paths nil :cause (list :original original-condition
-                                       :cleanup-faults (nreverse faults)))
-        (error original-condition))))
+    (when faults
+      (error 'construction-rejected :reason :cleanup-contract-fault
+             :paths nil :cause (list :original original-failure
+                                     :cleanup-faults (nreverse faults))))
+    (values)))
 
 (defmethod construct-plan ((plan component) clients)
   ;; All mandatory selectors and declarations run before the first host effect.
@@ -640,76 +640,86 @@ backing it.  Component/client/host objects are registered by their owners."
                                  (%arena-description-address-width arena)))))
           (setf (%configuration-construction configuration) construction
                 (%configuration-result-schema configuration) schema)
-          (handler-case
-              (progn
-                (%admit-continuing-cohorts groups coordinator construction)
-                (multiple-value-bind (reference-layout target-maximum)
-                    (%solve-placements placements constraints arena construction
-                                       address-client resource-table
-                                       placement-table)
-                  (setf (%context-target-maximum construction) target-maximum)
-                  (%install-reference-layout reference-layout address-client
-                                             configuration construction)
-                  ;; Stable graph/list order is the acquisition order.
-                  (dolist (resource resources)
-                    (%acquire-resource resource clients construction
-                                       target-maximum))
-                  ;; The installed host layout retains this exact solved object.
-                  (%register-builder-tree construction reference-layout)
-                  (%register-installed-layout-storage construction configuration)
-                  (%checked-claim-sums ordered-barriers resource-table
-                                       construction target-maximum)
-                  (%validate-complete-constraints
-                   constraints construction address-client resource-table
-                   placement-table target-maximum)
-                  (dolist (group pre-binding)
-                    (%initialize-group group configuration construction))
-                  (%bind-configuration-object-model
-                   nodes offered-model configuration construction)
-                  (%register-bound-model-storage
-                   construction (%configuration-object-model configuration))
-                  (setf (%configuration-barrier configuration)
-                        (%call-runtime-barrier-composer
-                         ordered-barriers
-                         (%configuration-object-model configuration)
-                         construction)
-                        (%configuration-barrier-bound-p configuration) t)
-                  (dolist (group post-binding)
-                    (%initialize-group group configuration construction))
-                  ;; Owners enumerate preexisting retained headers/backing
-                  ;; which no acquired component resource already owns.  The
-                  ;; builder registers their exact EQ identities once; it does
-                  ;; not reflect over arbitrary host graphs.
-                  (%register-owner-auxiliary-storage
-                   construction clients nodes)
-                  ;; Host manifests include every persistent fixed record/view
-                  ;; created during initialization.  Closure may raise the
-                  ;; actual capacities; requested auxiliary bytes are minima.
-                  (setf (%configuration-capacity-account configuration)
-                        (%make-capacity-account resources construction))
-                  ;; Register the complete persistent builder graph, including
-                  ;; the capacity vector itself, before closure.
-                  (%register-builder-tree construction configuration)
-                  (%close-resource-capacity-account
-                   resources construction
-                   (%configuration-capacity-account configuration)
-                   target-maximum)
-                  ;; Validation cannot repair; activation remains private.
-                  (dolist (group groups)
-                    (dolist (node (%initialization-group-nodes group))
-                      (validate-component (%component-node-component node)
-                                          configuration)))
-                  (dolist (group groups)
-                    (dolist (node (%initialization-group-nodes group))
-                      (let ((component (%component-node-component node)))
-                        (activate-component component construction)
-                        (setf (%component-node-activated-p node) t))))
-                  ;; The one core publication point.
-                  (setf (%context-state construction) :published
-                        (%configuration-state configuration) :published)
-                  configuration))
-            (error (condition)
-              (%prepublication-unwind configuration condition address-client))))))))
+          (let ((result nil) (failure nil))
+            ;; ERROR is not the only way a client can abandon construction.
+            ;; Defer resignal until cleanup has completed, and let UNWIND-PROTECT
+            ;; preserve other nonlocal exits and all their values unchanged.
+            (unwind-protect
+                 (handler-case
+                     (setf result
+                           (progn
+                              (%admit-continuing-cohorts groups coordinator construction)
+                              (multiple-value-bind (reference-layout target-maximum)
+                                  (%solve-placements placements constraints arena construction
+                                                     address-client resource-table
+                                                     placement-table)
+                                (setf (%context-target-maximum construction) target-maximum)
+                                (%install-reference-layout reference-layout address-client
+                                                           configuration construction)
+                                ;; Stable graph/list order is the acquisition order.
+                                (dolist (resource resources)
+                                  (%acquire-resource resource clients construction
+                                                     target-maximum))
+                                ;; The installed host layout retains this exact solved object.
+                                (%register-builder-tree construction reference-layout)
+                                (%register-installed-layout-storage construction configuration)
+                                (%checked-claim-sums ordered-barriers resource-table
+                                                     construction target-maximum)
+                                (%validate-complete-constraints
+                                 constraints construction address-client resource-table
+                                 placement-table target-maximum)
+                                (dolist (group pre-binding)
+                                  (%initialize-group group configuration construction))
+                                (%bind-configuration-object-model
+                                 nodes offered-model configuration construction)
+                                (%register-bound-model-storage
+                                 construction (%configuration-object-model configuration))
+                                (setf (%configuration-barrier configuration)
+                                      (%call-runtime-barrier-composer
+                                       ordered-barriers
+                                       (%configuration-object-model configuration)
+                                       construction)
+                                      (%configuration-barrier-bound-p configuration) t)
+                                (dolist (group post-binding)
+                                  (%initialize-group group configuration construction))
+                                ;; Owners enumerate preexisting retained headers/backing
+                                ;; which no acquired component resource already owns.  The
+                                ;; builder registers their exact EQ identities once; it does
+                                ;; not reflect over arbitrary host graphs.
+                                (%register-owner-auxiliary-storage
+                                 construction clients nodes)
+                                ;; Host manifests include every persistent fixed record/view
+                                ;; created during initialization.  Closure may raise the
+                                ;; actual capacities; requested auxiliary bytes are minima.
+                                (setf (%configuration-capacity-account configuration)
+                                      (%make-capacity-account resources construction))
+                                ;; Register the complete persistent builder graph, including
+                                ;; the capacity vector itself, before closure.
+                                (%register-builder-tree construction configuration)
+                                (%close-resource-capacity-account
+                                 resources construction
+                                 (%configuration-capacity-account configuration)
+                                 target-maximum)
+                                ;; Validation cannot repair; activation remains private.
+                                (dolist (group groups)
+                                  (dolist (node (%initialization-group-nodes group))
+                                    (validate-component (%component-node-component node)
+                                                        configuration)))
+                                (dolist (group groups)
+                                  (dolist (node (%initialization-group-nodes group))
+                                    (let ((component (%component-node-component node)))
+                                      (activate-component component construction)
+                                      (setf (%component-node-activated-p node) t))))
+                                ;; The one core publication point.
+                                (setf (%context-state construction) :published
+                                      (%configuration-state configuration) :published)
+                                configuration)))
+                   (error (condition) (setf failure condition)))
+              (unless (eq (%configuration-state configuration) :published)
+                (%prepublication-unwind configuration
+                                        (or failure :non-local-exit))))
+            (when failure (error failure))
+            result))))))
 
 (defun %close-runtime-for-shutdown (configuration)
   (unless (fboundp '%close-configuration-runtime)

@@ -82,11 +82,6 @@
        :weak-descriptions (list (make-weak-location-description model :edge :leaf nil)))
      (make-object-kind-description model :valid-ephemeron :size-rule 16 :alignment-rule 8
        :ephemeron-descriptions (list (make-ephemeron-description model :pair t nil nil)))
-     (make-object-kind-description model :signaling-size
-       :size-rule (lambda (kind) (declare (ignore kind)) (error "Size rule failure"))
-       :alignment-rule 8)
-     (make-object-kind-description model :signaling-alignment :size-rule 32
-       :alignment-rule (lambda (kind) (declare (ignore kind)) (error "Alignment rule failure")))
      (make-object-kind-description model :variable
        :size-rule (make-host-variable-size-rule :header-bytes 16 :element-bytes 8
                     :minimum-elements 1 :maximum-elements 4 :element-kind :numeric)
@@ -136,10 +131,8 @@
     (dolist (request '((:short-weak 4) (:short-ephemeron 12) (:computed 16)))
       (destructuring-bind (kind bytes) request
         (check-rejected world kind bytes 8 (object-kind-descriptor model kind) :invalid-size)))
-    (check-rejected world :signaling-size 32 8
-                    (object-kind-descriptor model :signaling-size) :invalid-size)
-    (check-rejected world :signaling-alignment 32 8
-                    (object-kind-descriptor model :signaling-alignment) :invalid-alignment)
+    ;; Signaling fixed rules now reject construction. Their assertions and
+    ;; resource-unwind checks live in kind-snapshots.lisp.
     ;; Valid smaller alignments and variable endpoints still use the usual path.
     (dolist (request '((:small 8 8) (:variable 24 8) (:variable 32 16)
                        (:variable 48 8) (:unbounded-variable 16 8) (:computed 32 8)

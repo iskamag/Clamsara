@@ -6,6 +6,11 @@
    #:check
    #:check-equal
    #:signals-runtime-reason
+   #:make-construction-observation
+   #:*construction-observation*
+   #:observed-construction
+   #:observed-object-model
+   #:observed-layout
    #:make-quality-world
    #:with-quality-world
    #:close-quality-world
@@ -56,6 +61,24 @@
     (check (eq expected actual)
            "Expected runtime rejection ~S, got ~S" expected actual)
     actual))
+
+;; Shared observers prevent separate quality suites from replacing the same
+;; CLOS methods in a combined test image. They observe real methods only.
+(defstruct (construction-observation (:conc-name observed-))
+  construction object-model layout)
+(defvar *construction-observation* nil)
+
+(defmethod clamsara::%acquire-construction-resource :after
+    ((clients clamsara::simulator-clients) construction description placement)
+  (declare (ignore clients description placement))
+  (when *construction-observation*
+    (setf (observed-construction *construction-observation*) construction)))
+(defmethod bind-object-model :before
+    ((model clamsara::host-object-model) layout bindings)
+  (declare (ignore bindings))
+  (when *construction-observation*
+    (setf (observed-object-model *construction-observation*) model
+          (observed-layout *construction-observation*) layout)))
 
 (defstruct (quality-world (:constructor %make-quality-world)
                           (:conc-name world-))

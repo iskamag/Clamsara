@@ -115,7 +115,13 @@ actual admitted element count; no per-object layout vector is made."
    (tag-capacity :initarg :tag-capacity :reader host-model-tag-capacity)
    (kind-capacity :initarg :kind-capacity :reader host-model-kind-capacity)
    (slot-capacity :initarg :slot-capacity :reader host-model-slot-capacity)
+   ;; Public opaque allocation tokens stay stable. Execution uses the separate
+   ;; binding-owned catalogue and never rereads mutable offered rule fields.
    (kinds :initarg :kinds :reader host-model-kinds)
+   (kind-snapshots :initarg :kind-snapshots :initform nil
+                   :reader host-model-kind-snapshots)
+   (description-snapshots :initarg :description-snapshots :initform nil
+                          :reader host-model-description-snapshots)
    (kind-count :initarg :kind-count :initform 0
                :accessor host-model-kind-count)
    (layout :initarg :layout :initform nil :reader host-model-layout)
@@ -264,15 +270,21 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
                       :identity identity :offset offset))))))))
 
 (defun %host-kind-description (model designator)
-  (or (and (typep designator 'host-object-kind-description)
-           (loop for index below (host-model-kind-count model)
-                 when (eq designator (aref (host-model-kinds model) index))
-                   do (return designator)))
-      (loop for index below (host-model-kind-count model)
-            for description = (aref (host-model-kinds model) index)
-            when (equal designator
-                        (host-object-kind-description-name description))
-              do (return description))))
+  (let ((snapshots (host-model-kind-snapshots model)))
+    (or (and (typep designator 'host-object-kind-description)
+             (if snapshots
+                 (gethash designator (host-model-description-snapshots model))
+                 (find designator (host-model-kinds model) :test #'eq
+                       :end (host-model-kind-count model))))
+        (loop for index below (host-model-kind-count model)
+              for description = (aref (or snapshots (host-model-kinds model)) index)
+              when (equal designator (host-object-kind-description-name description))
+                do (return description)))))
+
+(defun %host-kind-allocation-token (model kind)
+  (if (host-model-kind-snapshots model)
+      (aref (host-model-kinds model) (host-object-kind-description-index kind))
+      kind))
 
 (defun %host-kind-description! (model designator)
   (or (%host-kind-description model designator)
@@ -288,6 +300,32 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
                        (eql (cdr left) (cdr right)))))
       (error "Duplicate object location identity ~S/~S" strength identity))
     (push key seen)))
+
+(defun %host-validate-size-layout-rule (size-rule strong)
+  (let ((indexed-p (typep strong 'host-indexed-layout)))
+    (when (typep size-rule 'host-variable-size-rule)
+      (let ((header (host-variable-size-rule-header-bytes size-rule))
+            (element (host-variable-size-rule-element-bytes size-rule))
+            (minimum (host-variable-size-rule-minimum-elements size-rule))
+            (maximum (host-variable-size-rule-maximum-elements size-rule))
+            (element-kind (host-variable-size-rule-element-kind size-rule)))
+        (unless (and (integerp header) (<= 0 header)
+                     (integerp element) (plusp element)
+                     (integerp minimum) (<= 0 minimum)
+                     (or (null maximum)
+                         (and (integerp maximum) (>= maximum minimum)))
+                     (member element-kind '(:reference :numeric) :test #'eq))
+          (error "Invalid hosted variable-size rule"))
+        (when indexed-p
+          (unless (and (eq element-kind :reference)
+                       (= header (host-indexed-layout-base-offset strong))
+                       (= element
+                          (host-indexed-layout-element-word-bytes strong)))
+            (error "Indexed layout and variable-size rule disagree")))))
+    (unless (or (typep size-rule 'host-variable-size-rule)
+                (integerp size-rule) (functionp size-rule))
+      (error "Invalid object size rule"))
+    (values)))
 
 (defmethod make-object-kind-description
     ((model host-object-model) name
@@ -333,28 +371,7 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
         (setf seen (%host-check-kind-key-unique
                     seen :ephemeron
                     (host-ephemeron-description-identity description)))))
-    (when (typep size-rule 'host-variable-size-rule)
-      (let ((header (host-variable-size-rule-header-bytes size-rule))
-            (element (host-variable-size-rule-element-bytes size-rule))
-            (minimum (host-variable-size-rule-minimum-elements size-rule))
-            (maximum (host-variable-size-rule-maximum-elements size-rule))
-            (element-kind (host-variable-size-rule-element-kind size-rule)))
-        (unless (and (integerp header) (<= 0 header)
-                     (integerp element) (plusp element)
-                     (integerp minimum) (<= 0 minimum)
-                     (or (null maximum)
-                         (and (integerp maximum) (>= maximum minimum)))
-                     (member element-kind '(:reference :numeric) :test #'eq))
-          (error "Invalid hosted variable-size rule"))
-        (when indexed-p
-          (unless (and (eq element-kind :reference)
-                       (= header (host-indexed-layout-base-offset strong))
-                       (= element
-                          (host-indexed-layout-element-word-bytes strong)))
-            (error "Indexed layout and variable-size rule disagree")))))
-    (unless (or (typep size-rule 'host-variable-size-rule)
-                (integerp size-rule) (functionp size-rule))
-      (error "Invalid object size rule"))
+    (%host-validate-size-layout-rule size-rule strong)
     (let ((description
             (%make-host-kind
              :name name :size-rule size-rule
@@ -495,6 +512,73 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
     (loop while (< value minimum) do (setf value (ash value 1)))
     value))
 
+;;; Binding-owned executable allocation geometry -----------------------------
+
+(defun %host-snapshot-conditional-description (model original snapshots ephemeron-p)
+  (or (gethash original snapshots)
+      (let ((snapshot
+              (if ephemeron-p
+                  (multiple-value-bind (identity clear-key-p cleared-key cleared-value)
+                      (describe-ephemeron model original)
+                    (%make-host-ephemeron
+                     :identity identity :clear-key-p clear-key-p
+                     :cleared-key cleared-key :cleared-value cleared-value
+                     :key-offset (host-ephemeron-description-key-offset original)
+                     :value-offset (host-ephemeron-description-value-offset original)))
+                  (multiple-value-bind (identity referent-kind cleared)
+                      (describe-weak-location model original)
+                    (%make-host-weak
+                     :identity identity :referent-kind referent-kind
+                     :cleared-value cleared
+                     :offset (host-weak-location-description-offset original))))))
+        (setf (gethash original snapshots) snapshot
+              (gethash snapshot snapshots) snapshot)
+        snapshot)))
+
+(defun %host-snapshot-kind-catalogue (model)
+  ;; Construction only. Fixed function rules take the kind, not an allocation:
+  ;; evaluate once here instead of retaining a live closure in the executable
+  ;; ABI. Arbitrary closure environments are not copied.
+  (let* ((count (host-model-kind-count model))
+         (kinds (make-array count))
+         (snapshots (make-hash-table :test #'eq :size (max 1 (* 2 count)))))
+    (dotimes (index count)
+      (let ((original (aref (host-model-kinds model) index)))
+        (multiple-value-bind (name size-rule alignment-rule strong weak ephemerons)
+            (describe-object-kind model original)
+          (let ((snapshot
+                  (%make-host-kind
+                   :name (if (stringp name) (copy-seq name) name)
+                   :size-rule
+                   (cond ((functionp size-rule)
+                          (%host-positive-rule-value size-rule original "size"))
+                         ((typep size-rule 'host-variable-size-rule)
+                          (copy-host-variable-size-rule size-rule))
+                         (t size-rule))
+                   :alignment-rule
+                   (if (functionp alignment-rule)
+                       (%host-positive-rule-value alignment-rule original "alignment")
+                       alignment-rule)
+                   :strong-layout (%host-normalize-strong-layout strong)
+                   :weak-descriptions
+                   (map 'vector
+                        (lambda (description)
+                          (%host-snapshot-conditional-description model description snapshots nil))
+                        weak)
+                   :ephemeron-descriptions
+                   (map 'vector
+                        (lambda (description)
+                          (%host-snapshot-conditional-description model description snapshots t))
+                        ephemerons)
+                   :index index)))
+            (%host-validate-size-layout-rule
+             (host-object-kind-description-size-rule snapshot)
+             (host-object-kind-description-strong-layout snapshot))
+            (setf (aref kinds index) snapshot
+                  (gethash original snapshots) snapshot
+                  (gethash snapshot snapshots) snapshot)))))
+    (values kinds snapshots)))
+
 (defmethod bind-object-model
     ((model host-object-model) layout object-start-bindings)
   (%host-model model)
@@ -565,7 +649,10 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
       (when (< (host-model-capacity model) total-cells)
         (error "Hosted representation capacity ~D is below required ~D"
                (host-model-capacity model) total-cells))
-      (let* ((arena (make-array total-bytes :element-type '(unsigned-byte 8)
+      (let* ((snapshot-data (multiple-value-list (%host-snapshot-kind-catalogue model)))
+             (kind-snapshots (first snapshot-data))
+             (description-snapshots (second snapshot-data))
+             (arena (make-array total-bytes :element-type '(unsigned-byte 8)
                                 :initial-element 0))
              (words (make-array (ceiling total-bytes 8) :initial-element nil))
              (sizes (make-array total-cells :initial-element 0))
@@ -599,7 +686,9 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
                  :tag-capacity (host-model-tag-capacity model)
                  :kind-capacity (host-model-kind-capacity model)
                  :slot-capacity (host-model-slot-capacity model)
-                 :kinds kinds :kind-count kind-count :layout layout
+                 :kinds kinds :kind-count kind-count
+                 :kind-snapshots kind-snapshots :description-snapshots description-snapshots
+                 :layout layout
                  :bindings bindings :arena arena :words words
                  :sizes sizes :alignments alignments
                  :descriptor-kinds descriptor-kinds
@@ -934,11 +1023,12 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
         (%host-normalized-descriptor-index model start)))
 
 (defmethod object-kind ((model host-object-model) start)
-  (aref (host-model-descriptor-kinds model)
-        (%host-normalized-descriptor-index model start)))
+  (%host-kind-allocation-token
+   model (aref (host-model-descriptor-kinds model)
+               (%host-normalized-descriptor-index model start))))
 
 (defmethod object-kind-descriptor ((model host-object-model) kind)
-  (%host-kind-description! model kind))
+  (%host-kind-allocation-token model (%host-kind-description! model kind)))
 
 (defmethod reference-encoding-equal-p
     ((model host-object-model) left right)
@@ -1069,7 +1159,10 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
            (and route (%host-descriptor-index-at-start route address))))
     (multiple-value-bind (valid-size-p element-count)
         (%host-kind-size-count kind-description size)
-      (unless (and valid-size-p (eq descriptor kind-description)
+      (unless (and valid-size-p
+                   (typep descriptor 'host-object-kind-description)
+                   (eq (gethash descriptor (host-model-description-snapshots model))
+                       kind-description)
                    (%host-positive-power-of-two-p alignment)
                    (zerop (mod address alignment))
                    route descriptor-index
@@ -1854,15 +1947,9 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
   ;; Compatibility name retained for existing host tests/runtime adapters.
   (runtime-retire-object-representation model start))
 
-(defmethod map-construction-auxiliary-storage
-    ((model host-object-model) function)
-  "Enumerate the offered model's retained declarative storage explicitly."
-  (unless (functionp function)
-    (error "Construction auxiliary-storage mapper is not callable"))
-  (call-next-method)
-  (funcall function (host-model-kinds model))
-  (dotimes (index (host-model-kind-count model))
-    (let* ((kind (aref (host-model-kinds model) index))
+(defun %map-host-kind-catalogue-storage (kinds count function snapshot-p)
+  (dotimes (index count)
+    (let* ((kind (aref kinds index))
            (size-rule (host-object-kind-description-size-rule kind))
            (alignment-rule
              (host-object-kind-description-alignment-rule kind))
@@ -1871,6 +1958,9 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
            (ephemerons
              (host-object-kind-description-ephemeron-descriptions kind)))
       (funcall function kind)
+      (when (and snapshot-p
+                 (stringp (host-object-kind-description-name kind)))
+        (funcall function (host-object-kind-description-name kind)))
       (cond ((typep size-rule 'host-variable-size-rule)
              (funcall function size-rule))
             ((functionp size-rule) (funcall function size-rule)))
@@ -1892,6 +1982,22 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
         (funcall function (aref ephemerons slot)))))
   (values))
 
+(defmethod map-construction-auxiliary-storage
+    ((model host-object-model) function)
+  "Enumerate original opaque tokens and binding-owned executable storage."
+  (unless (functionp function)
+    (error "Construction auxiliary-storage mapper is not callable"))
+  (call-next-method)
+  (funcall function (host-model-kinds model))
+  (%map-host-kind-catalogue-storage
+   (host-model-kinds model) (host-model-kind-count model) function nil)
+  (when (host-model-kind-snapshots model)
+    (funcall function (host-model-kind-snapshots model))
+    (funcall function (host-model-description-snapshots model))
+    (%map-host-kind-catalogue-storage
+     (host-model-kind-snapshots model) (host-model-kind-count model) function t))
+  (values))
+
 ;;; Explicit resource manifest ------------------------------------------------
 
 (defun %register-bound-object-model-auxiliary (construction model identity)
@@ -1908,29 +2014,9 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
     (register model)
     (register-vector (host-model-bindings model) t)
     (register-vector (host-model-routes model) t)
-    (register-vector (host-model-kinds model) t)
-    (dotimes (index (length (host-model-kinds model)))
-      (let* ((kind (aref (host-model-kinds model) index))
-             (size-rule (host-object-kind-description-size-rule kind))
-             (alignment-rule
-               (host-object-kind-description-alignment-rule kind))
-             (strong (host-object-kind-description-strong-layout kind))
-             (weak (host-object-kind-description-weak-descriptions kind))
-             (ephemerons
-               (host-object-kind-description-ephemeron-descriptions kind)))
-        (when (or (typep size-rule 'host-variable-size-rule)
-                  (functionp size-rule))
-          (register size-rule))
-        (when (functionp alignment-rule) (register alignment-rule))
-        (if (typep strong 'host-indexed-layout)
-            (progn
-              (register strong)
-              ;; The identity mapper may be a construction-created closure and
-              ;; is called while tracing indexed objects.
-              (register (host-indexed-layout-identity-function strong)))
-            (register-vector strong t))
-        (register-vector weak t)
-        (register-vector ephemerons t)))
+    ;; Tokens retain their original declarative graph even though execution
+    ;; selects private snapshots. Both graphs require explicit ownership.
+    (map-construction-auxiliary-storage model #'register)
     (register (host-model-arena model))
     (register (host-model-words model))
     (register (host-model-sizes model))

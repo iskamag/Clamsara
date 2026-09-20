@@ -141,6 +141,7 @@
                              (asdf:test-op :clamsara/acceptance/test)
                              (asdf:test-op :clamsara/quality/stateful/test)
                              (asdf:test-op :clamsara/quality/allocation/test)
+                             (asdf:test-op :clamsara/quality/kind-snapshots/test)
                              (asdf:test-op :clamsara/quality/representation-capacity/test)
                              (asdf:test-op :clamsara/quality/finalizers/test)
                              (asdf:test-op :clamsara/quality/finalizer-drain/test)
@@ -306,6 +307,24 @@
              (unless (uiop:symbol-call :clamsara.quality.representation-capacity
                                       :run-representation-capacity-tests)
                (error "Representation capacity tests failed"))))
+
+(asdf:defsystem :clamsara/quality/kind-snapshots/test
+  :version "0.1.0"
+  :description "Bound allocation geometry; not full description snapshot admission."
+  :depends-on (:clamsara/quality/support)
+  :serial t
+  :components ((:file "test/quality/kind-snapshots")
+               (:file "test/quality/kind-history")
+               (:file "test/quality/construction-exit-history"))
+  :perform (asdf:test-op (operation component)
+             (declare (ignore operation component))
+             (unless (and (uiop:symbol-call :clamsara.quality.kind-snapshots
+                                           :run-kind-geometry-snapshot-tests)
+                          (uiop:symbol-call :clamsara.quality.kind-history
+                                           :run-kind-history-tests)
+                          (uiop:symbol-call :clamsara.quality.construction-exit-history
+                                           :run-construction-exit-history-tests))
+               (error "Kind geometry snapshot tests failed"))))
 
 (asdf:defsystem :clamsara/quality/allocation/test
   :version "0.1.0"

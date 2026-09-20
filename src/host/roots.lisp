@@ -153,7 +153,7 @@
         (directory (simulator-root-directory client))
         (index head))
     (dotimes (unused count)
-      (declare (ignore unused))
+      (declare (ignorable unused))
       (when (minusp index) (host-reject :root-service-invariant))
       (let* ((entry (aref entries index))
              (next (simulator-root-entry-next entry))
@@ -353,7 +353,7 @@
   (let ((entries (simulator-root-entry-reserve client))
         (index (simulator-provider-token-entry-head token)))
     (dotimes (unused (simulator-provider-token-entry-count token))
-      (declare (ignore unused))
+      (declare (ignorable unused))
       (when (minusp index) (host-reject :root-service-invariant))
       (let ((entry (aref entries index)))
         (setf (simulator-root-entry-seen entry) 0

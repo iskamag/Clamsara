@@ -48,3 +48,34 @@ canonical load failed in the in-progress model rewrite, so full-system load
 and execution must be rerun after its repair. Model implementation ownership
 moved to the worker who authored the dense design; independent atomics/model
 tests remain with the former implementation owner.
+
+## Hosted checkpoint (2026-09-20)
+
+The native main ASDF test operation now passes, including repeated SemiSpace
+and MarkSweep collection, conditional/finalizer lifecycle, retained failures,
+105 construction checks, and independent quality regressions. Those quality
+checks include 100 stateful oracle-checked collections, structural defect
+fixtures, frozen resource ownership, post-publication root reserves, and guest
+word admission. Fourteen development-tool regressions also pass.
+
+The 500,000-element array stress passed a real moving collection of two
+4,000,016-byte objects. Final capacity-account physical/auxiliary bytes were
+48,132,992/160,282,704. This is array evidence, not a full benchmark run.
+
+The small managed workload smoke passes through clean shutdown. Its adapter
+remains unfinished: full Gabriel/GCBench runs have not passed; REST, literal,
+closure and foreign-call boundaries need complete residency/rooting evidence.
+Numeric model slots now reject unsupported boxed numbers and host containers
+before writes. That does not establish all guest representations or target
+residency. Native reader quasiquote is installed per interpreter environment,
+without replacing global engine functions.
+
+The optional generational implementation has passed its standalone native
+lifecycle/capacity probes. It remains separately selected and needs independent
+profile review; stale address-token generations are not that evidence.
+Mezzano supervisor admission, allocation freedom, concurrency and IRQ safety
+remain unproved. `docs/spec-questions.md` separates questions from known bugs.
+
+Development diagnostics: `tools/README.md`. Quality commands and limitations:
+`docs/quality-structure.md`, `docs/quality-stateful.md`, and
+`docs/quality-model-resources.md`.

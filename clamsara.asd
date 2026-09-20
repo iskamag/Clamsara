@@ -246,3 +246,21 @@
              (unless (uiop:symbol-call :clamsara.workload.adapter.test
                                       :run-workload-adapter-tests)
                (error "Workload adapter tests failed"))))
+
+(asdf:defsystem :clamsara/generational
+  :version "0.1.0"
+  :description "Optional sequential generational profile under independent review."
+  :depends-on (:clamsara)
+  :components ((:file "src/runtime/generational")))
+
+(asdf:defsystem :clamsara/generational/test
+  :version "0.1.0"
+  :depends-on (:clamsara/generational)
+  :components ((:file "test/runtime/generational"))
+  :perform (asdf:test-op (operation component)
+             (declare (ignore operation component))
+             (unless (and (uiop:symbol-call :clamsara.runtime.generational.test
+                                           :run-generational-runtime-tests)
+                          (uiop:symbol-call :clamsara.runtime.generational.test
+                                           :run-generational-capacity-test))
+               (error "Optional generational tests failed"))))

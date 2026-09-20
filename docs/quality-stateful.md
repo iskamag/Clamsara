@@ -105,12 +105,11 @@ The stale-reference checks above exercise hosted representation generations
 and stale address encodings. They are **not** generational garbage-collection
 evidence.
 
-The current canonical runtime provides SemiSpace and MarkSweep plans, and the
-sequential plan currently admits only scope `:all`. It does not expose a
-nursery/mature plan, minor/major scopes, promotion result, or a remembered-set
-inspection contract that this quality test can drive. Therefore the following
-matrix is reserved but was not executed and is not reported as skipped-pass or
-covered:
+At this independent suite's original baseline, only full collections were
+available. A later optional `:clamsara/generational` implementation now passes
+its own native lifecycle/capacity tests (see `docs/generational.md`). This
+stateful suite does not select or exercise it. The following expanded matrix
+therefore remains independent review work, not skipped-pass or covered evidence:
 
 | Future generational case | Required assertion |
 | --- | --- |
@@ -121,9 +120,9 @@ covered:
 | Major reclamation | a major collection reclaims unreachable old objects and their old encodings fail normalization |
 | Generational weak/ephemeron closure | old/young key, value, and weak-target combinations follow the common conditional fixed point without a missing incoming edge or strong fallback |
 
-These cases must become executable when a real generational construction and
-runtime API exists. A host-only payload model or a simulated remembered set is
-not an acceptable substitute.
+These independent cases must exercise the real optional construction and
+runtime API. A host-only payload model or a simulated remembered set is not
+an acceptable substitute.
 
 ## Evidence limits
 

@@ -1,0 +1,52 @@
+;;;; Native tests of diagnostic behavior, independent of the collector.
+(defpackage #:clamsara.debug.test
+  (:use #:cl)
+  (:export #:run-debug-tests))
+(in-package #:clamsara.debug.test)
+
+(defun run-debug-tests ()
+ (let ((checks 0) (paths nil))
+  (labels ((check (value)
+             (incf checks)
+             (unless value (error "Debug tooling check ~D failed" checks)))
+           (fixture (contents)
+             (let ((path (merge-pathnames
+                          (format nil "clamsara-debug-~A.lisp" (gensym))
+                          (uiop:temporary-directory))))
+               (push path paths)
+               (with-open-file (out path :direction :output :if-exists :supersede)
+                 (write-string contents out))
+               path)))
+    (unwind-protect
+         (let* ((good (fixture "(in-package :cl-user) (defun sample () 1)"))
+                (nested (fixture "(in-package :cl-user) (defun outer () (defclass swallowed () ()))"))
+                (bad-reader (fixture "(defun unfinished ()"))
+                (bad-compiler (fixture "(defun bad-if () (if t 1 2 3))"))
+                (out (merge-pathnames "clamsara-debug-test.fasl" (uiop:temporary-directory))))
+           (push out paths)
+           (check (eq :ok (getf (clamsara.debug:read-source good) :status)))
+           (check (= 1 (length (getf (clamsara.debug:read-source nested) :nested-definitions))))
+           (check (eq :failed (getf (clamsara.debug:read-source bad-reader) :status)))
+           (check (eq :ok (getf (clamsara.debug:compile-source good :output-file out) :status)))
+           (let ((result (clamsara.debug:compile-source bad-compiler :output-file out)))
+             (check (eq :failed (getf result :status)))
+             (check (getf (getf result :native-result) :failure-p)))
+           (let ((result (clamsara.debug:run-probe :forced-error (lambda () (error "deliberate")))))
+             (check (eq :failed (getf result :status)))
+             (check (search "deliberate" (getf (getf result :failure) :message)))
+             (check (getf (first (getf result :conditions)) :backtrace)))
+           (check (eq :ok (getf (clamsara.debug:run-probe :handled
+                                (lambda () (handler-case (error "handled") (error () 42)))) :status)))
+           (let ((result (clamsara.debug:run-probe
+                          :inner-handler
+                          (lambda () (handler-case (error "hidden-condition")
+                                       (error () :handled)))
+                          :trace-signals 'error)))
+             (check (eq :ok (getf result :status)))
+             (check (plusp (length (getf result :conditions))))
+             (check (search "hidden-condition"
+                            (getf (getf (first (getf result :conditions)) :condition)
+                                  :message))))
+           (check (getf (clamsara.debug:inspect-name "VALID-REFERENCE-P") :function-p))
+           (format t "~&DEBUG-TOOLS: ~D checks passed~%" checks))
+      (dolist (path paths) (when (probe-file path) (delete-file path)))))))

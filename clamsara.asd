@@ -138,7 +138,10 @@
                              (asdf:test-op :clamsara/host/atomics/test)
                              (asdf:test-op :clamsara/runtime/test)
                              (asdf:test-op :clamsara/runtime/lifecycle/test)
-                             (asdf:test-op :clamsara/acceptance/test))))
+                             (asdf:test-op :clamsara/acceptance/test)
+                             (asdf:test-op :clamsara/quality/stateful/test)
+                             (asdf:test-op :clamsara/quality/model-resources/test)
+                             (asdf:test-op :clamsara/quality/test))))
 
 (asdf:defsystem :clamsara/workload
   :version "0.1.0"
@@ -179,3 +182,56 @@
                           (uiop:symbol-call :clamsara.runtime.retained-failure.test
                                             :run-retained-failure-test))
                (error "Collector lifecycle tests failed"))))
+
+(asdf:defsystem :clamsara/tools
+  :version "0.1.0"
+  :description "Native development diagnostics, not collector entry code."
+  :depends-on (:asdf)
+  :components ((:file "tools/debug")))
+
+(asdf:defsystem :clamsara/tools/test
+  :version "0.1.0"
+  :depends-on (:clamsara/tools :clamsara/protocol)
+  :components ((:file "test/tools/debug"))
+  :perform (asdf:test-op (operation component)
+             (declare (ignore operation component))
+             (uiop:symbol-call :clamsara.debug.test :run-debug-tests)))
+
+(asdf:defsystem :clamsara/quality/support
+  :version "0.1.0"
+  :depends-on (:clamsara)
+  :components ((:file "test/quality/support")))
+
+(asdf:defsystem :clamsara/quality/stateful/test
+  :version "0.1.0"
+  :depends-on (:clamsara/quality/support)
+  :components ((:file "test/quality/stateful"))
+  :perform (asdf:test-op (operation component)
+             (declare (ignore operation component))
+             (unless (uiop:symbol-call :clamsara.quality.stateful
+                                      :run-stateful-quality-tests)
+               (error "Stateful quality tests failed"))))
+
+(asdf:defsystem :clamsara/quality
+  :version "0.1.0"
+  :description "Native structural checks, not collector allocation evidence."
+  :depends-on (:clamsara :clamsara/tools)
+  :components ((:file "tools/check-structure")))
+
+(asdf:defsystem :clamsara/quality/test
+  :version "0.1.0"
+  :depends-on (:clamsara/quality)
+  :components ((:file "test/quality/structure"))
+  :perform (asdf:test-op (operation component)
+             (declare (ignore operation component))
+             (uiop:symbol-call :clamsara.structure.test :run-structure-tests)))
+
+(asdf:defsystem :clamsara/quality/model-resources/test
+  :version "0.1.0"
+  :depends-on (:clamsara/quality/support)
+  :components ((:file "test/quality/model-resources"))
+  :perform (asdf:test-op (operation component)
+             (declare (ignore operation component))
+             (unless (uiop:symbol-call :clamsara.quality.model-resources
+                                      :run-model-resource-quality)
+               (error "Model/resource quality tests failed"))))

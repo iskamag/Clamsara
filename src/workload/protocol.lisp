@@ -277,30 +277,61 @@ fallback to guessed indexing."
 (defun workload-allocate (environment kind-name count initial-values)
   "Allocate and initialize a managed object through the v14 route.
 
-INITIAL-VALUES is a proper sequence matching the declared strong slot keys
-held by the caller.  The caller must root every reference in it before this
-function is entered; the Maclina implementation supplies that root discipline
-for source-level primitives."
+INITIAL-VALUES is a proper list of (SLOT-KEY VALUE) entries.  Each key
+must be admitted by the installed kind description and each value is written
+through WORKLOAD-WRITE-SLOT.  The caller must root every reference in the
+list before this function is entered; this function also keeps copies in
+registered temporary roots while allocation and barrier writes can move the
+object."
   (%require-open environment 'workload-allocate)
+  (unless (listp initial-values)
+    (error 'workload-capability-error :operation 'workload-allocate
+           :reason (list :initial-values-not-list initial-values)))
+  (dolist (entry initial-values)
+    (unless (and (consp entry) (consp (cdr entry)) (null (cddr entry)))
+      (error 'workload-capability-error :operation 'workload-allocate
+             :reason (list :invalid-initial-value-entry entry))))
+  (unless (<= (+ 2 (length initial-values))
+             (length (workload-root-locations environment)))
+    (error 'workload-capability-error :operation 'workload-allocate
+           :reason (list :root-capacity (length initial-values))))
   (multiple-value-bind (kind bytes alignment descriptor)
       (%workload-kind-allocation environment kind-name count)
-    (declare (ignore initial-values))
-    (multiple-value-bind (reference status reason)
-        (allocate-object (workload-context environment) kind bytes alignment
-                         descriptor)
-      (case status
-        (:allocated reference)
-        (:failed
-         (error 'workload-allocation-error :operation 'allocate-object
-                :reason reason))
-        (otherwise
-         (error 'workload-allocation-error :operation 'allocate-object
-                :reason (or reason status)))))))
+    ;; Root initial values before allocation.  Allocation may collect and
+    ;; refresh these slots, while the host INITIAL-VALUES list cannot move.
+    (unwind-protect
+         (progn
+           (loop for (key value) in initial-values
+                 for index from 2
+                 do (%store-temporary-root environment index value))
+           (multiple-value-bind (reference status reason)
+               (allocate-object (workload-context environment)
+                                kind bytes alignment descriptor)
+             (unless (eq status :allocated)
+               (error 'workload-allocation-error :operation 'allocate-object
+                      :reason (or reason status)))
+             ;; Slot zero is owned by WORKLOAD-WRITE-SLOT.  Slot one keeps the
+             ;; new object alive, and slots two onward retain initialization.
+             (%store-temporary-root environment 1 reference)
+             (unwind-protect
+                  (progn
+                    (loop for (key value) in initial-values
+                          for index from 2
+                          do (workload-write-slot
+                              environment
+                              (workload-temporary-root-load environment 1)
+                              key
+                              (workload-temporary-root-load environment index)))
+                    (workload-temporary-root-load environment 1))
+               (workload-temporary-root-clear environment 1))))
+      (loop for index from 2 below (+ 2 (length initial-values))
+            do (workload-temporary-root-clear environment index)))))
 
 (defun workload-ensure-reference (environment value)
-  (if (workload-reference-p environment value)
-      value
-      value))
+  (unless (workload-reference-p environment value)
+    (error 'workload-capability-error :operation 'workload-ensure-reference
+           :reason (list :not-managed-reference value)))
+  value)
 
 (export '(workload-error workload-capability-error workload-allocation-error
           workload-kind make-workload-kind workload-environment

@@ -70,6 +70,30 @@
   (let ((name (%guest-array-kind-name environment value)))
     (member name '(:array-single-float :array-integer))))
 
+(defun %assert-numeric-array-element (environment array value)
+  "Reject values with no guest-resident numeric representation.
+
+The indexed numeric payload is a raw word plane.  Fixnums and single-floats
+are the only numeric values admitted by the workload bridge; boxed integers,
+ratios, double-floats, and other host numeric objects must not masquerade as
+guest values."
+  (let ((kind (%guest-array-kind-name environment array)))
+    (cond ((eq kind :array-integer)
+           (unless (typep value 'fixnum)
+             (error 'workload-capability-error
+                    :operation 'numeric-array-store
+                    :reason (list :unsupported-boxed-numeric value))))
+          ((eq kind :array-single-float)
+           (unless (typep value 'single-float)
+             (error 'workload-capability-error
+                    :operation 'numeric-array-store
+                    :reason (list :unsupported-numeric-type
+                                  (type-of value)))))
+          (t (error 'workload-capability-error
+                    :operation 'numeric-array-store
+                    :reason (list :not-numeric-array kind)))))
+  value)
+
 (defun %guest-struct-p (environment value)
   (%description-p environment value :struct))
 
@@ -170,9 +194,51 @@ CAR/CDR or storage."
               collect (%guest-car environment cursor)))))
 
 (defun %host-list->guest (environment values)
-  (%list* environment
-          (loop for value in values
-                collect value)))
+  "Copy transient host REST values into managed CONS cells.
+
+The VM's argument-list bridge supplies a host list.  Keep every element in a
+registered slot before the first allocation, and retain the growing result in
+another slot; the host list itself is never used as guest storage.  On
+success slot one holds the result until the caller transfers it to its own
+registered VM/root slot."
+  (let ((count (length values))
+        (completed nil))
+    (unless (<= (+ count 2) (length (workload-root-locations environment)))
+      (error 'workload-capability-error :operation 'rest-list-bridge
+             :reason (list :root-capacity count)))
+    (unwind-protect
+         (progn
+           (loop for value in values
+                 for index from 2
+                 do (%store-temporary-root environment index value))
+           (%store-temporary-root environment 0 nil)
+           (%store-temporary-root environment 1 nil)
+           (loop for index from (1- count) downto 0
+                 do (%allocate-guest
+                     environment :cons 2 nil
+                     (lambda (object)
+                       ;; Save the old result before slot one becomes the new
+                       ;; cell.  Slot zero is owned by WORKLOAD-WRITE-SLOT,
+                       ;; so write CDR first, then CAR.
+                       (%store-temporary-root
+                        environment 0
+                        (workload-temporary-root-load environment 1))
+                       (%store-temporary-root environment 1 object)
+                       (workload-write-slot
+                        environment object :cdr
+                        (workload-temporary-root-load environment 0))
+                       (workload-write-slot
+                        environment object :car
+                        (workload-temporary-root-load environment (+ 2 index))))))
+           (setf completed t)
+           (workload-temporary-root-load environment 1))
+      ;; A failed bridge must not leave a partially-built list hidden in a
+      ;; reserved root.  On success the caller owns the transfer/clear step.
+      (unless completed
+        (%store-temporary-root environment 1 nil))
+      (%store-temporary-root environment 0 nil)
+      (loop for index from 2 below (+ 2 count)
+            do (%store-temporary-root environment index nil)))))
 
 (defun %guest-atom-p (environment value)
   (not (%guest-cons-p environment value)))
@@ -229,8 +295,11 @@ BARRIER-READ/STORE."
   (if (%guest-array-numeric-p environment array)
       (%with-array-element-location environment array index
                                      (lambda (location)
-                                       (load-reference
-                                        (workload-model environment) location)))
+                                       (%assert-numeric-array-element
+                                        environment array
+                                        (load-reference
+                                         (workload-model environment)
+                                         location))))
       (workload-read-slot environment array index)))
 
 (defun %guest-array-set (environment value array index)
@@ -243,6 +312,7 @@ BARRIER-READ/STORE."
       (%with-array-element-location
        environment array index
        (lambda (location)
+         (%assert-numeric-array-element environment array value)
          (store-reference-raw (workload-model environment) location value)))
       (workload-write-slot environment array index value)))
 
@@ -398,15 +468,16 @@ BARRIER-READ/STORE."
   (intern (format nil "~A-~A" name slot)
           (or (symbol-package name) *package*)))
 
-(defun %install-struct (client environment form)
+(defun %install-struct (client runtime form)
+  (let ((environment (workload-client-workload client)))
   (multiple-value-bind (name slots) (%parse-simple-struct form)
     (let ((constructor (intern (format nil "MAKE-~A" name)
                                (or (symbol-package name) *package*)))
           (predicate (intern (format nil "~A-P" name)
                              (or (symbol-package name) *package*))))
-      (setf (clostrum:fdefinition client environment predicate)
+      (setf (clostrum:fdefinition client runtime predicate)
             (lambda (value) (%guest-struct-p environment value)))
-      (setf (clostrum:fdefinition client environment constructor)
+      (setf (clostrum:fdefinition client runtime constructor)
             (lambda (&rest arguments)
               (declare (dynamic-extent arguments))
               (let ((values (make-array (length slots) :initial-element nil)))
@@ -419,25 +490,26 @@ BARRIER-READ/STORE."
                                             key)
                                         slots :test #'eq)
                       do (when slot-index (setf (aref values slot-index) value)))
-                (let ((object
-                        (%allocate-guest environment :struct (length slots)
-                                         (coerce values 'list))))
-                  (loop for slot in slots
-                        for index from 0
-                        do (workload-write-slot environment object index
-                                                (aref values index)))
-                  object))))
+                (%allocate-guest
+                 environment :struct (length slots)
+                 (coerce values 'list)
+                 (lambda (object)
+                   (loop for index below (length slots)
+                         do (workload-write-slot
+                             environment object index
+                             (workload-temporary-root-load environment index)))
+                   object)))))
       (loop for slot in slots
             for index from 0
             for accessor = (%struct-accessor-name name slot)
-            do (setf (clostrum:fdefinition client environment accessor)
+            do (setf (clostrum:fdefinition client runtime accessor)
                      (let ((i index))
                        (lambda (object)
                          (unless (%guest-struct-p environment object)
                            (error 'type-error :datum object
                                   :expected-type 'structure-object))
                          (workload-read-slot environment object i))))
-               (setf (clostrum:fdefinition client environment
+               (setf (clostrum:fdefinition client runtime
                                             `(setf ,accessor))
                      (let ((i index))
                        (lambda (value object)
@@ -445,7 +517,7 @@ BARRIER-READ/STORE."
                            (error 'type-error :datum object
                                   :expected-type 'structure-object))
                          (workload-write-slot environment object i value))))))
-  nil))
+  nil)))
 
 (defun %literal-expression (value)
   "Lower a quoted host list to source-level CONS calls.
@@ -470,7 +542,12 @@ host graph."
       form))
 
 (defun %normalize-proclamation (environment value)
-  (let ((host (%guest-list->host environment value)))
+  ;; DECLAIM/PROCLAIM syntax is compiler-owned host syntax.  A quoted guest
+  ;; declaration is converted at the boundary, but VM-CROSS may already hand
+  ;; us an ordinary host list from its macro expansion.
+  (let ((host (if (%guest-cons-p environment value)
+                  (%guest-list->host environment value)
+                  value)))
     (if (and (consp host) (symbolp (first host))
              (not (member (first host)
                           '(cl:type cl:ftype cl:special cl:inline cl:notinline
@@ -478,7 +555,8 @@ host graph."
         (cons 'cl:type host)
         host)))
 
-(defun %install-workload-functions (client environment)
+(defun %install-workload-functions (client runtime)
+  (let ((environment (workload-client-workload client)))
   (labels ((cons* (car cdr) (%cons* environment car cdr))
            (car* (value) (%guest-car environment value))
            (cdr* (value) (%guest-cdr environment value))
@@ -588,7 +666,7 @@ host graph."
                         (%guest-cons-p environment right)) nil)
                    (t (equal left right)))))
     (flet ((fset (name function)
-             (setf (clostrum:fdefinition client environment name) function)))
+             (setf (clostrum:fdefinition client runtime name) function)))
       (fset 'cl:cons #'cons*) (fset 'cl:car #'car*) (fset 'cl:cdr #'cdr*)
       (fset 'cl:consp #'consp*) (fset 'cl:atom #'atom*)
       (fset 'cl:rplaca #'rplaca*) (fset 'cl:rplacd #'rplacd*)
@@ -599,6 +677,21 @@ host graph."
       (fset 'cl:reverse #'reverse*) (fset 'cl:subst #'subst*)
       (fset 'cl:copy-tree #'copy-tree*)
       (fset 'cl:equal #'equal*)
+      ;; Install TIME as a guest macro.  The wrapped form runs once and
+      ;; MULTIPLE-VALUE-PROG1 preserves every value; timing/reporting happens
+      ;; only after the values have been captured.
+      (setf (clostrum:macro-function client runtime 'cl:time)
+            (lambda (form macro-environment)
+              (declare (ignore macro-environment))
+              (unless (= (length form) 2)
+                (error 'program-error))
+              (let ((started (gensym "TIME-START-")))
+                `(let ((,started (get-internal-real-time)))
+                   (multiple-value-prog1
+                       ,(second form)
+                     (format t "~&; elapsed ~,3F seconds~%"
+                             (/ (- (get-internal-real-time) ,started)
+                                (float internal-time-units-per-second))))))))
       (fset 'cl:aref (lambda (array index)
                       (%guest-array-ref environment array index)))
       (fset '(setf cl:aref)
@@ -628,20 +721,95 @@ host graph."
             (lambda (value symbol indicator)
               (%set-property-value client value symbol indicator)))
       (fset 'cl:proclaim
-            (let ((original (clostrum:fdefinition client environment 'cl:proclaim)))
+            (let ((original (clostrum:fdefinition client runtime 'cl:proclaim)))
               (lambda (declaration)
                 (funcall original (%normalize-proclamation environment declaration)))))
-      (setf (clostrum:macro-function client environment 'cl:defstruct)
+      (setf (clostrum:macro-function client runtime 'cl:defstruct)
             (lambda (form macro-environment)
               (declare (ignore macro-environment))
-              (%install-struct client environment form)))
+              (%install-struct client runtime form)))
+      ;; Allocation-capable sequence operations run as guest functions.
+      ;; Their recursion and argument values therefore live in VM frames and
+      ;; the provider's normal frame/value root scan, not in unregistered host
+      ;; locals held across CONS allocations.
+      (labels ((install-guest (name form)
+                 (setf (clostrum:fdefinition client runtime name)
+                       (workload-eval environment form))))
+        (install-guest
+         'cl:list
+         `(lambda (&rest values)
+            (labels ((build (tail)
+                       (if (null tail) nil
+                           (cons (car tail) (build (cdr tail))))))
+              (build values))))
+        (install-guest
+         'cl:mapcar
+         `(lambda (function list)
+            (if (null list) nil
+                (cons (funcall function (car list))
+                      (mapcar function (cdr list))))))
+        (install-guest
+         'cl:mapc
+         `(lambda (function list)
+            (if (null list) nil
+                (progn (funcall function (car list))
+                       (mapc function (cdr list))
+                       list))))
+        (install-guest
+         'cl:append
+         `(lambda (&rest lists)
+            (labels ((copy (list tail)
+                       (if (null list) tail
+                           (cons (car list)
+                                 (copy (cdr list) tail))))
+                     (join (rest)
+                       (if (null rest) nil
+                           (copy (car rest) (join (cdr rest))))))
+              (join lists))))
+        (install-guest
+         'cl:reverse
+         `(lambda (list)
+            (labels ((step (tail result)
+                       (if (null tail) result
+                           (step (cdr tail) (cons (car tail) result)))))
+              (step list nil))))
+        (install-guest
+         'cl:copy-tree
+         `(lambda (tree)
+            (if (consp tree)
+                (cons (copy-tree (car tree))
+                      (copy-tree (cdr tree)))
+                tree)))
+        (install-guest
+         'cl:subst
+         `(lambda (new old tree)
+            (if (eql old tree) new
+                (if (consp tree)
+                    (cons (subst new old (car tree))
+                          (subst new old (cdr tree)))
+                    tree))))
+        (install-guest
+         'cl:nconc
+         `(lambda (&rest lists)
+            (labels ((last-cell (list)
+                       (if (consp (cdr list))
+                           (last-cell (cdr list))
+                           list))
+                     (join (head rest)
+                       (if (null rest) head
+                           (if (null head)
+                               (join (car rest) (cdr rest))
+                               (progn
+                                 (rplacd (last-cell head) (car rest))
+                                 (join head (cdr rest)))))))
+              (join nil lists)))))
       ;; Source ASSERT is absent from some Extrinsicl installations.
-      (setf (clostrum:macro-function client environment 'cl:assert)
+      (setf (clostrum:macro-function client runtime 'cl:assert)
             (lambda (form macro-environment)
               (declare (ignore macro-environment))
               `(if ,(second form) t
                    (error "Assertion failed: ~S" ',(second form))))))
-  environment))
+  environment)))
 
 (defun setup-workload-maclina (environment)
   "Install Maclina and the strict managed-value primitive set.
@@ -657,6 +825,7 @@ all benchmark warmup before collecting evidence."
     (extrinsicl::install-environment-accessors client runtime)
     (extrinsicl::install-proclaim client runtime)
     (extrinsicl.maclina:install-eval client runtime)
+    (%install-workload-reader-macros client runtime)
     (setf maclina.machine:*client* client
           (workload-maclina-client environment) client
           (workload-maclina-environment environment) runtime)

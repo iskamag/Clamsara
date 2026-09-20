@@ -151,7 +151,7 @@
   :serial t
   :components ((:module "src/workload" :serial t
                 :components ((:file "protocol") (:file "roots")
-                             (:file "maclina") (:file "setup")
+                             (:file "source") (:file "maclina") (:file "setup")
                              (:file "gabriel") (:file "gcbench")))))
 
 (asdf:defsystem :clamsara/host/atomics/test
@@ -235,3 +235,14 @@
              (unless (uiop:symbol-call :clamsara.quality.model-resources
                                       :run-model-resource-quality)
                (error "Model/resource quality tests failed"))))
+
+(asdf:defsystem :clamsara/workload/test
+  :version "0.1.0"
+  :description "Bounded adapter regressions, not the full benchmark gate."
+  :depends-on (:clamsara/workload)
+  :components ((:file "test/workload/adapter"))
+  :perform (asdf:test-op (operation component)
+             (declare (ignore operation component))
+             (unless (uiop:symbol-call :clamsara.workload.adapter.test
+                                      :run-workload-adapter-tests)
+               (error "Workload adapter tests failed"))))

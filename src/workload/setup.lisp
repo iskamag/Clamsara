@@ -37,8 +37,11 @@ to element count."
              :reason (list :object-capacity-too-small
                            effective-object-capacity
                            required-object-capacity)))
-    (let* ((roots (make-simulator-root-client
-                 :provider-capacity root-provider-capacity))
+    (let* ((finalizer-capacity 128)
+           (roots (make-simulator-root-client
+                   :provider-capacity root-provider-capacity
+                   ;; Keep application and framework root bounds distinct.
+                   :root-capacity (+ root-capacity (* 2 finalizer-capacity))))
          (root-provider (make-workload-root-provider root-capacity))
          (root-token (register-root-provider roots :workload root-capacity
                                              root-provider))
@@ -53,12 +56,21 @@ to element count."
                  :max-object-bytes max-object-bytes
                  :location-capacity 32 :handle-capacity 2048
                  :stage-capacity 8 :kind-capacity 16 :slot-capacity 8))
+         (cons-kind
+           (make-object-kind-description
+            model :cons :size-rule 32 :alignment-rule quantum
+            :strong-layout '((:identity :car :offset 0)
+                             (:identity :cdr :offset 8))))
          ;; Indexed and numeric arrays use private opaque host descriptors.
          ;; The model retains the variable rule and indexed offer; it never
          ;; expands a 500K-element strong-layout vector.
          (array-size-rule (make-host-variable-size-rule
                            :header-bytes 16 :element-bytes 8
-                           :minimum-elements 0))
+                           :element-kind :reference :minimum-elements 0))
+         (numeric-array-size-rule
+           (make-host-variable-size-rule
+            :header-bytes 16 :element-bytes 8
+            :element-kind :numeric :minimum-elements 0))
          (array-layout (make-host-indexed-layout
                         :identity-function #'identity
                         :base-offset 16 :element-word-bytes 8
@@ -69,11 +81,11 @@ to element count."
             :alignment-rule quantum :strong-layout array-layout))
          (single-float-kind
            (make-object-kind-description
-            model :array-single-float :size-rule array-size-rule
+            model :array-single-float :size-rule numeric-array-size-rule
             :alignment-rule quantum :strong-layout nil))
          (integer-kind
            (make-object-kind-description
-            model :array-integer :size-rule array-size-rule
+            model :array-integer :size-rule numeric-array-size-rule
             :alignment-rule quantum :strong-layout nil))
          (struct-kind
            (make-object-kind-description
@@ -110,12 +122,12 @@ to element count."
               :forwarding (make-side-forwarding :domain domain-1)
               :extent extent :packing-quantum quantum :role :reserve))
          (registry (make-sequential-finalizer-registry
-                    :capacity 128 :root-client roots))
+                    :capacity finalizer-capacity :root-client roots))
          (plan (make-semispace-plan
                 :from-space from :to-space to :root-client roots
                 :coordinator coordinator :diagnostics diagnostics
-                :registry registry :trace-capacity 4096
-                :conditional-capacity 4096 :finalizer-capacity 128
+                :registry registry :trace-capacity effective-object-capacity
+                :conditional-capacity 4096 :finalizer-capacity finalizer-capacity
                 :packing-quantum quantum))
          (configuration (construct-plan plan clients))
          (context (bind-mutator configuration execution allocation-domain))
@@ -136,7 +148,7 @@ to element count."
                       :struct (make-workload-kind :struct struct-kind 64 quantum)))
          (environment
            (make-workload-environment
-            :configuration configuration :execution execution
+            configuration :execution execution
             :allocation-domain allocation-domain :root-client roots
             :root-provider root-provider :root-token root-token
             :root-locations (workload-provider-temporary-locations
@@ -157,6 +169,14 @@ to element count."
   (let ((environment (workload-runtime-environment runtime))
         (configuration (workload-runtime-configuration runtime))
         (context (workload-runtime-context runtime)))
+    ;; VM-CROSS retains its last multiple-value list after BYTECODE-CALL.
+    ;; Clear that host list before unbinding, or shutdown quite correctly sees
+    ;; the completed workload result as a still-reachable managed object.
+    (let ((vm (workload-provider-vm (workload-runtime-root-provider runtime))))
+      (when vm
+        (setf (maclina.vm-cross::vm-values vm) nil
+              (maclina.vm-cross::vm-dynenv-stack vm) nil
+              (maclina.vm-cross::vm-stack-top vm) 0)))
     (when environment (close-workload-environment environment))
     (when context (unbind-mutator configuration context))
     (when configuration (shutdown-configuration configuration))
@@ -170,20 +190,18 @@ to element count."
           (workload-runtime-root-token runtime) nil)
     (values)))
 
-(defun run-workload-smoke (&key (depth 4) (stream *standard-output*))
+(defun run-workload-smoke (&key (extent (* 1024 1024)) (stream *standard-output*))
   "Allocate a managed node pair, collect, and report the composed result."
-  (let ((runtime (make-workload-runtime)))
+  (let ((runtime (make-workload-runtime :extent extent)))
     (unwind-protect
          (let* ((env (workload-runtime-environment runtime))
                 (configuration (workload-runtime-configuration runtime))
                 (plan (workload-runtime-plan runtime))
-                (context (workload-runtime-context runtime))
                 (root-set
                   (make-workload-root-set
                    env (workload-provider-temporary-locations
                         (workload-runtime-root-provider runtime))))
                 (a (workload-eval env `(cons nil nil))))
-           (declare (ignore depth context))
            ;; Keep both references in registered physical roots across every
            ;; subsequent allocation and barrier slow path.
            (workload-root-place root-set 0 a)
@@ -192,6 +210,28 @@ to element count."
                   (record (make-cycle-result-record plan)))
              (workload-root-place root-set 1 b)
              (collect configuration :all :explicit record)
+             ;; The smoke payload has been checked; discharge temporary roots
+             ;; before configuration shutdown so reachable-object accounting
+             ;; can close cleanly.
+             (workload-root-clear root-set 0)
+             (workload-root-clear root-set 1)
+             ;; VM-CROSS retains the last result list outside BYTECODE-CALL;
+             ;; clear it before the discharge cycle as well.
+             (let ((vm (workload-provider-vm
+                        (workload-runtime-root-provider runtime))))
+               (when vm
+                 (setf (maclina.vm-cross::vm-values vm) nil
+                       (maclina.vm-cross::vm-dynenv-stack vm) nil
+                       (maclina.vm-cross::vm-stack-top vm) 0)))
+             ;; A second, empty-root cycle reclaims the moved payload.  The
+             ;; runtime intentionally rejects shutdown while any object is
+             ;; still retained, even if the smoke assertion already passed.
+             (let ((discharge (make-cycle-result-record plan)))
+               (collect configuration :all :explicit discharge)
+               (unless (eq :complete (cycle-result-status discharge))
+                 (error 'workload-error :operation 'run-workload-smoke
+                        :reason (list :discharge-status
+                                      (cycle-result-status discharge)))))
              (multiple-value-bind (moved known-p)
                  (cycle-result-count record :objects-moved)
                (unless (and (eq :complete (cycle-result-status record))

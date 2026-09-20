@@ -1,0 +1,57 @@
+;;;; Adapter regressions, not full benchmark or all-representation acceptance.
+(defpackage #:clamsara.workload.adapter.test
+  (:use #:cl #:clamsara)
+  (:export #:run-workload-adapter-tests))
+(in-package #:clamsara.workload.adapter.test)
+
+(defun run-workload-adapter-tests ()
+  (let ((checks 0))
+    (flet ((check (value)
+             (assert value)
+             (incf checks)))
+      (let ((smoke (run-workload-smoke :extent 65536)))
+        (check (eq :complete (getf smoke :status)))
+        (check (= 2 (getf smoke :objects-moved))))
+      (let* ((runtime (make-workload-runtime :extent 65536
+                                            :max-object-bytes 16384
+                                            :root-capacity 512))
+             (environment (clamsara::workload-runtime-environment runtime))
+             (configuration (clamsara::workload-runtime-configuration runtime))
+             (plan (clamsara::workload-runtime-plan runtime)))
+        (unwind-protect
+             (progn
+               (check (equal '(7 8)
+                             (multiple-value-list
+                              (workload-eval environment '(time (values 7 8))))))
+               (check (= 1 (workload-eval environment
+                                        '(let ((count 0))
+                                           (time (incf count))
+                                           count))))
+               ;; Native backquote/comma syntax must be expanded, not called
+               ;; as a function or mistaken for a numeric object.
+               (workload-eval environment
+                              '(defmacro adapter-add-one (value) `(+ ,value 1)))
+               (check (= 5 (workload-eval environment '(adapter-add-one 4))))
+               (let ((object (workload-allocate environment :cons 2
+                                               '((:car 11) (:cdr 22)))))
+                 (check (workload-reference-p environment object))
+                 (check (= 11 (workload-read-slot environment object :car)))
+                 (check (= 22 (workload-read-slot environment object :cdr))))
+               (check (handler-case
+                          (progn (clamsara::workload-ensure-reference environment (list 1 2)) nil)
+                        (clamsara::workload-capability-error () t))))
+          ;; Explicitly discharge this fixture's payload before shutdown.
+          ;; General adapter shutdown semantics remain a separate work item.
+          (dotimes (i (length (clamsara::workload-root-locations environment)))
+            (clamsara::workload-temporary-root-clear environment i))
+          (let ((vm (clamsara::workload-provider-vm
+                     (clamsara::workload-runtime-root-provider runtime))))
+            (setf (maclina.vm-cross::vm-values vm) nil
+                  (maclina.vm-cross::vm-stack-top vm) 0
+                  (maclina.vm-cross::vm-dynenv-stack vm) nil))
+          (let ((result (make-cycle-result-record plan)))
+            (collect configuration :all :explicit result)
+            (check (eq :complete (cycle-result-status result))))
+          (close-workload-runtime runtime)))
+      (format t "WORKLOAD-ADAPTER: ~D checks passed~%" checks)
+      t)))

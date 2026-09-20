@@ -166,21 +166,50 @@ to element count."
      :address-space address-space :from-space from :to-space to))))
 
 (defun close-workload-runtime (runtime)
-  "Close a runtime returned by MAKE-WORKLOAD-RUNTIME exactly once."
+  "Collect dead workload payload, then release this runtime's owned services.
+
+Close never discards application roots. A live result, global, or explicit
+root rejects close while the environment remains open. The caller must release
+that root (for example, consume a completed result with WORKLOAD-EVAL NIL)
+and retry. The discharge collection may move live objects on rejection."
   (let ((environment (workload-runtime-environment runtime))
         (configuration (workload-runtime-configuration runtime))
-        (context (workload-runtime-context runtime)))
-    ;; VM-CROSS retains its last multiple-value list after BYTECODE-CALL.
-    ;; Clear that host list before unbinding, or shutdown quite correctly sees
-    ;; the completed workload result as a still-reachable managed object.
-    (let ((vm (workload-provider-vm (workload-runtime-root-provider runtime))))
-      (when vm
-        (setf (maclina.vm-cross::vm-values vm) nil
-              (maclina.vm-cross::vm-dynenv-stack vm) nil
-              (maclina.vm-cross::vm-stack-top vm) 0)))
-    (when environment (close-workload-environment environment))
-    (when context (unbind-mutator configuration context))
-    (when configuration (shutdown-configuration configuration))
+        (context (workload-runtime-context runtime))
+        (provider (workload-runtime-root-provider runtime)))
+    (unless configuration (return-from close-workload-runtime (values)))
+    (let ((vm (workload-provider-vm provider)))
+      (when (or (plusp (workload-provider-frame-count provider))
+                (and vm (or (plusp (maclina.vm-cross::vm-stack-top vm))
+                            (maclina.vm-cross::vm-dynenv-stack vm))))
+        (error 'workload-error :operation 'close-workload-runtime
+               :reason :active-workload-execution)))
+    ;; Do not unbind either owned context until the real root set has been
+    ;; traced and all application allocations discharged. A failed collection
+    ;; or live-root rejection leaves the environment and registrations intact.
+    ;; A prior shutdown already in :CLOSING retries its drain/release only.
+    (when (eq :published (%configuration-state configuration))
+      (let* ((plan (workload-runtime-plan runtime))
+             (record (make-cycle-result-record plan)))
+        (collect configuration :all :explicit record)
+        (unless (eq :complete (cycle-result-status record))
+          (error 'workload-error :operation 'close-workload-runtime
+                 :reason (list :discharge-status (cycle-result-status record)
+                               (cycle-result-reason record))))
+        (multiple-value-bind (live known-p)
+            (cycle-result-count record :objects-discovered)
+          (unless (and known-p (zerop live)
+                       (not (%configuration-has-allocated-objects-p plan)))
+            (error 'workload-error :operation 'close-workload-runtime
+                   :reason :reachable-objects-not-discharged))))
+      (when environment (close-workload-environment environment))
+      (when context
+        (let ((status (unbind-mutator configuration context)))
+          (unless (member status '(:unbound :already-unbound))
+            (error 'workload-error :operation 'unbind-mutator :reason status)))))
+    (multiple-value-bind (status reason) (shutdown-configuration configuration)
+      (unless (eq status :complete)
+        (error 'workload-error :operation 'close-workload-runtime
+               :reason (list :shutdown-status status reason))))
     (when (workload-runtime-root-token runtime)
       (unregister-root-provider
        (workload-runtime-roots runtime)

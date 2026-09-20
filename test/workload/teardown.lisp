@@ -1,0 +1,127 @@
+;;;; Workload close must collect dead payload without discarding live roots.
+(defpackage #:clamsara.workload.teardown.test
+  (:use #:cl #:clamsara)
+  (:export #:run-workload-teardown-tests))
+(in-package #:clamsara.workload.teardown.test)
+
+(defun make-runtime ()
+  (make-workload-runtime :extent 16384 :max-object-bytes 8192 :root-capacity 512))
+
+(defun environment-of (runtime)
+  (clamsara::workload-runtime-environment runtime))
+
+(defun vm-of (runtime)
+  (clamsara::workload-provider-vm
+   (clamsara::workload-runtime-root-provider runtime)))
+
+(defun rejects-close-p (runtime reason)
+  (handler-case (progn (close-workload-runtime runtime) nil)
+    (clamsara::workload-error (condition)
+      (eq reason (clamsara::workload-error-reason condition)))))
+
+(defun assert-open (runtime environment)
+  (assert (eq environment (environment-of runtime)))
+  (assert (not (clamsara::workload-closed-p environment)))
+  (assert (eq :published (clamsara::%configuration-state
+                         (clamsara::workload-runtime-configuration runtime)))))
+
+(defun assert-closed (runtime configuration)
+  (assert (eq :complete (clamsara::%configuration-state configuration)))
+  (assert (null (environment-of runtime)))
+  (assert (null (clamsara::workload-runtime-root-token runtime)))
+  ;; Repeated close has no further ownership or collection effects.
+  (close-workload-runtime runtime))
+
+(defun test-discarded-payload ()
+  (let* ((runtime (make-runtime))
+         (environment (environment-of runtime))
+         (configuration (clamsara::workload-runtime-configuration runtime)))
+    (workload-eval environment '(cons 17 23))
+    ;; The application explicitly discards its returned value. Close must
+    ;; reclaim the now-dead allocation, not require a hidden manual GC recipe.
+    (workload-eval environment nil)
+    (close-workload-runtime runtime)
+    (assert-closed runtime configuration)))
+
+(defun test-live-result ()
+  (let* ((runtime (make-runtime))
+         (environment (environment-of runtime))
+         (configuration (clamsara::workload-runtime-configuration runtime))
+         (source (workload-eval environment '(cons 17 23))))
+    (assert (rejects-close-p runtime :reachable-objects-not-discharged))
+    (assert-open runtime environment)
+    ;; Close's collection may move the object. The actual result cell must
+    ;; still own its corrected reference; clearing that cell is not discharge.
+    (let ((current (first (maclina.vm-cross::vm-values (vm-of runtime)))))
+      (assert (not (eq source current)))
+      (assert (= 17 (workload-read-slot environment current :car)))
+      (assert (= 23 (workload-read-slot environment current :cdr))))
+    (assert (= 42 (workload-eval environment '(+ 19 23))))
+    (close-workload-runtime runtime)
+    (assert-closed runtime configuration)))
+
+(defun test-temporary-root ()
+  (let* ((runtime (make-runtime))
+         (environment (environment-of runtime))
+         (configuration (clamsara::workload-runtime-configuration runtime))
+         (root-set (make-workload-root-set
+                    environment (clamsara::workload-root-locations environment))))
+    (workload-root-place root-set 2 (workload-eval environment '(cons 31 37)))
+    (workload-eval environment nil)
+    (assert (rejects-close-p runtime :reachable-objects-not-discharged))
+    (assert-open runtime environment)
+    (assert (= 31 (workload-read-slot environment (workload-root-load root-set 2) :car)))
+    (assert (= 37 (workload-read-slot environment (workload-root-load root-set 2) :cdr)))
+    (workload-root-clear root-set 2)
+    (close-workload-runtime runtime)
+    (assert-closed runtime configuration)))
+
+(defun test-global-root ()
+  (let* ((runtime (make-runtime))
+         (environment (environment-of runtime))
+         (configuration (clamsara::workload-runtime-configuration runtime)))
+    (workload-eval environment '(defparameter *close-test-root* (cons 41 43)))
+    (workload-eval environment nil)
+    (assert (rejects-close-p runtime :reachable-objects-not-discharged))
+    (assert-open runtime environment)
+    (assert (= 41 (workload-eval environment '(car *close-test-root*))))
+    (assert (= 43 (workload-eval environment '(cdr *close-test-root*))))
+    (workload-eval environment '(setf *close-test-root* nil))
+    (close-workload-runtime runtime)
+    (assert-closed runtime configuration)))
+
+(defun test-active-execution ()
+  (let* ((runtime (make-runtime))
+         (environment (environment-of runtime))
+         (configuration (clamsara::workload-runtime-configuration runtime))
+         (provider (clamsara::workload-runtime-root-provider runtime))
+         (vm (vm-of runtime)))
+    (labels ((snapshot ()
+               (list (clamsara::workload-provider-frame-count provider)
+                     (maclina.vm-cross::vm-stack-top vm)
+                     (maclina.vm-cross::vm-frame-pointer vm)
+                     (maclina.vm-cross::vm-pc vm)
+                     (maclina.vm-cross::vm-args vm)
+                     (maclina.vm-cross::vm-arg-count vm)
+                     (maclina.vm-cross::vm-values vm)
+                     (maclina.vm-cross::vm-dynenv-stack vm))))
+      (setf (clostrum:fdefinition
+             (clamsara::workload-maclina-client environment)
+             (clamsara::workload-maclina-environment environment) 'attempt-close)
+            (lambda ()
+              (let ((before (snapshot)))
+                (assert (plusp (first before)))
+                (assert (rejects-close-p runtime :active-workload-execution))
+                (assert (equal before (snapshot)))
+                (assert-open runtime environment)
+                :rejected)))
+      (assert (eq :rejected (workload-eval environment '(attempt-close)))))
+    (close-workload-runtime runtime)
+    (assert-closed runtime configuration)))
+
+(defun run-workload-teardown-tests ()
+  (dolist (case '(test-discarded-payload test-live-result test-temporary-root
+                  test-global-root test-active-execution))
+    (funcall case)
+    (format t "WORKLOAD-TEARDOWN ~S :COMPLETE~%" case))
+  t)

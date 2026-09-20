@@ -112,8 +112,39 @@ Mezzano admission evidence. Host-condition cleanup semantics, complete literal
 and module ownership, and the other language boundaries below still need their
 own acceptance. Full depth-18 and Gabriel acceptance are separate gates.
 
+## Completed-runtime close
+
+The original close helper erased VM registers, unbound both owned contexts,
+and then asked the collector to shut down without a discharge collection.
+Even one discarded cons therefore caused `:REACHABLE-OBJECTS-NOT-DISCHARGED`,
+after the environment had already become unusable. Clearing a live result
+also hid its ownership rather than proving that the application released it.
+
+Close now rejects active execution before changing VM state. For a published
+runtime it performs an explicit full collection using the registered roots.
+A live result, explicit temporary root, or global root rejects close before
+unbinding either owned context. Those roots retain their corrected references;
+the collection can move their objects even when close rejects. The application
+must release the roots and retry. For a completed result, evaluating NIL is an
+explicit way to consume it. Close never clears VM values, dynamic bindings, or
+application root slots to manufacture an empty heap.
+
+Only a complete discharge with zero discovered objects and an empty allocation
+map proceeds to unbinding and shutdown. Non-complete collection or shutdown
+statuses are reported, not ignored. Configuration, environment, and root-token
+handles are cleared only after successful shutdown and root unregistration.
+A configuration already closing retries its shutdown drain/release without a
+new collection.
+
+Five native tests are included in `:clamsara/workload/test`: discarded-payload
+close, live-result rejection/recovery, explicit-root rejection/recovery,
+global-root rejection/recovery, and pre-effect rejection during VM execution.
+Successful cases also check configuration completion and repeated close.
+This proves these bounded hosted lifecycles, not all possible failure recovery
+or ownership of language representations that remain unimplemented.
+
 This is not a claim of complete language adaptation. Managed REST lists,
-constant/module roots, active closures, foreign primitive argument lifetimes,
-macro side effects crossing phase boundaries, general teardown, and the
-remaining guest representations still need explicit acceptance. A successful
-macro expansion is not full benchmark evidence.
+constant/module and global-function closure roots, foreign primitive argument
+lifetimes, macro side effects crossing phase boundaries, host-condition cleanup,
+and the remaining guest representations still need explicit acceptance.
+A successful macro expansion is not full benchmark evidence.

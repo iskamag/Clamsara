@@ -6,7 +6,7 @@ not complete paper-v14, language, benchmark or target admission.
 
 ## Finalizer registration and token identity
 
-The first repair addresses slot reuse and registration admission. Opaque tokens
+Commit `5f735dd` addresses slot reuse and registration admission. Opaque tokens
 now come from a construction-provisioned historical pool. Each has an owner
 identity, a historical generation, and its actual record index, assigned before
 publication. Resolution requires the current record to hold that exact token.
@@ -59,9 +59,8 @@ context-validation mistake. The repaired registration histories pass.
 
 ### Not repaired by this change
 
-- Callback THROW/reentry can still repeat invocation in the old drain path.
-- Callback-triggered collection can still lose newly pending work there.
-- Safe retained-stop behavior during callback cleanup remains unproved.
+- Callback queue ownership and retained-stop cleanup were a separate repair;
+  see the next section for its bounded evidence.
 - Managed callback admission, callback-support roots, and composed/synchronized
   registry writes are not established by these host-callback tests.
 - The paper does not name a foreign-token cancellation error. This implementation
@@ -77,6 +76,85 @@ optional-generational and optional-loaded structure gates also pass; the new
 accounting test checks actual frozen byte totals.
 
 The registry is therefore **not yet a fully conforming finalizer service**.
+
+## Callback queue ownership and unwind cleanup
+
+The queue repair uses the same fixed F-entry storage as a FIFO ring. A drain
+removes an entry and claims its record as running **before** invoking code.
+Recursive drains can claim other records, never the running one. Collector
+publication appends behind remaining pending work; finishing a callback does
+not reset the queue or discard a later collection's batch.
+
+Each drain invocation attempts at most its entry queue length. Newly published
+work cannot extend that bound indefinitely. A nested drain can consume work
+that would otherwise have belonged to the outer invocation; each return count
+counts only callbacks actually invoked by that call.
+
+One unwind cleanup path handles normal return, contained ERROR and escaping
+nonlocal exits. An unsuccessful invocation increments the bounded failure count
+once. Normal terminal cleanup shares a record-release helper with cancellation.
+Execution contexts are pinned while callback frames remain active, including
+nested frames: unbind returns `:retry`, and shutdown cannot discard participation.
+
+A nested collection's **result status alone** does not decide whether cleanup
+can mutate roots. If the plan resumes open, cleanup can finish. If forwarding
+has made the failure fatal and the plan retains the stop, the running record
+stays claimed and rooted, outside the queue. It is not recycled, later callbacks
+are not invoked, and a normal callback return is followed by
+`:collection-busy`. An escaping THROW still escapes after the same root-preserving
+cleanup. This is not a recovery path for the closed configuration.
+
+### Native evidence
+
+Run `(asdf:test-system :clamsara/quality/finalizer-drain/test)`; the main test
+operation also selects it. The first behavior-only baseline failed **22 of 36**
+cases. It confirmed repeated THROW/reentrant invocation, lost appended work,
+loss of the active execution context, and execution/root clearing after a
+nested collection retained the stop. Ordinary running-reference/closure
+retention already passed on that baseline; the repair does not claim to have
+invented that behavior.
+
+The expanded repair suite passes **56 cases** across SemiSpace/MarkSweep and
+packed/scalar starts:
+
+- Normal, ERROR and THROW completion without repetition or retained terminal roots.
+- Recursive drains, plus an inner THROW caught by the still-pinned outer callback.
+- Ten repeated interleavings per profile that wrap the FIFO with older pending
+  work and newly published batches present at the same time.
+- A callback that registers another callback and collects, with bounded work
+  per drain and no lost successor.
+- THROW after nested publication, then immediate physical-slot reuse while older
+  callbacks remain queued; a later collection publishes the reused slot again.
+- Running referent and child closure retention through a real collection.
+  The test reloads the corrected physical registry root. It does **not** claim
+  that arbitrary native Lisp locals are automatically writable guest roots.
+- Capacity-one rings and rejection of registration into a still-running slot.
+- Rejection of unbinding/shutdown while a callback owns its context.
+- Nested conditional-capacity failure followed by normal return, THROW or ERROR.
+  Copying retains the stop and roots; nonmoving failure resumes safely and drains
+  remaining work. Fatal fixtures are deliberately not “cleaned up” by erasing roots.
+
+A fresh independent verification found no new concrete queue/ownership defect
+under serialized hosted execution. Its 16 additional composed cases include
+40 wrap/reuse rounds with 200 callback invocations, two execution contexts,
+cross-registry collection/escape, recursive drains during unwind cleanup, and
+two-deep retained/recoverable failures. Its assertions record failures outside
+the callback catcher. See [finalizer-queue-review.md](finalizer-queue-review.md).
+
+Those independent histories are integrated as
+`test/quality/finalizer-history.lisp` and selected by the drain test system.
+The integrated 56+16 cases and the main/tools/workload/optional-generational/
+optional-loaded structure gates pass. The parent's intentional-ERROR fixture
+also now requires an outside completion marker after its payload assertion,
+so an earlier swallowed assertion cannot masquerade as the intended error.
+
+These are hosted callback-controller tests. Managed callable representation,
+callback-support tracing and composed/synchronized registry writes are still
+open. They prevent a claim of complete finalizer admission even with the new
+queue histories passing. The source-only design note in
+[finalizer-callback-design.md](finalizer-callback-design.md) explains the required
+object-model/callable representation and actual activation roots. It is a
+proposal, not implemented or accepted functionality.
 
 ## Other confirmed review findings
 

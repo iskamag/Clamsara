@@ -1,4 +1,4 @@
-;;;; Bounded finalizer registry and its exact root-provider integration.
+;;;; Bounded hosted finalizer registry; managed-callback admission remains open.
 (in-package #:clamsara)
 
 (defclass finalizer-root-location ()
@@ -52,6 +52,7 @@
    (tokens :initform nil :accessor %registry-tokens)
    (pending :initform nil :accessor %registry-pending)
    (pending-count :initform 0 :accessor %registry-pending-count)
+   (pending-head :initform 0 :accessor %registry-pending-head)
    (next-token :initform 0 :accessor %registry-next-token)
    (locations :initform nil :accessor %registry-locations)
    (provider-token :initform nil :accessor %registry-provider-token)
@@ -256,6 +257,18 @@ by registration. Exhaustion rejects before publishing a record."
             (aref (%registry-states registry) index) :active)
       token)))
 
+(defun %release-finalizer-record (registry index terminal-state)
+  ;; Caller owns the record in an open configuration. Keep the physical slot
+  ;; unavailable until all retained values have been cleared. Token identities
+  ;; stay historical; :FREE invalidates this generation before any reuse.
+  (setf (aref (%registry-states registry) index) terminal-state
+        (aref (%registry-registrations registry) index) nil
+        (aref (%registry-referents registry) index) nil
+        (aref (%registry-supports registry) index) nil
+        (aref (%registry-callbacks registry) index) nil
+        (aref (%registry-states registry) index) :free)
+  (values))
+
 (defmethod cancel-finalizer ((registry sequential-finalizer-registry)
                              (context sequential-execution-context) token)
   (unless (and (eq (%context-configuration context)
@@ -267,11 +280,7 @@ by registration. Exhaustion rejects before publishing a record."
   (let ((index (%registry-token-index registry token)))
     (if (and index (eq :active (aref (%registry-states registry) index)))
         (progn
-          (setf (aref (%registry-registrations registry) index) nil
-                (aref (%registry-referents registry) index) nil
-                (aref (%registry-supports registry) index) nil
-                (aref (%registry-callbacks registry) index) nil
-                (aref (%registry-states registry) index) :free)
+          (%release-finalizer-record registry index :canceled)
           :canceled)
         :already-finalized)))
 
@@ -309,16 +318,49 @@ by registration. Exhaustion rejects before publishing a record."
           (aref (%registry-states registry) index) :frozen))
   (values))
 
+(defun %registry-pending-tail (registry)
+  ;; Compute (MOD (+ head count) capacity) without an overflowing sum.
+  (let* ((head (%registry-pending-head registry))
+         (count (%registry-pending-count registry))
+         (remaining (- (%registry-capacity registry) head)))
+    (if (< count remaining) (+ head count) (- count remaining))))
+
 (defmethod publish-pending-finalizers ((registry sequential-finalizer-registry))
   (dotimes (index (%registry-capacity registry))
     (when (eq :frozen (aref (%registry-states registry) index))
-      (let ((position (%registry-pending-count registry)))
-        (when (>= position (%registry-capacity registry))
-          ;; Preflight made this unreachable; it is a closed fatal fault.
-          (%runtime-reject :fatal-invariant))
-        (setf (aref (%registry-pending registry) position) index
-              (aref (%registry-states registry) index) :pending)
-        (incf (%registry-pending-count registry)))))
+      (when (>= (%registry-pending-count registry) (%registry-capacity registry))
+        ;; Whole-batch preflight made this unreachable; it is a closed fault.
+        (%runtime-reject :fatal-invariant))
+      (setf (aref (%registry-pending registry) (%registry-pending-tail registry)) index
+            (aref (%registry-states registry) index) :pending)
+      (incf (%registry-pending-count registry))))
+  (values))
+
+(defun %claim-pending-finalizer (registry)
+  "Remove one FIFO entry and acquire its record before calling application code."
+  (when (plusp (%registry-pending-count registry))
+    (let* ((head (%registry-pending-head registry))
+           (index (aref (%registry-pending registry) head)))
+      (unless (and (typep index 'fixnum) (<= 0 index) (< index (%registry-capacity registry))
+                   (eq :pending (aref (%registry-states registry) index)))
+        (%runtime-reject :fatal-invariant))
+      (setf (aref (%registry-states registry) index) :running
+            (aref (%registry-pending registry) head) 0
+            (%registry-pending-head registry)
+            (if (= (1+ head) (%registry-capacity registry)) 0 (1+ head)))
+      (decf (%registry-pending-count registry))
+      index)))
+
+(defun %finish-finalizer-callback (registry context index completed-p)
+  (unless (eq :running (aref (%registry-states registry) index))
+    (%runtime-reject :fatal-invariant))
+  ;; Each historical registration can fail once, so this count is bounded by H.
+  (unless completed-p (incf (%registry-callback-failure-count registry)))
+  (when (eq :open (%plan-state (%context-plan context)))
+    (%release-finalizer-record registry index :done))
+  ;; A callback can return/escape after a nested collector retained the stop.
+  ;; Do not mutate its managed roots or recycle its still-owned record then.
+  ;; It stays claimed, outside the queue, in the irrecoverably closed registry.
   (values))
 
 (defmethod drain-pending-finalizers
@@ -330,25 +372,29 @@ by registration. Exhaustion rejects before publishing a record."
     (%runtime-reject :invalid-finalizer-context))
   (unless (eq (%plan-state (%context-plan context)) :open)
     (%runtime-reject :collection-busy))
-  (let ((count (%registry-pending-count registry))
-        (ran 0))
-    (dotimes (position count)
-      (let* ((index (aref (%registry-pending registry) position))
-             (callback (aref (%registry-callbacks registry) index))
-             (referent (aref (%registry-referents registry) index)))
-        ;; State changes first, so nonlocal callback failure cannot invoke it
-        ;; twice.  Callback errors are recorded and later callbacks still run.
-        (setf (aref (%registry-states registry) index) :finalized)
-        (handler-case (funcall callback referent)
-          (error () (incf (%registry-callback-failure-count registry))))
+  ;; This invocation takes at most its entry queue length. Nested drains may
+  ;; consume some of that work; nested collections may append newer work.
+  ;; Neither can revive this invocation's claimed record or extend its budget.
+  (let ((budget (%registry-pending-count registry)) (ran 0))
+    (dotimes (unused budget)
+      (declare (ignorable unused))
+      (let ((index (%claim-pending-finalizer registry)))
+        (unless index (return))
+        (let ((completed-p nil))
+          (incf (%context-finalizer-depth context))
+          (unwind-protect
+               (handler-case
+                   (progn
+                     (funcall (aref (%registry-callbacks registry) index)
+                              (aref (%registry-referents registry) index))
+                     (setf completed-p t))
+                 (error () nil))
+            (unwind-protect
+                 (%finish-finalizer-callback registry context index completed-p)
+              (decf (%context-finalizer-depth context)))))
         (incf ran)
-        (setf (aref (%registry-registrations registry) index) nil
-              (aref (%registry-referents registry) index) nil
-              (aref (%registry-supports registry) index) nil
-              (aref (%registry-callbacks registry) index) nil
-              (aref (%registry-states registry) index) :free
-              (aref (%registry-pending registry) position) 0)))
-    (setf (%registry-pending-count registry) 0)
+        (unless (eq (%plan-state (%context-plan context)) :open)
+          (%runtime-reject :collection-busy))))
     ran))
 
 (defmethod store-provider-root ((client t)

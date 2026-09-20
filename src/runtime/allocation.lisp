@@ -51,7 +51,8 @@
     (case (%context-state context)
       (:unbound :already-unbound)
       (:bound
-       (when (member (%plan-state plan) '(:collecting :retained))
+       (when (or (plusp (%context-finalizer-depth context))
+                 (member (%plan-state plan) '(:collecting :retained)))
          (return-from unbind-mutator :retry))
        (setf (%context-state context) :unbound
              (%context-allocator context) nil

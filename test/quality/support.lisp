@@ -96,6 +96,7 @@
                              (stop-capacity 64)
                              (await-bound 32)
                              await-fail-after
+                             configure-model
                              (object-capacity 1024))
   "Construct a small real hosted collector world through the public builders.
 ALGORITHM is :SEMISPACE or :MARKSWEEP.  OBJECT-STARTS is :PACKED or :SCALAR."
@@ -132,10 +133,14 @@ ALGORITHM is :SEMISPACE or :MARKSWEEP.  OBJECT-STARTS is :PACKED or :SCALAR."
          ;; actual managed graph edges.  The ID lets the host-side oracle name
          ;; objects without replacing their payload or edges with host data.
          (node-kind
-           (make-object-kind-description
-            model :quality-node :size-rule 32
-            :alignment-rule packing-quantum
-            :strong-layout '(:quality-id :left :right)))
+           (prog1
+               (make-object-kind-description
+                model :quality-node :size-rule 32
+                :alignment-rule packing-quantum
+                :strong-layout '(:quality-id :left :right))
+             ;; Test-only extension seam; all descriptions still precede binding
+             ;; and immutable construction ownership/account closure.
+             (when configure-model (funcall configure-model model))))
          (atomics (make-host-atomics))
          (diagnostics (make-simulator-diagnostics))
          (clients

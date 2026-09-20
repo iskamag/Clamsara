@@ -141,6 +141,7 @@
                              (asdf:test-op :clamsara/acceptance/test)
                              (asdf:test-op :clamsara/quality/stateful/test)
                              (asdf:test-op :clamsara/quality/finalizers/test)
+                             (asdf:test-op :clamsara/quality/finalizer-drain/test)
                              (asdf:test-op :clamsara/quality/model-resources/test)
                              (asdf:test-op :clamsara/quality/test))))
 
@@ -304,3 +305,17 @@
              (unless (uiop:symbol-call :clamsara.quality.finalizers
                                       :run-finalizer-registration-tests)
                (error "Finalizer registration tests failed"))))
+
+(asdf:defsystem :clamsara/quality/finalizer-drain/test
+  :version "0.1.0"
+  :description "Hosted finalizer callback/queue histories; not managed callback admission."
+  :depends-on (:clamsara/quality/finalizers/test)
+  :serial t
+  :components ((:file "test/quality/finalizer-drain")
+               (:file "test/quality/finalizer-history"))
+  :perform (asdf:test-op (operation component)
+             (declare (ignore operation component))
+             (unless (and (uiop:symbol-call :clamsara.quality.finalizers :run-finalizer-drain-tests)
+                          (uiop:symbol-call :clamsara.quality.finalizer-history
+                                            :run-finalizer-history-tests))
+               (error "Finalizer drain tests failed"))))

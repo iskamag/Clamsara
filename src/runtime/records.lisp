@@ -565,6 +565,8 @@
                          :reader %context-barrier-reservations)
    (barrier-reserved-p :initarg :barrier-reserved-p
                        :reader %context-barrier-reserved-p)
+   ;; Active callback frames pin their execution context until unwind cleanup.
+   (finalizer-depth :initform 0 :accessor %context-finalizer-depth)
    (state :initform :bound :accessor %context-state)))
 
 (defun %configuration-runtime-plan (configuration)

@@ -119,6 +119,8 @@
                             kind bytes alignment descriptor)
   (unless (eq (%context-state context) :bound)
     (%runtime-reject :foreign-context))
+  (unless (eq (%plan-state (%context-plan context)) :open)
+    (%runtime-reject :collection-busy))
   (let ((validation (%validate-allocation context kind bytes alignment descriptor)))
     (when validation
       (return-from allocate-object (values nil :failed validation))))

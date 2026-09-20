@@ -88,6 +88,14 @@ index to the provider's canonical key and is used only for traversal."
 (defclass transferable-metadata (metadata) ())
 (defclass atomic-metadata (metadata) ())
 
+(defmethod map-construction-auxiliary-storage ((owner metadata) function)
+  (call-next-method)
+  ;; The immutable domain header is retained by every metadata component.
+  ;; Resource handles and their backing are registered through component
+  ;; resources and are intentionally not repeated here.
+  (funcall function (metadata-domain owner))
+  (values))
+
 (defgeneric metadata-bounds (metadata))
 (defgeneric metadata-default-value (metadata key))
 (defgeneric metadata-value-valid-p (metadata key value))
@@ -135,15 +143,6 @@ index to the provider's canonical key and is used only for traversal."
   (let ((old (metadata-ref m key))) (metadata-set m key 1) old))
 (defmethod metadata-clear-bit ((m bit-metadata) key)
   (let ((old (metadata-ref m key))) (metadata-set m key 0) old))
-(defmethod metadata-reset-range ((m range-metadata) range)
-  (declare (ignore range))
-  (error 'metadata-operation-error :metadata m :fact :metadata-reset-range))
-(defmethod metadata-fold ((m range-metadata) range function initial-value)
-  (declare (ignore range function initial-value))
-  (error 'metadata-operation-error :metadata m :fact :metadata-fold))
-(defmethod metadata-map-present ((m range-metadata) range function)
-  (declare (ignore range function))
-  (error 'metadata-operation-error :metadata m :fact :metadata-map-present))
 (defmethod metadata-project ((source range-metadata) destination reducer)
   (declare (ignore destination reducer))
   (error 'metadata-operation-error :metadata source :fact :metadata-project))

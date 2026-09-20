@@ -138,9 +138,9 @@
           (%registry-provider-token registry)
           (register-root-provider (%registry-root-client registry)
                                   registry (* 2 capacity) registry))
-    (%register-resource-auxiliary context (%registry-resource-id registry)
-                                  (%registry-provider-token registry)))
-  (values))
+    ;; The root service owns the provider token and its copied location vector.
+    ;; Registry-owned FINALIZER-ROOT-LOCATION records remain manifested above.
+  (values)))
 
 (defmethod deactivate-component ((registry sequential-finalizer-registry) context)
   (declare (ignore context))
@@ -169,6 +169,8 @@
                (eq (%context-state context) :bound)
                (functionp callback))
     (%runtime-reject :invalid-finalizer-registration))
+  (unless (eq (%plan-state (%context-plan context)) :open)
+    (%runtime-reject :collection-busy))
   (let ((index (position :free (%registry-states registry) :test #'eq)))
     (unless index (%runtime-reject :weak-storage-exhausted))
     (when (= (%registry-next-token registry) most-positive-fixnum)
@@ -186,8 +188,12 @@
 
 (defmethod cancel-finalizer ((registry sequential-finalizer-registry)
                              (context sequential-execution-context) token)
-  (unless (eq (%context-configuration context) (%registry-configuration registry))
+  (unless (and (eq (%context-configuration context)
+                   (%registry-configuration registry))
+               (eq (%context-state context) :bound))
     (%runtime-reject :invalid-finalizer-context))
+  (unless (eq (%plan-state (%context-plan context)) :open)
+    (%runtime-reject :collection-busy))
   (let ((index (%registry-token-index registry token)))
     (if (and index (eq :active (aref (%registry-states registry) index)))
         (progn
@@ -252,6 +258,8 @@
                    (%registry-configuration registry))
                (eq (%context-state context) :bound))
     (%runtime-reject :invalid-finalizer-context))
+  (unless (eq (%plan-state (%context-plan context)) :open)
+    (%runtime-reject :collection-busy))
   (let ((count (%registry-pending-count registry))
         (ran 0))
     (dotimes (position count)

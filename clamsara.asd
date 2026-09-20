@@ -73,7 +73,8 @@
   :depends-on (:clamsara/host-base)
   :serial t
   :components ((:file "src/host/object-model")
-               (:file "src/host/atomics")))
+               (:file "src/host/atomics")
+               (:file "src/host/auxiliary")))
 
 (asdf:defsystem :clamsara
   :version "0.1.0"
@@ -110,7 +111,9 @@
   :serial t
   :components ((:file "test/acceptance/metadata-safety")
                (:file "test/acceptance/host-safety")
-               (:file "test/acceptance/resources-layout"))
+               (:file "test/acceptance/resources-layout")
+               (:file "test/acceptance/conditional-lifecycle")
+               (:file "test/acceptance/object-model-safety"))
   :perform (asdf:test-op (operation component)
              (declare (ignore operation component))
              (unless (and (uiop:symbol-call :clamsara.acceptance.metadata
@@ -118,7 +121,11 @@
                           (uiop:symbol-call :clamsara.acceptance.host
                                            :run-host-safety-acceptance)
                           (uiop:symbol-call :clamsara.acceptance.resources-layout
-                                           :run-resources-layout-acceptance))
+                                           :run-resources-layout-acceptance)
+                          (uiop:symbol-call :clamsara.acceptance.conditional-lifecycle
+                                           :run-conditional-lifecycle-acceptance)
+                          (uiop:symbol-call :clamsara.acceptance.object-model
+                                           :run-object-model-safety-acceptance))
                (error "Acceptance contracts failed"))))
 
 (asdf:defsystem :clamsara/test
@@ -130,6 +137,7 @@
                              (asdf:test-op :clamsara/host/test)
                              (asdf:test-op :clamsara/host/atomics/test)
                              (asdf:test-op :clamsara/runtime/test)
+                             (asdf:test-op :clamsara/runtime/lifecycle/test)
                              (asdf:test-op :clamsara/acceptance/test))))
 
 (asdf:defsystem :clamsara/workload
@@ -153,3 +161,21 @@
              (unless (uiop:symbol-call :clamsara.host.atomics.test
                                       :run-v14-atomics-host-contracts)
                (error "Atomic-place contracts failed"))))
+
+(asdf:defsystem :clamsara/runtime/lifecycle/test
+  :version "0.1.0"
+  :depends-on (:clamsara)
+  :serial t
+  :components ((:file "test/runtime/semispace") (:file "test/runtime/marksweep")
+               (:file "test/runtime/retained-failure")
+               (:file "test/metadata/semispace"))
+  :perform (asdf:test-op (operation component)
+             (declare (ignore operation component))
+             (unless (and (uiop:symbol-call :clamsara.runtime.test :run-v14-runtime-tests)
+                          (uiop:symbol-call :clamsara.runtime.marksweep.test
+                                            :run-marksweep-runtime-tests)
+                          (uiop:symbol-call :clamsara.metadata.semispace.test
+                                            :run-metadata-semispace-runtime-tests)
+                          (uiop:symbol-call :clamsara.runtime.retained-failure.test
+                                            :run-retained-failure-test))
+               (error "Collector lifecycle tests failed"))))

@@ -97,11 +97,24 @@
           (check (= accounted minimum)
                  "auxiliary account ~D did not equal explicit owned manifest ~D"
                  accounted minimum)
-          (check (construction-rejection
-                  (lambda ()
-                    (clamsara::%register-resource-auxiliary
-                     construction :records (vector :late))))
-                 "closed manifest accepted later persistent storage"))
+          (check (null (clamsara::%simulator-resource-manifest-seen resource))
+                 "construction-only manifest dedup scratch survived closure")
+          (let ((late (vector :late))
+                (before-manifest manifest)
+                (before-accounted accounted))
+            (check (construction-rejection
+                    (lambda ()
+                      (clamsara::%register-resource-auxiliary
+                       construction :records late)))
+                   "closed manifest accepted later persistent storage")
+            (check (and (eq before-manifest
+                            (clamsara::%simulator-resource-manifest resource))
+                        (= before-accounted
+                           (clamsara::%resource-state-auxiliary-bytes state))
+                        (null (clamsara::%simulator-resource-manifest-seen
+                               resource))
+                        (not (find late before-manifest :test #'eq)))
+                   "failed late registration mutated closed resource state")))
         (release-all-resources construction))))
   t)
 
@@ -382,6 +395,140 @@
       (release-managed-layout client release)))
   t)
 
+
+(defun manifest-has-object-p (manifest object)
+  (find object manifest :test #'eq))
+
+(defun test-real-layout-and-bound-model-manifest-is-complete ()
+  "Exercise the actual host registrars and check each explicit owned primitive."
+  (let* ((client (clamsara::make-simulator-address-space
+                  :base 4096 :byte-extent 4096 :ownership-capacity 2))
+         (clients (make-test-clients :address-space client))
+         (map (make-instance 'acceptance-map :base 4096 :limit 8192
+                             :granularity 16))
+         (space (make-instance 'acceptance-space :map map))
+         (candidate (make-reference-layout client space map))
+         (identity-function
+           (let ((bias 0)) (lambda (index) (+ bias index))))
+         (offered (clamsara::make-host-object-model
+                   :capacity 1 :max-object-bytes 32 :variant-capacity 4
+                   :location-capacity 2 :handle-capacity 2 :stage-capacity 1
+                   :max-interior-displacement 8 :tag-capacity 1
+                   :kind-capacity 2 :slot-capacity 1))
+         (kind (make-object-kind-description
+                offered :manifest-node :size-rule 16 :alignment-rule 16
+                :strong-layout '(:edge)))
+         (array-rule (clamsara::make-host-variable-size-rule
+                      :header-bytes 16 :element-bytes 8
+                      :element-kind :reference))
+         (array-layout (clamsara::make-host-indexed-layout
+                        :identity-function identity-function :base-offset 16
+                        :element-word-bytes 8 :element-strength :strong))
+         (array-kind (make-object-kind-description
+                      offered :manifest-array :size-rule array-rule
+                      :alignment-rule 16 :strong-layout array-layout)))
+    (declare (ignore kind array-kind))
+    (multiple-value-bind (construction configuration)
+        (make-private-construction clients)
+      (declare (ignore configuration))
+      (let ((state (acquire-resource
+                    construction clients :configuration-auxiliary
+                    :runtime-object-vector :entries 1 :minimum 8 :auxiliary 0)))
+        (multiple-value-bind (layout release)
+            (install-managed-layout client candidate)
+          (unwind-protect
+               (let* ((binding (make-object-start-binding offered space map))
+                      (bound (bind-object-model offered layout (vector binding)))
+                      (expected nil))
+                 (labels ((remember (object)
+                            (when object (pushnew object expected :test #'eq)))
+                          (remember-vector (vector &optional elements-p)
+                            (remember vector)
+                            (when elements-p
+                              (dotimes (index (length vector))
+                                (remember (aref vector index))))))
+                   ;; Installed-layout owned primitives.
+                   (remember layout)
+                   (remember-vector (clamsara::simulator-layout-ranges layout) t)
+                   (remember-vector (clamsara::%simulator-ownership-reserve
+                                     layout) t)
+                   ;; Bound-model owned primitives. Keep this list explicit so
+                   ;; a newly retained field cannot hide behind graph walking.
+                   (remember bound)
+                   (remember-vector (clamsara::host-model-bindings bound) t)
+                   (remember-vector (clamsara::host-model-routes bound) t)
+                   (remember-vector (clamsara::host-model-kinds bound) t)
+                   (dotimes (index (length (clamsara::host-model-kinds bound)))
+                     (let* ((description
+                              (aref (clamsara::host-model-kinds bound) index))
+                            (size-rule
+                              (clamsara::host-object-kind-description-size-rule
+                               description))
+                            (strong
+                              (clamsara::host-object-kind-description-strong-layout
+                               description)))
+                       (when (clamsara::host-variable-size-rule-p size-rule)
+                         (remember size-rule))
+                       (if (clamsara::host-indexed-layout-p strong)
+                           (progn
+                             (remember strong)
+                             (remember
+                              (clamsara::host-indexed-layout-identity-function
+                               strong)))
+                           (remember-vector strong t))
+                       (remember-vector
+                        (clamsara::host-object-kind-description-weak-descriptions
+                         description) t)
+                       (remember-vector
+                        (clamsara::host-object-kind-description-ephemeron-descriptions
+                         description) t)))
+                   (dolist (object
+                             (list (clamsara::host-model-arena bound)
+                                   (clamsara::host-model-words bound)
+                                   (clamsara::host-model-sizes bound)
+                                   (clamsara::host-model-alignments bound)
+                                   (clamsara::host-model-descriptor-kinds bound)
+                                   (clamsara::host-model-descriptor-generations
+                                    bound)
+                                   (clamsara::host-model-descriptor-counts bound)
+                                   (clamsara::host-model-variant-hash-descriptors
+                                    bound)
+                                   (clamsara::host-model-variant-hash-codes bound)
+                                   (clamsara::host-model-variant-hash-indices
+                                    bound)))
+                     (remember object))
+                   (remember-vector (clamsara::host-model-base-references bound) t)
+                   (remember-vector (clamsara::host-model-variants bound) t)
+                   (remember-vector (clamsara::host-model-locations bound) t)
+                   (remember-vector (clamsara::host-model-handles bound) t)
+                   (remember-vector (clamsara::host-model-stages bound) t)
+                   (dotimes (index (length (clamsara::host-model-stages bound)))
+                     (let ((stage (aref (clamsara::host-model-stages bound)
+                                        index)))
+                       (remember (clamsara::host-staged-object-bytes stage))
+                       (remember (clamsara::host-staged-object-words stage))))
+                   (clamsara::%register-installed-layout-auxiliary
+                    construction layout :configuration-auxiliary)
+                   (clamsara::%register-bound-object-model-auxiliary
+                    construction bound :configuration-auxiliary)
+                   (clamsara::%close-resource-manifests construction)
+                   (let* ((resource
+                            (clamsara::%resource-state-release-capability state))
+                          (manifest
+                            (clamsara::%simulator-resource-manifest resource)))
+                     (dolist (object expected)
+                       (check (manifest-has-object-p manifest object)
+                              "real host registrar omitted owned object ~S"
+                              object))
+                     (check (and (typep manifest 'simple-vector)
+                                 (null
+                                  (clamsara::%simulator-resource-manifest-seen
+                                   resource)))
+                            "real host manifest did not freeze/drop scratch"))))
+            (release-managed-layout client release)))
+        (release-all-resources construction))))
+  t)
+
 (defun call-test (name function failures)
   (handler-case (progn (funcall function) failures)
     (error (condition) (acons name condition failures))))
@@ -401,6 +548,9 @@
                               #'test-install-failure-and-foreign-release-have-no_effect failures)
           failures (call-test :authoritative-map-snapshot
                               #'test-layout-uses-snapshotted-authoritative-map failures)
+          failures (call-test :real-host-manifest
+                              #'test-real-layout-and-bound-model-manifest-is-complete
+                              failures)
           failures (call-test :ownership-update
                               #'test-ownership-update-needs-covering-stop-and-bound-model failures))
     (when failures

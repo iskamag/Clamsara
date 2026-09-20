@@ -36,6 +36,12 @@
   ((map :initarg :map :reader %ct-map)
    (map-description-count :initform 0 :accessor %ct-map-description-count)))
 
+(defvar *ct-auxiliary-owner-map-counts* (make-hash-table :test #'eq))
+(defmethod map-construction-auxiliary-storage :around
+    ((owner %ct-component) function)
+  (incf (gethash owner *ct-auxiliary-owner-map-counts* 0))
+  (call-next-method))
+
 (defmethod component-dependencies ((component %ct-component))
   (incf (%ct-declaration-count component))
   (copy-list (%ct-dependencies component)))
@@ -165,6 +171,19 @@
   ((model :initarg :model :reader construction-object-model)
    (coordinator :initarg :coordinator :reader construction-stop-coordinator)
    (address :initarg :address :reader construction-address-space-client)))
+(defmethod map-construction-auxiliary-storage :around
+    ((owner %ct-clients) function)
+  (incf (gethash owner *ct-auxiliary-owner-map-counts* 0))
+  (call-next-method))
+(defmethod map-construction-auxiliary-storage
+    ((owner %ct-clients) function)
+  (call-next-method)
+  ;; The coordinator is also a graph component.  The builder's owner visitor
+  ;; must suppress the later duplicate method invocation, not just duplicate
+  ;; primitive registration.
+  (%map-construction-auxiliary-once
+   (construction-stop-coordinator owner) function)
+  (values))
 (defmethod construction-client-profile ((clients %ct-clients))
   (declare (ignore clients)) :sequential-host)
 (defmethod construction-root-client ((clients %ct-clients))
@@ -353,10 +372,10 @@
     t))
 
 (defun %ct-test-success-and-shutdown ()
-  (setf *ct-log* nil)
+  (setf *ct-log* nil
+        *ct-auxiliary-owner-map-counts* (make-hash-table :test #'eq))
   (multiple-value-bind (plan clients map space consumer coordinator address events)
       (%ct-make-graph)
-    (declare (ignore consumer coordinator))
     (let ((configuration (construct-plan plan clients)))
       (%ct-check (eq :published (%configuration-state configuration))
                  "configuration did not publish")
@@ -364,6 +383,10 @@
                  "EQ-shared map discovered ~D times" (%ct-declaration-count map))
       (%ct-check (= 1 (%ct-map-description-count space))
                  "space authoritative map was described more than once")
+      (dolist (owner (list clients plan map space consumer coordinator))
+        (%ct-check (= 1 (gethash owner *ct-auxiliary-owner-map-counts* 0))
+                   "auxiliary owner mapper ran more or less than once for ~S"
+                   owner))
       (%ct-check (typep (configuration-object-model configuration)
                         '%ct-bound-model)
                  "configuration lacks bound model")

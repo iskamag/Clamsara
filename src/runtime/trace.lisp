@@ -236,13 +236,15 @@
               reference
               (rebuild-reference model new-start descriptor)))))))
 
-(defun %trace-root-location (cycle location)
-  (let* ((plan (%cycle-plan cycle))
-         (roots (%plan-root-client plan))
-         (old (load-root roots location))
-         (new (trace-reference (%cycle-trace cycle) old)))
-    (unless (%trace-failed-reason (%cycle-trace cycle))
-      (store-root roots location new))))
+(defun %trace-root-location (cycle root-client location)
+  (let ((roots (%plan-root-client (%cycle-plan cycle))))
+    (unless (eq root-client roots)
+      (trace-fail (%cycle-trace cycle) :fatal-invariant)
+      (return-from %trace-root-location (values)))
+    (let* ((old (load-root roots location))
+           (new (trace-reference (%cycle-trace cycle) old)))
+      (unless (%trace-failed-reason (%cycle-trace cycle))
+        (store-root roots location new)))))
 
 (defun %trace-strong-location (cycle location)
   (let* ((model (configuration-object-model (%cycle-configuration cycle)))

@@ -48,6 +48,34 @@
 (defun %scope-supported-p (plan scope)
   (%plan-scope-supported-p plan scope))
 
+;;; Plan phase hooks keep the required full-heap plans unchanged while an
+;;; admitted composition can select its participating spaces and source sets.
+(defgeneric %plan-stop-scope (plan cycle))
+(defmethod %plan-stop-scope ((plan sequential-runtime-plan) cycle)
+  (declare (ignore plan))
+  (%cycle-scope cycle))
+
+(defgeneric %prepare-cycle-spaces (plan cycle))
+(defmethod %prepare-cycle-spaces ((plan sequential-runtime-plan) cycle)
+  (dolist (space (%plan-spaces plan))
+    (prepare-space space cycle))
+  (values :complete nil))
+
+(defgeneric %trace-plan-additional-roots (plan cycle))
+(defmethod %trace-plan-additional-roots
+    ((plan sequential-runtime-plan) cycle)
+  (declare (ignore plan cycle))
+  (values :complete nil))
+
+(defgeneric %map-plan-conditional-sources (plan cycle function))
+(defmethod %map-plan-conditional-sources
+    ((plan sequential-runtime-plan) cycle function)
+  (declare (ignore plan))
+  (map-trace-discoveries (%cycle-trace cycle) function))
+
+(defgeneric %prepare-plan-reclamation (plan cycle))
+(defgeneric %finish-plan-reclamation (plan cycle))
+
 (defun %reference-status (cycle reference)
   "Return :IMMEDIATE, :OUT-OF-SCOPE or :IN-SCOPE and current live judgment."
   (let* ((configuration (%cycle-configuration cycle))
@@ -99,8 +127,8 @@
 (defun %ephemeron-closure (cycle)
   (loop
     (let ((before (trace-discovery-count (%cycle-trace cycle))))
-      (map-trace-discoveries (%cycle-trace cycle)
-                             (%cycle-discovery-callback cycle))
+      (%map-plan-conditional-sources
+       (%cycle-plan cycle) cycle (%cycle-discovery-callback cycle))
       (multiple-value-bind (status reason) (%drain-strong-work cycle)
         (unless (eq status :complete)
           (return (values status reason))))
@@ -254,14 +282,9 @@
 
 (defun %stage-all-conditionals (cycle)
   (setf (%conditional-count cycle) 0)
-  ;; Reuse the discovery callback slot temporarily would mix phases; loop over
-  ;; the retained discovery arrays directly to keep callback identity fixed.
-  (let ((trace (%cycle-trace cycle))
-        (initial (trace-discovery-count (%cycle-trace cycle))))
-    (dotimes (index initial)
-      (%stage-discovery-conditionals
-       cycle (aref (%trace-work-spaces trace) index)
-       (aref (%trace-work-starts trace) index)))
+  (let ((initial (trace-discovery-count (%cycle-trace cycle))))
+    (%map-plan-conditional-sources
+     (%cycle-plan cycle) cycle (%cycle-stage-discovery-callback cycle))
     (cond ((%trace-failed-reason (%cycle-trace cycle))
          (values :failed (%trace-failed-reason (%cycle-trace cycle))))
         ;; Closure was final.  Staging may correct a seen reference but must not
@@ -341,15 +364,15 @@
     (cancel-reclaim-space (nth index (%plan-spaces plan)) cycle))
   (values))
 
-(defun %prepare-reclamation (cycle)
-  (let* ((plan (%cycle-plan cycle))
-         (ready-spaces 0)
-         (ready-participants 0))
+(defmethod %prepare-plan-reclamation
+    ((plan sequential-runtime-plan) cycle)
+  (let ((ready-spaces 0)
+        (ready-participants 0))
     (dolist (space (%plan-spaces plan))
       (multiple-value-bind (status reason) (reclaim-space space cycle)
         (unless (eq status :ready)
           (%cancel-ready plan cycle ready-spaces ready-participants)
-          (return-from %prepare-reclamation
+          (return-from %prepare-plan-reclamation
             (values :failed (or reason :preflight-failed))))
         (incf ready-spaces)))
     (dolist (participant (%plan-movement-participants plan))
@@ -357,10 +380,18 @@
           (prepare-movement-participant participant cycle)
         (unless (eq status :ready)
           (%cancel-ready plan cycle ready-spaces ready-participants)
-          (return-from %prepare-reclamation
+          (return-from %prepare-plan-reclamation
             (values :failed (or reason :preflight-failed))))
         (incf ready-participants)))
     (values :complete nil)))
+
+(defmethod %finish-plan-reclamation
+    ((plan sequential-runtime-plan) cycle)
+  (dolist (participant (%plan-movement-participants plan))
+    (finish-movement-participant participant cycle))
+  (dolist (space (%plan-spaces plan))
+    (finish-space space cycle))
+  (values :complete nil))
 
 (defun %commit-cycle (cycle)
   (let* ((plan (%cycle-plan cycle))
@@ -385,10 +416,12 @@
       (unless (eq status :complete)
         (return-from %commit-cycle (values status reason))))
     (%cycle-counter-incf cycle :weak-corrections (%conditional-count cycle))
-    (dolist (participant (%plan-movement-participants plan))
-      (finish-movement-participant participant cycle))
-    (dolist (space (%plan-spaces plan))
-      (finish-space space cycle))
+    (multiple-value-bind (finish-status finish-reason)
+        (%finish-plan-reclamation plan cycle)
+      (unless (eq finish-status :complete)
+        (return-from %commit-cycle
+          (values finish-status (or finish-reason
+                                    :post-publication-failure)))))
     (publish-pending-finalizers registry)
     (let ((candidates 0))
       (dotimes (index (%finalizer-count cycle))
@@ -433,7 +466,8 @@
   (let* ((plan (%cycle-plan cycle))
          (coordinator (%plan-coordinator plan)))
     (multiple-value-bind (token rejection)
-        (request-safepoint coordinator (%cycle-scope cycle) :collection)
+        (request-safepoint coordinator (%plan-stop-scope plan cycle)
+                           :collection)
       (when rejection
         (setf (%plan-state plan) :open)
         (%runtime-reject
@@ -458,12 +492,19 @@
     ;; All fallible phases below run with complete coverage.
     (handler-case
         (progn
-          (dolist (space (%plan-spaces plan)) (prepare-space space cycle))
+          (multiple-value-bind (status reason)
+              (%prepare-cycle-spaces plan cycle)
+            (unless (eq status :complete)
+              (return-from %execute-cycle (%cycle-failure cycle reason))))
           (begin-trace-context cycle (%cycle-scope cycle)
                                (%plan-trace-capacity plan))
           (setf (%cycle-phase cycle) :roots)
           (with-root-snapshot (%plan-root-client plan) (%cycle-coverage cycle)
                               (%cycle-snapshot-callback cycle))
+          (multiple-value-bind (status reason)
+              (%trace-plan-additional-roots plan cycle)
+            (unless (eq status :complete)
+              (return-from %execute-cycle (%cycle-failure cycle reason))))
           (multiple-value-bind (status reason) (%drain-strong-work cycle)
             (unless (eq status :complete)
               (return-from %execute-cycle (%cycle-failure cycle reason))))
@@ -486,7 +527,7 @@
               (%check-or-commit-conditionals cycle :validate)
             (unless (eq status :complete)
               (return-from %execute-cycle (%cycle-failure cycle reason))))
-          (multiple-value-bind (status reason) (%prepare-reclamation cycle)
+          (multiple-value-bind (status reason) (%prepare-plan-reclamation plan cycle)
             (unless (eq status :complete)
               (return-from %execute-cycle (%cycle-failure cycle reason))))
           (multiple-value-bind (status reason) (%commit-cycle cycle)

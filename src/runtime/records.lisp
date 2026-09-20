@@ -159,6 +159,8 @@
    (strong-callback :initform nil :accessor %cycle-strong-callback)
    (snapshot-callback :initform nil :accessor %cycle-snapshot-callback)
    (discovery-callback :initform nil :accessor %cycle-discovery-callback)
+   (stage-discovery-callback :initform nil
+                             :accessor %cycle-stage-discovery-callback)
    (ephemeron-callback :initform nil :accessor %cycle-ephemeron-callback)
    (weak-callback :initform nil :accessor %cycle-weak-callback)
    (conditional-ephemeron-callback :initform nil
@@ -230,7 +232,8 @@
                              :work-spaces trace-work-spaces
                              :work-starts trace-work-starts)
               (%cycle-root-callback cycle)
-              (lambda (location) (%trace-root-location cycle location))
+              (lambda (root-client location)
+                (%trace-root-location cycle root-client location))
               (%cycle-strong-callback cycle)
               (lambda (identity location)
                 (declare (ignore identity))
@@ -242,6 +245,9 @@
               (lambda (space start)
                 (declare (ignore space))
                 (%inspect-discovery-ephemerons cycle start))
+              (%cycle-stage-discovery-callback cycle)
+              (lambda (space start)
+                (%stage-discovery-conditionals cycle space start))
               (%cycle-ephemeron-callback cycle)
               (lambda (identity key-location value-location clear-key-p
                        cleared-key cleared-value)
@@ -299,6 +305,7 @@
                         (%cycle-root-callback cycle) (%cycle-strong-callback cycle)
                         (%cycle-snapshot-callback cycle)
                         (%cycle-discovery-callback cycle)
+                        (%cycle-stage-discovery-callback cycle)
                         (%cycle-ephemeron-callback cycle)
                         (%cycle-weak-callback cycle)
                         (%cycle-conditional-ephemeron-callback cycle)
@@ -345,6 +352,21 @@
                        :reader %plan-object-resource-id)
    (index-resource-id :initform (gensym "RUNTIME-INDICES-")
                       :reader %plan-index-resource-id)))
+
+(defmethod map-construction-auxiliary-storage
+    ((plan sequential-runtime-plan) function)
+  (call-next-method)
+  ;; These exact cons structures are retained by the published plan.  Their
+  ;; leaves are components, symbols, descriptions or other owners and are not
+  ;; inferred as plan-owned storage here.
+  (%map-construction-cons-storage (%plan-spaces plan) function)
+  (%map-construction-cons-storage (%plan-movement-participants plan) function)
+  (%map-construction-cons-storage (%plan-allocation-routes plan) function)
+  (%map-construction-cons-storage (%plan-algorithms plan) function)
+  (%map-construction-cons-storage (%plan-causes plan) function)
+  (%map-construction-cons-storage (%plan-reasons plan) function)
+  (%map-construction-cons-storage (%plan-counters plan) function)
+  (values))
 
 (defun %make-common-plan-instance (class &rest initargs &key
                                      root-client coordinator diagnostics registry

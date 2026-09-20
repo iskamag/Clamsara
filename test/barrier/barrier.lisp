@@ -115,12 +115,48 @@
 (defun %barrier (model contributions facts)
   (clamsara::make-composed-barrier
    (coerce contributions 'vector) (coerce facts 'vector) model))
-(defun %context (count)
-  (make-instance 'clamsara::sequential-execution-context
-                 :configuration nil :plan nil :execution :test
-                 :allocation-domain :test :allocator nil :generation 1
-                 :barrier-reservations (make-array count :initial-element nil)
-                 :barrier-reserved-p (make-array count :initial-element nil)))
+
+(defvar *test-contexts* nil)
+
+(defun %context (count barrier)
+  ;; Use the same admission path as production mutators.  In particular, the
+  ;; context must carry a real configuration whose barrier is this barrier;
+  ;; NIL configuration fixtures are intentionally covered separately below.
+  (let* ((space (make-instance 'clamsara::runtime-space
+                               :name :barrier-test
+                               :object-start-map nil
+                               :extent 128
+                               :packing-quantum 8))
+         (plan (make-instance 'clamsara::sequential-runtime-plan
+                              :root-client nil :coordinator nil
+                              :diagnostics nil :registry nil
+                              :spaces (list space)
+                              :trace-capacity 1 :conditional-capacity 0
+                              :finalizer-capacity 0 :packing-quantum 8
+                              :allocation-routes (list (list :test space :all))
+                              :default-algorithm :test :algorithms '(:test)
+                              :causes nil :reasons nil :counters nil))
+         (configuration (make-instance 'clamsara::%configuration
+                                       :plan plan :clients nil :graph nil
+                                       :component-order nil)))
+    (setf (clamsara::%plan-configuration plan) configuration
+          (clamsara::%plan-state plan) :open
+          (clamsara::%configuration-barrier configuration) barrier
+          (clamsara::%configuration-barrier-bound-p configuration) t)
+    (%assert (= count (length (clamsara::%barrier-contributions barrier)))
+             "barrier context capacity mismatch")
+    (let ((context (bind-mutator configuration :execution :test)))
+      (push (cons configuration context) *test-contexts*)
+      context)))
+
+(defun %release-test-contexts ()
+  (dolist (entry *test-contexts*)
+    (let ((configuration (car entry))
+          (context (cdr entry)))
+      (when (eq (clamsara::%context-state context) :bound)
+        (unbind-mutator configuration context))))
+  (setf *test-contexts* nil)
+  t)
 (defun %kinds (events contributions)
   (mapcar (lambda (contribution)
             (%facts events
@@ -132,6 +168,64 @@
                  (%events contribution)))
 (defun %count-events (contribution kind)
   (length (%all-events contribution kind)))
+
+(defun %invalid-context ()
+  (make-instance 'clamsara::sequential-execution-context
+                 :configuration nil :plan nil :execution :test
+                 :allocation-domain :test :allocator nil :generation 0
+                 :refill-request (make-array 3 :initial-element nil)
+                 :barrier-reservations (make-array 1 :initial-element nil)
+                 :barrier-reserved-p (make-array 1 :initial-element nil)))
+
+(defun test-invalid-contexts-rejected ()
+  ;; Hardened entry validation must reject malformed and foreign contexts with
+  ;; the protocol condition, rather than dispatching CONFIGURATION-BARRIER on
+  ;; NIL or accidentally running another configuration's barrier.
+  (let* ((model (make-instance 'test-barrier-model :value :old))
+         (contribution (%make-contribution :invalid-context))
+         (barrier (%barrier model (list contribution)
+                            (list (%facts '(:read) :observe))))
+         (nil-context (%invalid-context))
+         (nil-reason
+           (handler-case
+               (progn (barrier-read barrier nil-context :location) nil)
+             (clamsara::runtime-rejection (condition)
+               (clamsara::runtime-rejection-reason condition))))
+         (foreign-model (make-instance 'test-barrier-model :value :foreign))
+         (foreign-contribution (%make-contribution :foreign-context))
+         (foreign-barrier
+           (%barrier foreign-model (list foreign-contribution)
+                    (list (%facts '(:read) :observe))))
+         (foreign-context (%context 1 foreign-barrier))
+         (foreign-reason
+           (handler-case
+               (progn (barrier-read barrier foreign-context :location) nil)
+             (clamsara::runtime-rejection (condition)
+               (clamsara::runtime-rejection-reason condition)))))
+    (%assert (eq nil-reason :foreign-context)
+             "NIL configuration did not reject as foreign: ~S" nil-reason)
+    (%assert (eq foreign-reason :foreign-context)
+             "foreign barrier context did not reject: ~S" foreign-reason)
+    t))
+
+(defclass incomplete-contribution () ())
+
+(defun test-composition-rejects-missing-methods ()
+  ;; A contribution with no applicable execution methods is not an admitted
+  ;; capability.  Composition must reject it rather than install a fallback.
+  (let ((reason
+          (handler-case
+              (progn
+                (clamsara::make-composed-barrier
+                 (vector (make-instance 'incomplete-contribution))
+                 (vector (%facts '(:store) :observe))
+                 (make-instance 'test-barrier-model :value nil))
+                nil)
+            (clamsara::runtime-rejection (condition)
+              (clamsara::runtime-rejection-reason condition)))))
+    (%assert (eq reason :missing-barrier-execution-method)
+             "missing contribution methods were admitted: ~S" reason)
+    t))
 
 (defun test-store-order-and-observe-final ()
   (let* ((model (make-instance 'test-barrier-model :value 0))
@@ -149,7 +243,7 @@
                    (list (%facts '(:store) :transform)
                          (%facts '(:store) :transform)
                          (%facts '(:store) :observe-final))))
-         (context (%context 3)))
+         (context (%context 3 barrier)))
     (multiple-value-bind (effective status)
         (barrier-store barrier context :location 3)
       (%assert (and (= effective 8) (eq status :stored))
@@ -190,7 +284,7 @@
          (barrier (%barrier model (list first second)
                             (list (%facts '(:store) :observe)
                                   (%facts '(:store) :observe))))
-         (context (%context 2)))
+         (context (%context 2 barrier)))
     (setf *barrier-global-events* nil)
     (multiple-value-bind (effective status)
         (barrier-store barrier context :location :reserve-retry)
@@ -205,7 +299,7 @@
          (barrier (%barrier model (list first second)
                             (list (%facts '(:store) :observe)
                                   (%facts '(:store) :observe))))
-         (context (%context 2)))
+         (context (%context 2 barrier)))
     (setf *barrier-global-events* nil)
     (multiple-value-bind (effective status)
         (barrier-store barrier context :location :admit-retry)
@@ -225,7 +319,7 @@
          (barrier (%barrier model (list first second)
                             (list (%facts '(:store) :transform)
                                   (%facts '(:store) :transform))))
-         (context (%context 2)))
+         (context (%context 2 barrier)))
     (setf *barrier-global-events* nil)
     (multiple-value-bind (effective status)
         (barrier-store barrier context :location :transform-retry)
@@ -241,7 +335,7 @@
          (barrier (%barrier model (list first second)
                             (list (%facts '(:store) :observe)
                                   (%facts '(:store) :observe))))
-         (context (%context 2)))
+         (context (%context 2 barrier)))
     (setf *barrier-global-events* nil
           (slot-value barrier 'clamsara::busy-p) t)
     (multiple-value-bind (effective status)
@@ -266,7 +360,7 @@
          (barrier (%barrier model (list read write)
                             (list (%facts '(:read) :observe)
                                   (%facts '(:cas) :observe))))
-         (context (%context 2)))
+         (context (%context 2 barrier)))
     (multiple-value-bind (observed success status)
         (barrier-compare-exchange barrier context :location :expected :new)
       (%assert (and (eq observed :actual) (null success) (eq status :complete))
@@ -286,7 +380,7 @@
          (barrier (%barrier model (list read write)
                             (list (%facts '(:read) :observe)
                                   (%facts '(:cas) :observe))))
-         (context (%context 2)))
+         (context (%context 2 barrier)))
     (multiple-value-bind (observed success status)
         (barrier-compare-exchange barrier context :location :actual :new)
       (%assert (and (eq observed :actual) success (eq status :complete))
@@ -309,7 +403,7 @@
                                              (list :effective candidate))))
          (barrier (%barrier model (list contribution)
                             (list (%facts '(:root-store) :transform))))
-         (context (%context 1)))
+         (context (%context 1 barrier)))
     (setf (clamsara::host-root-value root) :old-root)
     (multiple-value-bind (effective status)
         ;; ROOT-PROVIDER-STORE reaches this exact internal primitive with
@@ -393,9 +487,17 @@
     t))
 
 (defun run-v14-barrier-contracts ()
-  (test-store-order-and-observe-final)
-  (test-store-retry-and-reverse-cancellation)
-  (test-cas-mismatch-and-success)
-  (test-root-store-primitive-route)
-  (test-root-provider-store-admitted-runtime-context)
-  (values t :complete))
+  ;; Every direct barrier test uses an admitted mutator context.  Always
+  ;; release those contexts, including when a contract assertion fails.
+  (%release-test-contexts)
+  (unwind-protect
+       (progn
+         (test-composition-rejects-missing-methods)
+         (test-invalid-contexts-rejected)
+         (test-store-order-and-observe-final)
+         (test-store-retry-and-reverse-cancellation)
+         (test-cas-mismatch-and-success)
+         (test-root-store-primitive-route)
+         (test-root-provider-store-admitted-runtime-context)
+         (values t :complete))
+    (%release-test-contexts)))

@@ -330,6 +330,27 @@ space/model-consuming group before any component initialization occurs."
       (%reject :configuration-auxiliary-registration-failed nil condition)))
   object)
 
+(defun %register-owner-auxiliary-storage (construction clients nodes)
+  "Charge each explicitly owned retained object once, without graph reflection."
+  (let ((storage-seen (make-hash-table :test #'eq))
+        (*construction-auxiliary-owner-seen* (make-hash-table :test #'eq)))
+    (labels ((register (object)
+               (when (and object (not (gethash object storage-seen)))
+                 (setf (gethash object storage-seen) t)
+                 (%register-configuration-auxiliary construction object)))
+             (map-owner (owner path)
+               (handler-case
+                   (%map-construction-auxiliary-once owner #'register)
+                 (error (condition)
+                   (%reject :auxiliary-storage-enumeration-failed
+                            (list path) condition)))))
+      (map-owner clients '(:clients))
+      (dotimes (index (length nodes))
+        (let ((node (aref nodes index)))
+          (map-owner (%component-node-component node)
+                     (%component-node-path node))))))
+  (values))
+
 (defun %register-builder-tree (construction root)
   "Register every builder-owned retained object and every cons/vector/hash
 backing it.  Component/client/host objects are registered by their owners."
@@ -655,6 +676,12 @@ backing it.  Component/client/host objects are registered by their owners."
                         (%configuration-barrier-bound-p configuration) t)
                   (dolist (group post-binding)
                     (%initialize-group group configuration construction))
+                  ;; Owners enumerate preexisting retained headers/backing
+                  ;; which no acquired component resource already owns.  The
+                  ;; builder registers their exact EQ identities once; it does
+                  ;; not reflect over arbitrary host graphs.
+                  (%register-owner-auxiliary-storage
+                   construction clients nodes)
                   ;; Host manifests include every persistent fixed record/view
                   ;; created during initialization.  Closure may raise the
                   ;; actual capacities; requested auxiliary bytes are minima.

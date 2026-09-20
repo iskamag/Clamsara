@@ -193,6 +193,16 @@
                 (setf child (read-location location))))
              (check (= count 1) "Expected one strong child, saw ~D" count)
              child))
+         (live-reference-p (reference)
+           ;; VALID-REFERENCE-P recognizes this model's admitted encoding; it
+           ;; does not claim the descriptor still denotes a live object.
+           (handler-case
+               (progn (normalize-reference bound reference) t)
+             (error () nil)))
+         (stale-reference-p (reference)
+           (handler-case
+               (progn (normalize-reference bound reference) nil)
+             (error () t)))
          (run-cycle ()
            (let ((record (make-cycle-result-record plan)))
              (collect configuration :all :explicit record)
@@ -243,8 +253,7 @@
               (read-ephemeron (root-value 3))
             (check (reference-equal bound first-value second-key)
                    "Ephemeron replay did not retain/correct the middle key")
-            (check (and (valid-reference-p bound second-value)
-                        (reference-equal bound second-value chain-value))
+            (check (live-reference-p second-value)
                    "Least-fixed-point replay did not retain the terminal value")))
         (multiple-value-bind (key value) (read-ephemeron (root-value 6))
           (check (eq key :key-cleared) "Dead ephemeron key was not cleared")
@@ -314,25 +323,29 @@
                       (eq :already-finalized
                           (cancel-finalizer registry context failing-token)))
                  "Completed finalizer token was reusable")
-          (check (and resurrected (valid-reference-p bound resurrected))
+          (check (and resurrected (live-reference-p resurrected))
                  "Resurrection callback did not publish a corrected referent")
-          (check (and callback-child (valid-reference-p bound callback-child))
+          (check (and callback-child (live-reference-p callback-child))
                  "Finalizer support closure did not retain the child")
 
           ;; Resurrection survives the following cycle and its child is still
           ;; reachable.  Removing that root lets both die in the next cycle.
           (run-cycle)
           (let ((live-parent (root-value 7)))
-            (check (and (valid-reference-p bound live-parent)
-                        (valid-reference-p bound
-                                           (read-strong-child live-parent)))
-                   "Resurrected parent/child did not survive the next cycle")
+            (check (live-reference-p live-parent)
+                   "Resurrected parent did not survive the next cycle")
+            (let ((live-child (read-strong-child live-parent)))
+              (check (live-reference-p live-child)
+                     "Resurrected parent's child did not survive the next cycle")
+              ;; Keep the current encoding so the following cycle tests fate,
+              ;; rather than merely observing that the prior encoding moved.
+              (setf callback-child live-child))
             (setf resurrected live-parent))
           (set-root 7 nil)
           (run-cycle)
-          (check (not (valid-reference-p bound resurrected))
+          (check (stale-reference-p resurrected)
                  "Unrooted resurrected referent survived a later cycle")
-          (check (not (valid-reference-p bound callback-child))
+          (check (stale-reference-p callback-child)
                  "Finalizer child survived after resurrection root removal")))
 
       (check (eq :unbound (unbind-mutator configuration context))

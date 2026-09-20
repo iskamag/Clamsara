@@ -1,8 +1,8 @@
-;;;; Executable v14 SemiSpace lifecycle integration.
-(defpackage #:clamsara.runtime.test
+;;;; Executable v14 MarkSweep lifecycle integration.
+(defpackage #:clamsara.runtime.marksweep.test
   (:use #:cl #:clamsara)
-  (:export #:run-v14-runtime-tests))
-(in-package #:clamsara.runtime.test)
+  (:export #:run-marksweep-runtime-tests))
+(in-package #:clamsara.runtime.marksweep.test)
 
 (defun %check (value format-control &rest arguments)
   (unless value (apply #'error format-control arguments))
@@ -24,12 +24,7 @@
               (car entry) (cdr entry) count known-p)))
   (values))
 
-(defun %runtime-rejection-reason (thunk)
-  (handler-case (progn (funcall thunk) nil)
-    (clamsara::runtime-rejection (condition)
-      (clamsara::runtime-rejection-reason condition))))
-
-(defun run-v14-runtime-tests ()
+(defun run-marksweep-runtime-tests ()
   (let* ((q 16) (extent 1024) (base 4096)
          (roots (clamsara::make-simulator-root-client :provider-capacity 8))
          (application-roots (clamsara::make-simulator-root-provider 1))
@@ -40,7 +35,7 @@
             roots :stop-capacity 16 :await-bound 16))
          (address-space
            (clamsara::make-simulator-address-space
-            :base base :byte-extent (* 2 extent) :alignment q :page-size 256
+            :base base :byte-extent extent :alignment q :page-size 256
             :coordinator coordinator))
          (model (clamsara::make-host-object-model
                  :capacity 256 :slot-capacity 8 :handle-capacity 64
@@ -54,33 +49,23 @@
                    :model model :roots roots :coordinator coordinator
                    :address-space address-space :atomics atomics
                    :diagnostics diagnostics))
-         (domain-0 (clamsara::make-metadata-domain
-                    :base base :limit (+ base extent) :granularity q))
-         (domain-1 (clamsara::make-metadata-domain
-                    :base (+ base extent) :limit (+ base (* 2 extent))
-                    :granularity q))
-         (from (clamsara::make-semispace-space
-                :name :from
-                :object-start-map
-                (clamsara::make-object-start-marks :domain domain-0)
-                :forwarding
-                (clamsara::make-side-forwarding :domain domain-0)
-                :extent extent :packing-quantum q :role :allocation))
-         (to (clamsara::make-semispace-space
-              :name :to
-              :object-start-map
-              (clamsara::make-object-start-marks :domain domain-1)
-              :forwarding
-              (clamsara::make-side-forwarding :domain domain-1)
-              :extent extent :packing-quantum q :role :reserve))
+         (domain
+           (clamsara::make-metadata-domain
+            :base base :limit (+ base extent) :granularity q))
+         (space
+           (clamsara::make-marksweep-space
+            :name :marksweep
+            :object-start-map
+            (clamsara::make-object-start-marks :domain domain)
+            :marks (clamsara::make-side-marks :domain domain)
+            :extent extent :packing-quantum q :descriptor-capacity 64))
          (registry (clamsara::make-sequential-finalizer-registry
                     :capacity 8 :root-client roots))
-         (plan (clamsara::make-semispace-plan
-                :from-space from :to-space to :root-client roots
-                :coordinator coordinator :diagnostics diagnostics
-                :registry registry :trace-capacity 64
-                :conditional-capacity 64 :finalizer-capacity 8
-                :packing-quantum q))
+         (plan (clamsara::make-marksweep-plan
+                :space space :root-client roots :coordinator coordinator
+                :diagnostics diagnostics :registry registry
+                :trace-capacity 64 :conditional-capacity 64
+                :finalizer-capacity 8 :packing-quantum q))
          (configuration (construct-plan plan clients))
          (context (bind-mutator configuration :runtime-test :default))
          (bound (configuration-object-model configuration)))
@@ -130,57 +115,32 @@
              (clamsara::simulator-root-location application-roots 0) a)
           (declare (ignore effective))
           (%check (eq status :stored) "Root store returned ~S" status))
-        ;; No heap-generational collector is implemented.  Reject both its
-        ;; public scope and algorithm before result, plan, stop or roots change.
-        (dolist (case '((:minor :unsupported-scope nil)
-                        (:all :unsupported-algorithm :generational)))
-          (destructuring-bind (scope expected algorithm) case
-            (let ((rejected-record (make-cycle-result-record plan)))
-              (%check
-               (eq expected
-                   (%runtime-rejection-reason
-                    (lambda ()
-                      (if algorithm
-                          (collect configuration scope :explicit rejected-record
-                                   :algorithm algorithm)
-                          (collect configuration scope :explicit
-                                   rejected-record)))))
-               "Unsupported generational entry ~S/~S was admitted"
-               scope algorithm)
-              (%check (and (eq :uninitialized
-                               (cycle-result-status rejected-record))
-                           (eq :open (clamsara::%plan-state plan))
-                           (eq :idle
-                               (clamsara::simulator-stop-state coordinator))
-                           (reference-encoding-equal-p
-                            bound a
-                            (root-provider-load
-                             roots application-token
-                             (clamsara::simulator-root-location
-                              application-roots 0))))
-                      "Unsupported generational entry caused effects"))))
-        (let ((old-a-address (reference-address bound a))
+        (let ((a-address (reference-address bound a))
+              (dead-address (reference-address bound dead))
               (record (make-cycle-result-record plan)))
           (collect configuration :all :explicit record)
           (%check (eq :complete (cycle-result-status record))
                   "Cycle status/reason: ~S/~S"
                   (cycle-result-status record) (cycle-result-reason record))
           (%check-cycle-counts
-           record '((:objects-discovered . 2) (:objects-moved . 2)
-                    (:bytes-moved . 64) (:objects-dead . 1)
+           record '((:objects-discovered . 2) (:objects-moved . 0)
+                    (:bytes-moved . 0) (:objects-dead . 1)
                     (:weak-corrections . 0) (:finalizers-enqueued . 0)))
           (%check (%stale-reference-p bound dead)
-                  "Dead source representation was not retired")
-          (let* ((first-a
+                  "Dead representation was not retired")
+          (let* ((new-a
                    (root-provider-load
                     roots application-token
                     (clamsara::simulator-root-location
                      application-roots 0)))
-                 (first-b (read-slot first-a 0)))
-            (%check (/= old-a-address (reference-address bound first-a))
-                    "Root was not corrected to the other semispace")
-            (%check (reference-equal bound (read-slot first-b 0) first-a)
-                    "First cycle did not preserve sharing")
+                 (new-b (read-slot new-a 0)))
+            (%check (= a-address (reference-address bound new-a))
+                    "MarkSweep changed a live object address")
+            (%check (reference-equal bound (read-slot new-b 0) new-a)
+                    "Two-object cycle did not preserve sharing"))
+          (let ((replacement (allocate-node)))
+            (%check (= dead-address (reference-address bound replacement))
+                    "Reclaimed hole was not reused first")
             (let ((second-record (make-cycle-result-record plan)))
               (collect configuration :all :explicit second-record)
               (%check (eq :complete (cycle-result-status second-record))
@@ -189,22 +149,15 @@
                       (cycle-result-reason second-record))
               (%check-cycle-counts
                second-record
-               '((:objects-discovered . 2) (:objects-moved . 2)
-                 (:bytes-moved . 64) (:objects-dead . 0)
+               '((:objects-discovered . 2) (:objects-moved . 0)
+                 (:bytes-moved . 0) (:objects-dead . 1)
                  (:weak-corrections . 0) (:finalizers-enqueued . 0)))
-              (%check (%stale-reference-p bound first-a)
-                      "First destination representation was not retired")
-              (let* ((second-a
-                       (root-provider-load
-                        roots application-token
-                        (clamsara::simulator-root-location
-                         application-roots 0)))
-                     (second-b (read-slot second-a 0)))
-                (%check (= old-a-address (reference-address bound second-a))
-                        "Repeat cycle did not alternate back to the first space")
-                (%check (reference-equal bound (read-slot second-b 0) second-a)
-                        "Repeat cycle did not preserve sharing")))))))
+              (%check (%stale-reference-p bound replacement)
+                      "Repeat cycle did not retire the replacement")
+              (%check (= dead-address
+                         (reference-address bound (allocate-node)))
+                      "Repeat cycle did not make the same hole reusable"))))))
     (%check (eq :unbound (unbind-mutator configuration context))
             "Mutator did not unbind")
-    (format t "~&V14-SEMISPACE-LIFECYCLE-OK~%")
+    (format t "~&V14-MARKSWEEP-LIFECYCLE-OK~%")
     t))

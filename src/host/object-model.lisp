@@ -1,336 +1,1919 @@
-;;;; src/host/object-model.lisp -- bounded serialized simulator object ABI
+;;;; src/host/object-model.lisp -- dense serialized hosted object ABI.
+;;;;
+;;;; The authoritative object-start metadata owned by the installed layout is
+;;;; the only allocation/liveness map.  This file owns representation storage:
+;;;; one byte arena, one Lisp-word plane, compact per-start descriptor planes,
+;;;; immutable per-cell base encodings, and bounded pools for all other opaque
+;;;; runtime records.
+
 (in-package #:clamsara)
 
-(defstruct (host-slot-description (:constructor make-host-slot-description (&key identity offset))) identity offset)
-(defstruct (host-ephemeron-location-description (:constructor make-host-ephemeron-location-description (&key identity key-offset value-offset))) identity key-offset value-offset)
-(defstruct (host-object-kind-description (:constructor %host-kind (name size-rule alignment-rule strong-layout weak-descriptions ephemeron-descriptions index))) name size-rule alignment-rule strong-layout weak-descriptions ephemeron-descriptions index)
-(defstruct (host-weak-location-description (:constructor %host-weak (identity referent-kind cleared-value offset))) identity referent-kind cleared-value offset)
-(defstruct (host-ephemeron-description (:constructor %host-eph (identity clear-key-p cleared-key cleared-value key-offset value-offset))) identity clear-key-p cleared-key cleared-value key-offset value-offset)
+;;; Construction descriptions ------------------------------------------------
 
-;;; Host references are immutable by protocol discipline and are all allocated
-;;; at binding.  A Lisp INTEGER is never a managed reference.
-(defstruct (host-reference (:constructor %host-ref (model descriptor generation address kind tag displacement))) model descriptor generation address kind tag displacement)
-(defstruct (host-route (:constructor %host-route (parent space map base limit q count descriptors bases generation arena-offset))) parent space map base limit q count descriptors bases generation arena-offset)
-(defstruct (host-descriptor (:constructor %host-desc)) start size alignment kind descriptor generation route cell active)
-(defstruct (host-location (:constructor %host-location)) model descriptor generation word-index identity strength active stage)
-(defstruct (host-handle (:constructor %host-handle)) model active descriptor generation identity strength index stage)
-(defstruct (host-variant (:constructor %host-variant)) active reference descriptor generation kind tag displacement)
-(defstruct (host-stage (:constructor %host-stage)) model active generation source destination size alignment kind descriptor bytes words descriptor-id)
-(defstruct (host-binding (:constructor %host-binding (space map base limit q generation))) space map base limit q generation)
+(defstruct (host-slot-description
+            (:constructor make-host-slot-description (&key identity offset)))
+  identity offset)
+
+(defstruct (host-ephemeron-location-description
+            (:constructor make-host-ephemeron-location-description
+                (&key identity key-offset value-offset)))
+  identity key-offset value-offset)
+
+(defstruct (host-variable-size-rule
+            (:constructor make-host-variable-size-rule
+                (&key (header-bytes 0) (element-bytes 8)
+                      (minimum-elements 0) maximum-elements
+                      (element-kind :reference))))
+  "Private hosted variable-representation rule.
+ELEMENT-KIND is :REFERENCE or :NUMERIC.  The descriptor plane retains the
+actual admitted element count; no per-object layout vector is made."
+  header-bytes element-bytes minimum-elements maximum-elements element-kind)
+
+(defstruct (host-indexed-layout
+            (:constructor make-host-indexed-layout
+                (&key (identity-function #'identity) (identity-base 0)
+                      (base-offset 0) (element-word-bytes 8)
+                      (element-strength :strong))))
+  "Private hosted strong layout for a dense indexed reference payload."
+  identity-function identity-base base-offset element-word-bytes
+  element-strength)
+
+(defstruct (host-object-kind-description
+            (:constructor %make-host-kind
+                (&key name size-rule alignment-rule strong-layout
+                      weak-descriptions ephemeron-descriptions index)))
+  name size-rule alignment-rule strong-layout weak-descriptions
+  ephemeron-descriptions index)
+
+(defstruct (host-weak-location-description
+            (:constructor %make-host-weak
+                (&key identity referent-kind cleared-value offset)))
+  identity referent-kind cleared-value offset)
+
+(defstruct (host-ephemeron-description
+            (:constructor %make-host-ephemeron
+                (&key identity clear-key-p cleared-key cleared-value
+                      key-offset value-offset)))
+  identity clear-key-p cleared-key cleared-value key-offset value-offset)
+
+;;; Bound representation records ---------------------------------------------
+
+(defstruct (host-reference
+            (:constructor %make-host-reference
+                (&key model descriptor address kind (tag 0) (displacement 0))))
+  ;; Once returned or stored, these fields are never changed.  A cell's base
+  ;; encoding has the same address bits across ordinary address reuse, as a
+  ;; native pointer would.  Allocation generation belongs to locations/handles.
+  model descriptor address kind tag displacement)
+
+(defstruct (host-route
+            (:constructor %make-host-route
+                (&key parent space map base limit granularity cell-count
+                      descriptor-offset arena-offset generation)))
+  parent space map base limit granularity cell-count descriptor-offset
+  arena-offset generation)
+
+(defstruct (host-binding
+            (:constructor %make-host-binding
+                (&key model space metadata base limit granularity generation)))
+  model space metadata base limit granularity generation)
+
+(defstruct (host-reference-location
+            (:constructor %make-host-location (&key model)))
+  model descriptor generation word-index identity strength active
+  stage stage-generation)
+
+(defstruct (host-location-handle
+            (:constructor %make-host-handle ()))
+  model active descriptor generation identity strength word-index
+  stage stage-generation)
+
+(defstruct (host-staged-object
+            (:constructor %make-host-stage
+                (&key model bytes words)))
+  model (state :free) (generation 0) source destination size alignment kind
+  descriptor descriptor-index descriptor-generation bytes words)
 
 (defclass host-object-model ()
-  ((profile :initarg :profile :initform :sequential-host :reader host-model-profile)
+  ((profile :initarg :profile :initform :sequential-host
+            :reader host-model-profile)
+   ;; Maximum simultaneously active object representations.  Descriptor
+   ;; addressing itself is per possible start quantum and is independent of it.
    (capacity :initarg :capacity :reader host-model-capacity)
-   (max-object-bytes :initarg :max-object-bytes :reader host-model-max-object-bytes)
-   (variant-capacity :initarg :variant-capacity :reader host-model-variant-capacity)
-   (location-capacity :initarg :location-capacity :reader host-model-location-capacity)
-   (handle-capacity :initarg :handle-capacity :reader host-model-handle-capacity)
-   (stage-capacity :initarg :stage-capacity :reader host-model-stage-capacity)
-   (max-displacement :initarg :max-displacement :reader host-model-max-displacement)
+   (max-object-bytes :initarg :max-object-bytes
+                     :reader host-model-max-object-bytes)
+   (variant-capacity :initarg :variant-capacity
+                     :reader host-model-variant-capacity)
+   (location-capacity :initarg :location-capacity
+                      :reader host-model-location-capacity)
+   (handle-capacity :initarg :handle-capacity
+                    :reader host-model-handle-capacity)
+   (stage-capacity :initarg :stage-capacity
+                   :reader host-model-stage-capacity)
+   (max-interior-displacement :initarg :max-interior-displacement
+                              :reader host-model-max-interior-displacement)
    (tag-capacity :initarg :tag-capacity :reader host-model-tag-capacity)
    (kind-capacity :initarg :kind-capacity :reader host-model-kind-capacity)
    (slot-capacity :initarg :slot-capacity :reader host-model-slot-capacity)
-   (kinds :initarg :kinds :reader host-model-kinds) (kind-count :initform 0 :accessor host-model-kind-count)
-   (layout :initarg :layout :initform nil :accessor host-model-layout)
-   (bindings :initarg :bindings :initform #() :accessor host-model-bindings)
+   (kinds :initarg :kinds :reader host-model-kinds)
+   (kind-count :initarg :kind-count :initform 0
+               :accessor host-model-kind-count)
+   (layout :initarg :layout :initform nil :reader host-model-layout)
+   (bindings :initarg :bindings :initform #() :reader host-model-bindings)
    (routes :initarg :routes :initform #() :accessor host-model-routes)
-   (arena :initarg :arena :initform nil :accessor host-model-arena)
-   (words :initarg :words :initform nil :accessor host-model-words)
-   (descriptors :initarg :descriptors :initform nil :accessor host-model-descriptors)
-   (variants :initarg :variants :initform nil :accessor host-model-variants)
-   (handles :initarg :handles :initform nil :accessor host-model-handles)
-   (locations :initarg :locations :initform nil :accessor host-model-locations)
-   (stages :initarg :stages :initform nil :accessor host-model-stages)
-   (next-descriptor :initform 0 :accessor host-model-next-descriptor)
-   (next-variant :initform 0 :accessor host-model-next-variant)
+   ;; Dense payload planes.
+   (arena :initarg :arena :initform nil :reader host-model-arena)
+   (words :initarg :words :initform nil :reader host-model-words)
+   ;; Parallel per-possible-start descriptor planes.  SIZE=0 is inactive.
+   (sizes :initarg :sizes :initform nil :reader host-model-sizes)
+   (alignments :initarg :alignments :initform nil
+               :reader host-model-alignments)
+   (descriptor-kinds :initarg :descriptor-kinds :initform nil
+                     :reader host-model-descriptor-kinds)
+   (descriptor-generations :initarg :descriptor-generations :initform nil
+                           :reader host-model-descriptor-generations)
+   (descriptor-counts :initarg :descriptor-counts :initform nil
+                      :reader host-model-descriptor-counts)
+   (base-references :initarg :base-references :initform nil
+                    :reader host-model-base-references)
+   (live-count :initform 0 :accessor host-model-live-count)
+   ;; Sparse, actual-use non-base reference encodings and fixed lookup table.
+   (variants :initarg :variants :initform nil :reader host-model-variants)
+   (variant-count :initform 0 :accessor host-model-variant-count)
+   (variant-hash-descriptors :initarg :variant-hash-descriptors :initform nil
+                             :reader host-model-variant-hash-descriptors)
+   (variant-hash-codes :initarg :variant-hash-codes :initform nil
+                       :reader host-model-variant-hash-codes)
+   (variant-hash-indices :initarg :variant-hash-indices :initform nil
+                         :reader host-model-variant-hash-indices)
+   ;; Bounded borrowed/runtime pools.
+   (locations :initarg :locations :initform nil :reader host-model-locations)
+   (handles :initarg :handles :initform nil :reader host-model-handles)
+   (handle-count :initform 0 :accessor host-model-handle-count)
+   (stages :initarg :stages :initform nil :reader host-model-stages)
    (bound-p :initarg :bound-p :initform nil :reader host-model-bound-p)))
+
 (defclass host-bound-object-model (host-object-model) ())
 
-(defun make-host-object-model (&key (capacity 65536) (max-object-bytes 65536)
-  (variant-capacity 1024) (location-capacity 8) (handle-capacity 1024)
-  (stage-capacity 4) (max-displacement 64) (tag-capacity 8)
-  (kind-capacity 64) (slot-capacity 64) (profile :sequential-host))
-  (unless (member profile '(:sequential-host :sequential) :test #'eq) (error "Unsupported profile"))
-  (unless (every (lambda (x) (and (integerp x) (plusp x)))
-                (list capacity max-object-bytes variant-capacity location-capacity handle-capacity
-                      stage-capacity (1+ max-displacement) (1+ tag-capacity) kind-capacity slot-capacity))
-    (error "Invalid model capacity"))
-  (make-instance 'host-object-model :profile profile :capacity capacity
-    :max-object-bytes max-object-bytes :variant-capacity variant-capacity
-    :location-capacity location-capacity :handle-capacity handle-capacity
-    :stage-capacity stage-capacity :max-displacement max-displacement
-    :tag-capacity tag-capacity :kind-capacity kind-capacity :slot-capacity slot-capacity
-    :kinds (make-array kind-capacity)))
-(defun %hm (m) (unless (typep m 'host-object-model) (error "Foreign host model")) m)
-(defun %bm (m) (%hm m) (unless (host-model-bound-p m) (error "Model is not bound")) m)
-(defun %copyv (v) (let ((x (make-array (length v)))) (replace x v) x))
-(defun %rulev (r arg label) (let ((x (if (functionp r) (funcall r arg) r))) (unless (and (integerp x) (plusp x)) (error "Invalid ~A" label)) x))
-(defun %p2 (n) (and (integerp n) (plusp n) (zerop (logand n (1- n)))))
-(defun %slot (x default)
-  (cond ((typep x 'host-slot-description) (values (host-slot-description-identity x) (host-slot-description-offset x)))
-        ((and (consp x) (keywordp (car x))) (values (getf x :identity x) (getf x :offset default)))
-        ((integerp x) (values x x)) (t (values x default))))
-(defun %kind (m x) (or (and (typep x 'host-object-kind-description) x)
-  (loop for i below (host-model-kind-count m) for k = (aref (host-model-kinds m) i)
-        when (equal x (host-object-kind-description-name k)) do (return k))))
-(defun %kind! (m x) (or (%kind m x) (error "Unknown kind ~S" x)))
+(defun make-host-object-model
+    (&key (capacity 65536) (max-object-bytes 65536)
+       (variant-capacity 1024) (location-capacity 8)
+       (handle-capacity 1024) (stage-capacity 4)
+       (max-interior-displacement 64) max-displacement
+       (tag-capacity 8) (kind-capacity 64) (slot-capacity 64)
+       (profile :sequential-host))
+  "Make the construction-time hosted model offer.
+MAX-DISPLACEMENT is accepted only as a compatibility alias; the established
+caller ABI is MAX-INTERIOR-DISPLACEMENT."
+  (let ((maximum-displacement
+          (if max-displacement max-displacement max-interior-displacement)))
+    (unless (member profile '(:sequential-host :sequential) :test #'eq)
+      (error "Unsupported hosted object-model profile ~S" profile))
+    (unless (and (every (lambda (value)
+                          (and (integerp value) (plusp value)))
+                        (list capacity max-object-bytes variant-capacity
+                              location-capacity handle-capacity stage-capacity
+                              kind-capacity slot-capacity))
+                 (integerp maximum-displacement)
+                 (<= 0 maximum-displacement)
+                 (integerp tag-capacity) (<= 0 tag-capacity))
+      (error "Invalid hosted object-model capacity"))
+    (make-instance 'host-object-model
+      :profile profile :capacity capacity :max-object-bytes max-object-bytes
+      :variant-capacity variant-capacity
+      :location-capacity location-capacity
+      :handle-capacity handle-capacity :stage-capacity stage-capacity
+      :max-interior-displacement maximum-displacement
+      :tag-capacity tag-capacity :kind-capacity kind-capacity
+      :slot-capacity slot-capacity :kinds (make-array kind-capacity))))
 
-(defmethod make-object-kind-description ((m host-object-model) name &key size-rule alignment-rule strong-layout weak-descriptions ephemeron-descriptions)
-  (%hm m)
-  (when (or (null name) (%kind m name)) (error "Duplicate/empty object kind"))
-  (let ((s (coerce (or strong-layout '()) 'vector)) (w (coerce (or weak-descriptions '()) 'vector)) (e (coerce (or ephemeron-descriptions '()) 'vector)))
-    (when (> (+ (length s) (length w) (* 2 (length e))) (host-model-slot-capacity m)) (error "Kind slot bound exceeded"))
-    (loop for i below (length s) do (multiple-value-bind (id off) (%slot (aref s i) (* i 8))
-      (unless (and id (integerp off) (<= 0 off) (zerop (mod off 8))) (error "Invalid strong slot"))))
-    (when (>= (host-model-kind-count m) (host-model-kind-capacity m)) (error "Kind capacity exhausted"))
-    (let ((d (%host-kind name size-rule alignment-rule (%copyv s) (%copyv w) (%copyv e) (host-model-kind-count m))))
-      (setf (aref (host-model-kinds m) (host-model-kind-count m)) d) (incf (host-model-kind-count m)) d)))
-(defmethod describe-object-kind ((m host-object-model) d)
-  (%hm m) (unless (typep d 'host-object-kind-description) (error "Foreign kind"))
-  (values (host-object-kind-description-name d) (host-object-kind-description-size-rule d)
-          (host-object-kind-description-alignment-rule d) (host-object-kind-description-strong-layout d)
-          (host-object-kind-description-weak-descriptions d) (host-object-kind-description-ephemeron-descriptions d)))
-(defmethod make-weak-location-description ((m host-object-model) identity referent-kind cleared-value)
-  (%hm m) (when (valid-reference-p m cleared-value) (error "Weak clear value is a reference"))
-  (multiple-value-bind (id off) (%slot identity 0) (%host-weak id referent-kind cleared-value off)))
-(defmethod describe-weak-location ((m host-object-model) d)
-  (%hm m) (unless (typep d 'host-weak-location-description) (error "Foreign weak descriptor"))
-  (values (host-weak-location-description-identity d) (host-weak-location-description-referent-kind d) (host-weak-location-description-cleared-value d)))
-(defmethod make-ephemeron-description ((m host-object-model) identity clear-key-p cleared-key cleared-value)
-  (%hm m) (when (or (valid-reference-p m cleared-key) (valid-reference-p m cleared-value)) (error "Ephemeron clear value is a reference"))
-  (if (typep identity 'host-ephemeron-location-description)
-      (%host-eph (host-ephemeron-location-description-identity identity) (not (null clear-key-p)) cleared-key cleared-value
-                 (host-ephemeron-location-description-key-offset identity) (host-ephemeron-location-description-value-offset identity))
-      (%host-eph identity (not (null clear-key-p)) cleared-key cleared-value 0 8)))
-(defmethod describe-ephemeron ((m host-object-model) d)
-  (%hm m) (unless (typep d 'host-ephemeron-description) (error "Foreign ephemeron"))
-  (values (host-ephemeron-description-identity d) (host-ephemeron-description-clear-key-p d)
-          (host-ephemeron-description-cleared-key d) (host-ephemeron-description-cleared-value d)))
+(defun %host-model (model)
+  (unless (typep model 'host-object-model)
+    (error "Not a hosted object model"))
+  model)
 
-;;; Parent construction owns the installed-layout class/range records.
-(defun %fn (name) (let ((s (find-symbol name :clamsara))) (and s (fboundp s) (symbol-function s))))
-(defun %rf (r suffix) (let ((f (%fn (format nil "%SIMULATOR-LAYOUT-RANGE-~A" suffix)))) (unless f (error "Missing layout range accessor")) (funcall f r)))
-(defun %ranges (layout) (let ((f (%fn "SIMULATOR-LAYOUT-RANGES"))) (unless f (error "Missing installed-layout ranges")) (coerce (funcall f layout) 'vector)))
-(defun %map-bounds (map) (multiple-value-bind (b l q) (metadata-bounds map) (values b l q)))
-(defmethod make-object-start-binding ((m host-object-model) space metadata)
-  (%hm m) (multiple-value-bind (b l q) (%map-bounds metadata)
-    (unless (and (integerp b) (integerp l) (<= b l) (plusp q)) (error "Invalid object-start map geometry"))
-    (%host-binding space metadata b l q 0)))
-(defmethod describe-object-start-binding ((m host-object-model) b)
-  (%hm m) (unless (typep b 'host-binding) (error "Foreign binding")) (values (host-binding-space b) (host-binding-map b)))
-(defun %route-for-binding (ranges b)
-  (loop for r across ranges when (and (eq (host-binding-space b) (%rf r "SPACE")) (eq (host-binding-map b) (%rf r "MAP"))) do (return r)))
+(defun %host-bound-model (model)
+  (%host-model model)
+  (unless (host-model-bound-p model)
+    (error "Object-model operation requires a bound model"))
+  model)
 
-(defmethod bind-object-model ((m host-object-model) layout object-start-bindings)
-  (%hm m)
-  (let ((ic (find-class 'simulator-installed-layout nil))) (unless (and ic (typep layout ic)) (error "Not installed layout")))
-  (let* ((rr (%ranges layout)) (bs (coerce object-start-bindings 'vector)))
-    (unless (= (length rr) (length bs)) (error "Binding coverage mismatch"))
-    (loop for b across bs unless (%route-for-binding rr b) do (error "Foreign binding"))
-    (let* ((total (loop for r across rr sum (- (%rf r "LIMIT") (%rf r "BASE"))))
-           (arena (make-array total :element-type '(unsigned-byte 8) :initial-element 0))
-           (words (make-array (ceiling total 8) :initial-element nil))
-           (descs (make-array (loop for z across rr sum (ceiling (- (%rf z "LIMIT") (%rf z "BASE")) (nth-value 2 (%map-bounds (%rf z "MAP")))))))
-           (variants (make-array (host-model-variant-capacity m)))
-           (handles (make-array (host-model-handle-capacity m)))
-           (locs (make-array (host-model-location-capacity m)))
-           (stages (make-array (host-model-stage-capacity m)))
-           (bound (make-instance 'host-bound-object-model :profile (host-model-profile m)
-             :capacity (host-model-capacity m) :max-object-bytes (host-model-max-object-bytes m)
-             :variant-capacity (host-model-variant-capacity m) :location-capacity (host-model-location-capacity m)
-             :handle-capacity (host-model-handle-capacity m) :stage-capacity (host-model-stage-capacity m)
-             :max-displacement (host-model-max-displacement m) :tag-capacity (host-model-tag-capacity m)
-             :kind-capacity (host-model-kind-capacity m) :slot-capacity (host-model-slot-capacity m)
-             :kinds (host-model-kinds m) :layout layout :bindings bs :arena arena :words words
-             :descriptors descs :variants variants :handles handles :locations locs :stages stages :bound-p t)))
-      (dotimes (i (length descs)) (setf (aref descs i) (%host-desc)))
-      (dotimes (i (length variants)) (setf (aref variants i) (%host-variant)))
-      (dotimes (i (length handles)) (setf (aref handles i) (%host-handle)))
-      (dotimes (i (length locs)) (setf (aref locs i) (%host-location :model bound)))
-      (dotimes (i (length stages))
-        (let ((s (%host-stage :model bound :bytes (make-array (host-model-max-object-bytes bound) :element-type '(unsigned-byte 8) :initial-element 0)
-                              :words (make-array (ceiling (host-model-max-object-bytes bound) 8) :initial-element nil))))
-          (setf (aref stages i) s)))
-      (let ((routes (make-array (length rr))) (base-off 0))
-        (loop with arena-off = 0 for i below (length rr) for parent = (aref rr i)
-              for b = (%rf parent "BASE") for l = (%rf parent "LIMIT")
-              for q = (multiple-value-bind (mb ml mq) (%map-bounds (%rf parent "MAP")) (declare (ignore mb ml)) mq)
-              for n = (ceiling (- l b) q) for dvec = (make-array n)
-              for bases = (make-array n)
-              do (dotimes (c n)
-                   (setf (aref dvec c) (aref descs base-off)
-                         (aref bases c) (%host-ref bound base-off 0 (+ b (* c q)) :base nil 0)
-                         base-off (1+ base-off)))
-                 (setf (aref routes i)
-                       (%host-route parent (%rf parent "SPACE") (%rf parent "MAP") b l q n dvec bases (%rf parent "GENERATION") arena-off))
-                 (incf arena-off (- l b))))
-        (setf (host-model-routes bound) routes))
-      bound)))
+(defun %host-copy-vector (vector)
+  (let ((copy (make-array (length vector))))
+    (replace copy vector)
+    copy))
 
-(defun %route-at (m address)
-  (loop for route across (host-model-routes m) when (and (<= (host-route-base route) address) (< address (host-route-limit route))) do (return route)))
-(defun %route-live (m route)
-  (let ((rs (%ranges (host-model-layout m))))
-    (loop for r across rs when (and (= (%rf r "BASE") (host-route-base route)) (= (%rf r "LIMIT") (host-route-limit route))) do
-      (setf (host-route-space route) (%rf r "SPACE") (host-route-map route) (%rf r "MAP") (host-route-generation route) (%rf r "GENERATION")) (return route))))
-(defun %binding-at (m address)
-  (let ((r (%route-live m (%route-at m address))))
-    (and r (loop for b across (host-model-bindings m) when (and (eq (host-binding-space b) (host-route-space r)) (eq (host-binding-map b) (host-route-map r))) do (return b)))))
-(defun %map-canonical (m b address)
-  (multiple-value-bind (base limit q) (%map-bounds (host-binding-map b))
-    (declare (ignore limit))
-    (loop for x from (+ base (* (floor (- address base) q) q)) downto base by q
-          when (let ((v (metadata-ref (host-binding-map b) x))) (or (eql v 1) (eql v t) (eql v x))) do (return x))))
-(defun %cell (route address) (floor (- address (host-route-base route)) (host-route-q route)))
-(defun %desc-at (m address)
-  (let* ((r (%route-at m address)) (i (and r (%cell r address)))) (and r i (aref (host-route-descriptors r) i))))
-(defun %word-index (m address)
-  (let ((r (%route-at m address)))
-    (unless r (error "Address outside installed arena"))
-    (floor (+ (host-route-arena-offset r)
-              (- address (host-route-base r))) 8)))
-(defun simulator-reference-address (ref) (and (typep ref 'host-reference) (host-reference-address ref)))
-(defun %simulator-model-layout (m) (and (typep m 'host-bound-object-model) (host-model-layout m)))
+(defun %host-positive-rule-value (rule argument label)
+  (let ((value (if (functionp rule) (funcall rule argument) rule)))
+    (unless (and (integerp value) (plusp value))
+      (error "Invalid ~A rule value ~S" label value))
+    value))
 
-(defmethod valid-reference-p ((m host-object-model) v) (and (typep v 'host-reference) (eq m (host-reference-model v))))
-(defun %ref-address (m v) (unless (valid-reference-p m v) (error "Immediate/foreign reference")) (host-reference-address v))
-(defun %direct-descriptor (m ref)
-  (let ((d (and (valid-reference-p m ref) (host-reference-descriptor ref))))
-    (and d (< d (length (host-model-descriptors m))) (aref (host-model-descriptors m) d))))
-(defmethod normalize-reference ((m host-object-model) ref)
-  (%bm m) (let* ((a (%ref-address m ref)) (b (%binding-at m a)) (s (and b (%map-canonical m b a)))
-                       (d (and s (%direct-descriptor m (%base-ref-at m s)))))
-    (unless (and d (host-descriptor-active d) (= (host-descriptor-start d) s)
-                 (< a (+ s (host-descriptor-size d)))) (error "Stale/non-object reference"))
-    (values (%base-ref-at m s)
-            (case (host-reference-kind ref)
-              (:base 0) (:interior (+ #x10000000 (- a s)))
-              (:tagged-base (+ #x20000000 (host-reference-tag ref)))
-              (:tagged-interior (+ #x30000000 (ash (host-reference-tag ref) 20) (- a s)))))))
-(defun %base-ref-at (m address)
-  (let* ((r (%route-at m address)) (i (and r (zerop (mod (- address (host-route-base r)) (host-route-q r))) (%cell r address))))
-    (and r i (aref (host-route-bases r) i))))
-(defun %descriptor-code (d)
-  (cond ((eql d 0) (values :base 0 0)) ((and (<= #x10000000 d) (< d #x20000000)) (values :interior 0 (- d #x10000000)))
-        ((and (<= #x20000000 d) (< d #x30000000)) (values :tagged-base (logand d #xffff) 0))
-        ((and (<= #x30000000 d) (< d #x40000000)) (let ((x (- d #x30000000))) (values :tagged-interior (ldb (byte 12 20) x) (logand x (1- (ash 1 20))))))
-        (t (error "Malformed descriptor"))))
-(defun %variant-find (m descriptor generation kind tag disp)
-  (loop for v across (host-model-variants m) when (and (host-variant-active v) (= descriptor (host-variant-descriptor v)) (= generation (host-variant-generation v)) (eq kind (host-variant-kind v)) (= tag (host-variant-tag v)) (= disp (host-variant-displacement v))) do (return (host-variant-reference v))))
-(defmethod rebuild-reference ((m host-object-model) new-start descriptor)
-  (%bm m) (unless (valid-reference-p m new-start) (error "Foreign destination"))
-  (let ((base (%base-ref-at m (host-reference-address new-start))))
-    (unless base (error "Destination is not an admitted base encoding"))
-    (multiple-value-bind (kind tag disp) (%descriptor-code descriptor)
-      (if (eq kind :base) base
-          (let* ((d (%direct-descriptor m base)) (gen (and d (host-descriptor-generation d)))
-                 (old (%variant-find m (host-reference-model base) gen kind tag disp)))
-            (or old (let ((i (loop for j below (length (host-model-variants m)) when (not (host-variant-active (aref (host-model-variants m) j))) do (return j))))
-                    (unless i (error "Reference encoding capacity exhausted"))
-                    (let ((v (aref (host-model-variants m) i))
-                          (r (%host-ref m (host-reference-descriptor base) gen
-                                        (+ (host-reference-address base) disp)
-                                        kind tag disp)))
-                      (setf (host-variant-active v) t (host-variant-reference v) r (host-variant-descriptor v) (host-reference-descriptor base)
-                            (host-variant-generation v) gen (host-variant-kind v) kind (host-variant-tag v) tag (host-variant-displacement v) disp) r))))))))
-(defmethod reference-address ((m host-object-model) start) (host-reference-address (multiple-value-bind (x d) (normalize-reference m start) (declare (ignore d)) x)))
-(defmethod object-size ((m host-object-model) start) (host-descriptor-size (%direct-descriptor m (multiple-value-bind (x d) (normalize-reference m start) (declare (ignore d)) x))))
-(defmethod object-alignment ((m host-object-model) start) (host-descriptor-alignment (%direct-descriptor m (multiple-value-bind (x d) (normalize-reference m start) (declare (ignore d)) x))))
-(defmethod object-kind ((m host-object-model) start) (host-descriptor-kind (%direct-descriptor m (multiple-value-bind (x d) (normalize-reference m start) (declare (ignore d)) x))))
-(defmethod object-kind-descriptor ((m host-object-model) kind) (%kind! m kind))
-(defmethod reference-encoding-equal-p ((m host-object-model) a b) (%hm m) (eq a b))
-(defmethod reference-equal ((m host-object-model) a b) (cond ((and (not (valid-reference-p m a)) (not (valid-reference-p m b))) (eql a b)) ((or (not (valid-reference-p m a)) (not (valid-reference-p m b))) nil) (t (multiple-value-bind (x d) (normalize-reference m a) (declare (ignore d)) (multiple-value-bind (y e) (normalize-reference m b) (declare (ignore e)) (eq x y))))))
+(defun %host-positive-power-of-two-p (value)
+  (and (integerp value) (plusp value)
+       (zerop (logand value (1- value)))))
 
-(defun %init-desc (m address kind size descriptor)
-  (let* ((r (%route-at m address)) (cell (and r (%cell r address))) (d (and r (aref (host-route-descriptors r) cell))))
-    (unless (and r d (= (host-descriptor-start d) 0) (<= (+ address size) (host-route-limit r))) (error "Descriptor cell unavailable"))
-    (let ((gen (1+ (host-descriptor-generation d)))) (when (= gen most-positive-fixnum) (error "Generation exhausted"))
-      (setf (host-descriptor-start d) address (host-descriptor-size d) size
-            (host-descriptor-alignment d) (%rulev (host-object-kind-description-alignment-rule kind) kind "alignment")
-            (host-descriptor-kind d) kind (host-descriptor-descriptor d) descriptor (host-descriptor-generation d) gen
-            (host-descriptor-route d) r (host-descriptor-cell d) cell (host-descriptor-active d) t)
-      (%base-ref-at m address))))
-(defun %descriptor-index (m d) (position d (host-model-descriptors m) :test #'eq))
-(defmethod initialize-object ((m host-object-model) address kind size descriptor)
-  (%bm m) (let* ((k (%kind! m kind)) (sz (%rulev (host-object-kind-description-size-rule k) k "size")) (al (%rulev (host-object-kind-description-alignment-rule k) k "alignment")))
-    (unless (and (= size sz) (%p2 al) (zerop (mod address al)) (<= size (host-model-max-object-bytes m)) (eq descriptor k)) (error "Invalid initialization"))
-    (let ((ref (%init-desc m address k size descriptor)))
-      (let ((start (%word-index m address)) (end (+ start (ceiling size 8))))
-        (loop for i from start below end do (setf (aref (host-model-words m) i) nil)))
-      (loop for d across (host-object-kind-description-weak-descriptions k) do (setf (aref (host-model-words m) (+ (%word-index m address) (floor (host-weak-location-description-offset d) 8))) (host-weak-location-description-cleared-value d)))
-      (loop for d across (host-object-kind-description-ephemeron-descriptions k) do (setf (aref (host-model-words m) (+ (%word-index m address) (floor (host-ephemeron-description-key-offset d) 8))) (host-ephemeron-description-cleared-key d) (aref (host-model-words m) (+ (%word-index m address) (floor (host-ephemeron-description-value-offset d) 8))) (host-ephemeron-description-cleared-value d)))
-      ref)))
-(defun %byte-index (m address) (%word-index m address))
-(defmethod copy-object-representation ((m host-object-model) source destination)
-  (%bm m) (let* ((s (host-reference-address (multiple-value-bind (x d) (normalize-reference m source) (declare (ignore d)) x))) (sd (%direct-descriptor m (%base-ref-at m s))) (daddr (if (valid-reference-p m destination) (host-reference-address destination) destination)) (dd (%desc-at m daddr)))
-    (unless (and sd dd (not (host-descriptor-active dd)) (eq (host-descriptor-kind sd) (host-descriptor-kind dd))) (error "Invalid copy destination"))
-    (dotimes (i (ceiling (host-descriptor-size sd) 8)) (setf (aref (host-model-words m) (+ (%word-index m daddr) i)) (aref (host-model-words m) (+ (%word-index m s) i))))
-    (dotimes (i (host-descriptor-size sd)) (setf (aref (host-model-arena m) (+ (%word-index m daddr) (* i 8))) (aref (host-model-arena m) (+ (%word-index m s) (* i 8))))) destination))
+(defun %host-slot-parts (value default-offset)
+  (cond ((typep value 'host-slot-description)
+         (values (host-slot-description-identity value)
+                 (host-slot-description-offset value)))
+        ((and (consp value) (keywordp (car value)))
+         (values (getf value :identity)
+                 (getf value :offset default-offset)))
+        (t (values value default-offset))))
 
-(defun %borrow (m d generation word identity strength &optional stage)
-  (let ((l (loop for x across (host-model-locations m) when (not (host-location-active x)) do (return x))))
-    (unless l (error "Borrowed location capacity exhausted"))
-    (setf (host-location-model l) m (host-location-descriptor l) d (host-location-generation l) generation (host-location-word-index l) word (host-location-identity l) identity (host-location-strength l) strength (host-location-stage l) stage (host-location-active l) t) l))
-(defun %release (l) (setf (host-location-active l) nil))
-(defun %loc-valid (m l) (unless (and (typep l 'host-location) (eq m (host-location-model l)) (host-location-active l)) (error "Invalid/stale location")) l)
-(defun %loc-value (l) (aref (host-model-words (host-location-model l)) (host-location-word-index l)))
-(defmethod load-reference ((m host-object-model) location &optional (order :relaxed)) (declare (ignore order)) (%loc-value (%loc-valid m location)))
-(defmethod store-reference-raw ((m host-object-model) location value &optional (order :relaxed)) (declare (ignore order)) (setf (aref (host-model-words m) (host-location-word-index (%loc-valid m location))) value))
-(defmethod cas-reference-raw ((m host-object-model) location old new order) (declare (ignore order)) (let* ((l (%loc-valid m location)) (x (%loc-value l))) (if (eq x old) (progn (setf (aref (host-model-words m) (host-location-word-index l)) new) (values x t)) (values x nil))))
+(defun %host-normalize-strong-layout (layout)
+  (cond ((typep layout 'host-indexed-layout)
+         (let ((word-bytes (host-indexed-layout-element-word-bytes layout))
+               (offset (host-indexed-layout-base-offset layout))
+               (identity-function
+                 (host-indexed-layout-identity-function layout))
+               (strength (host-indexed-layout-element-strength layout)))
+           (unless (and (eql word-bytes 8) (integerp offset) (<= 0 offset)
+                        (zerop (mod offset 8)) (functionp identity-function)
+                        (eq strength :strong))
+             (error "Invalid hosted indexed reference layout"))
+           (copy-host-indexed-layout layout)))
+        ;; A deliberately narrow literal spelling is accepted for setup code
+        ;; that cannot conveniently retain the private structure constructor.
+        ((and (consp layout) (eq (car layout) :indexed))
+         (make-host-indexed-layout
+          :identity-function (or (getf (cdr layout) :identity-function)
+                                 #'identity)
+          :identity-base (or (getf (cdr layout) :identity-base) 0)
+          :base-offset (or (getf (cdr layout) :base-offset) 0)
+          :element-word-bytes (or (getf (cdr layout) :element-word)
+                                  (getf (cdr layout) :element-word-bytes)
+                                  8)
+          :element-strength (or (getf (cdr layout) :element-strength)
+                                :strong)))
+        (t
+         (let* ((source (coerce (or layout '()) 'vector))
+                (answer (make-array (length source))))
+           (dotimes (index (length source) answer)
+             (multiple-value-bind (identity offset)
+                 (%host-slot-parts (aref source index) (* index 8))
+               (unless (and identity (integerp offset) (<= 0 offset)
+                            (zerop (mod offset 8)))
+                 (error "Invalid strong location description"))
+               (setf (aref answer index)
+                     (make-host-slot-description
+                      :identity identity :offset offset))))))))
 
-(defun %map-kind-locations (m start fn which)
-  (%bm m) (let* ((base (multiple-value-bind (x d) (normalize-reference m start) (declare (ignore d)) x)) (a (host-reference-address base)) (desc (%direct-descriptor m base)) (k (host-descriptor-kind desc)) (vec (ecase which (:strong (host-object-kind-description-strong-layout k)) (:weak (host-object-kind-description-weak-descriptions k)) (:eph (host-object-kind-description-ephemeron-descriptions k)))) (gen (host-descriptor-generation desc)))
-    (loop for i below (length vec) do (multiple-value-bind (id off) (%slot (aref vec i) (* i 8)) (let ((l (%borrow m (%descriptor-index m desc) gen (+ (%word-index m a) (floor off 8)) id which))) (unwind-protect (ecase which (:strong (funcall fn id l)) (:weak (funcall fn id l (host-weak-location-description-cleared-value (aref vec i)))) (:eph nil)) (%release l)))))) nil)
-(defmethod map-reference-locations ((m host-object-model) s f) (%map-kind-locations m s f :strong))
-(defmethod map-weak-descriptors ((m host-object-model) s f) (%map-kind-locations m s f :weak))
-(defmethod map-ephemeron-descriptors ((m host-object-model) s f) (%bm m) (let* ((base (multiple-value-bind (x d) (normalize-reference m s) (declare (ignore d)) x)) (a (host-reference-address base)) (desc (%direct-descriptor m base)) (gen (host-descriptor-generation desc)) (k (host-descriptor-kind desc)) (vec (host-object-kind-description-ephemeron-descriptions k))) (loop for i below (length vec) for x = (aref vec i) do (let ((l1 (%borrow m (%descriptor-index m desc) gen (+ (%word-index m a) (floor (host-ephemeron-description-key-offset x) 8)) (host-ephemeron-description-identity x) :key)) (l2 (%borrow m (%descriptor-index m desc) gen (+ (%word-index m a) (floor (host-ephemeron-description-value-offset x) 8)) (host-ephemeron-description-identity x) :value))) (unwind-protect (funcall f (host-ephemeron-description-identity x) l1 l2 (host-ephemeron-description-clear-key-p x) (host-ephemeron-description-cleared-key x) (host-ephemeron-description-cleared-value x)) (%release l2) (%release l1)))) nil)
+(defun %host-kind-description (model designator)
+  (or (and (typep designator 'host-object-kind-description)
+           (loop for index below (host-model-kind-count model)
+                 when (eq designator (aref (host-model-kinds model) index))
+                   do (return designator)))
+      (loop for index below (host-model-kind-count model)
+            for description = (aref (host-model-kinds model) index)
+            when (equal designator
+                        (host-object-kind-description-name description))
+              do (return description))))
 
-(defun host-retire-object (m start) (%bm m) (let* ((base (multiple-value-bind (x d) (normalize-reference m start) (declare (ignore d)) x)) (a (host-reference-address base)) (r (%route-at m a)) (d (%direct-descriptor m base))) (when (or (null d) (host-descriptor-active d)) (setf (host-descriptor-active d) nil (host-descriptor-start d) 0)) nil))
-(defmethod object-size ((m host-object-model) s) (host-descriptor-size (%direct-descriptor m (multiple-value-bind (x d) (normalize-reference m s) (declare (ignore d)) x))))
-(defmethod object-alignment ((m host-object-model) s) (host-descriptor-alignment (%direct-descriptor m (multiple-value-bind (x d) (normalize-reference m s) (declare (ignore d)) x))))
-(defmethod object-kind ((m host-object-model) s) (host-descriptor-kind (%direct-descriptor m (multiple-value-bind (x d) (normalize-reference m s) (declare (ignore d)) x))))
-(defmethod object-kind-descriptor ((m host-object-model) k) (%kind! m k))
+(defun %host-kind-description! (model designator)
+  (or (%host-kind-description model designator)
+      (error "Unknown/foreign object kind ~S" designator)))
 
-(defun host-object-payload-read (m s off) (aref (host-model-arena m) (+ (%word-index m (reference-address m s)) off)))
-(defun host-object-payload-write (m s off v) (setf (aref (host-model-arena m) (+ (%word-index m (reference-address m s)) off)) v))
-(defun %call-with-simulator-array-element (m s index f) (%bm m) (let* ((base (multiple-value-bind (x d) (normalize-reference m s) (declare (ignore d)) x)) (desc (%direct-descriptor m base))) (unless (and (integerp index) (<= 0 index) (< (* index 8) (host-descriptor-size desc))) (return-from %call-with-simulator-array-element :stale)) (let ((l (%borrow m (%descriptor-index m desc) (host-descriptor-generation desc) (+ (%word-index m (host-reference-address base)) index) index :numeric))) (unwind-protect (progn (funcall f l) :present) (%release l)))))
+(defun %host-check-kind-key-unique (seen strength identity)
+  (unless identity (error "NIL object location identity"))
+  (let ((key (cons strength identity)))
+    ;; Construction only.  EQL is the normative identity relation.
+    (when (find key seen :test
+                (lambda (left right)
+                  (and (eq (car left) (car right))
+                       (eql (cdr left) (cdr right)))))
+      (error "Duplicate object location identity ~S/~S" strength identity))
+    (push key seen)))
 
-;;; Construction-time staged copies use fixed buffers; mappers borrow locations.
-(defmethod copy-object-to-staging ((m host-object-model) source address cap) (%bm m) (let ((s (loop for x across (host-model-stages m) when (not (host-stage-active x)) do (return x)))) (unless s (error "Stage capacity exhausted")) (let* ((base (multiple-value-bind (x d) (normalize-reference m source) (declare (ignore d)) x)) (desc (%direct-descriptor m base)) (size (host-descriptor-size desc))) (unless (>= cap size) (error "Stage capacity exhausted")) (setf (host-stage-active s) t
-           (host-stage-generation s) (host-descriptor-generation desc)
-           (host-stage-source s) (host-reference-address base)
-           (host-stage-destination s) address
-           (host-stage-size s) size
-           (host-stage-alignment s) (host-descriptor-alignment desc)
-           (host-stage-kind s) (host-descriptor-kind desc)
-           (host-stage-descriptor s) (host-descriptor-descriptor desc)) (dotimes (i size) (setf (aref (host-stage-bytes s) i) (aref (host-model-arena m) (+ (%word-index m (host-reference-address base)) i)))) (dotimes (i (ceiling size 8)) (setf (aref (host-stage-words s) i) (aref (host-model-words m) (+ (%word-index m (host-reference-address base)) i)))) (values s size))))
-(defmethod map-staged-reference-locations ((m host-object-model) stage f) (declare (ignore f)) (%bm m) (unless (typep stage 'host-stage) (error "Foreign stage")) nil)
-(defmethod map-staged-weak-descriptors ((m host-object-model) stage f) (declare (ignore f)) (%bm m) (unless (typep stage 'host-stage) (error "Foreign stage")) nil)
-(defmethod map-staged-ephemeron-descriptors ((m host-object-model) stage f) (declare (ignore f)) (%bm m) (unless (typep stage 'host-stage) (error "Foreign stage")) nil)
-(defmethod install-staged-object ((m host-object-model) stage destination) (%bm m) (unless (and (typep stage 'host-stage) (host-stage-active stage)) (error "Foreign/inactive stage")) (let ((d (%desc-at m destination))) (unless d (error "Invalid stage destination")) (dotimes (i (host-stage-size stage)) (setf (aref (host-model-arena m) (+ (%word-index m destination) i)) (aref (host-stage-bytes stage) i))) (dotimes (i (ceiling (host-stage-size stage) 8)) (setf (aref (host-model-words m) (+ (%word-index m destination) i)) (aref (host-stage-words stage) i))) (setf (host-stage-active stage) nil) nil))
+(defmethod make-object-kind-description
+    ((model host-object-model) name
+     &key size-rule alignment-rule strong-layout weak-descriptions
+       ephemeron-descriptions)
+  (%host-model model)
+  (when (or (null name) (%host-kind-description model name))
+    (error "Duplicate or empty object kind ~S" name))
+  (when (>= (host-model-kind-count model) (host-model-kind-capacity model))
+    (error "Object-kind capacity exhausted"))
+  (let* ((strong (%host-normalize-strong-layout strong-layout))
+         (weak (%host-copy-vector (coerce (or weak-descriptions '()) 'vector)))
+         (ephemerons
+           (%host-copy-vector (coerce (or ephemeron-descriptions '()) 'vector)))
+         (indexed-p (typep strong 'host-indexed-layout))
+         (fixed-strong-count (if indexed-p 0 (length strong)))
+         (seen nil))
+    (when (and indexed-p (or (plusp (length weak))
+                             (plusp (length ephemerons))))
+      (error "Indexed strong layouts cannot mix conditional locations"))
+    (when (> (+ fixed-strong-count (length weak) (* 2 (length ephemerons)))
+             (host-model-slot-capacity model))
+      (error "Fixed object location capacity exhausted"))
+    (when (and (plusp (length ephemerons))
+               (< (host-model-location-capacity model) 2))
+      (error "Ephemeron mapping needs two borrowed locations"))
+    (unless indexed-p
+      (dotimes (index (length strong))
+        (let ((slot (aref strong index)))
+          (setf seen (%host-check-kind-key-unique
+                      seen :strong (host-slot-description-identity slot))))))
+    (dotimes (index (length weak))
+      (let ((description (aref weak index)))
+        (unless (typep description 'host-weak-location-description)
+          (error "Foreign weak location description"))
+        (setf seen (%host-check-kind-key-unique
+                    seen :weak
+                    (host-weak-location-description-identity description)))))
+    (dotimes (index (length ephemerons))
+      (let ((description (aref ephemerons index)))
+        (unless (typep description 'host-ephemeron-description)
+          (error "Foreign ephemeron description"))
+        (setf seen (%host-check-kind-key-unique
+                    seen :ephemeron
+                    (host-ephemeron-description-identity description)))))
+    (when (typep size-rule 'host-variable-size-rule)
+      (let ((header (host-variable-size-rule-header-bytes size-rule))
+            (element (host-variable-size-rule-element-bytes size-rule))
+            (minimum (host-variable-size-rule-minimum-elements size-rule))
+            (maximum (host-variable-size-rule-maximum-elements size-rule))
+            (element-kind (host-variable-size-rule-element-kind size-rule)))
+        (unless (and (integerp header) (<= 0 header)
+                     (integerp element) (plusp element)
+                     (integerp minimum) (<= 0 minimum)
+                     (or (null maximum)
+                         (and (integerp maximum) (>= maximum minimum)))
+                     (member element-kind '(:reference :numeric) :test #'eq))
+          (error "Invalid hosted variable-size rule"))
+        (when indexed-p
+          (unless (and (eq element-kind :reference)
+                       (= header (host-indexed-layout-base-offset strong))
+                       (= element
+                          (host-indexed-layout-element-word-bytes strong)))
+            (error "Indexed layout and variable-size rule disagree")))))
+    (unless (or (typep size-rule 'host-variable-size-rule)
+                (integerp size-rule) (functionp size-rule))
+      (error "Invalid object size rule"))
+    (let ((description
+            (%make-host-kind
+             :name name :size-rule size-rule
+             :alignment-rule alignment-rule :strong-layout strong
+             :weak-descriptions weak :ephemeron-descriptions ephemerons
+             :index (host-model-kind-count model))))
+      (setf (aref (host-model-kinds model)
+                  (host-model-kind-count model)) description)
+      (incf (host-model-kind-count model))
+      description)))
 
-(defmethod make-reference-location-handle ((m host-object-model) source location) (%bm m) (unless (typep location 'host-location) (return-from make-reference-location-handle (values nil :failed :invalid-location))) (let ((h (loop for x across (host-model-handles m) when (not (host-handle-active x)) do (return x))) (d (%direct-descriptor m source))) (unless h (return-from make-reference-location-handle (values nil :retry :capacity-exhausted))) (unless d (return-from make-reference-location-handle (values nil :failed :invalid-location))) (setf (host-handle-active h) t (host-handle-model h) m (host-handle-descriptor h) (%descriptor-index m d) (host-handle-generation h) (host-descriptor-generation d) (host-handle-identity h) (host-location-identity location) (host-handle-strength h) (host-location-strength location) (host-handle-index h) (host-location-word-index location)) (values h :complete nil)))
-(defmethod call-with-reference-location ((m host-object-model) h f) (%bm m) (unless (functionp f) (error "Callback not callable")) (if (and (typep h 'host-handle) (host-handle-active h) (eq m (host-handle-model h))) (let ((d (aref (host-model-descriptors m) (host-handle-descriptor h)))) (if (and (host-descriptor-active d) (= (host-descriptor-generation d) (host-handle-generation h))) (let ((l (%borrow m (host-handle-descriptor h) (host-handle-generation h) (host-handle-index h) (host-handle-identity h) (host-handle-strength h)))) (unwind-protect (progn (funcall f l) :present) (%release l))) :stale)) :stale))
-(defmethod make-staged-reference-location-handle ((m host-object-model) stage strength identity future) (declare (ignore stage strength identity future)) (%bm m) (values nil :failed :unsupported))
+(defmethod describe-object-kind
+    ((model host-object-model) description)
+  (%host-model model)
+  (let ((kind (%host-kind-description! model description)))
+    (values (host-object-kind-description-name kind)
+            (host-object-kind-description-size-rule kind)
+            (host-object-kind-description-alignment-rule kind)
+            (host-object-kind-description-strong-layout kind)
+            (host-object-kind-description-weak-descriptions kind)
+            (host-object-kind-description-ephemeron-descriptions kind))))
 
+(defun %host-admitted-immediate-value-p (value)
+  "Return true only for represented non-reference word values."
+  (or (symbolp value) (typep value 'fixnum) (characterp value)
+      (typep value 'single-float)))
+
+(defun %host-admitted-reference-value-p (model value)
+  (or (valid-reference-p model value)
+      (%host-admitted-immediate-value-p value)))
+
+(defmethod make-weak-location-description
+    ((model host-object-model) identity referent-kind cleared-value)
+  (%host-model model)
+  (unless (and (%host-admitted-immediate-value-p cleared-value)
+               (not (valid-reference-p model cleared-value)))
+    (error "Weak cleared value must be an admitted immediate value"))
+  (multiple-value-bind (actual-identity offset) (%host-slot-parts identity 0)
+    (unless (and actual-identity (integerp offset) (<= 0 offset)
+                 (zerop (mod offset 8)))
+      (error "Invalid weak location description"))
+    (%make-host-weak :identity actual-identity :referent-kind referent-kind
+                     :cleared-value cleared-value :offset offset)))
+
+(defmethod describe-weak-location
+    ((model host-object-model) description)
+  (%host-model model)
+  (unless (typep description 'host-weak-location-description)
+    (error "Foreign weak location description"))
+  (values (host-weak-location-description-identity description)
+          (host-weak-location-description-referent-kind description)
+          (host-weak-location-description-cleared-value description)))
+
+(defmethod make-ephemeron-description
+    ((model host-object-model) identity clear-key-p cleared-key cleared-value)
+  (%host-model model)
+  (unless (and (%host-admitted-immediate-value-p cleared-key)
+               (%host-admitted-immediate-value-p cleared-value)
+               (not (valid-reference-p model cleared-key))
+               (not (valid-reference-p model cleared-value)))
+    (error "Ephemeron cleared values must be admitted immediate values"))
+  (let ((actual-identity identity) (key-offset 0) (value-offset 8))
+    (when (typep identity 'host-ephemeron-location-description)
+      (setf actual-identity
+            (host-ephemeron-location-description-identity identity)
+            key-offset
+            (host-ephemeron-location-description-key-offset identity)
+            value-offset
+            (host-ephemeron-location-description-value-offset identity)))
+    (unless (and actual-identity
+                 (integerp key-offset) (<= 0 key-offset)
+                 (zerop (mod key-offset 8))
+                 (integerp value-offset) (<= 0 value-offset)
+                 (zerop (mod value-offset 8)))
+      (error "Invalid ephemeron location description"))
+    (%make-host-ephemeron
+     :identity actual-identity :clear-key-p (not (null clear-key-p))
+     :cleared-key cleared-key :cleared-value cleared-value
+     :key-offset key-offset :value-offset value-offset)))
+
+(defmethod describe-ephemeron
+    ((model host-object-model) description)
+  (%host-model model)
+  (unless (typep description 'host-ephemeron-description)
+    (error "Foreign ephemeron description"))
+  (values (host-ephemeron-description-identity description)
+          (host-ephemeron-description-clear-key-p description)
+          (host-ephemeron-description-cleared-key description)
+          (host-ephemeron-description-cleared-value description)))
+
+;;; Installed layout/binding adapter -----------------------------------------
+
+(defun %host-function (name)
+  (let ((symbol (find-symbol name :clamsara)))
+    (and symbol (fboundp symbol) (symbol-function symbol))))
+
+(defun %host-layout-ranges (layout)
+  (let ((function (%host-function "SIMULATOR-LAYOUT-RANGES")))
+    (unless function (error "Installed-layout range service is unavailable"))
+    (coerce (funcall function layout) 'vector)))
+
+(defun %host-range-field (range suffix)
+  (let ((function
+          (%host-function (format nil "%SIMULATOR-LAYOUT-RANGE-~A" suffix))))
+    (unless function
+      (error "Installed-layout range accessor ~A is unavailable" suffix))
+    (funcall function range)))
+
+(defun %host-metadata-geometry (metadata)
+  (multiple-value-bind (base limit granularity) (metadata-bounds metadata)
+    (unless (and (integerp base) (integerp limit) (<= base limit)
+                 (integerp granularity) (plusp granularity))
+      (error "Invalid object-start metadata geometry"))
+    (values base limit granularity)))
+
+(defmethod make-object-start-binding
+    ((model host-object-model) space metadata)
+  (%host-model model)
+  (multiple-value-bind (base limit granularity) (%host-metadata-geometry metadata)
+    (%make-host-binding :model model :space space :metadata metadata
+                        :base base :limit limit :granularity granularity
+                        :generation 0)))
+
+(defmethod describe-object-start-binding
+    ((model host-object-model) binding)
+  (%host-model model)
+  (unless (and (typep binding 'host-binding)
+               (eq model (host-binding-model binding)))
+    (error "Foreign object-start binding"))
+  (values (host-binding-space binding) (host-binding-metadata binding)))
+
+(defun %host-binding-matches-range-p (binding range)
+  (and (eq (host-binding-space binding) (%host-range-field range "SPACE"))
+       (eq (host-binding-metadata binding) (%host-range-field range "MAP"))))
+
+(defun %host-next-power-of-two (minimum)
+  (let ((value 1))
+    (loop while (< value minimum) do (setf value (ash value 1)))
+    value))
+
+(defmethod bind-object-model
+    ((model host-object-model) layout object-start-bindings)
+  (%host-model model)
+  (let ((installed-class (find-class 'simulator-installed-layout nil)))
+    (unless (and installed-class (typep layout installed-class))
+      (error "Not a simulator installed layout")))
+  (let* ((parent-ranges (%host-layout-ranges layout))
+         (bindings (coerce object-start-bindings 'vector)))
+    (unless (= (length parent-ranges) (length bindings))
+      (error "Object-start binding coverage mismatch"))
+    ;; Construction-only EQ indexes make exact one-to-one coverage linear in
+    ;; the number of routes.  No lookup table survives in the bound model.
+    (let ((ranges-by-space (make-hash-table :test #'eq)))
+      (dotimes (range-index (length parent-ranges))
+        (let* ((range (aref parent-ranges range-index))
+               (space (%host-range-field range "SPACE"))
+               (map (%host-range-field range "MAP"))
+               (maps (or (gethash space ranges-by-space)
+                         (setf (gethash space ranges-by-space)
+                               (make-hash-table :test #'eq)))))
+          (multiple-value-bind (old present-p) (gethash map maps)
+            (declare (ignore old))
+            (when present-p
+              (error "Installed layout has duplicate space/map routes"))
+            (setf (gethash map maps) :unmatched))))
+      (dotimes (binding-index (length bindings))
+        (let ((binding (aref bindings binding-index)))
+          (unless (and (typep binding 'host-binding)
+                       (eq model (host-binding-model binding)))
+            (error "Foreign object-start binding"))
+          (let ((maps (gethash (host-binding-space binding)
+                               ranges-by-space)))
+            (unless maps
+              (error "Foreign object-start binding"))
+            (multiple-value-bind (state present-p)
+                (gethash (host-binding-metadata binding) maps)
+              (unless present-p
+                (error "Foreign object-start binding"))
+              (unless (eq state :unmatched)
+                (error "Duplicate object-start binding"))
+              (setf (gethash (host-binding-metadata binding) maps)
+                    :matched))))))
+    (let ((total-bytes 0) (total-cells 0))
+      (dotimes (index (length parent-ranges))
+        (let* ((range (aref parent-ranges index))
+               (base (%host-range-field range "BASE"))
+               (limit (%host-range-field range "LIMIT"))
+               (map (%host-range-field range "MAP")))
+          (multiple-value-bind (map-base map-limit granularity)
+              (%host-metadata-geometry map)
+            (unless (and (integerp base) (integerp limit) (< base limit)
+                         (<= map-base base) (<= limit map-limit)
+                         (zerop (mod (- base map-base) granularity))
+                         (zerop (mod (- limit base) granularity))
+                         (zerop (mod total-bytes 8))
+                         (zerop (mod base 8)))
+              (error "Installed route and authoritative map geometry disagree"))
+            (incf total-bytes (- limit base))
+            (incf total-cells (ceiling (- limit base) granularity)))))
+      (unless (and (typep total-bytes '(integer 1 #.most-positive-fixnum))
+                   (typep total-cells '(integer 1 #.most-positive-fixnum)))
+        (error "Hosted model extent is not representable"))
+      (let* ((arena (make-array total-bytes :element-type '(unsigned-byte 8)
+                                :initial-element 0))
+             (words (make-array (ceiling total-bytes 8) :initial-element nil))
+             (sizes (make-array total-cells :initial-element 0))
+             (alignments (make-array total-cells :initial-element 0))
+             (descriptor-kinds (make-array total-cells :initial-element nil))
+             (generations (make-array total-cells :initial-element 0))
+             (counts (make-array total-cells :initial-element 0))
+             (base-references (make-array total-cells))
+             (variants (make-array (host-model-variant-capacity model)))
+             (hash-size (%host-next-power-of-two
+                         (max 4 (* 2 (host-model-variant-capacity model)))))
+             (hash-descriptors (make-array hash-size :initial-element -1))
+             (hash-codes (make-array hash-size :initial-element 0))
+             (hash-indices (make-array hash-size :initial-element -1))
+             (locations (make-array (host-model-location-capacity model)))
+             (handles (make-array (host-model-handle-capacity model)))
+             (stages (make-array (host-model-stage-capacity model)))
+             (kind-count (host-model-kind-count model))
+             (kinds (make-array kind-count))
+             (bound
+               (make-instance 'host-bound-object-model
+                 :profile (host-model-profile model)
+                 :capacity (host-model-capacity model)
+                 :max-object-bytes (host-model-max-object-bytes model)
+                 :variant-capacity (host-model-variant-capacity model)
+                 :location-capacity (host-model-location-capacity model)
+                 :handle-capacity (host-model-handle-capacity model)
+                 :stage-capacity (host-model-stage-capacity model)
+                 :max-interior-displacement
+                 (host-model-max-interior-displacement model)
+                 :tag-capacity (host-model-tag-capacity model)
+                 :kind-capacity (host-model-kind-capacity model)
+                 :slot-capacity (host-model-slot-capacity model)
+                 :kinds kinds :kind-count kind-count :layout layout
+                 :bindings bindings :arena arena :words words
+                 :sizes sizes :alignments alignments
+                 :descriptor-kinds descriptor-kinds
+                 :descriptor-generations generations
+                 :descriptor-counts counts :base-references base-references
+                 :variants variants
+                 :variant-hash-descriptors hash-descriptors
+                 :variant-hash-codes hash-codes
+                 :variant-hash-indices hash-indices
+                 :locations locations :handles handles :stages stages
+                 :bound-p t)))
+        (replace kinds (host-model-kinds model) :end2 kind-count)
+        (dotimes (index (length variants))
+          ;; Mutated exactly once, before first publication by REBUILD-REFERENCE.
+          (setf (aref variants index)
+                (%make-host-reference :model bound :descriptor -1 :address 0
+                                      :kind :unpublished)))
+        (dotimes (index (length locations))
+          (setf (aref locations index) (%make-host-location :model bound)))
+        (dotimes (index (length handles))
+          (setf (aref handles index) (%make-host-handle)))
+        (dotimes (index (length stages))
+          (setf (aref stages index)
+                (%make-host-stage
+                 :model bound
+                 :bytes (make-array (host-model-max-object-bytes bound)
+                                    :element-type '(unsigned-byte 8)
+                                    :initial-element 0)
+                 :words (make-array
+                         (ceiling (host-model-max-object-bytes bound) 8)
+                         :initial-element nil))))
+        (let ((routes (make-array (length parent-ranges)))
+              (descriptor-offset 0) (arena-offset 0))
+          (dotimes (index (length parent-ranges))
+            (let* ((parent (aref parent-ranges index))
+                   (base (%host-range-field parent "BASE"))
+                   (limit (%host-range-field parent "LIMIT"))
+                   (map (%host-range-field parent "MAP")))
+              (multiple-value-bind (map-base map-limit granularity)
+                  (%host-metadata-geometry map)
+                (declare (ignore map-base map-limit))
+                (let* ((cell-count (ceiling (- limit base) granularity))
+                       (route
+                         (%make-host-route
+                          :parent parent
+                          :space (%host-range-field parent "SPACE") :map map
+                          :base base :limit limit :granularity granularity
+                          :cell-count cell-count
+                          :descriptor-offset descriptor-offset
+                          :arena-offset arena-offset
+                          :generation (%host-range-field parent "GENERATION"))))
+                  (setf (aref routes index) route)
+                  (dotimes (cell cell-count)
+                    (let* ((descriptor (+ descriptor-offset cell))
+                           (address (+ base (* cell granularity))))
+                      (setf (aref base-references descriptor)
+                            (%make-host-reference
+                             :model bound :descriptor descriptor
+                             :address address :kind :base
+                             :tag 0 :displacement 0))))
+                  (incf descriptor-offset cell-count)
+                  (incf arena-offset (- limit base))))))
+          (setf (host-model-routes bound) routes))
+        bound))))
+
+;;; Dense descriptor/address helpers -----------------------------------------
+
+(defun %host-refresh-route (route)
+  (let ((parent (host-route-parent route)))
+    (setf (host-route-space route) (%host-range-field parent "SPACE")
+          (host-route-map route) (%host-range-field parent "MAP")
+          (host-route-generation route) (%host-range-field parent "GENERATION")))
+  route)
+
+(defun %host-route-at-address (model address)
+  (when (integerp address)
+    (loop for route across (host-model-routes model)
+          when (and (<= (host-route-base route) address)
+                    (< address (host-route-limit route)))
+            do (return (%host-refresh-route route)))))
+
+(defun %host-descriptor-index-at-start (route address)
+  (when (and (<= (host-route-base route) address)
+             (< address (host-route-limit route))
+             (zerop (mod (- address (host-route-base route))
+                         (host-route-granularity route))))
+    (+ (host-route-descriptor-offset route)
+       (floor (- address (host-route-base route))
+              (host-route-granularity route)))))
+
+(defun %host-descriptor-active-p (model descriptor)
+  (and (integerp descriptor) (<= 0 descriptor)
+       (< descriptor (length (host-model-sizes model)))
+       (plusp (aref (host-model-sizes model) descriptor))))
+
+(defun %host-base-reference-by-index (model descriptor)
+  (and (integerp descriptor) (<= 0 descriptor)
+       (< descriptor (length (host-model-base-references model)))
+       (aref (host-model-base-references model) descriptor)))
+
+(defun %host-base-reference-at-address (model address)
+  (let ((route (%host-route-at-address model address)))
+    (and route
+         (let ((descriptor (%host-descriptor-index-at-start route address)))
+           (and descriptor
+                (%host-base-reference-by-index model descriptor))))))
+
+(defun %host-descriptor-start (model descriptor)
+  (let ((reference (%host-base-reference-by-index model descriptor)))
+    (and reference (host-reference-address reference))))
+
+(defun %host-arena-byte-index (route address)
+  (+ (host-route-arena-offset route) (- address (host-route-base route))))
+
+(defun %host-arena-byte-index-at-address (model address)
+  (let ((route (%host-route-at-address model address)))
+    (unless route (error "Address is outside installed model routes"))
+    (%host-arena-byte-index route address)))
+
+(defun %host-arena-word-index-at-address (model address)
+  (let ((byte-index (%host-arena-byte-index-at-address model address)))
+    (unless (zerop (mod byte-index 8))
+      (error "Reference word address is not aligned"))
+    (floor byte-index 8)))
+
+(defun %host-map-start-value-p (value address)
+  (or (eql value 1) (eql value t) (eql value address)))
+
+(defun %host-route-start-p (route address)
+  (%host-map-start-value-p (metadata-ref (host-route-map route) address) address))
+
+(defun %host-canonical-start-from-route (model route address)
+  ;; Interior reference forms were admitted with this displacement bound.  The
+  ;; lookup reads only the installed authoritative map and cannot become a
+  ;; second writable allocation directory.
+  (multiple-value-bind (map-base map-limit granularity)
+      (%host-metadata-geometry (host-route-map route))
+    (declare (ignore map-limit))
+    (let* ((aligned (+ map-base
+                       (* (floor (- address map-base) granularity)
+                          granularity)))
+           (minimum (max (host-route-base route)
+                         (- aligned
+                            (* (ceiling
+                                (host-model-max-interior-displacement model)
+                                granularity)
+                               granularity)))))
+      (loop for candidate from aligned downto minimum by granularity
+            when (%host-route-start-p route candidate)
+              do (return candidate)))))
+
+(defun %host-reference-form-valid-p (reference start size)
+  (let ((address (host-reference-address reference))
+        (kind (host-reference-kind reference))
+        (displacement (host-reference-displacement reference)))
+    (and (integerp displacement) (<= 0 displacement)
+         (= address (+ start displacement))
+         (< displacement size)
+         (case kind
+           (:base (and (zerop displacement)
+                       (zerop (host-reference-tag reference))))
+           (:interior (zerop (host-reference-tag reference)))
+           (:tagged-base (zerop displacement))
+           (:tagged-interior (plusp displacement))
+           (otherwise nil)))))
+
+(defun %host-unpublished-base-descriptor (model reference)
+  (when (and (valid-reference-p model reference)
+             (eq (host-reference-kind reference) :base))
+    (let* ((descriptor (host-reference-descriptor reference))
+           (base (%host-base-reference-by-index model descriptor)))
+      (and (eq reference base)
+           (%host-descriptor-active-p model descriptor)
+           descriptor))))
+
+(defun %host-published-descriptor-at-start (model start)
+  (let* ((route (%host-route-at-address model start))
+         (descriptor (and route (%host-descriptor-index-at-start route start))))
+    (and descriptor (%host-descriptor-active-p model descriptor)
+         (%host-route-start-p route start) descriptor)))
+
+(defun simulator-reference-address (reference)
+  "Pure hosted reference decoder used by the installed address-space route."
+  (and (typep reference 'host-reference)
+       (host-reference-address reference)))
+
+(defun %simulator-model-layout (model)
+  (and (typep model 'host-bound-object-model)
+       (host-model-layout model)))
+
+;;; References and object facts ----------------------------------------------
+
+(defmethod valid-reference-p ((model host-object-model) value)
+  (and (typep value 'host-reference)
+       (eq model (host-reference-model value))))
+
+(defmethod normalize-reference ((model host-object-model) reference)
+  (%host-bound-model model)
+  (unless (valid-reference-p model reference)
+    (error "Immediate or foreign reference"))
+  (let* ((address (host-reference-address reference))
+         (route (%host-route-at-address model address))
+         (start (and route (%host-canonical-start-from-route model route address)))
+         (descriptor (and start (%host-descriptor-index-at-start route start))))
+    (unless (and descriptor (%host-descriptor-active-p model descriptor)
+                 (= descriptor (host-reference-descriptor reference))
+                 (%host-reference-form-valid-p
+                  reference start (aref (host-model-sizes model) descriptor)))
+      (error "Stale or corrupt hosted reference"))
+    (let ((base (%host-base-reference-by-index model descriptor)))
+      (values
+       base
+       (case (host-reference-kind reference)
+         (:base 0)
+         (:interior (+ #x10000000
+                       (host-reference-displacement reference)))
+         (:tagged-base (+ #x20000000 (host-reference-tag reference)))
+         (:tagged-interior
+          (+ #x30000000
+             (ash (host-reference-tag reference) 20)
+             (host-reference-displacement reference))))))))
+
+(defun %host-decode-reference-descriptor (descriptor)
+  (cond ((eql descriptor 0) (values :base 0 0))
+        ((and (integerp descriptor)
+              (<= #x10000000 descriptor) (< descriptor #x20000000))
+         (values :interior 0 (- descriptor #x10000000)))
+        ((and (integerp descriptor)
+              (<= #x20000000 descriptor) (< descriptor #x30000000))
+         (values :tagged-base (logand descriptor #xffff) 0))
+        ((and (integerp descriptor)
+              (<= #x30000000 descriptor) (< descriptor #x40000000))
+         (let ((payload (- descriptor #x30000000)))
+           (values :tagged-interior
+                   (ldb (byte 12 20) payload)
+                   (logand payload (1- (ash 1 20))))))
+        (t (error "Malformed reference reconstruction descriptor"))))
+
+(defun %host-variant-code (kind tag displacement)
+  (+ (case kind
+       (:interior 1) (:tagged-base 2) (:tagged-interior 3)
+       (otherwise 0))
+     (ash tag 2) (ash displacement 18)))
+
+(defun %host-variant-table-slot (model descriptor code)
+  (let* ((keys (host-model-variant-hash-descriptors model))
+         (codes (host-model-variant-hash-codes model))
+         (mask (1- (length keys)))
+         (initial (logand (+ (* descriptor 65599) code) mask)))
+    (dotimes (probe (length keys))
+      (let* ((slot (logand (+ initial probe) mask))
+             (seen (aref keys slot)))
+        (when (or (= seen -1)
+                  (and (= seen descriptor) (= (aref codes slot) code)))
+          (return-from %host-variant-table-slot slot))))
+    nil))
+
+(defun %host-find-or-publish-variant
+    (model descriptor start kind tag displacement)
+  (let* ((code (%host-variant-code kind tag displacement))
+         (slot (%host-variant-table-slot model descriptor code)))
+    (unless slot (error "Reference encoding lookup table exhausted"))
+    (let ((seen (aref (host-model-variant-hash-descriptors model) slot)))
+      (if (/= seen -1)
+          (aref (host-model-variants model)
+                (aref (host-model-variant-hash-indices model) slot))
+          (let ((index (host-model-variant-count model)))
+            (when (>= index (length (host-model-variants model)))
+              (error "Reference encoding capacity exhausted"))
+            (let ((reference (aref (host-model-variants model) index)))
+              ;; This preallocated record has never been published.  Fill it
+              ;; completely, then publish its table index as the last effect.
+              (setf (host-reference-descriptor reference) descriptor
+                    (host-reference-address reference) (+ start displacement)
+                    (host-reference-kind reference) kind
+                    (host-reference-tag reference) tag
+                    (host-reference-displacement reference) displacement
+                    (aref (host-model-variant-hash-codes model) slot) code
+                    (aref (host-model-variant-hash-indices model) slot) index
+                    (aref (host-model-variant-hash-descriptors model) slot)
+                    descriptor)
+              (incf (host-model-variant-count model))
+              reference))))))
+
+(defmethod rebuild-reference
+    ((model host-object-model) new-start descriptor)
+  (%host-bound-model model)
+  (let ((descriptor-index (%host-unpublished-base-descriptor model new-start)))
+    (unless descriptor-index
+      (error "Reference rebuild destination is not an active base encoding"))
+    (multiple-value-bind (kind tag displacement)
+        (%host-decode-reference-descriptor descriptor)
+      (let* ((size (aref (host-model-sizes model) descriptor-index))
+             (start (host-reference-address new-start)))
+        (unless (and (< displacement size)
+                     (<= displacement
+                         (host-model-max-interior-displacement model))
+                     (case kind
+                       (:base (and (zerop tag) (zerop displacement)))
+                       (:interior (and (zerop tag) (plusp displacement)))
+                       (:tagged-base
+                        (and (plusp tag)
+                             (<= tag (host-model-tag-capacity model))
+                             (zerop displacement)))
+                       (:tagged-interior
+                        (and (plusp tag)
+                             (<= tag (host-model-tag-capacity model))
+                             (plusp displacement)))
+                       (otherwise nil)))
+          (error "Reference descriptor is outside the admitted domain"))
+        (if (eq kind :base)
+            new-start
+            (%host-find-or-publish-variant
+             model descriptor-index start kind tag displacement))))))
+
+(defmethod reference-address ((model host-object-model) start)
+  (%host-bound-model model)
+  (unless (%host-unpublished-base-descriptor model start)
+    (error "Reference-address requires an active canonical base"))
+  (host-reference-address start))
+
+(defun %host-normalized-descriptor-index (model start)
+  (multiple-value-bind (base descriptor) (normalize-reference model start)
+    (declare (ignore descriptor))
+    (host-reference-descriptor base)))
+
+(defmethod object-size ((model host-object-model) start)
+  (aref (host-model-sizes model) (%host-normalized-descriptor-index model start)))
+
+(defmethod object-alignment ((model host-object-model) start)
+  (aref (host-model-alignments model)
+        (%host-normalized-descriptor-index model start)))
+
+(defmethod object-kind ((model host-object-model) start)
+  (aref (host-model-descriptor-kinds model)
+        (%host-normalized-descriptor-index model start)))
+
+(defmethod object-kind-descriptor ((model host-object-model) kind)
+  (%host-kind-description! model kind))
+
+(defmethod reference-encoding-equal-p
+    ((model host-object-model) left right)
+  (%host-model model)
+  (eql left right))
+
+(defmethod reference-equal ((model host-object-model) left right)
+  (cond ((and (not (valid-reference-p model left))
+              (not (valid-reference-p model right)))
+         (eql left right))
+        ((or (not (valid-reference-p model left))
+             (not (valid-reference-p model right))) nil)
+        (t
+         (multiple-value-bind (left-base left-descriptor)
+             (normalize-reference model left)
+           (declare (ignore left-descriptor))
+           (multiple-value-bind (right-base right-descriptor)
+               (normalize-reference model right)
+             (declare (ignore right-descriptor))
+             (eq left-base right-base))))))
+
+;;; Object initialization, payload and copy ----------------------------------
+
+(defun %host-kind-size-count (kind size)
+  (let ((rule (host-object-kind-description-size-rule kind)))
+    (if (typep rule 'host-variable-size-rule)
+        (let* ((header (host-variable-size-rule-header-bytes rule))
+               (element (host-variable-size-rule-element-bytes rule))
+               (payload (- size header)))
+          (if (and (>= payload 0) (zerop (mod payload element)))
+              (let ((count (floor payload element)))
+                (values
+                 (and (>= count
+                          (host-variable-size-rule-minimum-elements rule))
+                      (or (null
+                           (host-variable-size-rule-maximum-elements rule))
+                          (<= count
+                              (host-variable-size-rule-maximum-elements rule))))
+                 count))
+              (values nil 0)))
+        (values (= size (%host-positive-rule-value rule kind "size")) 0))))
+
+(defun %host-kind-offsets-fit-p (kind size)
+  (let ((strong (host-object-kind-description-strong-layout kind)))
+    (and
+     (if (typep strong 'host-indexed-layout)
+         (<= (host-indexed-layout-base-offset strong) size)
+         (loop for slot across strong
+               always (< (host-slot-description-offset slot) size)))
+     (loop for description across
+           (host-object-kind-description-weak-descriptions kind)
+           always (< (host-weak-location-description-offset description) size))
+     (loop for description across
+           (host-object-kind-description-ephemeron-descriptions kind)
+           always (and (< (host-ephemeron-description-key-offset description)
+                          size)
+                       (< (host-ephemeron-description-value-offset description)
+                          size))))))
+
+(defun %host-clear-object-planes (model route address size)
+  (let ((byte-start (%host-arena-byte-index route address))
+        (word-start (%host-arena-word-index-at-address model address)))
+    (fill (host-model-arena model) 0 :start byte-start :end (+ byte-start size))
+    (fill (host-model-words model) nil :start word-start
+          :end (+ word-start (ceiling size 8)))))
+
+(defun %host-initialize-conditional-values (model descriptor kind)
+  (let* ((start (%host-descriptor-start model descriptor))
+         (word-start (%host-arena-word-index-at-address model start)))
+    (loop for description across
+          (host-object-kind-description-weak-descriptions kind)
+          do (setf (aref (host-model-words model)
+                         (+ word-start
+                            (floor
+                             (host-weak-location-description-offset description)
+                             8)))
+                   (host-weak-location-description-cleared-value description)))
+    (loop for description across
+          (host-object-kind-description-ephemeron-descriptions kind)
+          do (setf (aref (host-model-words model)
+                         (+ word-start
+                            (floor
+                             (host-ephemeron-description-key-offset description)
+                             8)))
+                   (host-ephemeron-description-cleared-key description)
+                   (aref (host-model-words model)
+                         (+ word-start
+                            (floor
+                             (host-ephemeron-description-value-offset description)
+                             8)))
+                   (host-ephemeron-description-cleared-value description)))))
+
+(defmethod initialize-object
+    ((model host-object-model) address kind size descriptor)
+  (%host-bound-model model)
+  (unless (and (integerp address) (integerp size) (plusp size))
+    (error "Invalid hosted object address/size"))
+  (let* ((kind-description (%host-kind-description! model kind))
+         (alignment
+           (%host-positive-rule-value
+            (host-object-kind-description-alignment-rule kind-description)
+            kind-description "alignment"))
+         (route (%host-route-at-address model address))
+         (descriptor-index
+           (and route (%host-descriptor-index-at-start route address))))
+    (multiple-value-bind (valid-size-p element-count)
+        (%host-kind-size-count kind-description size)
+      (unless (and valid-size-p (eq descriptor kind-description)
+                   (%host-positive-power-of-two-p alignment)
+                   (zerop (mod address alignment))
+                   route descriptor-index
+                   (zerop (mod (- address (host-route-base route))
+                               (host-route-granularity route)))
+                   (<= (+ address size) (host-route-limit route))
+                   (<= size (host-model-max-object-bytes model))
+                   (zerop (aref (host-model-sizes model) descriptor-index))
+                   (not (%host-route-start-p route address))
+                   (< (host-model-live-count model)
+                      (host-model-capacity model))
+                   (%host-kind-offsets-fit-p kind-description size))
+        (error "Invalid hosted object initialization"))
+      (let ((old-generation
+              (aref (host-model-descriptor-generations model)
+                    descriptor-index)))
+        (when (= old-generation most-positive-fixnum)
+          (error "Hosted object generation exhausted"))
+        ;; All failure checks precede these bounded non-failing writes.
+        (%host-clear-object-planes model route address size)
+        (setf (aref (host-model-alignments model) descriptor-index) alignment
+              (aref (host-model-descriptor-kinds model) descriptor-index)
+              kind-description
+              (aref (host-model-descriptor-counts model) descriptor-index)
+              element-count
+              (aref (host-model-descriptor-generations model) descriptor-index)
+              (1+ old-generation)
+              ;; SIZE publishes representation existence last.  The installed
+              ;; authoritative start remains absent until runtime publication.
+              (aref (host-model-sizes model) descriptor-index) size)
+        (incf (host-model-live-count model))
+        (%host-initialize-conditional-values
+         model descriptor-index kind-description)
+        (%host-base-reference-by-index model descriptor-index)))))
+
+(defun %host-active-destination-descriptor (model destination)
+  (cond ((valid-reference-p model destination)
+         (%host-unpublished-base-descriptor model destination))
+        ((integerp destination)
+         (let ((reference (%host-base-reference-at-address model destination)))
+           (and reference (%host-unpublished-base-descriptor model reference))))
+        (t nil)))
+
+(defmethod copy-object-representation
+    ((model host-object-model) source destination)
+  (%host-bound-model model)
+  (let* ((source-descriptor (%host-normalized-descriptor-index model source))
+         (destination-descriptor
+           (%host-active-destination-descriptor model destination)))
+    (unless destination-descriptor
+      (error "Invalid copy destination"))
+    (let* ((source-size (aref (host-model-sizes model) source-descriptor))
+           (destination-size
+             (aref (host-model-sizes model) destination-descriptor))
+           (source-kind
+             (aref (host-model-descriptor-kinds model) source-descriptor))
+           (destination-kind
+             (aref (host-model-descriptor-kinds model)
+                   destination-descriptor)))
+      (unless (and (= source-size destination-size)
+                   (eq source-kind destination-kind))
+        (error "Copy source and destination representations disagree"))
+      (let* ((source-start (%host-descriptor-start model source-descriptor))
+             (destination-start
+               (%host-descriptor-start model destination-descriptor))
+             (source-byte (%host-arena-byte-index-at-address model source-start))
+             (destination-byte
+               (%host-arena-byte-index-at-address model destination-start))
+             (source-word
+               (%host-arena-word-index-at-address model source-start))
+             (destination-word
+               (%host-arena-word-index-at-address model destination-start)))
+        ;; Explicit memmove order; no temporary object is allocated.
+        (if (< source-byte destination-byte)
+            (loop for index downfrom (1- source-size) to 0
+                  do (setf (aref (host-model-arena model)
+                                 (+ destination-byte index))
+                           (aref (host-model-arena model)
+                                 (+ source-byte index))))
+            (dotimes (index source-size)
+              (setf (aref (host-model-arena model)
+                          (+ destination-byte index))
+                    (aref (host-model-arena model)
+                          (+ source-byte index)))))
+        (let ((words (ceiling source-size 8)))
+          (if (< source-word destination-word)
+              (loop for index downfrom (1- words) to 0
+                    do (setf (aref (host-model-words model)
+                                   (+ destination-word index))
+                             (aref (host-model-words model)
+                                   (+ source-word index))))
+              (dotimes (index words)
+                (setf (aref (host-model-words model)
+                            (+ destination-word index))
+                      (aref (host-model-words model)
+                            (+ source-word index)))))))
+      destination)))
+
+(defun host-object-payload-read (model start offset)
+  (%host-bound-model model)
+  (let* ((descriptor (%host-normalized-descriptor-index model start))
+         (size (aref (host-model-sizes model) descriptor)))
+    (unless (and (integerp offset) (<= 0 offset) (< offset size))
+      (error "Hosted payload offset is out of bounds"))
+    (aref (host-model-arena model)
+          (+ (%host-arena-byte-index-at-address
+              model (%host-descriptor-start model descriptor))
+             offset))))
+
+(defun host-object-payload-write (model start offset value)
+  (%host-bound-model model)
+  (unless (typep value '(unsigned-byte 8))
+    (error "Hosted payload byte is invalid"))
+  (let* ((descriptor (%host-normalized-descriptor-index model start))
+         (size (aref (host-model-sizes model) descriptor)))
+    (unless (and (integerp offset) (<= 0 offset) (< offset size))
+      (error "Hosted payload offset is out of bounds"))
+    (setf (aref (host-model-arena model)
+                (+ (%host-arena-byte-index-at-address
+                    model (%host-descriptor-start model descriptor))
+                   offset))
+          value)))
+
+;;; Borrowed locations --------------------------------------------------------
+
+(defun %host-borrow-location
+    (model descriptor generation word-index identity strength
+     &optional stage stage-generation)
+  (let ((location
+          (loop for candidate across (host-model-locations model)
+                unless (host-reference-location-active candidate)
+                  do (return candidate))))
+    (unless location (error "Borrowed reference-location capacity exhausted"))
+    (setf (host-reference-location-descriptor location) descriptor
+          (host-reference-location-generation location) generation
+          (host-reference-location-word-index location) word-index
+          (host-reference-location-identity location) identity
+          (host-reference-location-strength location) strength
+          (host-reference-location-stage location) stage
+          (host-reference-location-stage-generation location) stage-generation
+          (host-reference-location-active location) t)
+    location))
+
+(defun %host-release-location (location)
+  (setf (host-reference-location-active location) nil
+        (host-reference-location-stage location) nil)
+  (values))
+
+(defun %host-descriptor-published-p (model descriptor)
+  (and (%host-descriptor-active-p model descriptor)
+       (let* ((start (%host-descriptor-start model descriptor))
+              (route (%host-route-at-address model start)))
+         (and route (%host-route-start-p route start)))))
+
+(defun %host-validate-location (model location)
+  (unless (and (typep location 'host-reference-location)
+               (eq model (host-reference-location-model location))
+               (host-reference-location-active location))
+    (error "Invalid or expired borrowed reference location"))
+  (let ((stage (host-reference-location-stage location)))
+    (if stage
+        (unless (and (typep stage 'host-staged-object)
+                     (eq model (host-staged-object-model stage))
+                     (eq :active (host-staged-object-state stage))
+                     (= (host-reference-location-stage-generation location)
+                        (host-staged-object-generation stage)))
+          (error "Stale staged reference location"))
+        (let ((descriptor (host-reference-location-descriptor location)))
+          (unless (and (%host-descriptor-published-p model descriptor)
+                       (= (host-reference-location-generation location)
+                          (aref (host-model-descriptor-generations model)
+                                descriptor)))
+            (error "Stale object reference location")))))
+  location)
+
+(defun %host-location-value (location)
+  (let ((stage (host-reference-location-stage location))
+        (index (host-reference-location-word-index location)))
+    (if stage
+        (aref (host-staged-object-words stage) index)
+        (aref (host-model-words (host-reference-location-model location))
+              index))))
+
+(defun (setf %host-location-value) (value location)
+  (let ((stage (host-reference-location-stage location))
+        (index (host-reference-location-word-index location)))
+    (if stage
+        (setf (aref (host-staged-object-words stage) index) value)
+        (setf (aref (host-model-words
+                     (host-reference-location-model location)) index)
+              value)))
+  value)
+
+(defun %host-validate-reference-order (order)
+  (unless (case order
+            ((:relaxed :acquire :release :acq-rel :sequential) t)
+            (otherwise nil))
+    (error "Invalid reference memory order ~S" order))
+  order)
+
+(defun %host-validate-raw-value (model location value)
+  "Validate VALUE before any persistent hosted word-plane write."
+  (unless (if (eq (host-reference-location-strength location) :numeric)
+              ;; These are the only scalar forms with a hosted raw numeric
+              ;; representation.  In particular, reject DOUBLE-FLOAT and all
+              ;; arbitrary host containers rather than retaining host boxes.
+              (or (typep value 'fixnum) (typep value 'single-float))
+              (%host-admitted-reference-value-p model value))
+    (error "Value ~S has no admitted hosted word representation" value))
+  value)
+
+(defmethod load-reference
+    ((model host-object-model) location &optional (order :relaxed))
+  (%host-validate-reference-order order)
+  (%host-location-value (%host-validate-location model location)))
+
+(defmethod store-reference-raw
+    ((model host-object-model) location value &optional (order :relaxed))
+  (%host-validate-reference-order order)
+  (let ((validated (%host-validate-location model location)))
+    (%host-validate-raw-value model validated value)
+    (setf (%host-location-value validated) value)))
+
+(defmethod cas-reference-raw
+    ((model host-object-model) location old new order)
+  (%host-validate-reference-order order)
+  (let ((validated (%host-validate-location model location)))
+    ;; Validate both operands before the possible persistent write.  Current
+    ;; contents were admitted by the same boundary.
+    (%host-validate-raw-value model validated old)
+    (%host-validate-raw-value model validated new)
+    (let ((observed (%host-location-value validated)))
+      (if (reference-encoding-equal-p model observed old)
+          (progn (setf (%host-location-value validated) new)
+                 (values observed t))
+          (values observed nil)))))
+
+(defun %host-fixed-strong-offset (kind identity)
+  (let ((layout (host-object-kind-description-strong-layout kind)))
+    (unless (typep layout 'host-indexed-layout)
+      (loop for slot across layout
+            when (eql identity (host-slot-description-identity slot))
+              do (return (values (host-slot-description-offset slot) t))))))
+
+(defun %host-indexed-element-offset (model descriptor identity)
+  (let* ((kind (aref (host-model-descriptor-kinds model) descriptor))
+         (layout (host-object-kind-description-strong-layout kind)))
+    (when (and (typep layout 'host-indexed-layout)
+               (integerp identity))
+      (let ((index (- identity (host-indexed-layout-identity-base layout)))
+            (count (aref (host-model-descriptor-counts model) descriptor)))
+        (when (and (<= 0 index) (< index count))
+          (+ (host-indexed-layout-base-offset layout)
+             (* index (host-indexed-layout-element-word-bytes layout))))))))
+
+(defun %host-object-word-index (model descriptor offset)
+  (+ (%host-arena-word-index-at-address model (%host-descriptor-start model descriptor))
+     (floor offset 8)))
+
+(defun %host-call-with-borrowed-object-location
+    (model descriptor identity strength offset function)
+  (let* ((generation
+           (aref (host-model-descriptor-generations model) descriptor))
+         (location
+           (%host-borrow-location model descriptor generation
+                             (%host-object-word-index model descriptor offset)
+                             identity strength)))
+    (unwind-protect (funcall function location)
+      (%host-release-location location))))
+
+(defmethod map-reference-locations
+    ((model host-object-model) start function)
+  (%host-bound-model model)
+  (unless (functionp function) (error "Reference mapper is not callable"))
+  (let* ((descriptor (%host-normalized-descriptor-index model start))
+         (kind (aref (host-model-descriptor-kinds model) descriptor))
+         (layout (host-object-kind-description-strong-layout kind)))
+    (if (typep layout 'host-indexed-layout)
+        (let ((count (aref (host-model-descriptor-counts model) descriptor))
+              (identity-base (host-indexed-layout-identity-base layout))
+              (identity-function
+                (host-indexed-layout-identity-function layout))
+              (base-offset (host-indexed-layout-base-offset layout))
+              (stride (host-indexed-layout-element-word-bytes layout)))
+          (dotimes (index count)
+            (let ((identity
+                    (funcall identity-function (+ identity-base index))))
+              (%host-call-with-borrowed-object-location
+               model descriptor identity :strong (+ base-offset (* index stride))
+               (lambda (location) (funcall function identity location))))))
+        (loop for slot across layout
+              do (let ((identity (host-slot-description-identity slot)))
+                   (%host-call-with-borrowed-object-location
+                    model descriptor identity :strong
+                    (host-slot-description-offset slot)
+                    (lambda (location)
+                      (funcall function identity location)))))))
+  (values))
+
+(defmethod map-weak-descriptors
+    ((model host-object-model) start function)
+  (%host-bound-model model)
+  (unless (functionp function) (error "Weak mapper is not callable"))
+  (let* ((descriptor (%host-normalized-descriptor-index model start))
+         (kind (aref (host-model-descriptor-kinds model) descriptor)))
+    (loop for description across
+          (host-object-kind-description-weak-descriptions kind)
+          do (let ((identity
+                     (host-weak-location-description-identity description)))
+               (%host-call-with-borrowed-object-location
+                model descriptor identity :weak
+                (host-weak-location-description-offset description)
+                (lambda (location)
+                  (funcall function identity location
+                           (host-weak-location-description-cleared-value
+                            description)))))))
+  (values))
+
+(defmethod map-ephemeron-descriptors
+    ((model host-object-model) start function)
+  (%host-bound-model model)
+  (unless (functionp function) (error "Ephemeron mapper is not callable"))
+  (let* ((descriptor (%host-normalized-descriptor-index model start))
+         (kind (aref (host-model-descriptor-kinds model) descriptor))
+         (generation
+           (aref (host-model-descriptor-generations model) descriptor)))
+    (loop for description across
+          (host-object-kind-description-ephemeron-descriptions kind)
+          do (let* ((identity
+                      (host-ephemeron-description-identity description))
+                    (key
+                      (%host-borrow-location
+                       model descriptor generation
+                       (%host-object-word-index
+                        model descriptor
+                        (host-ephemeron-description-key-offset description))
+                       identity :ephemeron-key))
+                    (value nil))
+               (unwind-protect
+                    (progn
+                      (setf value
+                            (%host-borrow-location
+                             model descriptor generation
+                             (%host-object-word-index
+                              model descriptor
+                              (host-ephemeron-description-value-offset
+                               description))
+                             identity :ephemeron-value))
+                      (funcall
+                       function identity key value
+                       (host-ephemeron-description-clear-key-p description)
+                       (host-ephemeron-description-cleared-key description)
+                       (host-ephemeron-description-cleared-value description)))
+                 (when value (%host-release-location value))
+                 (%host-release-location key)))))
+  (values))
+
+(defun %host-maybe-normalized-descriptor-index (model start)
+  (handler-case
+      (values (%host-normalized-descriptor-index model start) t)
+    (error () (values nil nil))))
+
+(defun %call-with-simulator-reference-location
+    (model start strength identity function)
+  "Private O(1) hosted workload resolver for one declared strong location."
+  (%host-bound-model model)
+  (unless (functionp function)
+    (error "Indexed reference-location callback is not callable"))
+  (multiple-value-bind (descriptor valid-p)
+      (%host-maybe-normalized-descriptor-index model start)
+    (unless valid-p
+      (return-from %call-with-simulator-reference-location
+        (values nil :stale :invalid-object)))
+    (let* ((kind (aref (host-model-descriptor-kinds model) descriptor))
+           (offset
+             (and (eq strength :strong)
+                  (or (%host-indexed-element-offset model descriptor identity)
+                      (multiple-value-bind (fixed found-p)
+                          (%host-fixed-strong-offset kind identity)
+                        (and found-p fixed))))))
+      (if (null offset)
+          (values nil :stale :unknown-location)
+          ;; Callback faults are client faults, not stale-object results.
+          (values
+           (%host-call-with-borrowed-object-location
+            model descriptor identity strength offset function)
+           :present nil)))))
+
+(defun %host-numeric-element-offset (model descriptor index)
+  (let* ((kind (aref (host-model-descriptor-kinds model) descriptor))
+         (rule (host-object-kind-description-size-rule kind)))
+    (when (and (typep rule 'host-variable-size-rule)
+               (eq (host-variable-size-rule-element-kind rule) :numeric)
+               (integerp index) (<= 0 index)
+               (< index (aref (host-model-descriptor-counts model) descriptor)))
+      (+ (host-variable-size-rule-header-bytes rule)
+         (* index (host-variable-size-rule-element-bytes rule))))))
+
+(defun %call-with-simulator-array-element (model start index function)
+  "Private O(1) hosted workload resolver for one raw numeric array word."
+  (%host-bound-model model)
+  (unless (functionp function)
+    (error "Array-element callback is not callable"))
+  (multiple-value-bind (descriptor valid-p)
+      (%host-maybe-normalized-descriptor-index model start)
+    (unless valid-p
+      (return-from %call-with-simulator-array-element
+        (values nil :stale :invalid-object)))
+    (let ((offset (%host-numeric-element-offset model descriptor index)))
+      (if (or (null offset) (not (zerop (mod offset 8))))
+          (values nil :stale :invalid-index)
+          ;; Callback faults propagate and the borrowed location still expires.
+          (values
+           (%host-call-with-borrowed-object-location
+            model descriptor index :numeric offset function)
+           :present nil)))))
+
+;;; Stable location handles ---------------------------------------------------
+
+(defun %host-allocate-handle (model)
+  (let ((index (host-model-handle-count model)))
+    (when (< index (length (host-model-handles model)))
+      (incf (host-model-handle-count model))
+      (aref (host-model-handles model) index))))
+
+(defmethod make-reference-location-handle
+    ((model host-object-model) source-start location)
+  (%host-bound-model model)
+  (unless (and (typep location 'host-reference-location)
+               (eq model (host-reference-location-model location))
+               (host-reference-location-active location)
+               (null (host-reference-location-stage location)))
+    (return-from make-reference-location-handle
+      (values nil :failed :invalid-location)))
+  (handler-case
+      (let* ((descriptor (%host-normalized-descriptor-index model source-start))
+             (generation
+               (aref (host-model-descriptor-generations model) descriptor)))
+        (unless (and (= descriptor
+                        (host-reference-location-descriptor location))
+                     (= generation
+                        (host-reference-location-generation location)))
+          (return-from make-reference-location-handle
+            (values nil :failed :invalid-location)))
+        (let ((handle (%host-allocate-handle model)))
+          (unless handle
+            (return-from make-reference-location-handle
+              (values nil :retry :capacity-exhausted)))
+          (setf (host-location-handle-model handle) model
+                (host-location-handle-active handle) t
+                (host-location-handle-descriptor handle) descriptor
+                (host-location-handle-generation handle) generation
+                (host-location-handle-identity handle)
+                (host-reference-location-identity location)
+                (host-location-handle-strength handle)
+                (host-reference-location-strength location)
+                (host-location-handle-word-index handle)
+                (host-reference-location-word-index location)
+                (host-location-handle-stage handle) nil
+                (host-location-handle-stage-generation handle) 0)
+          (values handle :complete nil)))
+    (error (condition)
+      (declare (ignore condition))
+      (values nil :failed :invalid-location))))
+
+(defun %host-handle-resolvable-p (model handle)
+  (and (typep handle 'host-location-handle)
+       (host-location-handle-active handle)
+       (eq model (host-location-handle-model handle))
+       (%host-descriptor-published-p
+        model (host-location-handle-descriptor handle))
+       (= (host-location-handle-generation handle)
+          (aref (host-model-descriptor-generations model)
+                (host-location-handle-descriptor handle)))
+       (let ((stage (host-location-handle-stage handle)))
+         (or (null stage)
+             (and (eq (host-staged-object-state stage) :installed)
+                  (= (host-location-handle-stage-generation handle)
+                     (host-staged-object-generation stage)))))))
+
+(defmethod call-with-reference-location
+    ((model host-object-model) handle function)
+  (%host-bound-model model)
+  (unless (functionp function) (error "Handle callback is not callable"))
+  (if (%host-handle-resolvable-p model handle)
+      (let ((location
+              (%host-borrow-location
+               model (host-location-handle-descriptor handle)
+               (host-location-handle-generation handle)
+               (host-location-handle-word-index handle)
+               (host-location-handle-identity handle)
+               (host-location-handle-strength handle))))
+        (unwind-protect
+             (progn (funcall function location) :present)
+          (%host-release-location location)))
+      :stale))
+
+;;; Staged representation facility -------------------------------------------
+
+(defun %host-available-stage (model)
+  (loop for stage across (host-model-stages model)
+        unless (eq (host-staged-object-state stage) :active)
+          do (return stage)))
+
+(defmethod copy-object-to-staging
+    ((model host-object-model) source address byte-capacity)
+  (%host-bound-model model)
+  (let* ((descriptor (%host-normalized-descriptor-index model source))
+         (size (aref (host-model-sizes model) descriptor))
+         (stage (%host-available-stage model)))
+    (unless (and stage (integerp address)
+                 (integerp byte-capacity) (>= byte-capacity size)
+                 (<= size (length (host-staged-object-bytes stage))))
+      (error "Staged representation capacity exhausted"))
+    (when (= (host-staged-object-generation stage) most-positive-fixnum)
+      (error "Staged representation generation exhausted"))
+    (let* ((start (%host-descriptor-start model descriptor))
+           (byte-start (%host-arena-byte-index-at-address model start))
+           (word-start (%host-arena-word-index-at-address model start)))
+      (dotimes (index size)
+        (setf (aref (host-staged-object-bytes stage) index)
+              (aref (host-model-arena model) (+ byte-start index))))
+      (dotimes (index (ceiling size 8))
+        (setf (aref (host-staged-object-words stage) index)
+              (aref (host-model-words model) (+ word-start index))))
+      (setf (host-staged-object-generation stage)
+            (1+ (host-staged-object-generation stage))
+            (host-staged-object-source stage) start
+            (host-staged-object-destination stage) address
+            (host-staged-object-size stage) size
+            (host-staged-object-alignment stage)
+            (aref (host-model-alignments model) descriptor)
+            (host-staged-object-kind stage)
+            (aref (host-model-descriptor-kinds model) descriptor)
+            (host-staged-object-descriptor stage)
+            (aref (host-model-descriptor-kinds model) descriptor)
+            (host-staged-object-descriptor-index stage) descriptor
+            (host-staged-object-descriptor-generation stage)
+            (aref (host-model-descriptor-generations model) descriptor)
+            (host-staged-object-state stage) :active)
+      (values stage size))))
+
+(defun %host-validate-active-stage (model stage)
+  (unless (and (typep stage 'host-staged-object)
+               (eq model (host-staged-object-model stage))
+               (eq :active (host-staged-object-state stage)))
+    (error "Foreign or inactive staged representation"))
+  stage)
+
+(defun %host-call-with-staged-location
+    (model stage identity strength offset function)
+  (let ((location
+          (%host-borrow-location
+           model (host-staged-object-descriptor-index stage)
+           (host-staged-object-descriptor-generation stage)
+           (floor offset 8) identity strength stage
+           (host-staged-object-generation stage))))
+    (unwind-protect (funcall function location)
+      (%host-release-location location))))
+
+(defmethod map-staged-reference-locations
+    ((model host-object-model) stage function)
+  (%host-bound-model model)
+  (%host-validate-active-stage model stage)
+  (unless (functionp function) (error "Staged mapper is not callable"))
+  (let* ((kind (host-staged-object-kind stage))
+         (layout (host-object-kind-description-strong-layout kind))
+         (size (host-staged-object-size stage)))
+    (if (typep layout 'host-indexed-layout)
+        (let* ((base-offset (host-indexed-layout-base-offset layout))
+               (stride (host-indexed-layout-element-word-bytes layout))
+               (count (floor (- size base-offset) stride))
+               (identity-base (host-indexed-layout-identity-base layout))
+               (identity-function
+                 (host-indexed-layout-identity-function layout)))
+          (dotimes (index count)
+            (let ((identity
+                    (funcall identity-function (+ identity-base index))))
+              (%host-call-with-staged-location
+               model stage identity :strong (+ base-offset (* index stride))
+               (lambda (location) (funcall function identity location))))))
+        (loop for slot across layout
+              do (let ((identity (host-slot-description-identity slot)))
+                   (%host-call-with-staged-location
+                    model stage identity :strong
+                    (host-slot-description-offset slot)
+                    (lambda (location)
+                      (funcall function identity location)))))))
+  (values))
+
+(defmethod map-staged-weak-descriptors
+    ((model host-object-model) stage function)
+  (%host-bound-model model)
+  (%host-validate-active-stage model stage)
+  (unless (functionp function) (error "Staged weak mapper is not callable"))
+  (loop for description across
+        (host-object-kind-description-weak-descriptions
+         (host-staged-object-kind stage))
+        do (let ((identity
+                   (host-weak-location-description-identity description)))
+             (%host-call-with-staged-location
+              model stage identity :weak
+              (host-weak-location-description-offset description)
+              (lambda (location)
+                (funcall function identity location
+                         (host-weak-location-description-cleared-value
+                          description))))))
+  (values))
+
+(defmethod map-staged-ephemeron-descriptors
+    ((model host-object-model) stage function)
+  (%host-bound-model model)
+  (%host-validate-active-stage model stage)
+  (unless (functionp function)
+    (error "Staged ephemeron mapper is not callable"))
+  (loop for description across
+        (host-object-kind-description-ephemeron-descriptions
+         (host-staged-object-kind stage))
+        do (let* ((identity
+                    (host-ephemeron-description-identity description))
+                  (key
+                    (%host-borrow-location
+                     model (host-staged-object-descriptor-index stage)
+                     (host-staged-object-descriptor-generation stage)
+                     (floor (host-ephemeron-description-key-offset description)
+                            8)
+                     identity :ephemeron-key stage
+                     (host-staged-object-generation stage)))
+                  (value nil))
+             (unwind-protect
+                  (progn
+                    (setf value
+                          (%host-borrow-location
+                           model (host-staged-object-descriptor-index stage)
+                           (host-staged-object-descriptor-generation stage)
+                           (floor
+                            (host-ephemeron-description-value-offset description)
+                            8)
+                           identity :ephemeron-value stage
+                           (host-staged-object-generation stage)))
+                    (funcall
+                     function identity key value
+                     (host-ephemeron-description-clear-key-p description)
+                     (host-ephemeron-description-cleared-key description)
+                     (host-ephemeron-description-cleared-value description)))
+               (when value (%host-release-location value))
+               (%host-release-location key))))
+  (values))
+
+(defmethod install-staged-object
+    ((model host-object-model) stage destination)
+  (%host-bound-model model)
+  (%host-validate-active-stage model stage)
+  (let ((descriptor (%host-active-destination-descriptor model destination)))
+    (unless descriptor (error "Invalid staged install destination"))
+    (unless (and (= (aref (host-model-sizes model) descriptor)
+                    (host-staged-object-size stage))
+                 (eq (aref (host-model-descriptor-kinds model) descriptor)
+                     (host-staged-object-kind stage)))
+      (error "Staged install representation mismatch"))
+    (let* ((start (%host-descriptor-start model descriptor))
+           (byte-start (%host-arena-byte-index-at-address model start))
+           (word-start (%host-arena-word-index-at-address model start))
+           (size (host-staged-object-size stage)))
+      (dotimes (index size)
+        (setf (aref (host-model-arena model) (+ byte-start index))
+              (aref (host-staged-object-bytes stage) index)))
+      (dotimes (index (ceiling size 8))
+        (setf (aref (host-model-words model) (+ word-start index))
+              (aref (host-staged-object-words stage) index)))
+      (setf (host-staged-object-destination stage) start
+            (host-staged-object-state stage) :installed)
+      (values))))
+
+(defun %host-descriptor-location-offset (kind strength identity)
+  (case strength
+    (:strong
+     (let ((layout (host-object-kind-description-strong-layout kind)))
+       (unless (typep layout 'host-indexed-layout)
+         (multiple-value-bind (offset found-p)
+             (%host-fixed-strong-offset kind identity)
+           (and found-p offset)))))
+    (:weak
+     (loop for description across
+           (host-object-kind-description-weak-descriptions kind)
+           when (eql identity
+                     (host-weak-location-description-identity description))
+             do (return
+                  (host-weak-location-description-offset description))))
+    (:ephemeron-key
+     (loop for description across
+           (host-object-kind-description-ephemeron-descriptions kind)
+           when (eql identity
+                     (host-ephemeron-description-identity description))
+             do (return
+                  (host-ephemeron-description-key-offset description))))
+    (:ephemeron-value
+     (loop for description across
+           (host-object-kind-description-ephemeron-descriptions kind)
+           when (eql identity
+                     (host-ephemeron-description-identity description))
+             do (return
+                  (host-ephemeron-description-value-offset description))))
+    (otherwise nil)))
+
+(defmethod make-staged-reference-location-handle
+    ((model host-object-model) staged-object descriptor-strength
+     descriptor-identity future-start)
+  (%host-bound-model model)
+  (unless (and (typep staged-object 'host-staged-object)
+               (eq model (host-staged-object-model staged-object))
+               (eq :active (host-staged-object-state staged-object)))
+    (return-from make-staged-reference-location-handle
+      (values nil :failed :invalid-location)))
+  (let* ((future-descriptor
+           (%host-unpublished-base-descriptor model future-start))
+         (kind (host-staged-object-kind staged-object))
+         (offset
+           (%host-descriptor-location-offset
+            kind descriptor-strength descriptor-identity)))
+    (unless (and future-descriptor offset
+                 (eq kind
+                     (aref (host-model-descriptor-kinds model)
+                           future-descriptor)))
+      (return-from make-staged-reference-location-handle
+        (values nil :failed :invalid-location)))
+    (let ((handle (%host-allocate-handle model)))
+      (unless handle
+        (return-from make-staged-reference-location-handle
+          (values nil :retry :capacity-exhausted)))
+      (setf (host-location-handle-model handle) model
+            (host-location-handle-active handle) t
+            (host-location-handle-descriptor handle) future-descriptor
+            (host-location-handle-generation handle)
+            (aref (host-model-descriptor-generations model)
+                  future-descriptor)
+            (host-location-handle-identity handle) descriptor-identity
+            (host-location-handle-strength handle) descriptor-strength
+            (host-location-handle-word-index handle)
+            (%host-object-word-index model future-descriptor offset)
+            (host-location-handle-stage handle) staged-object
+            (host-location-handle-stage-generation handle)
+            (host-staged-object-generation staged-object))
+      (values handle :complete nil))))
+
+;;; Runtime publication/retirement seams -------------------------------------
+
+(defun runtime-start-reference (model space address)
+  (%host-bound-model model)
+  (let* ((route (%host-route-at-address model address))
+         (descriptor
+           (and route (eq space (host-route-space route))
+                (%host-descriptor-index-at-start route address))))
+    (and descriptor (%host-descriptor-active-p model descriptor)
+         (%host-route-start-p route address)
+         (%host-base-reference-by-index model descriptor))))
+
+(defun runtime-retire-object-representation (model start)
+  "Retire one representation after its authoritative start was cleared."
+  (%host-bound-model model)
+  (unless (and (valid-reference-p model start)
+               (eq (host-reference-kind start) :base))
+    (error "Representation retirement requires a canonical base encoding"))
+  (let* ((descriptor (host-reference-descriptor start))
+         (base (%host-base-reference-by-index model descriptor))
+         (address (and base (host-reference-address base)))
+         (route (and address (%host-route-at-address model address))))
+    (unless (and (eq start base) route
+                 (%host-descriptor-active-p model descriptor)
+                 (not (%host-route-start-p route address)))
+      (error "Representation retirement requires a cleared authoritative start"))
+    ;; Handles retain the old generation and therefore become stale.  Stable
+    ;; pointer encodings remain immutable address forms, as native pointers do.
+    (setf (aref (host-model-sizes model) descriptor) 0
+          (aref (host-model-alignments model) descriptor) 0
+          (aref (host-model-descriptor-kinds model) descriptor) nil
+          (aref (host-model-descriptor-counts model) descriptor) 0)
+    (decf (host-model-live-count model))
+    (values)))
+
+(defun host-retire-object (model start)
+  ;; Compatibility name retained for existing host tests/runtime adapters.
+  (runtime-retire-object-representation model start))
+
+(defmethod map-construction-auxiliary-storage
+    ((model host-object-model) function)
+  "Enumerate the offered model's retained declarative storage explicitly."
+  (unless (functionp function)
+    (error "Construction auxiliary-storage mapper is not callable"))
+  (call-next-method)
+  (funcall function (host-model-kinds model))
+  (dotimes (index (host-model-kind-count model))
+    (let* ((kind (aref (host-model-kinds model) index))
+           (size-rule (host-object-kind-description-size-rule kind))
+           (alignment-rule
+             (host-object-kind-description-alignment-rule kind))
+           (strong (host-object-kind-description-strong-layout kind))
+           (weak (host-object-kind-description-weak-descriptions kind))
+           (ephemerons
+             (host-object-kind-description-ephemeron-descriptions kind)))
+      (funcall function kind)
+      (cond ((typep size-rule 'host-variable-size-rule)
+             (funcall function size-rule))
+            ((functionp size-rule) (funcall function size-rule)))
+      (when (functionp alignment-rule) (funcall function alignment-rule))
+      (if (typep strong 'host-indexed-layout)
+          (progn
+            (funcall function strong)
+            (funcall function
+                     (host-indexed-layout-identity-function strong)))
+          (progn
+            (funcall function strong)
+            (dotimes (slot (length strong))
+              (funcall function (aref strong slot)))))
+      (funcall function weak)
+      (dotimes (slot (length weak))
+        (funcall function (aref weak slot)))
+      (funcall function ephemerons)
+      (dotimes (slot (length ephemerons))
+        (funcall function (aref ephemerons slot)))))
+  (values))
+
+;;; Explicit resource manifest ------------------------------------------------
 
 (defun %register-bound-object-model-auxiliary (construction model identity)
-  "Charge the fixed planes and records created by BIND-OBJECT-MODEL.
-The construction resource service owns duplicate identity checking."
-  (unless (typep model 'host-bound-object-model)
-    (error "Auxiliary registration requires a bound hosted model"))
-  (let ((f (and (fboundp '%register-resource-auxiliary)
-                #'%register-resource-auxiliary)))
-    (unless f (error "Construction auxiliary registration is unavailable"))
-    (funcall f construction identity model)
-    (dolist (x (list (host-model-arena model) (host-model-words model)
-                     (host-model-descriptors model) (host-model-variants model)
-                     (host-model-handles model) (host-model-locations model)
-                     (host-model-stages model) (host-model-routes model)))
-      (funcall f construction identity x))
-    (dotimes (i (length (host-model-routes model)))
-      (let ((r (aref (host-model-routes model) i)))
-        (funcall f construction identity r)
-        (funcall f construction identity (host-route-descriptors r))
-        (funcall f construction identity (host-route-bases r))))))
+  "Register the complete persistent hosted model graph before manifest close."
+  (%host-bound-model model)
+  (labels ((register (object)
+             (when object
+               (%register-resource-auxiliary construction identity object)))
+           (register-vector (vector &optional elements-p)
+             (register vector)
+             (when elements-p
+               (dotimes (index (length vector))
+                 (register (aref vector index))))))
+    (register model)
+    (register-vector (host-model-bindings model) t)
+    (register-vector (host-model-routes model) t)
+    (register-vector (host-model-kinds model) t)
+    (dotimes (index (length (host-model-kinds model)))
+      (let* ((kind (aref (host-model-kinds model) index))
+             (size-rule (host-object-kind-description-size-rule kind))
+             (alignment-rule
+               (host-object-kind-description-alignment-rule kind))
+             (strong (host-object-kind-description-strong-layout kind))
+             (weak (host-object-kind-description-weak-descriptions kind))
+             (ephemerons
+               (host-object-kind-description-ephemeron-descriptions kind)))
+        (when (or (typep size-rule 'host-variable-size-rule)
+                  (functionp size-rule))
+          (register size-rule))
+        (when (functionp alignment-rule) (register alignment-rule))
+        (if (typep strong 'host-indexed-layout)
+            (progn
+              (register strong)
+              ;; The identity mapper may be a construction-created closure and
+              ;; is called while tracing indexed objects.
+              (register (host-indexed-layout-identity-function strong)))
+            (register-vector strong t))
+        (register-vector weak t)
+        (register-vector ephemerons t)))
+    (register (host-model-arena model))
+    (register (host-model-words model))
+    (register (host-model-sizes model))
+    (register (host-model-alignments model))
+    (register (host-model-descriptor-kinds model))
+    (register (host-model-descriptor-generations model))
+    (register (host-model-descriptor-counts model))
+    (register-vector (host-model-base-references model) t)
+    (register-vector (host-model-variants model) t)
+    (register (host-model-variant-hash-descriptors model))
+    (register (host-model-variant-hash-codes model))
+    (register (host-model-variant-hash-indices model))
+    (register-vector (host-model-locations model) t)
+    (register-vector (host-model-handles model) t)
+    (register-vector (host-model-stages model) t)
+    (dotimes (index (length (host-model-stages model)))
+      (let ((stage (aref (host-model-stages model) index)))
+        (register (host-staged-object-bytes stage))
+        (register (host-staged-object-words stage)))))
   (values))

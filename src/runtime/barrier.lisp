@@ -57,6 +57,16 @@
     (when (%barrier-event-p barrier index event)
       (return t))))
 
+(defun %validate-barrier-entry (barrier context)
+  (let ((configuration (%context-configuration context)))
+    (unless (and (eq (%context-state context) :bound)
+                 (typep configuration '%configuration)
+                 (eq barrier (configuration-barrier configuration)))
+      (%runtime-reject :foreign-context)))
+  (unless (eq (%plan-state (%context-plan context)) :open)
+    (%runtime-reject :collection-busy))
+  (values))
+
 (defun %barrier-raw-load (barrier location operation)
   (if (member operation '(:root-read :root-store))
       (host-root-value location)
@@ -151,6 +161,7 @@
   (%runtime-reject reason))
 
 (defun %barrier-store-operation (barrier context location new operation)
+  (%validate-barrier-entry barrier context)
   (when (%barrier-failed-p barrier)
     (%runtime-reject :fatal-invariant))
   (multiple-value-bind (reservations reserved-p reserve-status)
@@ -208,6 +219,7 @@
 
 (defmethod barrier-read ((barrier composed-barrier)
                          (context sequential-execution-context) location)
+  (%validate-barrier-entry barrier context)
   (when (%barrier-failed-p barrier) (%runtime-reject :fatal-invariant))
   (multiple-value-bind (reservations reserved-p reserve-status)
       (%reserve-barrier-path barrier context '(:read) location)
@@ -254,6 +266,7 @@
 (defmethod barrier-compare-exchange
     ((barrier composed-barrier) (context sequential-execution-context)
      location expected new)
+  (%validate-barrier-entry barrier context)
   (when (%barrier-failed-p barrier) (%runtime-reject :fatal-invariant))
   ;; CAS reserves the simultaneous union of its write and returned-read paths.
   (multiple-value-bind (reservations reserved-p reserve-status)
@@ -341,6 +354,19 @@
                      (values observed t :complete))))))
       (setf (%barrier-busy-p barrier) nil))))
 
+
+(defmethod barrier-store ((barrier composed-barrier) context location new)
+  (declare (ignore barrier context location new))
+  (%runtime-reject :foreign-context))
+
+(defmethod barrier-read ((barrier composed-barrier) context location)
+  (declare (ignore barrier context location))
+  (%runtime-reject :foreign-context))
+
+(defmethod barrier-compare-exchange
+    ((barrier composed-barrier) context location expected new)
+  (declare (ignore barrier context location expected new))
+  (%runtime-reject :foreign-context))
 
 (defmethod configuration-barrier ((configuration %configuration))
   (unless (%configuration-barrier-bound-p configuration)

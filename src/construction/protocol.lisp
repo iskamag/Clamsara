@@ -57,6 +57,40 @@
 (defmethod deactivate-component ((component component) context)
   (declare (ignore component context)) (values))
 
+;;; Private retained-storage ownership seam.  The builder calls this once for
+;;; the selected clients and once for every discovered component after all
+;;; initialization has completed.  A method names only storage owned by that
+;;; object which is retained by the published configuration and which has not
+;;; already been registered to another construction resource.  This is an
+;;; explicit ownership inventory, not permission for a reflective graph walk.
+(defgeneric map-construction-auxiliary-storage (owner function))
+(defmethod map-construction-auxiliary-storage ((owner t) function)
+  (funcall function owner)
+  (values))
+
+(defvar *construction-auxiliary-owner-seen* nil)
+
+(defun %map-construction-auxiliary-once (owner function)
+  "Invoke OWNER's explicit mapper once in the current ownership traversal."
+  (let ((seen (or *construction-auxiliary-owner-seen*
+                  (make-hash-table :test #'eq))))
+    (let ((*construction-auxiliary-owner-seen* seen))
+      (unless (gethash owner seen)
+        ;; Mark before dispatch so an accidental ownership cycle terminates.
+        (setf (gethash owner seen) t)
+        (map-construction-auxiliary-storage owner function))))
+  (values))
+
+(defun %map-construction-cons-storage (tree function)
+  "Call FUNCTION once per cons in TREE, but never infer ownership of leaves."
+  (labels ((walk (object)
+             (when (consp object)
+               (funcall function object)
+               (walk (car object))
+               (walk (cdr object)))))
+    (walk tree))
+  (values))
+
 ;;; Opaque public contribution constructors/describers.
 (defgeneric make-resource-contribution
     (component identity representation

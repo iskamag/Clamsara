@@ -87,6 +87,7 @@
                              (base 4096)
                              (extent 2048)
                              (packing-quantum 16)
+                             (map-granularity packing-quantum)
                              (root-count 8)
                              (trace-capacity 128)
                              (conditional-capacity 128)
@@ -154,7 +155,11 @@ ALGORITHM is :SEMISPACE or :MARKSWEEP.  OBJECT-STARTS is :PACKED or :SCALAR."
             :registration-capacity finalizer-registration-capacity))
          (domain-0
            (make-metadata-domain
-            :base base :limit (+ base extent) :granularity packing-quantum))
+            :base base :limit (+ base extent) :granularity map-granularity))
+         (control-domain-0
+           (if (= map-granularity packing-quantum) domain-0
+               (make-metadata-domain :base base :limit (+ base extent)
+                                     :granularity packing-quantum)))
          (map-0 (%object-start-map object-starts domain-0))
          (space nil)
          (plan
@@ -163,11 +168,16 @@ ALGORITHM is :SEMISPACE or :MARKSWEEP.  OBJECT-STARTS is :PACKED or :SCALAR."
               (let* ((domain-1
                        (make-metadata-domain
                         :base (+ base extent) :limit (+ base (* 2 extent))
-                        :granularity packing-quantum))
+                        :granularity map-granularity))
+                     (control-domain-1
+                       (if (= map-granularity packing-quantum) domain-1
+                           (make-metadata-domain
+                            :base (+ base extent) :limit (+ base (* 2 extent))
+                            :granularity packing-quantum)))
                      (from
                        (make-semispace-space
                         :name :quality-from :object-start-map map-0
-                        :forwarding (make-side-forwarding :domain domain-0)
+                        :forwarding (make-side-forwarding :domain control-domain-0)
                         :extent extent :packing-quantum packing-quantum
                         :role :allocation))
                      (to
@@ -175,7 +185,7 @@ ALGORITHM is :SEMISPACE or :MARKSWEEP.  OBJECT-STARTS is :PACKED or :SCALAR."
                         :name :quality-to
                         :object-start-map
                         (%object-start-map object-starts domain-1)
-                        :forwarding (make-side-forwarding :domain domain-1)
+                        :forwarding (make-side-forwarding :domain control-domain-1)
                         :extent extent :packing-quantum packing-quantum
                         :role :reserve)))
                 (setf space from)
@@ -190,7 +200,7 @@ ALGORITHM is :SEMISPACE or :MARKSWEEP.  OBJECT-STARTS is :PACKED or :SCALAR."
               (let ((marksweep
                       (make-marksweep-space
                        :name :quality-marksweep :object-start-map map-0
-                       :marks (make-side-marks :domain domain-0)
+                       :marks (make-side-marks :domain control-domain-0)
                        :extent extent :packing-quantum packing-quantum
                        :descriptor-capacity object-capacity)))
                 (setf space marksweep)

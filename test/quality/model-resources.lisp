@@ -22,7 +22,7 @@
 (defun align-up (value alignment)
   (* (ceiling value alignment) alignment))
 
-(defun make-model-world (&key (extent 4096) (model-capacity 32)
+(defun make-model-world (&key (extent 4096) (model-capacity nil model-capacity-p)
                            (max-object-bytes 1024) (variant-capacity 32)
                            (location-capacity 4) (handle-capacity 16)
                            (stage-capacity 2) (tag-capacity 4)
@@ -50,7 +50,10 @@
             :ownership-capacity 4))
          (offered-model
            (make-host-object-model
-            :capacity model-capacity :max-object-bytes max-object-bytes
+            ;; Dense descriptors already cover this geometry. Derive the
+            ;; admitted offer only when omitted; never repair an explicit cap.
+            :capacity (if model-capacity-p model-capacity (/ (* 2 actual-extent) q))
+            :max-object-bytes max-object-bytes
             :variant-capacity variant-capacity
             :location-capacity location-capacity
             :handle-capacity handle-capacity :stage-capacity stage-capacity
@@ -283,7 +286,7 @@
        (check (and (valid-reference-p model start)
                    (signals-error-p (lambda () (normalize-reference model start))))
               "authoritative retirement was confused with encoding validity")))
-   :extent 4096 :model-capacity 16 :max-object-bytes 256
+   :extent 4096 :model-capacity 512 :max-object-bytes 256
    :maximum-array-elements 16)
   ;; Exercise the real allocation publication path as a separate history.
   (call-with-model-world
@@ -298,7 +301,7 @@
            (normalize-reference model reference)
          (check (and (eq base reference) (eql descriptor 0))
                 "runtime-published reference did not normalize"))))
-   :extent 4096 :model-capacity 8 :max-object-bytes 128
+   :extent 4096 :model-capacity 512 :max-object-bytes 128
    :maximum-array-elements 8)
   t)
 
@@ -351,7 +354,7 @@
               "handle survived source retirement")
        (setf (model-world-objects world)
              (delete start (model-world-objects world) :key #'car :test #'eq))))
-   :extent 4096 :model-capacity 8 :max-object-bytes 128
+   :extent 4096 :model-capacity 512 :max-object-bytes 128
    :handle-capacity 4 :location-capacity 2 :maximum-array-elements 8)
   t)
 
@@ -462,9 +465,21 @@
                    (world-initialize-object
                     world (+ to-base 192) array-kind small-bytes to-map)))
              (install-staged-object model stage correct-destination))))))
-   :extent 4096 :model-capacity 12 :max-object-bytes 256
+   :extent 4096 :model-capacity 512 :max-object-bytes 256
    :stage-capacity 1 :handle-capacity 8 :maximum-array-elements 16)
-  ;; Exhaust every fixed pool and verify the rejecting call changes no state.
+  ;; The former two-live-representation limit is now rejected at construction:
+  ;; copying needs both old sources and unexposed destinations represented.
+  (let ((rejected nil))
+    (handler-case
+        (call-with-model-world (lambda (world) (declare (ignore world)))
+                               :extent 4096 :model-capacity 2 :max-object-bytes 128)
+      (clamsara::construction-rejected (condition)
+        (check (eq :bind-object-model-signaled
+                   (clamsara::construction-rejection-reason condition))
+               "Undersized model rejected for an unrelated reason")
+        (setf rejected t)))
+    (check rejected "Two-representation offer was admitted for a 512-cell layout"))
+  ;; Keep every independent variant/location/handle/staging exhaustion check.
   (call-with-model-world
    (lambda (world)
      (let* ((model (model-world-model world))
@@ -472,33 +487,9 @@
             (base (clamsara::%space-base (model-world-from world)))
             (kind (model-world-node-kind world))
             (first (world-initialize-object world (+ base 64) kind 32 map))
-            (second (world-initialize-object world (+ base 96) kind 32 map))
-            (failed-address (+ base 128))
-            (failed-descriptor
-              (clamsara::%host-descriptor-index-at-start
-               (clamsara::%host-route-at-address model failed-address)
-               failed-address))
-            (before (object-plane-snapshot model failed-address 32))
-            (before-generation
-              (aref (clamsara::host-model-descriptor-generations model)
-                    failed-descriptor)))
+            (second (world-initialize-object world (+ base 96) kind 32 map)))
        (metadata-set map (+ base 64) 1)
        (metadata-set map (+ base 96) 1)
-       (check
-        (signals-error-p
-         (lambda () (initialize-object model failed-address kind 32 kind)))
-        "object-capacity exhaustion did not reject")
-       (check
-        (and (= 2 (clamsara::host-model-live-count model))
-             (zerop (aref (clamsara::host-model-sizes model)
-                          failed-descriptor))
-             (= before-generation
-                (aref (clamsara::host-model-descriptor-generations model)
-                      failed-descriptor))
-             (zerop (metadata-ref map failed-address))
-             (object-plane-snapshot-equal-p
-              before (object-plane-snapshot model failed-address 32)))
-        "object-capacity rejection changed representation/map state")
        (let ((variant (rebuild-reference model first (+ #x10000000 8)))
              (count (clamsara::host-model-variant-count model)))
          (check
@@ -562,7 +553,7 @@
                  (= generation (clamsara::host-staged-object-generation stage))
                  (equalp words (clamsara::host-staged-object-words stage)))
             "staging-capacity rejection disturbed active stage")))))
-   :extent 4096 :model-capacity 2 :max-object-bytes 128
+   :extent 4096 :model-capacity 512 :max-object-bytes 128
    :variant-capacity 1 :location-capacity 1 :handle-capacity 1
    :stage-capacity 1 :maximum-array-elements 8)
   t)
@@ -703,7 +694,7 @@
                   object (clamsara::%host-object-storage object))
            (check owner "persistent object has NIL manifest owner: ~S" object)))
        (check-resource-charges world)))
-   :extent 4096 :model-capacity 16 :max-object-bytes 256
+   :extent 4096 :model-capacity 512 :max-object-bytes 256
    :maximum-array-elements 16)
   t)
 
@@ -918,7 +909,7 @@
                      (clamsara::%host-object-storage directory)))
          (when token
            (ignore-errors (unregister-root-provider roots token))))))
-   :extent 4096 :model-capacity 16 :max-object-bytes 256
+   :extent 4096 :model-capacity 512 :max-object-bytes 256
    :maximum-array-elements 16
    :root-registration-capacity 6 :root-capacity 64)
   t)
@@ -1359,7 +1350,7 @@
          (check-fixed-plane-snapshot model planes-before)
          (check (equalp account-before (capacity-account-snapshot configuration))
                 "guest payload activity changed fixed hosted charge")))
-     :extent 4096 :model-capacity 8 :max-object-bytes 512
+     :extent 4096 :model-capacity 512 :max-object-bytes 512
      :variant-capacity 8 :location-capacity 2 :handle-capacity 4
      :stage-capacity 1 :maximum-array-elements elements))
   t)
@@ -1546,6 +1537,10 @@
                               :word-plane-element-type
                               (array-element-type
                                (clamsara::host-model-words model))
+                              :model-representation-capacity
+                              (clamsara::host-model-capacity model)
+                              :model-descriptor-cells
+                              (length (clamsara::host-model-sizes model))
                               :fixed-model-plane-bytes model-storage
                               :account-physical-bytes physical
                               :account-auxiliary-bytes auxiliary
@@ -1553,7 +1548,7 @@
                               :numeric-strong-callbacks 0
                               :objects-discovered discovered
                               :objects-moved moved :bytes-moved moved-bytes)))))))))))
-     :extent extent :model-capacity 8 :max-object-bytes bytes
+     :extent extent :model-capacity (/ (* 2 extent) 16) :max-object-bytes bytes
      :variant-capacity 8 :location-capacity 2 :handle-capacity 4
      :stage-capacity 1 :maximum-array-elements element-count)
     evidence))

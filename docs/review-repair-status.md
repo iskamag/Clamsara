@@ -188,11 +188,55 @@ audit. In particular, source inspection shows that binding currently copies the
 kind vector while retaining its description objects; later mutation/stability
 has not been independently exercised in this repair.
 
+## Hosted representation capacity admission
+
+Binding now requires `offered capacity >= C`, where `C` is the total number of
+canonical descriptor cells across all installed ranges at their actual
+object-start map granularities. The check precedes dense-plane allocation.
+It rejects an insufficient offer with both offered and required counts; it does
+not raise the offer, resize the heap, or remove the runtime invariant check.
+
+Each initialized representation occupies a distinct nonzero size cell. A free
+destination therefore implies fewer than `C` initialized representations.
+Covering `C` makes the live-count limit safe even while old sources, unexposed
+copy destinations, mature objects and finalizer-retained objects coexist.
+This bound is deliberately conservative when maps are finer than allocation Q
+or kinds have larger minimum footprints. It is a hosted admission restriction,
+not an exact maximum-live-object calculation. The source-only design reasoning
+and alternatives are preserved in
+[representation-capacity-design.md](representation-capacity-design.md).
+
+`clamsara/quality/representation-capacity/test` checks 24 rejected offers with
+real builder/resource/layout unwind and 16 full-survivor histories across
+SemiSpace/MarkSweep, packed/scalar maps and map granularities 8/16 with Q=16.
+Exact and larger admitted offers retain their values and identical physical
+geometry. Four cycles per history observe source/destination coexistence
+(reaching 16 representations at an exact capacity of 16), correct payloads,
+source retirement, real discharge and close. The integrated main/tools/workload/
+optional-generational/structure tests, including 288 mixed-generation oracle
+cycles, pass. The fixed pre-repair baseline admits an insufficient 1/32 offer.
+
+This tightens the hosted constructor contract. Positive test offers that were
+8/16/32 are now explicitly large enough for their existing layouts; no space
+extent, payload size or benchmark fixture changed. The former two-object model
+exhaustion case is now a constructor-rejection test. Independent variant,
+borrowed-location, handle and staging exhaustion assertions remain unchanged.
+Those other capacities and full model snapshot/target admission are not proved
+by this descriptor-count bound.
+
+The 500,000-element stress also passes with the original two 8,001,056-byte
+semispaces. It now reports capacity and descriptor count 1,000,132. Fixed model
+planes remain exactly 80,011,312 bytes; 500,000 reference callbacks, zero numeric
+callbacks and 8,000,032 copied bytes for two objects remain unchanged. See
+[quality-model-resources.md](quality-model-resources.md) for current accounting
+and the separate historical results.
+
 ## Other confirmed review findings
 
-Still open: under-admitted model representation capacity, and composed CAS event
-ordering and mismatch exposure-fault closure. These have not been waived by
-passing existing component suites.
+Still open: composed CAS event ordering and mismatch exposure-fault closure.
+These have not been waived by passing existing component suites. Managed
+callback/root/barrier and model-description snapshot limitations remain as
+stated above.
 
 ## Generational recovery
 

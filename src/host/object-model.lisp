@@ -163,6 +163,9 @@ actual admitted element count; no per-object layout vector is made."
        (tag-capacity 8) (kind-capacity 64) (slot-capacity 64)
        (profile :sequential-host))
   "Make the construction-time hosted model offer.
+CAPACITY must cover all descriptor cells in the installed layout, including
+reserve ranges, at the actual object-start map granularities. Binding rejects
+an insufficient explicit offer; it never raises CAPACITY or enlarges a heap.
 MAX-DISPLACEMENT is accepted only as a compatibility alias; the established
 caller ABI is MAX-INTERIOR-DISPLACEMENT."
   (let ((maximum-displacement
@@ -554,6 +557,14 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
       (unless (and (typep total-bytes '(integer 1 #.most-positive-fixnum))
                    (typep total-cells '(integer 1 #.most-positive-fixnum)))
         (error "Hosted model extent is not representable"))
+      ;; Each initialized representation occupies a distinct descriptor cell,
+      ;; including old sources and unexposed copy destinations.  Cover every
+      ;; installed cell before binding: a free destination then cannot exhaust
+      ;; the live-count ceiling, regardless of reachability or collection scope.
+      ;; This is an admission requirement, never an implicit capacity increase.
+      (when (< (host-model-capacity model) total-cells)
+        (error "Hosted representation capacity ~D is below required ~D"
+               (host-model-capacity model) total-cells))
       (let* ((arena (make-array total-bytes :element-type '(unsigned-byte 8)
                                 :initial-element 0))
              (words (make-array (ceiling total-bytes 8) :initial-element nil))

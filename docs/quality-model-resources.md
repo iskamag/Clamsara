@@ -61,9 +61,9 @@ space extent to obtain a pass.
 5. Staging rejects insufficient byte capacity before changing its pool record.
    A valid staged install succeeds. A same-kind/different-size mismatch rejects
    before changing destination bytes or words.
-6. Object, variant, handle, borrowed-location, and staging capacity exhaustion
-   preserves the already published state and does not advance the rejected
-   record/cell.
+6. Insufficient dense representation capacity rejects at binding. Variant,
+   handle, borrowed-location and staging pool exhaustion preserves the already
+   published state and does not advance the rejected record/cell.
 7. Every closed simulator resource reports actual handle/padding/manifest/
    reserve bytes. The immutable account equals its final resource state. One
    object has one manifest owner.
@@ -259,7 +259,7 @@ sbcl --dynamic-space-size 8192 --noinform --non-interactive \
 
 Actual status: exit 0. The test was rerun after the root fixed-reserve and
 numeric admission changes landed so the recorded capacity total belongs to the
-final source milestone. Durable log:
+then-current source milestone. Historical log:
 `/tmp/clamsara-model-resources-500k-final.log`.
 
 ```text
@@ -284,6 +284,38 @@ The test also checked the corrected root and inter-array edge, generic/numeric
 endpoint values after movement, and stale source encodings. This is exact hosted
 correctness and capacity evidence. The word plane's element type `T` is also why
 the separate boxed-float/host-cons negative residency tests remain necessary.
+
+## Dense representation admission update
+
+The common model binder now requires capacity for every installed descriptor
+cell, including reserve ranges. This is an explicit tightening of the hosted
+profile. The fixed planes already had that geometry; only a missing admission
+check allowed a smaller logical ceiling to interrupt copying after forwarding.
+The offer is never silently clamped. Test fixtures explicitly provision their
+existing layouts, and retain their independent smaller variant/location/handle/
+staging limits. The old two-object logical-capacity failure is now a construction
+rejection case. See [review-repair-status.md](review-repair-status.md) for the
+proof, conservative limits, rollback and full-survivor tests.
+
+A new 500,000-element run passes on the capacity repair. It keeps all object,
+heap and trace geometry unchanged. Native log: `/tmp/clamsara-capacity-array-stress.log`.
+
+```text
+MODEL-REPRESENTATION-CAPACITY  1000132
+MODEL-DESCRIPTOR-CELLS         1000132
+FIXED-MODEL-PLANE-BYTES       80011312
+ACCOUNT-PHYSICAL-BYTES        48133504
+ACCOUNT-AUXILIARY-BYTES       160290512
+REFERENCE-CALLBACKS           500000
+NUMERIC-STRONG-CALLBACKS      0
+OBJECTS-DISCOVERED/MOVED      2/2
+BYTES-MOVED                   8000032
+```
+
+The model-plane bytes exactly match the earlier run. Whole-configuration charges
+include the intervening service changes and are reported afresh, not copied
+from that historical result. This remains hosted component evidence, not
+benchmark or target admission.
 
 ## Evidence limits
 

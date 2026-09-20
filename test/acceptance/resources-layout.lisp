@@ -297,7 +297,7 @@
              (initial-generation
                (clamsara::%simulator-layout-range-generation route))
              (offered (clamsara::make-host-object-model
-                       :capacity 1 :kind-capacity 1 :slot-capacity 1
+                       :capacity 256 :kind-capacity 1 :slot-capacity 1
                        :max-object-bytes 16 :handle-capacity 1
                        :stage-capacity 1 :max-interior-displacement 0
                        :tag-capacity 0))
@@ -411,7 +411,7 @@
          (identity-function
            (let ((bias 0)) (lambda (index) (+ bias index))))
          (offered (clamsara::make-host-object-model
-                   :capacity 1 :max-object-bytes 32 :variant-capacity 4
+                   :capacity 256 :max-object-bytes 32 :variant-capacity 4
                    :location-capacity 2 :handle-capacity 2 :stage-capacity 1
                    :max-interior-displacement 8 :tag-capacity 1
                    :kind-capacity 2 :slot-capacity 1))

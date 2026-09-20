@@ -32,6 +32,31 @@
                (workload-eval environment
                               '(defmacro adapter-add-one (value) `(+ ,value 1)))
                (check (= 5 (workload-eval environment '(adapter-add-one 4))))
+               (workload-eval environment
+                              '(defmacro adapter-tree-size (value)
+                                 `(1- (ash 1 (1+ ,value)))))
+               (check (= 31 (workload-eval environment
+                                         '(let ((depth 4))
+                                            (adapter-tree-size depth)))))
+               (check (= 31 (workload-eval environment
+                                         '(adapter-tree-size (+ 2 2)))))
+               (check (= 31 (workload-eval environment
+                                         '(macrolet ((size (value)
+                                                       `(1- (ash 1 (1+ ,value)))))
+                                            (size 4)))))
+               (check (null clamsara::*workload-source-execution-p*))
+               ;; Macro source data must not enable a host-list fallback for
+               ;; ordinary runtime calls after macroexpansion returns.
+               (check (handler-case
+                          (progn
+                            (funcall
+                             (clostrum:fdefinition
+                              (clamsara::workload-maclina-client environment)
+                              (clamsara::workload-maclina-environment environment)
+                              'cl:car)
+                             (list 1 2))
+                            nil)
+                        (type-error () t)))
                (let ((object (workload-allocate environment :cons 2
                                                '((:car 11) (:cdr 22)))))
                  (check (workload-reference-p environment object))

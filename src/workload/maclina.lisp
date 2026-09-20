@@ -14,10 +14,62 @@
                  :reader workload-client-global-cells)
    (global-cell-count :initform 0 :accessor workload-client-global-cell-count)
    (properties :initform (make-hash-table :test #'equal)
-               :reader workload-client-properties)))
+               :reader workload-client-properties)
+   ;; Compiler-control functions, not guest payload or a guest heap registry.
+   (source-operators :initform (make-hash-table :test #'eq)
+                     :reader workload-client-source-operators)))
 
 (defvar *workload-environment* nil)
 (defvar *workload-read-depth* 0)
+
+(defvar *workload-source-execution-p* nil)
+
+(defmethod maclina.compile::compile-combination :around
+    ((description trucler:macro-description) form environment context)
+  (declare (ignore description form environment context))
+  ;; Maclina invokes macro bodies through the VM. Its source forms are host
+  ;; syntax objects, not guest heap objects. Bind this distinction only while
+  ;; the compiler expands a macro; ordinary workload execution never sets it.
+  ;; This extends a generic without replacing its existing methods/functions.
+  (if (typep maclina.machine:*client* 'workload-maclina-client)
+      (let ((*workload-source-execution-p* t)) (call-next-method))
+      (call-next-method)))
+
+(defmethod maclina.machine:compute-instance-function :around
+    ((client workload-maclina-client) (function maclina.machine:function))
+  (let ((entry (call-next-method)))
+    (lambda (&rest arguments)
+      (declare (dynamic-extent arguments))
+      (let ((source-entry
+              (and *workload-source-execution-p*
+                   (gethash function (workload-client-source-operators client)))))
+        ;; Keep the original Maclina function object and closure environment
+        ;; visible. Do not hide them behind a replacement fdefinition closure.
+        (apply (or source-entry entry) arguments)))))
+
+(defun %workload-install-data-function (client runtime name function)
+  (let ((source-entry
+          (and (member name '(cl:cons cl:car cl:cdr cl:consp cl:atom
+                              cl:rplaca cl:rplacd cl:list cl:length
+                              cl:mapcar cl:mapc cl:member cl:assoc cl:append
+                              cl:nconc cl:reverse cl:subst cl:copy-tree cl:equal
+                              cl:aref (setf cl:aref) cl:make-array cl:arrayp
+                              cl:vectorp cl:array-element-type)
+                       :test #'equal)
+               (fdefinition name))))
+    (setf (clostrum:fdefinition client runtime name)
+          (cond
+            ((typep function 'maclina.machine:function)
+             (when source-entry
+               (setf (gethash function (workload-client-source-operators client))
+                     source-entry))
+             function)
+            (source-entry
+             (lambda (&rest arguments)
+               (declare (dynamic-extent arguments))
+               (apply (if *workload-source-execution-p* source-entry function)
+                      arguments)))
+            (t function)))))
 
 
 (defun %register-global-cell (client cell)
@@ -666,7 +718,7 @@ host graph."
                         (%guest-cons-p environment right)) nil)
                    (t (equal left right)))))
     (flet ((fset (name function)
-             (setf (clostrum:fdefinition client runtime name) function)))
+             (%workload-install-data-function client runtime name function)))
       (fset 'cl:cons #'cons*) (fset 'cl:car #'car*) (fset 'cl:cdr #'cdr*)
       (fset 'cl:consp #'consp*) (fset 'cl:atom #'atom*)
       (fset 'cl:rplaca #'rplaca*) (fset 'cl:rplacd #'rplacd*)
@@ -733,8 +785,7 @@ host graph."
       ;; the provider's normal frame/value root scan, not in unregistered host
       ;; locals held across CONS allocations.
       (labels ((install-guest (name form)
-                 (setf (clostrum:fdefinition client runtime name)
-                       (workload-eval environment form))))
+                 (fset name (workload-eval environment form))))
         (install-guest
          'cl:list
          `(lambda (&rest values)

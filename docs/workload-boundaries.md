@@ -63,6 +63,43 @@ an automatic collection. The observed run moves 16 live nodes and checks all
 This test is not a reduced-parameter replacement for full depth-18 acceptance.
 The adapter suite reports 36 passing checks.
 
+## Open VM value-lifetime failures
+
+After the structure fix (`7c0ff75`), unchanged depth-18 GCBench builds its
+stretch tree but fails with `:HEAP-EXHAUSTED` when beginning the long-lived tree.
+A 16KiB reproduction identifies the cause: the root provider still exposes
+the discarded 255-node stretch result through `VM-VALUES`. An automatic cycle
+correctly copies those nodes plus the new one-node tree: 256 objects, 16,384
+bytes. Increasing heap capacity would hide this adapter lifetime error.
+
+There is also an opposite lifetime error. Maclina's cleanup path saves protected
+multiple values in a host lexical list. An interpreted cleanup call overwrites
+`VM-VALUES`; subsequent moving collection does not update the saved list.
+The returned protected references are then stale. Unconditionally clearing the
+value register is therefore not a sufficient or safe root-integration design.
+
+Reproduce the three cases from the repository root:
+
+```sh
+sbcl --noinform --non-interactive --load tools/probe-workload-values.lisp
+```
+
+Observed on `7c0ff75` (the command exits **1**, not a passing admission gate):
+
+| Case | Result |
+| --- | --- |
+| Discarded stretch result | Fails: `:HEAP-EXHAUSTED` |
+| `MULTIPLE-VALUE-PROG1` across moving collection | Passes; two objects moved |
+| `UNWIND-PROTECT` values across an interpreted cleanup call and collection | Fails: stale returned reference |
+
+The passing case keeps its values in writable VM stack slots. The cleanup
+case needs equally explicit writable ownership across its saved-value extent.
+The next integration must distinguish dead result registers from live saved
+values, including exceptional cleanup. No VM/helper global replacement,
+fixture edit, forwarding fallback for stale encodings, or heap-size workaround
+has been installed. These are implementation gaps, not paper contradictions.
+The existing 36-check adapter suite does not establish this stronger acceptance.
+
 This is not a claim of complete language adaptation. Managed REST lists,
 constant/module roots, active closures, foreign primitive argument lifetimes,
 macro side effects crossing phase boundaries, general teardown, and the

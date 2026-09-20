@@ -13,8 +13,9 @@ introspection, and the preceding native ASDF load. It rejects:
 - definitions introduced outside `CLAMSARA`, except the exact documented
   `CL:INITIALIZE-INSTANCE :AFTER` extension for `METADATA-STORAGE` and the
   `CLOSTRUM-BASIC:MAKE-VARIABLE-CELL` method for `WORKLOAD-MACLINA-CLIENT`,
-  plus the explicitly guarded Maclina macro-compilation and client function-entry
-  extensions described in `docs/workload-boundaries.md`;
+  plus the workload-client Trucler keyword-description method and the explicitly
+  guarded Maclina macro-compilation and client function-entry extensions described
+  in `docs/workload-boundaries.md`;
 - versioned production source paths and versioned ASDF system aliases.
 
 The duplicate whitelist is empty. Whitelist entries, if ever needed, must name

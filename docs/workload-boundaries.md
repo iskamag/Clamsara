@@ -25,6 +25,20 @@ nested macro shape, compound macro arguments, local macros, mode restoration,
 and rejection of host conses by ordinary runtime CAR after macroexpansion.
 The same command retains its moving smoke, initializer, and TIME regressions.
 
+## Keyword constants
+
+A subsequent unchanged depth-18 attempt reached execution but failed on
+`UNBOUND-VARIABLE :LEFT`. The compiler described keywords as unknown special
+variables. The workload client's `TRUCLER:DESCRIBE-VARIABLE` method now returns
+constant descriptions with the keyword itself as both name and value. Other
+names delegate to the existing environment protocol. No mutable global cell
+or host-global variable fallback is introduced.
+
+Adapter regressions cover keywords interned after environment construction,
+unchanged global-cell counts, unknown non-keyword lookup, multiple keyword
+values, and calls using the benchmark's `:LEFT` and `:RIGHT` argument shape.
+The benchmark source and parameters remain unchanged.
+
 This is not a claim of complete language adaptation. Managed REST lists,
 constant/module roots, active closures, foreign primitive argument lifetimes,
 macro side effects crossing phase boundaries, general teardown, and the

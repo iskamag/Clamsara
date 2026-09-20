@@ -3,8 +3,9 @@
 ;;;; Maclina remains the compiler/bytecode engine.  Guest CONS, ARRAY and
 ;;;; STRUCT payloads are allocated only through the v14 context; the host CL
 ;;;; objects used by Maclina for code, environments and closures are not
-;;;; silently treated as managed references.  This file deliberately uses the
-;;;; upstream public Maclina client seams and CLAMSARA generics.
+;;;; silently treated as managed references.  The Maclina/Trucler generic
+;;;; extensions, including the compiler-private macro seam, are documented in
+;;;; docs/workload-boundaries.md.
 
 (in-package #:clamsara)
 
@@ -71,6 +72,15 @@
                       arguments)))
             (t function)))))
 
+
+(defmethod trucler:describe-variable
+    ((client workload-maclina-client) (environment clostrum:environment) name)
+  ;; Keywords are self-evaluating constants, not unknown special variables.
+  ;; Describe them directly: no mutable global cell or host-environment fallback.
+  (if (keywordp name)
+      (make-instance 'trucler:constant-variable-description
+                     :name name :value name)
+      (call-next-method)))
 
 (defun %register-global-cell (client cell)
   (let* ((cells (workload-client-global-cells client))

@@ -27,6 +27,34 @@
                                         '(let ((count 0))
                                            (time (incf count))
                                            count))))
+               ;; Keywords are constants, including symbols interned after
+               ;; environment construction. They must not create special cells.
+               (let* ((client (clamsara::workload-maclina-client environment))
+                      (compiler-environment
+                        (clamsara::workload-maclina-environment environment))
+                      (keyword (intern (symbol-name (gensym "ADAPTER-KEY-"))
+                                       (find-package "KEYWORD")))
+                      (before (clamsara::workload-client-global-cell-count client))
+                      (description
+                        (trucler:describe-variable client compiler-environment
+                                                   keyword)))
+                 (check (typep description 'trucler:constant-variable-description))
+                 (check (eq keyword (trucler:name description)))
+                 (check (eq keyword (trucler:value description)))
+                 (check (eq keyword (workload-eval environment keyword)))
+                 (check (= before
+                           (clamsara::workload-client-global-cell-count client)))
+                 (check (null (trucler:describe-variable
+                               client compiler-environment (gensym "UNKNOWN-")))))
+               (check (equal '(:left :right :element-type :lambda-list t nil)
+                             (multiple-value-list
+                              (workload-eval environment
+                                             '(values :left :right :element-type
+                                                      :lambda-list t nil)))))
+               (check (= 12 (workload-eval
+                            environment
+                            '((lambda (&key left right) (+ left right))
+                              :left 5 :right 7))))
                ;; Native backquote/comma syntax must be expanded, not called
                ;; as a function or mistaken for a numeric object.
                (workload-eval environment

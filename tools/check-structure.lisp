@@ -43,6 +43,8 @@
      . "METADATA-STORAGE adds an :AFTER method to the standard initialization protocol.")
     ("CLOSTRUM-BASIC::MAKE-VARIABLE-CELL"
      . "WORKLOAD-MACLINA-CLIENT registers Clostrum global cells as managed roots.")
+    ("TRUCLER::DESCRIBE-VARIABLE"
+     . "WORKLOAD-MACLINA-CLIENT describes keyword constants without mutable global cells.")
     ("MACLINA.COMPILE::COMPILE-COMBINATION"
      . "An :AROUND method scopes compiler syntax execution only for WORKLOAD-MACLINA-CLIENT.")
     ("MACLINA.MACHINE::COMPUTE-INSTANCE-FUNCTION"

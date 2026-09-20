@@ -1,0 +1,2010 @@
+# trace-capacity-probe run
+# frozen root: /tmp/clamsara-description-review-7p14doks/
+# snapshot commit: 9dd8629
+# probe sha256: 9d531948ad3642fe92fd47367c66751f21f1a1100f1b698b3f0ae830a6913701
+# command: sbcl --noinform --dynamic-space-size 1024 --end-runtime-options --non-interactive --disable-debugger --no-sysinit --no-userinit --eval '(require :asdf)' --eval '(asdf:initialize-source-registry '"'"'(:source-registry (:directory #p"/tmp/clamsara-description-review-7p14doks/") :inherit-configuration))' --eval '(asdf:load-system :clamsara)' --eval '(load "/tmp/clamsara-description-review-7p14doks/test/quality/support.lisp")' --eval '(load "/tmp/clamsara-description-review-7p14doks/independent-review/deepseek-performance/trace-capacity-probe.lisp")' --eval '(clamsara.review.trace-capacity-probe:run-trace-capacity-probe)'
+# env CL_SOURCE_REGISTRY: /tmp/clamsara-description-review-7p14doks///
+# env CLAMSARA_PROBE_ROOT: /tmp/clamsara-description-review-7p14doks/
+# exit code: 0
+# duration seconds: 0.739
+# tree files before/after: 167/167; added=[] removed=[] changed=[]
+# pins match before/after: True/True; probe unchanged: True
+# ---- stdout ----
+TRACE-CAPACITY-PROBE :START (:MEASURED-PER-WORLD 24 :WARMUP 1 :ROUNDS 2 :COLLECTIONS-PER-WORLD 26 :STOP-CAPACITY-OFFER 64 :CLOCK :SB-EXT-GET-TIME-OF-DAY :CLOCK-GRANULARITY-MICROSECONDS 1 :INTERNAL-TIME-UNITS-PER-SECOND 1000000)
+TRACE-CAPACITY-PROBE :ASDF-SELECTION (:SOURCE-DIRECTORY "/tmp/clamsara-description-review-7p14doks" :SYSTEM-FILE "/tmp/clamsara-description-review-7p14doks/clamsara.asd" :ASDF-VERSION "3.3.1" :CENTRAL-REGISTRY NIL :CL-SOURCE-REGISTRY "/tmp/clamsara-description-review-7p14doks///" :CLASSPATH NIL :LISP "2.6.8.3-db35d4561" :PROBE-FILE "/tmp/clamsara-description-review-7p14doks/independent-review/deepseek-performance/trace-capacity-probe.lisp")
+TRACE-CAPACITY-PROBE :SOURCE-HASHES-BEFORE (:LABEL :BEFORE :ALL-MATCH T
+                                            :HASH-AVAILABLE T :HASH-METHOD
+                                            :SHA256SUM :FILES
+                                            (("src/host/object-model.lisp"
+                                              "6290798c9aa0b914770c1154effd18d0c1e20b5e927b4ee81ca167e88839af13"
+                                              "6290798c9aa0b914770c1154effd18d0c1e20b5e927b4ee81ca167e88839af13"
+                                              T :SHA256SUM)
+                                             ("src/runtime/records.lisp"
+                                              "62d6651531bd53f99e0b5f0039b70cc5db320893ac1cdfcc4c63aeaee25c7703"
+                                              "62d6651531bd53f99e0b5f0039b70cc5db320893ac1cdfcc4c63aeaee25c7703"
+                                              T :SHA256SUM)
+                                             ("src/runtime/trace.lisp"
+                                              "b99b8702e07dab9214e2f1fbe68a42e9560a1395f39aabd20e9b025acba0e0ef"
+                                              "b99b8702e07dab9214e2f1fbe68a42e9560a1395f39aabd20e9b025acba0e0ef"
+                                              T :SHA256SUM)
+                                             ("src/runtime/cycle.lisp"
+                                              "e2df176a2e539935268db8184f51f8e1dc38046793729d80574ff9eec5124fa0"
+                                              "e2df176a2e539935268db8184f51f8e1dc38046793729d80574ff9eec5124fa0"
+                                              T :SHA256SUM)
+                                             ("src/runtime/spaces.lisp"
+                                              "6a907fcd5d1ce550534eb1ec533bfb864611e9431bb304faf0aea1a70e72a62d"
+                                              "6a907fcd5d1ce550534eb1ec533bfb864611e9431bb304faf0aea1a70e72a62d"
+                                              T :SHA256SUM)
+                                             ("src/host/resources.lisp"
+                                              "bb6215f40247b9051ec1ddb7633b0002e8f90181d081c140e82716e63b538c85"
+                                              "bb6215f40247b9051ec1ddb7633b0002e8f90181d081c140e82716e63b538c85"
+                                              T :SHA256SUM)
+                                             ("src/construction/build.lisp"
+                                              "d91dec8423938a5330eea3907bcb9a4c2ec37b641bbe8a9491fb875c934f3ea8"
+                                              "d91dec8423938a5330eea3907bcb9a4c2ec37b641bbe8a9491fb875c934f3ea8"
+                                              T :SHA256SUM)
+                                             ("test/quality/support.lisp"
+                                              "f370778fbf508c2543400efea3de841448611d5594a1cdba5661db4ad1c1f582"
+                                              "f370778fbf508c2543400efea3de841448611d5594a1cdba5661db4ad1c1f582"
+                                              T :SHA256SUM)))
+TRACE-CAPACITY-PROBE :PRECONSTRUCTION-OFFER (:EXTENT 128 :PACKING-QUANTUM 16 :MAP-GRANULARITY 16 :OBJECT-STARTS :PACKED :ALGORITHM :SEMISPACE :MODEL-CAPACITY 16 :LEAF-SIZE 16 :OBJECT-COUNT 8 :CONDITIONAL-CAPACITY 128 :FINALIZER-CAPACITY 16 :FINALIZER-REGISTRATION-CAPACITY 64 :ROOT-COUNT 8 :STOP-CAPACITY 64 :AWAIT-BOUND 32 :TRACE-CAPACITIES (128 8324))
+TRACE-CAPACITY-PROBE :WORLD (:LABEL :TRACE-128-R0 :TRACE-CAPACITY 128
+                             :TRACE-CAPACITY-DECLARED 128
+                             :TRACE-CAPACITY-CONTEXT 128 :CONSTRUCTION-SECONDS
+                             0.135673d0 :WARMUP
+                             (:CYCLE :WARMUP :MICROSECONDS 12128 :SECONDS
+                              0.012128d0 :STATUS :COMPLETE :DISCOVERED 8 :MOVED
+                              8 :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                              (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                               :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                               :TRACE-GENERATION 1))
+                             :GEOMETRY
+                             (:SPACES 2 :SPACE-EXTENT 128 :SPACE-BASE 4096
+                              :SPACE-PACKING-QUANTUM 16 :MAP-BASE 4096
+                              :MAP-LIMIT 4224 :MAP-GRANULARITY 16
+                              :MAP-REPRESENTATION CLAMSARA:OBJECT-START-MARKS
+                              :MODEL-CAPACITY 16 :MODEL-MAX-OBJECT-BYTES 256
+                              :MODEL-VARIANT-CAPACITY 256
+                              :MODEL-LOCATION-CAPACITY 32
+                              :MODEL-HANDLE-CAPACITY 256 :MODEL-STAGE-CAPACITY
+                              16 :MODEL-KIND-CAPACITY 16 :MODEL-SLOT-CAPACITY
+                              16 :MODEL-MAX-INTERIOR-DISPLACEMENT 64
+                              :ARENA-LENGTH 256 :WORDS-LENGTH 32 :SIZES-LENGTH
+                              16 :ALIGNMENTS-LENGTH 16 :DESCRIPTOR-KINDS-LENGTH
+                              16 :DESCRIPTOR-GENERATIONS-LENGTH 16
+                              :DESCRIPTOR-COUNTS-LENGTH 16
+                              :BASE-REFERENCES-LENGTH 16 :VARIANTS-LENGTH 256
+                              :LOCATIONS-LENGTH 32 :HANDLES-LENGTH 256
+                              :STAGES-LENGTH 16 :CONDITIONAL-CAPACITY 128
+                              :FINALIZER-CAPACITY 16 :ROOT-COUNT 8
+                              :STOP-CAPACITY 64 :AWAIT-BOUND 32
+                              :REGISTRY-CAPACITY 16 :REGISTRATION-CAPACITY 64)
+                             :PLAN-RESOURCE
+                             (:PLAN-HANDLE-LENGTH 2384
+                              :PLAN-HANDLE-STORAGE-BYTES 19088
+                              :PLAN-PHYSICAL-BYTES 19088 :PLAN-ENTRY-CAPACITY
+                              2384 :PLAN-AUXILIARY-BYTES 19568
+                              :PLAN-DISPLACED-ARRAY-LENGTH 128
+                              :PLAN-ENTRIES-FORMULA 2384
+                              :PLAN-FORMULA-MATCHES-HANDLE T
+                              :PLAN-ENTRIES-FORMULA-NOTE
+                              "the 10*trace+8*conditional+5*finalizer formula is source-derived and cross-checked against the observed handle length")
+                             :BASE-REFERENCE
+                             (:DESCRIPTOR-CELLS 16 :BASE-REFERENCES-LENGTH 16
+                              :FIRST-BASE-REFERENCE-TYPE
+                              CLAMSARA::HOST-REFERENCE
+                              :BASE-REFERENCE-PRIMITIVE-BYTES 64
+                              :BASE-REFERENCE-PRIMITIVE-BYTES-NOTE
+                              "shallow primitive size of one per-cell host-reference struct; the FIXED-MODEL-PLANE-BYTES figure sums top-level plane vectors only and does not include these structs")
+                             :SAMPLES
+                             ((:CYCLE 1 :MICROSECONDS 3814 :SECONDS 0.003814d0
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 2))
+                              (:CYCLE 2 :MICROSECONDS 296 :SECONDS 2.96d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 3))
+                              (:CYCLE 3 :MICROSECONDS 284 :SECONDS 2.84d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 4))
+                              (:CYCLE 4 :MICROSECONDS 287 :SECONDS 2.87d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 5))
+                              (:CYCLE 5 :MICROSECONDS 282 :SECONDS 2.82d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 6))
+                              (:CYCLE 6 :MICROSECONDS 275 :SECONDS 2.75d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 7))
+                              (:CYCLE 7 :MICROSECONDS 279 :SECONDS 2.79d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 8))
+                              (:CYCLE 8 :MICROSECONDS 272 :SECONDS 2.72d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 9))
+                              (:CYCLE 9 :MICROSECONDS 266 :SECONDS 2.66d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 10))
+                              (:CYCLE 10 :MICROSECONDS 267 :SECONDS 2.67d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 11))
+                              (:CYCLE 11 :MICROSECONDS 263 :SECONDS 2.63d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 12))
+                              (:CYCLE 12 :MICROSECONDS 264 :SECONDS 2.64d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 13))
+                              (:CYCLE 13 :MICROSECONDS 279 :SECONDS 2.79d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 14))
+                              (:CYCLE 14 :MICROSECONDS 271 :SECONDS 2.71d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 15))
+                              (:CYCLE 15 :MICROSECONDS 264 :SECONDS 2.64d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 16))
+                              (:CYCLE 16 :MICROSECONDS 272 :SECONDS 2.72d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 17))
+                              (:CYCLE 17 :MICROSECONDS 264 :SECONDS 2.64d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 18))
+                              (:CYCLE 18 :MICROSECONDS 268 :SECONDS 2.68d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 19))
+                              (:CYCLE 19 :MICROSECONDS 265 :SECONDS 2.65d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 20))
+                              (:CYCLE 20 :MICROSECONDS 262 :SECONDS 2.62d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 21))
+                              (:CYCLE 21 :MICROSECONDS 268 :SECONDS 2.68d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 22))
+                              (:CYCLE 22 :MICROSECONDS 262 :SECONDS 2.62d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 23))
+                              (:CYCLE 23 :MICROSECONDS 264 :SECONDS 2.64d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 24))
+                              (:CYCLE 24 :MICROSECONDS 270 :SECONDS 2.7d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 25)))
+                             :SUMMARY
+                             (:COUNT 24 :MIN-MICROSECONDS 262
+                              :MEDIAN-MICROSECONDS 269 :MAX-MICROSECONDS 3814
+                              :MIN-SECONDS 2.62d-4 :MEDIAN-SECONDS 2.69d-4
+                              :MAX-SECONDS 0.003814d0)
+                             :DISCHARGE
+                             (:ROOTS-CLEARED T :DISCHARGE-MICROSECONDS 60
+                              :DISCHARGE-SECONDS 6.0d-5 :DISCHARGE-STATUS
+                              :COMPLETE :DISCHARGE-MOVED 0
+                              :LIVE-AFTER-DISCHARGE 0 :OBSERVED-STOP
+                              (:STOP-CAPACITY 64 :STOP-NEXT 26 :STOP-TOKEN-BASE
+                               1)
+                              :UNBIND :UNBOUND :SHUTDOWN-STATUS :COMPLETE
+                              :SHUTDOWN-REASON NIL)
+                             :DERIVED
+                             (:PEAK-REPRESENTATIONS-DERIVED 16
+                              :PEAK-REPRESENTATIONS-NOTE
+                              "DERIVED from the semispace source/destination coexistence rule (8 sources + 8 destinations = capacity 16). The probe installs no in-collection instrumentation, so the peak is NOT observed."
+                              :FILL-ARRAYS-PER-COLLECTION 6
+                              :FILL-SLOTS-PER-COLLECTION 768
+                              :CONDITIONAL-FILL-SLOTS 1024
+                              :FINALIZER-FILL-SLOTS 80 :NOTE
+                              "DERIVED FROM FROZEN SOURCE, NOT OBSERVED WRITES. src/runtime/trace.lisp:22-26 fills five arrays of trace capacity (source-spaces, source-starts, states, work-spaces, work-starts); src/runtime/cycle.lisp:26-40 fills retirement-starts of trace capacity plus the counter, conditional and finalizer arrays. The probe installs no instrumentation.")
+                             :OBSERVED
+                             (:LIVE-COUNT-AFTER-POPULATE 8
+                              :COLLECTIONS-PERFORMED 26 :STOP-TOKEN-BASE 1
+                              :CLOCK :SB-EXT-GET-TIME-OF-DAY))
+TRACE-CAPACITY-PROBE :WORLD-SUMMARY (:LABEL :TRACE-128-R0 :TRACE-CAPACITY 128 :MEDIAN-SECONDS 0.000269 :MIN-SECONDS 0.000262 :MAX-SECONDS 0.003814 :PLAN-HANDLE-LENGTH 2384 :PLAN-PHYSICAL-BYTES 19088 :DERIVED-FILL-SLOTS 768)
+TRACE-CAPACITY-PROBE :WORLD (:LABEL :TRACE-8324-R0 :TRACE-CAPACITY 8324
+                             :TRACE-CAPACITY-DECLARED 8324
+                             :TRACE-CAPACITY-CONTEXT 8324 :CONSTRUCTION-SECONDS
+                             0.007984d0 :WARMUP
+                             (:CYCLE :WARMUP :MICROSECONDS 332 :SECONDS 3.32d-4
+                              :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                              :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                              (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                               :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                               :TRACE-GENERATION 1))
+                             :GEOMETRY
+                             (:SPACES 2 :SPACE-EXTENT 128 :SPACE-BASE 4096
+                              :SPACE-PACKING-QUANTUM 16 :MAP-BASE 4096
+                              :MAP-LIMIT 4224 :MAP-GRANULARITY 16
+                              :MAP-REPRESENTATION CLAMSARA:OBJECT-START-MARKS
+                              :MODEL-CAPACITY 16 :MODEL-MAX-OBJECT-BYTES 256
+                              :MODEL-VARIANT-CAPACITY 256
+                              :MODEL-LOCATION-CAPACITY 32
+                              :MODEL-HANDLE-CAPACITY 256 :MODEL-STAGE-CAPACITY
+                              16 :MODEL-KIND-CAPACITY 16 :MODEL-SLOT-CAPACITY
+                              16 :MODEL-MAX-INTERIOR-DISPLACEMENT 64
+                              :ARENA-LENGTH 256 :WORDS-LENGTH 32 :SIZES-LENGTH
+                              16 :ALIGNMENTS-LENGTH 16 :DESCRIPTOR-KINDS-LENGTH
+                              16 :DESCRIPTOR-GENERATIONS-LENGTH 16
+                              :DESCRIPTOR-COUNTS-LENGTH 16
+                              :BASE-REFERENCES-LENGTH 16 :VARIANTS-LENGTH 256
+                              :LOCATIONS-LENGTH 32 :HANDLES-LENGTH 256
+                              :STAGES-LENGTH 16 :CONDITIONAL-CAPACITY 128
+                              :FINALIZER-CAPACITY 16 :ROOT-COUNT 8
+                              :STOP-CAPACITY 64 :AWAIT-BOUND 32
+                              :REGISTRY-CAPACITY 16 :REGISTRATION-CAPACITY 64)
+                             :PLAN-RESOURCE
+                             (:PLAN-HANDLE-LENGTH 84344
+                              :PLAN-HANDLE-STORAGE-BYTES 674768
+                              :PLAN-PHYSICAL-BYTES 674768 :PLAN-ENTRY-CAPACITY
+                              84344 :PLAN-AUXILIARY-BYTES 19568
+                              :PLAN-DISPLACED-ARRAY-LENGTH 8324
+                              :PLAN-ENTRIES-FORMULA 84344
+                              :PLAN-FORMULA-MATCHES-HANDLE T
+                              :PLAN-ENTRIES-FORMULA-NOTE
+                              "the 10*trace+8*conditional+5*finalizer formula is source-derived and cross-checked against the observed handle length")
+                             :BASE-REFERENCE
+                             (:DESCRIPTOR-CELLS 16 :BASE-REFERENCES-LENGTH 16
+                              :FIRST-BASE-REFERENCE-TYPE
+                              CLAMSARA::HOST-REFERENCE
+                              :BASE-REFERENCE-PRIMITIVE-BYTES 64
+                              :BASE-REFERENCE-PRIMITIVE-BYTES-NOTE
+                              "shallow primitive size of one per-cell host-reference struct; the FIXED-MODEL-PLANE-BYTES figure sums top-level plane vectors only and does not include these structs")
+                             :SAMPLES
+                             ((:CYCLE 1 :MICROSECONDS 305 :SECONDS 3.05d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 2))
+                              (:CYCLE 2 :MICROSECONDS 301 :SECONDS 3.01d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 3))
+                              (:CYCLE 3 :MICROSECONDS 311 :SECONDS 3.11d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 4))
+                              (:CYCLE 4 :MICROSECONDS 302 :SECONDS 3.02d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 5))
+                              (:CYCLE 5 :MICROSECONDS 312 :SECONDS 3.12d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 6))
+                              (:CYCLE 6 :MICROSECONDS 300 :SECONDS 3.0d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 7))
+                              (:CYCLE 7 :MICROSECONDS 306 :SECONDS 3.06d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 8))
+                              (:CYCLE 8 :MICROSECONDS 337 :SECONDS 3.37d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 9))
+                              (:CYCLE 9 :MICROSECONDS 310 :SECONDS 3.1d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 10))
+                              (:CYCLE 10 :MICROSECONDS 306 :SECONDS 3.06d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 11))
+                              (:CYCLE 11 :MICROSECONDS 285 :SECONDS 2.85d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 12))
+                              (:CYCLE 12 :MICROSECONDS 299 :SECONDS 2.99d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 13))
+                              (:CYCLE 13 :MICROSECONDS 301 :SECONDS 3.01d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 14))
+                              (:CYCLE 14 :MICROSECONDS 308 :SECONDS 3.08d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 15))
+                              (:CYCLE 15 :MICROSECONDS 305 :SECONDS 3.05d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 16))
+                              (:CYCLE 16 :MICROSECONDS 305 :SECONDS 3.05d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 17))
+                              (:CYCLE 17 :MICROSECONDS 309 :SECONDS 3.09d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 18))
+                              (:CYCLE 18 :MICROSECONDS 304 :SECONDS 3.04d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 19))
+                              (:CYCLE 19 :MICROSECONDS 305 :SECONDS 3.05d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 20))
+                              (:CYCLE 20 :MICROSECONDS 306 :SECONDS 3.06d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 21))
+                              (:CYCLE 21 :MICROSECONDS 308 :SECONDS 3.08d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 22))
+                              (:CYCLE 22 :MICROSECONDS 306 :SECONDS 3.06d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 23))
+                              (:CYCLE 23 :MICROSECONDS 284 :SECONDS 2.84d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 24))
+                              (:CYCLE 24 :MICROSECONDS 389 :SECONDS 3.89d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 25)))
+                             :SUMMARY
+                             (:COUNT 24 :MIN-MICROSECONDS 284
+                              :MEDIAN-MICROSECONDS 306 :MAX-MICROSECONDS 389
+                              :MIN-SECONDS 2.84d-4 :MEDIAN-SECONDS 3.06d-4
+                              :MAX-SECONDS 3.89d-4)
+                             :DISCHARGE
+                             (:ROOTS-CLEARED T :DISCHARGE-MICROSECONDS 66
+                              :DISCHARGE-SECONDS 6.6d-5 :DISCHARGE-STATUS
+                              :COMPLETE :DISCHARGE-MOVED 0
+                              :LIVE-AFTER-DISCHARGE 0 :OBSERVED-STOP
+                              (:STOP-CAPACITY 64 :STOP-NEXT 26 :STOP-TOKEN-BASE
+                               65)
+                              :UNBIND :UNBOUND :SHUTDOWN-STATUS :COMPLETE
+                              :SHUTDOWN-REASON NIL)
+                             :DERIVED
+                             (:PEAK-REPRESENTATIONS-DERIVED 16
+                              :PEAK-REPRESENTATIONS-NOTE
+                              "DERIVED from the semispace source/destination coexistence rule (8 sources + 8 destinations = capacity 16). The probe installs no in-collection instrumentation, so the peak is NOT observed."
+                              :FILL-ARRAYS-PER-COLLECTION 6
+                              :FILL-SLOTS-PER-COLLECTION 49944
+                              :CONDITIONAL-FILL-SLOTS 1024
+                              :FINALIZER-FILL-SLOTS 80 :NOTE
+                              "DERIVED FROM FROZEN SOURCE, NOT OBSERVED WRITES. src/runtime/trace.lisp:22-26 fills five arrays of trace capacity (source-spaces, source-starts, states, work-spaces, work-starts); src/runtime/cycle.lisp:26-40 fills retirement-starts of trace capacity plus the counter, conditional and finalizer arrays. The probe installs no instrumentation.")
+                             :OBSERVED
+                             (:LIVE-COUNT-AFTER-POPULATE 8
+                              :COLLECTIONS-PERFORMED 26 :STOP-TOKEN-BASE 65
+                              :CLOCK :SB-EXT-GET-TIME-OF-DAY))
+TRACE-CAPACITY-PROBE :WORLD-SUMMARY (:LABEL :TRACE-8324-R0 :TRACE-CAPACITY 8324 :MEDIAN-SECONDS 0.000306 :MIN-SECONDS 0.000284 :MAX-SECONDS 0.000389 :PLAN-HANDLE-LENGTH 84344 :PLAN-PHYSICAL-BYTES 674768 :DERIVED-FILL-SLOTS 49944)
+TRACE-CAPACITY-PROBE :WORLD (:LABEL :TRACE-128-R1 :TRACE-CAPACITY 128
+                             :TRACE-CAPACITY-DECLARED 128
+                             :TRACE-CAPACITY-CONTEXT 128 :CONSTRUCTION-SECONDS
+                             0.001041d0 :WARMUP
+                             (:CYCLE :WARMUP :MICROSECONDS 278 :SECONDS 2.78d-4
+                              :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                              :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                              (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                               :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                               :TRACE-GENERATION 1))
+                             :GEOMETRY
+                             (:SPACES 2 :SPACE-EXTENT 128 :SPACE-BASE 4096
+                              :SPACE-PACKING-QUANTUM 16 :MAP-BASE 4096
+                              :MAP-LIMIT 4224 :MAP-GRANULARITY 16
+                              :MAP-REPRESENTATION CLAMSARA:OBJECT-START-MARKS
+                              :MODEL-CAPACITY 16 :MODEL-MAX-OBJECT-BYTES 256
+                              :MODEL-VARIANT-CAPACITY 256
+                              :MODEL-LOCATION-CAPACITY 32
+                              :MODEL-HANDLE-CAPACITY 256 :MODEL-STAGE-CAPACITY
+                              16 :MODEL-KIND-CAPACITY 16 :MODEL-SLOT-CAPACITY
+                              16 :MODEL-MAX-INTERIOR-DISPLACEMENT 64
+                              :ARENA-LENGTH 256 :WORDS-LENGTH 32 :SIZES-LENGTH
+                              16 :ALIGNMENTS-LENGTH 16 :DESCRIPTOR-KINDS-LENGTH
+                              16 :DESCRIPTOR-GENERATIONS-LENGTH 16
+                              :DESCRIPTOR-COUNTS-LENGTH 16
+                              :BASE-REFERENCES-LENGTH 16 :VARIANTS-LENGTH 256
+                              :LOCATIONS-LENGTH 32 :HANDLES-LENGTH 256
+                              :STAGES-LENGTH 16 :CONDITIONAL-CAPACITY 128
+                              :FINALIZER-CAPACITY 16 :ROOT-COUNT 8
+                              :STOP-CAPACITY 64 :AWAIT-BOUND 32
+                              :REGISTRY-CAPACITY 16 :REGISTRATION-CAPACITY 64)
+                             :PLAN-RESOURCE
+                             (:PLAN-HANDLE-LENGTH 2384
+                              :PLAN-HANDLE-STORAGE-BYTES 19088
+                              :PLAN-PHYSICAL-BYTES 19088 :PLAN-ENTRY-CAPACITY
+                              2384 :PLAN-AUXILIARY-BYTES 19568
+                              :PLAN-DISPLACED-ARRAY-LENGTH 128
+                              :PLAN-ENTRIES-FORMULA 2384
+                              :PLAN-FORMULA-MATCHES-HANDLE T
+                              :PLAN-ENTRIES-FORMULA-NOTE
+                              "the 10*trace+8*conditional+5*finalizer formula is source-derived and cross-checked against the observed handle length")
+                             :BASE-REFERENCE
+                             (:DESCRIPTOR-CELLS 16 :BASE-REFERENCES-LENGTH 16
+                              :FIRST-BASE-REFERENCE-TYPE
+                              CLAMSARA::HOST-REFERENCE
+                              :BASE-REFERENCE-PRIMITIVE-BYTES 64
+                              :BASE-REFERENCE-PRIMITIVE-BYTES-NOTE
+                              "shallow primitive size of one per-cell host-reference struct; the FIXED-MODEL-PLANE-BYTES figure sums top-level plane vectors only and does not include these structs")
+                             :SAMPLES
+                             ((:CYCLE 1 :MICROSECONDS 277 :SECONDS 2.77d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 2))
+                              (:CYCLE 2 :MICROSECONDS 263 :SECONDS 2.63d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 3))
+                              (:CYCLE 3 :MICROSECONDS 265 :SECONDS 2.65d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 4))
+                              (:CYCLE 4 :MICROSECONDS 265 :SECONDS 2.65d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 5))
+                              (:CYCLE 5 :MICROSECONDS 265 :SECONDS 2.65d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 6))
+                              (:CYCLE 6 :MICROSECONDS 270 :SECONDS 2.7d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 7))
+                              (:CYCLE 7 :MICROSECONDS 267 :SECONDS 2.67d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 8))
+                              (:CYCLE 8 :MICROSECONDS 267 :SECONDS 2.67d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 9))
+                              (:CYCLE 9 :MICROSECONDS 272 :SECONDS 2.72d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 10))
+                              (:CYCLE 10 :MICROSECONDS 266 :SECONDS 2.66d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 11))
+                              (:CYCLE 11 :MICROSECONDS 269 :SECONDS 2.69d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 12))
+                              (:CYCLE 12 :MICROSECONDS 269 :SECONDS 2.69d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 13))
+                              (:CYCLE 13 :MICROSECONDS 283 :SECONDS 2.83d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 14))
+                              (:CYCLE 14 :MICROSECONDS 281 :SECONDS 2.81d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 15))
+                              (:CYCLE 15 :MICROSECONDS 269 :SECONDS 2.69d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 16))
+                              (:CYCLE 16 :MICROSECONDS 267 :SECONDS 2.67d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 17))
+                              (:CYCLE 17 :MICROSECONDS 268 :SECONDS 2.68d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 18))
+                              (:CYCLE 18 :MICROSECONDS 267 :SECONDS 2.67d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 19))
+                              (:CYCLE 19 :MICROSECONDS 278 :SECONDS 2.78d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 20))
+                              (:CYCLE 20 :MICROSECONDS 268 :SECONDS 2.68d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 21))
+                              (:CYCLE 21 :MICROSECONDS 268 :SECONDS 2.68d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 22))
+                              (:CYCLE 22 :MICROSECONDS 271 :SECONDS 2.71d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 23))
+                              (:CYCLE 23 :MICROSECONDS 267 :SECONDS 2.67d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 24))
+                              (:CYCLE 24 :MICROSECONDS 276 :SECONDS 2.76d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 25)))
+                             :SUMMARY
+                             (:COUNT 24 :MIN-MICROSECONDS 263
+                              :MEDIAN-MICROSECONDS 268 :MAX-MICROSECONDS 283
+                              :MIN-SECONDS 2.63d-4 :MEDIAN-SECONDS 2.68d-4
+                              :MAX-SECONDS 2.83d-4)
+                             :DISCHARGE
+                             (:ROOTS-CLEARED T :DISCHARGE-MICROSECONDS 53
+                              :DISCHARGE-SECONDS 5.3d-5 :DISCHARGE-STATUS
+                              :COMPLETE :DISCHARGE-MOVED 0
+                              :LIVE-AFTER-DISCHARGE 0 :OBSERVED-STOP
+                              (:STOP-CAPACITY 64 :STOP-NEXT 26 :STOP-TOKEN-BASE
+                               129)
+                              :UNBIND :UNBOUND :SHUTDOWN-STATUS :COMPLETE
+                              :SHUTDOWN-REASON NIL)
+                             :DERIVED
+                             (:PEAK-REPRESENTATIONS-DERIVED 16
+                              :PEAK-REPRESENTATIONS-NOTE
+                              "DERIVED from the semispace source/destination coexistence rule (8 sources + 8 destinations = capacity 16). The probe installs no in-collection instrumentation, so the peak is NOT observed."
+                              :FILL-ARRAYS-PER-COLLECTION 6
+                              :FILL-SLOTS-PER-COLLECTION 768
+                              :CONDITIONAL-FILL-SLOTS 1024
+                              :FINALIZER-FILL-SLOTS 80 :NOTE
+                              "DERIVED FROM FROZEN SOURCE, NOT OBSERVED WRITES. src/runtime/trace.lisp:22-26 fills five arrays of trace capacity (source-spaces, source-starts, states, work-spaces, work-starts); src/runtime/cycle.lisp:26-40 fills retirement-starts of trace capacity plus the counter, conditional and finalizer arrays. The probe installs no instrumentation.")
+                             :OBSERVED
+                             (:LIVE-COUNT-AFTER-POPULATE 8
+                              :COLLECTIONS-PERFORMED 26 :STOP-TOKEN-BASE 129
+                              :CLOCK :SB-EXT-GET-TIME-OF-DAY))
+TRACE-CAPACITY-PROBE :WORLD-SUMMARY (:LABEL :TRACE-128-R1 :TRACE-CAPACITY 128 :MEDIAN-SECONDS 0.000268 :MIN-SECONDS 0.000263 :MAX-SECONDS 0.000283 :PLAN-HANDLE-LENGTH 2384 :PLAN-PHYSICAL-BYTES 19088 :DERIVED-FILL-SLOTS 768)
+TRACE-CAPACITY-PROBE :WORLD (:LABEL :TRACE-8324-R1 :TRACE-CAPACITY 8324
+                             :TRACE-CAPACITY-DECLARED 8324
+                             :TRACE-CAPACITY-CONTEXT 8324 :CONSTRUCTION-SECONDS
+                             7.85d-4 :WARMUP
+                             (:CYCLE :WARMUP :MICROSECONDS 294 :SECONDS 2.94d-4
+                              :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                              :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                              (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                               :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                               :TRACE-GENERATION 1))
+                             :GEOMETRY
+                             (:SPACES 2 :SPACE-EXTENT 128 :SPACE-BASE 4096
+                              :SPACE-PACKING-QUANTUM 16 :MAP-BASE 4096
+                              :MAP-LIMIT 4224 :MAP-GRANULARITY 16
+                              :MAP-REPRESENTATION CLAMSARA:OBJECT-START-MARKS
+                              :MODEL-CAPACITY 16 :MODEL-MAX-OBJECT-BYTES 256
+                              :MODEL-VARIANT-CAPACITY 256
+                              :MODEL-LOCATION-CAPACITY 32
+                              :MODEL-HANDLE-CAPACITY 256 :MODEL-STAGE-CAPACITY
+                              16 :MODEL-KIND-CAPACITY 16 :MODEL-SLOT-CAPACITY
+                              16 :MODEL-MAX-INTERIOR-DISPLACEMENT 64
+                              :ARENA-LENGTH 256 :WORDS-LENGTH 32 :SIZES-LENGTH
+                              16 :ALIGNMENTS-LENGTH 16 :DESCRIPTOR-KINDS-LENGTH
+                              16 :DESCRIPTOR-GENERATIONS-LENGTH 16
+                              :DESCRIPTOR-COUNTS-LENGTH 16
+                              :BASE-REFERENCES-LENGTH 16 :VARIANTS-LENGTH 256
+                              :LOCATIONS-LENGTH 32 :HANDLES-LENGTH 256
+                              :STAGES-LENGTH 16 :CONDITIONAL-CAPACITY 128
+                              :FINALIZER-CAPACITY 16 :ROOT-COUNT 8
+                              :STOP-CAPACITY 64 :AWAIT-BOUND 32
+                              :REGISTRY-CAPACITY 16 :REGISTRATION-CAPACITY 64)
+                             :PLAN-RESOURCE
+                             (:PLAN-HANDLE-LENGTH 84344
+                              :PLAN-HANDLE-STORAGE-BYTES 674768
+                              :PLAN-PHYSICAL-BYTES 674768 :PLAN-ENTRY-CAPACITY
+                              84344 :PLAN-AUXILIARY-BYTES 19568
+                              :PLAN-DISPLACED-ARRAY-LENGTH 8324
+                              :PLAN-ENTRIES-FORMULA 84344
+                              :PLAN-FORMULA-MATCHES-HANDLE T
+                              :PLAN-ENTRIES-FORMULA-NOTE
+                              "the 10*trace+8*conditional+5*finalizer formula is source-derived and cross-checked against the observed handle length")
+                             :BASE-REFERENCE
+                             (:DESCRIPTOR-CELLS 16 :BASE-REFERENCES-LENGTH 16
+                              :FIRST-BASE-REFERENCE-TYPE
+                              CLAMSARA::HOST-REFERENCE
+                              :BASE-REFERENCE-PRIMITIVE-BYTES 64
+                              :BASE-REFERENCE-PRIMITIVE-BYTES-NOTE
+                              "shallow primitive size of one per-cell host-reference struct; the FIXED-MODEL-PLANE-BYTES figure sums top-level plane vectors only and does not include these structs")
+                             :SAMPLES
+                             ((:CYCLE 1 :MICROSECONDS 274 :SECONDS 2.74d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 2))
+                              (:CYCLE 2 :MICROSECONDS 282 :SECONDS 2.82d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 3))
+                              (:CYCLE 3 :MICROSECONDS 271 :SECONDS 2.71d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 4))
+                              (:CYCLE 4 :MICROSECONDS 277 :SECONDS 2.77d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 5))
+                              (:CYCLE 5 :MICROSECONDS 278 :SECONDS 2.78d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 6))
+                              (:CYCLE 6 :MICROSECONDS 271 :SECONDS 2.71d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 7))
+                              (:CYCLE 7 :MICROSECONDS 270 :SECONDS 2.7d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 8))
+                              (:CYCLE 8 :MICROSECONDS 272 :SECONDS 2.72d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 9))
+                              (:CYCLE 9 :MICROSECONDS 271 :SECONDS 2.71d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 10))
+                              (:CYCLE 10 :MICROSECONDS 304 :SECONDS 3.04d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 11))
+                              (:CYCLE 11 :MICROSECONDS 273 :SECONDS 2.73d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 12))
+                              (:CYCLE 12 :MICROSECONDS 268 :SECONDS 2.68d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 13))
+                              (:CYCLE 13 :MICROSECONDS 271 :SECONDS 2.71d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 14))
+                              (:CYCLE 14 :MICROSECONDS 268 :SECONDS 2.68d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 15))
+                              (:CYCLE 15 :MICROSECONDS 276 :SECONDS 2.76d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 16))
+                              (:CYCLE 16 :MICROSECONDS 270 :SECONDS 2.7d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 17))
+                              (:CYCLE 17 :MICROSECONDS 270 :SECONDS 2.7d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 18))
+                              (:CYCLE 18 :MICROSECONDS 275 :SECONDS 2.75d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 19))
+                              (:CYCLE 19 :MICROSECONDS 272 :SECONDS 2.72d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 20))
+                              (:CYCLE 20 :MICROSECONDS 269 :SECONDS 2.69d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 21))
+                              (:CYCLE 21 :MICROSECONDS 270 :SECONDS 2.7d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 22))
+                              (:CYCLE 22 :MICROSECONDS 269 :SECONDS 2.69d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 23))
+                              (:CYCLE 23 :MICROSECONDS 283 :SECONDS 2.83d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 24))
+                              (:CYCLE 24 :MICROSECONDS 269 :SECONDS 2.69d-4
+                               :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                               :BYTES-MOVED 128 :LIVE-AFTER 8 :OBSERVED-TRACE
+                               (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                :TRACE-GENERATION 25)))
+                             :SUMMARY
+                             (:COUNT 24 :MIN-MICROSECONDS 268
+                              :MEDIAN-MICROSECONDS 271 :MAX-MICROSECONDS 304
+                              :MIN-SECONDS 2.68d-4 :MEDIAN-SECONDS 2.71d-4
+                              :MAX-SECONDS 3.04d-4)
+                             :DISCHARGE
+                             (:ROOTS-CLEARED T :DISCHARGE-MICROSECONDS 56
+                              :DISCHARGE-SECONDS 5.6d-5 :DISCHARGE-STATUS
+                              :COMPLETE :DISCHARGE-MOVED 0
+                              :LIVE-AFTER-DISCHARGE 0 :OBSERVED-STOP
+                              (:STOP-CAPACITY 64 :STOP-NEXT 26 :STOP-TOKEN-BASE
+                               193)
+                              :UNBIND :UNBOUND :SHUTDOWN-STATUS :COMPLETE
+                              :SHUTDOWN-REASON NIL)
+                             :DERIVED
+                             (:PEAK-REPRESENTATIONS-DERIVED 16
+                              :PEAK-REPRESENTATIONS-NOTE
+                              "DERIVED from the semispace source/destination coexistence rule (8 sources + 8 destinations = capacity 16). The probe installs no in-collection instrumentation, so the peak is NOT observed."
+                              :FILL-ARRAYS-PER-COLLECTION 6
+                              :FILL-SLOTS-PER-COLLECTION 49944
+                              :CONDITIONAL-FILL-SLOTS 1024
+                              :FINALIZER-FILL-SLOTS 80 :NOTE
+                              "DERIVED FROM FROZEN SOURCE, NOT OBSERVED WRITES. src/runtime/trace.lisp:22-26 fills five arrays of trace capacity (source-spaces, source-starts, states, work-spaces, work-starts); src/runtime/cycle.lisp:26-40 fills retirement-starts of trace capacity plus the counter, conditional and finalizer arrays. The probe installs no instrumentation.")
+                             :OBSERVED
+                             (:LIVE-COUNT-AFTER-POPULATE 8
+                              :COLLECTIONS-PERFORMED 26 :STOP-TOKEN-BASE 193
+                              :CLOCK :SB-EXT-GET-TIME-OF-DAY))
+TRACE-CAPACITY-PROBE :WORLD-SUMMARY (:LABEL :TRACE-8324-R1 :TRACE-CAPACITY 8324 :MEDIAN-SECONDS 0.000271 :MIN-SECONDS 0.000268 :MAX-SECONDS 0.000304 :PLAN-HANDLE-LENGTH 84344 :PLAN-PHYSICAL-BYTES 674768 :DERIVED-FILL-SLOTS 49944)
+TRACE-CAPACITY-PROBE :GEOMETRY-MATCH T :GEOMETRY (:SPACES 2 :SPACE-EXTENT 128
+                                                  :SPACE-BASE 4096
+                                                  :SPACE-PACKING-QUANTUM 16
+                                                  :MAP-BASE 4096 :MAP-LIMIT
+                                                  4224 :MAP-GRANULARITY 16
+                                                  :MAP-REPRESENTATION
+                                                  CLAMSARA:OBJECT-START-MARKS
+                                                  :MODEL-CAPACITY 16
+                                                  :MODEL-MAX-OBJECT-BYTES 256
+                                                  :MODEL-VARIANT-CAPACITY 256
+                                                  :MODEL-LOCATION-CAPACITY 32
+                                                  :MODEL-HANDLE-CAPACITY 256
+                                                  :MODEL-STAGE-CAPACITY 16
+                                                  :MODEL-KIND-CAPACITY 16
+                                                  :MODEL-SLOT-CAPACITY 16
+                                                  :MODEL-MAX-INTERIOR-DISPLACEMENT
+                                                  64 :ARENA-LENGTH 256
+                                                  :WORDS-LENGTH 32
+                                                  :SIZES-LENGTH 16
+                                                  :ALIGNMENTS-LENGTH 16
+                                                  :DESCRIPTOR-KINDS-LENGTH 16
+                                                  :DESCRIPTOR-GENERATIONS-LENGTH
+                                                  16 :DESCRIPTOR-COUNTS-LENGTH
+                                                  16 :BASE-REFERENCES-LENGTH 16
+                                                  :VARIANTS-LENGTH 256
+                                                  :LOCATIONS-LENGTH 32
+                                                  :HANDLES-LENGTH 256
+                                                  :STAGES-LENGTH 16
+                                                  :CONDITIONAL-CAPACITY 128
+                                                  :FINALIZER-CAPACITY 16
+                                                  :ROOT-COUNT 8 :STOP-CAPACITY
+                                                  64 :AWAIT-BOUND 32
+                                                  :REGISTRY-CAPACITY 16
+                                                  :REGISTRATION-CAPACITY 64)
+TRACE-CAPACITY-PROBE :COMPARISON (:CLOCK :SB-EXT-GET-TIME-OF-DAY :CLOCK-GRANULARITY-MICROSECONDS 1 :TRACE-128 (:SAMPLES 48 :MIN-MICROSECONDS 262 :MEDIAN-MICROSECONDS 268 :MAX-MICROSECONDS 3814 :MEDIAN-SECONDS 0.000268) :TRACE-8324 (:SAMPLES 48 :MIN-MICROSECONDS 268 :MEDIAN-MICROSECONDS 284 :MAX-MICROSECONDS 389 :MEDIAN-SECONDS 0.000284) :MEDIAN-DELTA-MICROSECONDS 16 :MIN-DELTA-MICROSECONDS 6 :RANGES-DISJOINT NIL :PLAN-HANDLE-LENGTH-LOW 2384 :PLAN-HANDLE-LENGTH-HIGH 84344 :PLAN-PHYSICAL-LOW 19088 :PLAN-PHYSICAL-HIGH 674768 :DERIVED-FILL-SLOTS-LOW 768 :DERIVED-FILL-SLOTS-HIGH 49944 :STOP-HISTORY-CHECK T)
+TRACE-CAPACITY-PROBE :COMPARISON-NOTE "DERIVED fill-slot counts are source-derived, not observed writes. RANGES-DISJOINT compares [min,max] of the two sample sets; disjoint ranges with a positive MIN-DELTA are the strongest available signal for this single-process diagnostic. All timings include startup-adjacent first-touch effects only through the warm-up collection, which is excluded from the sample sets. The measured hot path is unchanged: only two wall-clock reads bracket each (collect ...) call, and the clock granularity is reported in the START line."
+TRACE-CAPACITY-PROBE :SOURCE-HASHES-AFTER (:LABEL :AFTER :ALL-MATCH T
+                                           :HASH-AVAILABLE T :HASH-METHOD
+                                           :SHA256SUM :FILES
+                                           (("src/host/object-model.lisp"
+                                             "6290798c9aa0b914770c1154effd18d0c1e20b5e927b4ee81ca167e88839af13"
+                                             "6290798c9aa0b914770c1154effd18d0c1e20b5e927b4ee81ca167e88839af13"
+                                             T :SHA256SUM)
+                                            ("src/runtime/records.lisp"
+                                             "62d6651531bd53f99e0b5f0039b70cc5db320893ac1cdfcc4c63aeaee25c7703"
+                                             "62d6651531bd53f99e0b5f0039b70cc5db320893ac1cdfcc4c63aeaee25c7703"
+                                             T :SHA256SUM)
+                                            ("src/runtime/trace.lisp"
+                                             "b99b8702e07dab9214e2f1fbe68a42e9560a1395f39aabd20e9b025acba0e0ef"
+                                             "b99b8702e07dab9214e2f1fbe68a42e9560a1395f39aabd20e9b025acba0e0ef"
+                                             T :SHA256SUM)
+                                            ("src/runtime/cycle.lisp"
+                                             "e2df176a2e539935268db8184f51f8e1dc38046793729d80574ff9eec5124fa0"
+                                             "e2df176a2e539935268db8184f51f8e1dc38046793729d80574ff9eec5124fa0"
+                                             T :SHA256SUM)
+                                            ("src/runtime/spaces.lisp"
+                                             "6a907fcd5d1ce550534eb1ec533bfb864611e9431bb304faf0aea1a70e72a62d"
+                                             "6a907fcd5d1ce550534eb1ec533bfb864611e9431bb304faf0aea1a70e72a62d"
+                                             T :SHA256SUM)
+                                            ("src/host/resources.lisp"
+                                             "bb6215f40247b9051ec1ddb7633b0002e8f90181d081c140e82716e63b538c85"
+                                             "bb6215f40247b9051ec1ddb7633b0002e8f90181d081c140e82716e63b538c85"
+                                             T :SHA256SUM)
+                                            ("src/construction/build.lisp"
+                                             "d91dec8423938a5330eea3907bcb9a4c2ec37b641bbe8a9491fb875c934f3ea8"
+                                             "d91dec8423938a5330eea3907bcb9a4c2ec37b641bbe8a9491fb875c934f3ea8"
+                                             T :SHA256SUM)
+                                            ("test/quality/support.lisp"
+                                             "f370778fbf508c2543400efea3de841448611d5594a1cdba5661db4ad1c1f582"
+                                             "f370778fbf508c2543400efea3de841448611d5594a1cdba5661db4ad1c1f582"
+                                             T :SHA256SUM)))
+TRACE-CAPACITY-PROBE :REPORT (:ROUNDS 2 :LOW
+                              ((:LABEL :TRACE-128-R0 :TRACE-CAPACITY 128
+                                :TRACE-CAPACITY-DECLARED 128
+                                :TRACE-CAPACITY-CONTEXT 128
+                                :CONSTRUCTION-SECONDS 0.135673d0 :WARMUP
+                                (:CYCLE :WARMUP :MICROSECONDS 12128 :SECONDS
+                                 0.012128d0 :STATUS :COMPLETE :DISCOVERED 8
+                                 :MOVED 8 :BYTES-MOVED 128 :LIVE-AFTER 8
+                                 :OBSERVED-TRACE
+                                 (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                  :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                  :TRACE-GENERATION 1))
+                                :GEOMETRY
+                                (:SPACES 2 :SPACE-EXTENT 128 :SPACE-BASE 4096
+                                 :SPACE-PACKING-QUANTUM 16 :MAP-BASE 4096
+                                 :MAP-LIMIT 4224 :MAP-GRANULARITY 16
+                                 :MAP-REPRESENTATION
+                                 CLAMSARA:OBJECT-START-MARKS :MODEL-CAPACITY 16
+                                 :MODEL-MAX-OBJECT-BYTES 256
+                                 :MODEL-VARIANT-CAPACITY 256
+                                 :MODEL-LOCATION-CAPACITY 32
+                                 :MODEL-HANDLE-CAPACITY 256
+                                 :MODEL-STAGE-CAPACITY 16 :MODEL-KIND-CAPACITY
+                                 16 :MODEL-SLOT-CAPACITY 16
+                                 :MODEL-MAX-INTERIOR-DISPLACEMENT 64
+                                 :ARENA-LENGTH 256 :WORDS-LENGTH 32
+                                 :SIZES-LENGTH 16 :ALIGNMENTS-LENGTH 16
+                                 :DESCRIPTOR-KINDS-LENGTH 16
+                                 :DESCRIPTOR-GENERATIONS-LENGTH 16
+                                 :DESCRIPTOR-COUNTS-LENGTH 16
+                                 :BASE-REFERENCES-LENGTH 16 :VARIANTS-LENGTH
+                                 256 :LOCATIONS-LENGTH 32 :HANDLES-LENGTH 256
+                                 :STAGES-LENGTH 16 :CONDITIONAL-CAPACITY 128
+                                 :FINALIZER-CAPACITY 16 :ROOT-COUNT 8
+                                 :STOP-CAPACITY 64 :AWAIT-BOUND 32
+                                 :REGISTRY-CAPACITY 16 :REGISTRATION-CAPACITY
+                                 64)
+                                :PLAN-RESOURCE
+                                (:PLAN-HANDLE-LENGTH 2384
+                                 :PLAN-HANDLE-STORAGE-BYTES 19088
+                                 :PLAN-PHYSICAL-BYTES 19088
+                                 :PLAN-ENTRY-CAPACITY 2384
+                                 :PLAN-AUXILIARY-BYTES 19568
+                                 :PLAN-DISPLACED-ARRAY-LENGTH 128
+                                 :PLAN-ENTRIES-FORMULA 2384
+                                 :PLAN-FORMULA-MATCHES-HANDLE T
+                                 :PLAN-ENTRIES-FORMULA-NOTE
+                                 "the 10*trace+8*conditional+5*finalizer formula is source-derived and cross-checked against the observed handle length")
+                                :BASE-REFERENCE
+                                (:DESCRIPTOR-CELLS 16 :BASE-REFERENCES-LENGTH
+                                 16 :FIRST-BASE-REFERENCE-TYPE
+                                 CLAMSARA::HOST-REFERENCE
+                                 :BASE-REFERENCE-PRIMITIVE-BYTES 64
+                                 :BASE-REFERENCE-PRIMITIVE-BYTES-NOTE
+                                 "shallow primitive size of one per-cell host-reference struct; the FIXED-MODEL-PLANE-BYTES figure sums top-level plane vectors only and does not include these structs")
+                                :SAMPLES
+                                ((:CYCLE 1 :MICROSECONDS 3814 :SECONDS
+                                  0.003814d0 :STATUS :COMPLETE :DISCOVERED 8
+                                  :MOVED 8 :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 2))
+                                 (:CYCLE 2 :MICROSECONDS 296 :SECONDS 2.96d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 3))
+                                 (:CYCLE 3 :MICROSECONDS 284 :SECONDS 2.84d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 4))
+                                 (:CYCLE 4 :MICROSECONDS 287 :SECONDS 2.87d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 5))
+                                 (:CYCLE 5 :MICROSECONDS 282 :SECONDS 2.82d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 6))
+                                 (:CYCLE 6 :MICROSECONDS 275 :SECONDS 2.75d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 7))
+                                 (:CYCLE 7 :MICROSECONDS 279 :SECONDS 2.79d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 8))
+                                 (:CYCLE 8 :MICROSECONDS 272 :SECONDS 2.72d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 9))
+                                 (:CYCLE 9 :MICROSECONDS 266 :SECONDS 2.66d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 10))
+                                 (:CYCLE 10 :MICROSECONDS 267 :SECONDS 2.67d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 11))
+                                 (:CYCLE 11 :MICROSECONDS 263 :SECONDS 2.63d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 12))
+                                 (:CYCLE 12 :MICROSECONDS 264 :SECONDS 2.64d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 13))
+                                 (:CYCLE 13 :MICROSECONDS 279 :SECONDS 2.79d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 14))
+                                 (:CYCLE 14 :MICROSECONDS 271 :SECONDS 2.71d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 15))
+                                 (:CYCLE 15 :MICROSECONDS 264 :SECONDS 2.64d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 16))
+                                 (:CYCLE 16 :MICROSECONDS 272 :SECONDS 2.72d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 17))
+                                 (:CYCLE 17 :MICROSECONDS 264 :SECONDS 2.64d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 18))
+                                 (:CYCLE 18 :MICROSECONDS 268 :SECONDS 2.68d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 19))
+                                 (:CYCLE 19 :MICROSECONDS 265 :SECONDS 2.65d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 20))
+                                 (:CYCLE 20 :MICROSECONDS 262 :SECONDS 2.62d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 21))
+                                 (:CYCLE 21 :MICROSECONDS 268 :SECONDS 2.68d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 22))
+                                 (:CYCLE 22 :MICROSECONDS 262 :SECONDS 2.62d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 23))
+                                 (:CYCLE 23 :MICROSECONDS 264 :SECONDS 2.64d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 24))
+                                 (:CYCLE 24 :MICROSECONDS 270 :SECONDS 2.7d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 25)))
+                                :SUMMARY
+                                (:COUNT 24 :MIN-MICROSECONDS 262
+                                 :MEDIAN-MICROSECONDS 269 :MAX-MICROSECONDS
+                                 3814 :MIN-SECONDS 2.62d-4 :MEDIAN-SECONDS
+                                 2.69d-4 :MAX-SECONDS 0.003814d0)
+                                :DISCHARGE
+                                (:ROOTS-CLEARED T :DISCHARGE-MICROSECONDS 60
+                                 :DISCHARGE-SECONDS 6.0d-5 :DISCHARGE-STATUS
+                                 :COMPLETE :DISCHARGE-MOVED 0
+                                 :LIVE-AFTER-DISCHARGE 0 :OBSERVED-STOP
+                                 (:STOP-CAPACITY 64 :STOP-NEXT 26
+                                  :STOP-TOKEN-BASE 1)
+                                 :UNBIND :UNBOUND :SHUTDOWN-STATUS :COMPLETE
+                                 :SHUTDOWN-REASON NIL)
+                                :DERIVED
+                                (:PEAK-REPRESENTATIONS-DERIVED 16
+                                 :PEAK-REPRESENTATIONS-NOTE
+                                 "DERIVED from the semispace source/destination coexistence rule (8 sources + 8 destinations = capacity 16). The probe installs no in-collection instrumentation, so the peak is NOT observed."
+                                 :FILL-ARRAYS-PER-COLLECTION 6
+                                 :FILL-SLOTS-PER-COLLECTION 768
+                                 :CONDITIONAL-FILL-SLOTS 1024
+                                 :FINALIZER-FILL-SLOTS 80 :NOTE
+                                 "DERIVED FROM FROZEN SOURCE, NOT OBSERVED WRITES. src/runtime/trace.lisp:22-26 fills five arrays of trace capacity (source-spaces, source-starts, states, work-spaces, work-starts); src/runtime/cycle.lisp:26-40 fills retirement-starts of trace capacity plus the counter, conditional and finalizer arrays. The probe installs no instrumentation.")
+                                :OBSERVED
+                                (:LIVE-COUNT-AFTER-POPULATE 8
+                                 :COLLECTIONS-PERFORMED 26 :STOP-TOKEN-BASE 1
+                                 :CLOCK :SB-EXT-GET-TIME-OF-DAY))
+                               (:LABEL :TRACE-128-R1 :TRACE-CAPACITY 128
+                                :TRACE-CAPACITY-DECLARED 128
+                                :TRACE-CAPACITY-CONTEXT 128
+                                :CONSTRUCTION-SECONDS 0.001041d0 :WARMUP
+                                (:CYCLE :WARMUP :MICROSECONDS 278 :SECONDS
+                                 2.78d-4 :STATUS :COMPLETE :DISCOVERED 8 :MOVED
+                                 8 :BYTES-MOVED 128 :LIVE-AFTER 8
+                                 :OBSERVED-TRACE
+                                 (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                  :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                  :TRACE-GENERATION 1))
+                                :GEOMETRY
+                                (:SPACES 2 :SPACE-EXTENT 128 :SPACE-BASE 4096
+                                 :SPACE-PACKING-QUANTUM 16 :MAP-BASE 4096
+                                 :MAP-LIMIT 4224 :MAP-GRANULARITY 16
+                                 :MAP-REPRESENTATION
+                                 CLAMSARA:OBJECT-START-MARKS :MODEL-CAPACITY 16
+                                 :MODEL-MAX-OBJECT-BYTES 256
+                                 :MODEL-VARIANT-CAPACITY 256
+                                 :MODEL-LOCATION-CAPACITY 32
+                                 :MODEL-HANDLE-CAPACITY 256
+                                 :MODEL-STAGE-CAPACITY 16 :MODEL-KIND-CAPACITY
+                                 16 :MODEL-SLOT-CAPACITY 16
+                                 :MODEL-MAX-INTERIOR-DISPLACEMENT 64
+                                 :ARENA-LENGTH 256 :WORDS-LENGTH 32
+                                 :SIZES-LENGTH 16 :ALIGNMENTS-LENGTH 16
+                                 :DESCRIPTOR-KINDS-LENGTH 16
+                                 :DESCRIPTOR-GENERATIONS-LENGTH 16
+                                 :DESCRIPTOR-COUNTS-LENGTH 16
+                                 :BASE-REFERENCES-LENGTH 16 :VARIANTS-LENGTH
+                                 256 :LOCATIONS-LENGTH 32 :HANDLES-LENGTH 256
+                                 :STAGES-LENGTH 16 :CONDITIONAL-CAPACITY 128
+                                 :FINALIZER-CAPACITY 16 :ROOT-COUNT 8
+                                 :STOP-CAPACITY 64 :AWAIT-BOUND 32
+                                 :REGISTRY-CAPACITY 16 :REGISTRATION-CAPACITY
+                                 64)
+                                :PLAN-RESOURCE
+                                (:PLAN-HANDLE-LENGTH 2384
+                                 :PLAN-HANDLE-STORAGE-BYTES 19088
+                                 :PLAN-PHYSICAL-BYTES 19088
+                                 :PLAN-ENTRY-CAPACITY 2384
+                                 :PLAN-AUXILIARY-BYTES 19568
+                                 :PLAN-DISPLACED-ARRAY-LENGTH 128
+                                 :PLAN-ENTRIES-FORMULA 2384
+                                 :PLAN-FORMULA-MATCHES-HANDLE T
+                                 :PLAN-ENTRIES-FORMULA-NOTE
+                                 "the 10*trace+8*conditional+5*finalizer formula is source-derived and cross-checked against the observed handle length")
+                                :BASE-REFERENCE
+                                (:DESCRIPTOR-CELLS 16 :BASE-REFERENCES-LENGTH
+                                 16 :FIRST-BASE-REFERENCE-TYPE
+                                 CLAMSARA::HOST-REFERENCE
+                                 :BASE-REFERENCE-PRIMITIVE-BYTES 64
+                                 :BASE-REFERENCE-PRIMITIVE-BYTES-NOTE
+                                 "shallow primitive size of one per-cell host-reference struct; the FIXED-MODEL-PLANE-BYTES figure sums top-level plane vectors only and does not include these structs")
+                                :SAMPLES
+                                ((:CYCLE 1 :MICROSECONDS 277 :SECONDS 2.77d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 2))
+                                 (:CYCLE 2 :MICROSECONDS 263 :SECONDS 2.63d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 3))
+                                 (:CYCLE 3 :MICROSECONDS 265 :SECONDS 2.65d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 4))
+                                 (:CYCLE 4 :MICROSECONDS 265 :SECONDS 2.65d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 5))
+                                 (:CYCLE 5 :MICROSECONDS 265 :SECONDS 2.65d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 6))
+                                 (:CYCLE 6 :MICROSECONDS 270 :SECONDS 2.7d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 7))
+                                 (:CYCLE 7 :MICROSECONDS 267 :SECONDS 2.67d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 8))
+                                 (:CYCLE 8 :MICROSECONDS 267 :SECONDS 2.67d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 9))
+                                 (:CYCLE 9 :MICROSECONDS 272 :SECONDS 2.72d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 10))
+                                 (:CYCLE 10 :MICROSECONDS 266 :SECONDS 2.66d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 11))
+                                 (:CYCLE 11 :MICROSECONDS 269 :SECONDS 2.69d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 12))
+                                 (:CYCLE 12 :MICROSECONDS 269 :SECONDS 2.69d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 13))
+                                 (:CYCLE 13 :MICROSECONDS 283 :SECONDS 2.83d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 14))
+                                 (:CYCLE 14 :MICROSECONDS 281 :SECONDS 2.81d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 15))
+                                 (:CYCLE 15 :MICROSECONDS 269 :SECONDS 2.69d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 16))
+                                 (:CYCLE 16 :MICROSECONDS 267 :SECONDS 2.67d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 17))
+                                 (:CYCLE 17 :MICROSECONDS 268 :SECONDS 2.68d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 18))
+                                 (:CYCLE 18 :MICROSECONDS 267 :SECONDS 2.67d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 19))
+                                 (:CYCLE 19 :MICROSECONDS 278 :SECONDS 2.78d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 20))
+                                 (:CYCLE 20 :MICROSECONDS 268 :SECONDS 2.68d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 21))
+                                 (:CYCLE 21 :MICROSECONDS 268 :SECONDS 2.68d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 22))
+                                 (:CYCLE 22 :MICROSECONDS 271 :SECONDS 2.71d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 23))
+                                 (:CYCLE 23 :MICROSECONDS 267 :SECONDS 2.67d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 24))
+                                 (:CYCLE 24 :MICROSECONDS 276 :SECONDS 2.76d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 128 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 25)))
+                                :SUMMARY
+                                (:COUNT 24 :MIN-MICROSECONDS 263
+                                 :MEDIAN-MICROSECONDS 268 :MAX-MICROSECONDS 283
+                                 :MIN-SECONDS 2.63d-4 :MEDIAN-SECONDS 2.68d-4
+                                 :MAX-SECONDS 2.83d-4)
+                                :DISCHARGE
+                                (:ROOTS-CLEARED T :DISCHARGE-MICROSECONDS 53
+                                 :DISCHARGE-SECONDS 5.3d-5 :DISCHARGE-STATUS
+                                 :COMPLETE :DISCHARGE-MOVED 0
+                                 :LIVE-AFTER-DISCHARGE 0 :OBSERVED-STOP
+                                 (:STOP-CAPACITY 64 :STOP-NEXT 26
+                                  :STOP-TOKEN-BASE 129)
+                                 :UNBIND :UNBOUND :SHUTDOWN-STATUS :COMPLETE
+                                 :SHUTDOWN-REASON NIL)
+                                :DERIVED
+                                (:PEAK-REPRESENTATIONS-DERIVED 16
+                                 :PEAK-REPRESENTATIONS-NOTE
+                                 "DERIVED from the semispace source/destination coexistence rule (8 sources + 8 destinations = capacity 16). The probe installs no in-collection instrumentation, so the peak is NOT observed."
+                                 :FILL-ARRAYS-PER-COLLECTION 6
+                                 :FILL-SLOTS-PER-COLLECTION 768
+                                 :CONDITIONAL-FILL-SLOTS 1024
+                                 :FINALIZER-FILL-SLOTS 80 :NOTE
+                                 "DERIVED FROM FROZEN SOURCE, NOT OBSERVED WRITES. src/runtime/trace.lisp:22-26 fills five arrays of trace capacity (source-spaces, source-starts, states, work-spaces, work-starts); src/runtime/cycle.lisp:26-40 fills retirement-starts of trace capacity plus the counter, conditional and finalizer arrays. The probe installs no instrumentation.")
+                                :OBSERVED
+                                (:LIVE-COUNT-AFTER-POPULATE 8
+                                 :COLLECTIONS-PERFORMED 26 :STOP-TOKEN-BASE 129
+                                 :CLOCK :SB-EXT-GET-TIME-OF-DAY)))
+                              :HIGH
+                              ((:LABEL :TRACE-8324-R0 :TRACE-CAPACITY 8324
+                                :TRACE-CAPACITY-DECLARED 8324
+                                :TRACE-CAPACITY-CONTEXT 8324
+                                :CONSTRUCTION-SECONDS 0.007984d0 :WARMUP
+                                (:CYCLE :WARMUP :MICROSECONDS 332 :SECONDS
+                                 3.32d-4 :STATUS :COMPLETE :DISCOVERED 8 :MOVED
+                                 8 :BYTES-MOVED 128 :LIVE-AFTER 8
+                                 :OBSERVED-TRACE
+                                 (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                  :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                  :TRACE-GENERATION 1))
+                                :GEOMETRY
+                                (:SPACES 2 :SPACE-EXTENT 128 :SPACE-BASE 4096
+                                 :SPACE-PACKING-QUANTUM 16 :MAP-BASE 4096
+                                 :MAP-LIMIT 4224 :MAP-GRANULARITY 16
+                                 :MAP-REPRESENTATION
+                                 CLAMSARA:OBJECT-START-MARKS :MODEL-CAPACITY 16
+                                 :MODEL-MAX-OBJECT-BYTES 256
+                                 :MODEL-VARIANT-CAPACITY 256
+                                 :MODEL-LOCATION-CAPACITY 32
+                                 :MODEL-HANDLE-CAPACITY 256
+                                 :MODEL-STAGE-CAPACITY 16 :MODEL-KIND-CAPACITY
+                                 16 :MODEL-SLOT-CAPACITY 16
+                                 :MODEL-MAX-INTERIOR-DISPLACEMENT 64
+                                 :ARENA-LENGTH 256 :WORDS-LENGTH 32
+                                 :SIZES-LENGTH 16 :ALIGNMENTS-LENGTH 16
+                                 :DESCRIPTOR-KINDS-LENGTH 16
+                                 :DESCRIPTOR-GENERATIONS-LENGTH 16
+                                 :DESCRIPTOR-COUNTS-LENGTH 16
+                                 :BASE-REFERENCES-LENGTH 16 :VARIANTS-LENGTH
+                                 256 :LOCATIONS-LENGTH 32 :HANDLES-LENGTH 256
+                                 :STAGES-LENGTH 16 :CONDITIONAL-CAPACITY 128
+                                 :FINALIZER-CAPACITY 16 :ROOT-COUNT 8
+                                 :STOP-CAPACITY 64 :AWAIT-BOUND 32
+                                 :REGISTRY-CAPACITY 16 :REGISTRATION-CAPACITY
+                                 64)
+                                :PLAN-RESOURCE
+                                (:PLAN-HANDLE-LENGTH 84344
+                                 :PLAN-HANDLE-STORAGE-BYTES 674768
+                                 :PLAN-PHYSICAL-BYTES 674768
+                                 :PLAN-ENTRY-CAPACITY 84344
+                                 :PLAN-AUXILIARY-BYTES 19568
+                                 :PLAN-DISPLACED-ARRAY-LENGTH 8324
+                                 :PLAN-ENTRIES-FORMULA 84344
+                                 :PLAN-FORMULA-MATCHES-HANDLE T
+                                 :PLAN-ENTRIES-FORMULA-NOTE
+                                 "the 10*trace+8*conditional+5*finalizer formula is source-derived and cross-checked against the observed handle length")
+                                :BASE-REFERENCE
+                                (:DESCRIPTOR-CELLS 16 :BASE-REFERENCES-LENGTH
+                                 16 :FIRST-BASE-REFERENCE-TYPE
+                                 CLAMSARA::HOST-REFERENCE
+                                 :BASE-REFERENCE-PRIMITIVE-BYTES 64
+                                 :BASE-REFERENCE-PRIMITIVE-BYTES-NOTE
+                                 "shallow primitive size of one per-cell host-reference struct; the FIXED-MODEL-PLANE-BYTES figure sums top-level plane vectors only and does not include these structs")
+                                :SAMPLES
+                                ((:CYCLE 1 :MICROSECONDS 305 :SECONDS 3.05d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 2))
+                                 (:CYCLE 2 :MICROSECONDS 301 :SECONDS 3.01d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 3))
+                                 (:CYCLE 3 :MICROSECONDS 311 :SECONDS 3.11d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 4))
+                                 (:CYCLE 4 :MICROSECONDS 302 :SECONDS 3.02d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 5))
+                                 (:CYCLE 5 :MICROSECONDS 312 :SECONDS 3.12d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 6))
+                                 (:CYCLE 6 :MICROSECONDS 300 :SECONDS 3.0d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 7))
+                                 (:CYCLE 7 :MICROSECONDS 306 :SECONDS 3.06d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 8))
+                                 (:CYCLE 8 :MICROSECONDS 337 :SECONDS 3.37d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 9))
+                                 (:CYCLE 9 :MICROSECONDS 310 :SECONDS 3.1d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 10))
+                                 (:CYCLE 10 :MICROSECONDS 306 :SECONDS 3.06d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 11))
+                                 (:CYCLE 11 :MICROSECONDS 285 :SECONDS 2.85d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 12))
+                                 (:CYCLE 12 :MICROSECONDS 299 :SECONDS 2.99d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 13))
+                                 (:CYCLE 13 :MICROSECONDS 301 :SECONDS 3.01d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 14))
+                                 (:CYCLE 14 :MICROSECONDS 308 :SECONDS 3.08d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 15))
+                                 (:CYCLE 15 :MICROSECONDS 305 :SECONDS 3.05d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 16))
+                                 (:CYCLE 16 :MICROSECONDS 305 :SECONDS 3.05d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 17))
+                                 (:CYCLE 17 :MICROSECONDS 309 :SECONDS 3.09d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 18))
+                                 (:CYCLE 18 :MICROSECONDS 304 :SECONDS 3.04d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 19))
+                                 (:CYCLE 19 :MICROSECONDS 305 :SECONDS 3.05d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 20))
+                                 (:CYCLE 20 :MICROSECONDS 306 :SECONDS 3.06d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 21))
+                                 (:CYCLE 21 :MICROSECONDS 308 :SECONDS 3.08d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 22))
+                                 (:CYCLE 22 :MICROSECONDS 306 :SECONDS 3.06d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 23))
+                                 (:CYCLE 23 :MICROSECONDS 284 :SECONDS 2.84d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 24))
+                                 (:CYCLE 24 :MICROSECONDS 389 :SECONDS 3.89d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 25)))
+                                :SUMMARY
+                                (:COUNT 24 :MIN-MICROSECONDS 284
+                                 :MEDIAN-MICROSECONDS 306 :MAX-MICROSECONDS 389
+                                 :MIN-SECONDS 2.84d-4 :MEDIAN-SECONDS 3.06d-4
+                                 :MAX-SECONDS 3.89d-4)
+                                :DISCHARGE
+                                (:ROOTS-CLEARED T :DISCHARGE-MICROSECONDS 66
+                                 :DISCHARGE-SECONDS 6.6d-5 :DISCHARGE-STATUS
+                                 :COMPLETE :DISCHARGE-MOVED 0
+                                 :LIVE-AFTER-DISCHARGE 0 :OBSERVED-STOP
+                                 (:STOP-CAPACITY 64 :STOP-NEXT 26
+                                  :STOP-TOKEN-BASE 65)
+                                 :UNBIND :UNBOUND :SHUTDOWN-STATUS :COMPLETE
+                                 :SHUTDOWN-REASON NIL)
+                                :DERIVED
+                                (:PEAK-REPRESENTATIONS-DERIVED 16
+                                 :PEAK-REPRESENTATIONS-NOTE
+                                 "DERIVED from the semispace source/destination coexistence rule (8 sources + 8 destinations = capacity 16). The probe installs no in-collection instrumentation, so the peak is NOT observed."
+                                 :FILL-ARRAYS-PER-COLLECTION 6
+                                 :FILL-SLOTS-PER-COLLECTION 49944
+                                 :CONDITIONAL-FILL-SLOTS 1024
+                                 :FINALIZER-FILL-SLOTS 80 :NOTE
+                                 "DERIVED FROM FROZEN SOURCE, NOT OBSERVED WRITES. src/runtime/trace.lisp:22-26 fills five arrays of trace capacity (source-spaces, source-starts, states, work-spaces, work-starts); src/runtime/cycle.lisp:26-40 fills retirement-starts of trace capacity plus the counter, conditional and finalizer arrays. The probe installs no instrumentation.")
+                                :OBSERVED
+                                (:LIVE-COUNT-AFTER-POPULATE 8
+                                 :COLLECTIONS-PERFORMED 26 :STOP-TOKEN-BASE 65
+                                 :CLOCK :SB-EXT-GET-TIME-OF-DAY))
+                               (:LABEL :TRACE-8324-R1 :TRACE-CAPACITY 8324
+                                :TRACE-CAPACITY-DECLARED 8324
+                                :TRACE-CAPACITY-CONTEXT 8324
+                                :CONSTRUCTION-SECONDS 7.85d-4 :WARMUP
+                                (:CYCLE :WARMUP :MICROSECONDS 294 :SECONDS
+                                 2.94d-4 :STATUS :COMPLETE :DISCOVERED 8 :MOVED
+                                 8 :BYTES-MOVED 128 :LIVE-AFTER 8
+                                 :OBSERVED-TRACE
+                                 (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                  :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                  :TRACE-GENERATION 1))
+                                :GEOMETRY
+                                (:SPACES 2 :SPACE-EXTENT 128 :SPACE-BASE 4096
+                                 :SPACE-PACKING-QUANTUM 16 :MAP-BASE 4096
+                                 :MAP-LIMIT 4224 :MAP-GRANULARITY 16
+                                 :MAP-REPRESENTATION
+                                 CLAMSARA:OBJECT-START-MARKS :MODEL-CAPACITY 16
+                                 :MODEL-MAX-OBJECT-BYTES 256
+                                 :MODEL-VARIANT-CAPACITY 256
+                                 :MODEL-LOCATION-CAPACITY 32
+                                 :MODEL-HANDLE-CAPACITY 256
+                                 :MODEL-STAGE-CAPACITY 16 :MODEL-KIND-CAPACITY
+                                 16 :MODEL-SLOT-CAPACITY 16
+                                 :MODEL-MAX-INTERIOR-DISPLACEMENT 64
+                                 :ARENA-LENGTH 256 :WORDS-LENGTH 32
+                                 :SIZES-LENGTH 16 :ALIGNMENTS-LENGTH 16
+                                 :DESCRIPTOR-KINDS-LENGTH 16
+                                 :DESCRIPTOR-GENERATIONS-LENGTH 16
+                                 :DESCRIPTOR-COUNTS-LENGTH 16
+                                 :BASE-REFERENCES-LENGTH 16 :VARIANTS-LENGTH
+                                 256 :LOCATIONS-LENGTH 32 :HANDLES-LENGTH 256
+                                 :STAGES-LENGTH 16 :CONDITIONAL-CAPACITY 128
+                                 :FINALIZER-CAPACITY 16 :ROOT-COUNT 8
+                                 :STOP-CAPACITY 64 :AWAIT-BOUND 32
+                                 :REGISTRY-CAPACITY 16 :REGISTRATION-CAPACITY
+                                 64)
+                                :PLAN-RESOURCE
+                                (:PLAN-HANDLE-LENGTH 84344
+                                 :PLAN-HANDLE-STORAGE-BYTES 674768
+                                 :PLAN-PHYSICAL-BYTES 674768
+                                 :PLAN-ENTRY-CAPACITY 84344
+                                 :PLAN-AUXILIARY-BYTES 19568
+                                 :PLAN-DISPLACED-ARRAY-LENGTH 8324
+                                 :PLAN-ENTRIES-FORMULA 84344
+                                 :PLAN-FORMULA-MATCHES-HANDLE T
+                                 :PLAN-ENTRIES-FORMULA-NOTE
+                                 "the 10*trace+8*conditional+5*finalizer formula is source-derived and cross-checked against the observed handle length")
+                                :BASE-REFERENCE
+                                (:DESCRIPTOR-CELLS 16 :BASE-REFERENCES-LENGTH
+                                 16 :FIRST-BASE-REFERENCE-TYPE
+                                 CLAMSARA::HOST-REFERENCE
+                                 :BASE-REFERENCE-PRIMITIVE-BYTES 64
+                                 :BASE-REFERENCE-PRIMITIVE-BYTES-NOTE
+                                 "shallow primitive size of one per-cell host-reference struct; the FIXED-MODEL-PLANE-BYTES figure sums top-level plane vectors only and does not include these structs")
+                                :SAMPLES
+                                ((:CYCLE 1 :MICROSECONDS 274 :SECONDS 2.74d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 2))
+                                 (:CYCLE 2 :MICROSECONDS 282 :SECONDS 2.82d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 3))
+                                 (:CYCLE 3 :MICROSECONDS 271 :SECONDS 2.71d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 4))
+                                 (:CYCLE 4 :MICROSECONDS 277 :SECONDS 2.77d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 5))
+                                 (:CYCLE 5 :MICROSECONDS 278 :SECONDS 2.78d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 6))
+                                 (:CYCLE 6 :MICROSECONDS 271 :SECONDS 2.71d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 7))
+                                 (:CYCLE 7 :MICROSECONDS 270 :SECONDS 2.7d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 8))
+                                 (:CYCLE 8 :MICROSECONDS 272 :SECONDS 2.72d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 9))
+                                 (:CYCLE 9 :MICROSECONDS 271 :SECONDS 2.71d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 10))
+                                 (:CYCLE 10 :MICROSECONDS 304 :SECONDS 3.04d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 11))
+                                 (:CYCLE 11 :MICROSECONDS 273 :SECONDS 2.73d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 12))
+                                 (:CYCLE 12 :MICROSECONDS 268 :SECONDS 2.68d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 13))
+                                 (:CYCLE 13 :MICROSECONDS 271 :SECONDS 2.71d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 14))
+                                 (:CYCLE 14 :MICROSECONDS 268 :SECONDS 2.68d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 15))
+                                 (:CYCLE 15 :MICROSECONDS 276 :SECONDS 2.76d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 16))
+                                 (:CYCLE 16 :MICROSECONDS 270 :SECONDS 2.7d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 17))
+                                 (:CYCLE 17 :MICROSECONDS 270 :SECONDS 2.7d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 18))
+                                 (:CYCLE 18 :MICROSECONDS 275 :SECONDS 2.75d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 19))
+                                 (:CYCLE 19 :MICROSECONDS 272 :SECONDS 2.72d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 20))
+                                 (:CYCLE 20 :MICROSECONDS 269 :SECONDS 2.69d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 21))
+                                 (:CYCLE 21 :MICROSECONDS 270 :SECONDS 2.7d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 22))
+                                 (:CYCLE 22 :MICROSECONDS 269 :SECONDS 2.69d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 23))
+                                 (:CYCLE 23 :MICROSECONDS 283 :SECONDS 2.83d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 24))
+                                 (:CYCLE 24 :MICROSECONDS 269 :SECONDS 2.69d-4
+                                  :STATUS :COMPLETE :DISCOVERED 8 :MOVED 8
+                                  :BYTES-MOVED 128 :LIVE-AFTER 8
+                                  :OBSERVED-TRACE
+                                  (:TRACE-CAPACITY 8324 :TRACE-RESERVED-COUNT 8
+                                   :TRACE-COMMITTED-COUNT 8 :TRACE-TAKE-INDEX 8
+                                   :TRACE-GENERATION 25)))
+                                :SUMMARY
+                                (:COUNT 24 :MIN-MICROSECONDS 268
+                                 :MEDIAN-MICROSECONDS 271 :MAX-MICROSECONDS 304
+                                 :MIN-SECONDS 2.68d-4 :MEDIAN-SECONDS 2.71d-4
+                                 :MAX-SECONDS 3.04d-4)
+                                :DISCHARGE
+                                (:ROOTS-CLEARED T :DISCHARGE-MICROSECONDS 56
+                                 :DISCHARGE-SECONDS 5.6d-5 :DISCHARGE-STATUS
+                                 :COMPLETE :DISCHARGE-MOVED 0
+                                 :LIVE-AFTER-DISCHARGE 0 :OBSERVED-STOP
+                                 (:STOP-CAPACITY 64 :STOP-NEXT 26
+                                  :STOP-TOKEN-BASE 193)
+                                 :UNBIND :UNBOUND :SHUTDOWN-STATUS :COMPLETE
+                                 :SHUTDOWN-REASON NIL)
+                                :DERIVED
+                                (:PEAK-REPRESENTATIONS-DERIVED 16
+                                 :PEAK-REPRESENTATIONS-NOTE
+                                 "DERIVED from the semispace source/destination coexistence rule (8 sources + 8 destinations = capacity 16). The probe installs no in-collection instrumentation, so the peak is NOT observed."
+                                 :FILL-ARRAYS-PER-COLLECTION 6
+                                 :FILL-SLOTS-PER-COLLECTION 49944
+                                 :CONDITIONAL-FILL-SLOTS 1024
+                                 :FINALIZER-FILL-SLOTS 80 :NOTE
+                                 "DERIVED FROM FROZEN SOURCE, NOT OBSERVED WRITES. src/runtime/trace.lisp:22-26 fills five arrays of trace capacity (source-spaces, source-starts, states, work-spaces, work-starts); src/runtime/cycle.lisp:26-40 fills retirement-starts of trace capacity plus the counter, conditional and finalizer arrays. The probe installs no instrumentation.")
+                                :OBSERVED
+                                (:LIVE-COUNT-AFTER-POPULATE 8
+                                 :COLLECTIONS-PERFORMED 26 :STOP-TOKEN-BASE 193
+                                 :CLOCK :SB-EXT-GET-TIME-OF-DAY))))
+TRACE-CAPACITY-PROBE :DONE
+# ---- stderr ----
+# ---- end ----

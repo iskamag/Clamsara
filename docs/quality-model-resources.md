@@ -233,10 +233,11 @@ private resolver does not convert them into `:stale`.
 
 The word plane still has element type `T`; its safety comes from the model's
 pre-effect value admission, not from a specialized array declaration. The
-hosted profile does **not** claim guest representations for bignums, ratios,
+raw numeric boundary does **not** admit boxed host bignums, ratios,
 double-floats, arbitrary host aggregates, or every possible client-defined
-numeric type. Those values reject. This is a narrow, tested profile, not an
-all-guest-representations proof.
+numeric type. Those raw values reject. The workload's later managed-bignum ABI
+stores fixnum limbs in managed objects; it does not relax this raw-word rule.
+This is a narrow, tested boundary, not an all-guest-representations proof.
 
 Relevant path: `src/host/object-model.lisp`, raw-value validation and indexed
 numeric resolver.
@@ -316,6 +317,78 @@ The model-plane bytes exactly match the earlier run. Whole-configuration charges
 include the intervening service changes and are reported afresh, not copied
 from that historical result. This remains hosted component evidence, not
 benchmark or target admission.
+
+## Corrected work and storage reporting
+
+The historical output above is preserved, not retroactively relabeled. Its
+`REFERENCE-CALLBACKS` and `NUMERIC-STRONG-CALLBACKS` fields printed expectations,
+not measured whole-workload totals. The two explicit reference scans each
+asserted N callbacks, and the explicit numeric scan asserted zero. Real GC also
+scans the reference array; the old number did not count all of that work.
+
+The current test retains and prints the actual local callback count from each
+explicit mapping call. It labels collector callback counts `:NOT-MEASURED`.
+Its single-size count/order and endpoint assertions no longer describe
+themselves as complexity proofs. The independent accessor-count checks elsewhere
+remain bounded evidence for the particular quadratic loops they replaced.
+
+`TOP-LEVEL-MODEL-PLANE-BYTES` is the shallow sum of the named plane vectors.
+The base-reference vector's elements are separate 64-byte records on this SBCL.
+Stage records also retain separate byte/word backing arrays. They were already
+in the auxiliary account, but were not in the plane figure. The test now sums
+those actual primitive objects and prints an explicitly **partial** model
+subtotal. It still excludes model/route/kind headers and other fixed records.
+Do not read it as all retained model storage.
+
+The rerun on the `6e268e4` implementation with the reporting-only test edits
+passes both the 4,096-element group and the unchanged 500,000-element stress.
+Logs: `/tmp/clamsara-model-metrics-components.log` and
+`/tmp/clamsara-model-metrics-500k.log`. The latter reports:
+
+```text
+TOP-LEVEL-MODEL-PLANE-BYTES      80011312
+BASE-REFERENCE-RECORD-BYTES      64008448
+STAGING-BACKING-BYTES            8000064
+PARTIAL-MODEL-SUBTOTAL-BYTES     152019824
+ACCOUNT-PHYSICAL-BYTES           48133504
+ACCOUNT-AUXILIARY-BYTES          160292368
+EXPLICIT-REFERENCE-SCAN-CALLBACKS (500000 500000)
+EXPLICIT-NUMERIC-SCAN-CALLBACKS  0
+COLLECTOR-SCAN-CALLBACKS         :NOT-MEASURED
+OBJECTS-DISCOVERED/MOVED         2/2
+BYTES-MOVED                      8000032
+```
+
+Heap geometry and descriptor count are unchanged. The 1,856-byte auxiliary
+increase since the capacity repair belongs to the geometry snapshot state,
+not this reporting change. Summing a million primitive records also adds test
+bookkeeping outside collection; the roughly six-second process time includes
+startup and is not an isolated performance measurement.
+
+### Independent trace-capacity diagnostic
+
+Read [the original report](trace-capacity-review-9dd8629.md) together with
+[its corrective addendum](trace-capacity-review-addendum.md). The measured
+fixture is an **8-object chain in 128-byte semispaces**, not a 4,096-element array.
+The original proposed trace bound 128 is inadmissible for that array's 66,592-byte
+spaces: the minimum is 4,162. A legal 4,162-versus-8,324 array comparison was not
+run. The smaller chain compares admitted trace capacities 128 and 8,324.
+
+Measured plan-vector lengths are 2,384 and 84,344 words, with physical charges
+19,088 and 674,768 bytes; plan auxiliary charges are identical at 19,568 bytes.
+The probe also measures a base-reference record at 64 bytes. These structural
+observations support the accounting decomposition. They do not prove full
+storage admission or complexity at other geometries.
+
+Each world completes 25 survivor collections and one empty discharge. Six
+completed runs are retained; the pooled timing table uses only the three later
+runs, with 144 samples per capacity. The median difference is 16 microseconds,
+but ranges overlap and include unexplained process-level outliers. The extra
+49,176 fill slots are **source-derived**, not counted writes. The timings are
+compatible with that work, not a causal isolation of it. No Gabriel, GCBench,
+array-performance, no-allocation or target acceptance follows. Unchanged probe,
+runner, six logs, pooled data and hashes are in
+`docs/evidence/trace-capacity-9dd8629/`; eight earlier process logs are unavailable.
 
 ## Evidence limits
 

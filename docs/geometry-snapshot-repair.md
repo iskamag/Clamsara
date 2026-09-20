@@ -103,6 +103,9 @@ The fixed-plane number is a shallow category, not all retained model storage.
 Base-reference records and staged backing are charged elsewhere in auxiliary
 accounting. The old printed callback fields are constants whose per-pass
 expectations are asserted in the test; they are not measured whole-workload
-callback totals. Clearer counters and a small controlled trace-capacity timing
-experiment are pending. No current-tree GCBench, all-19 Gabriel, Mezzano, or full
+callback totals. Reporting-only tests now record the explicit per-scan counts
+and separate plane spines, base-reference records and staged backing; see
+`quality-model-resources.md`. The small trace-capacity timing experiment and
+its corrections are preserved separately; it used an eight-object chain,
+not the initially proposed array geometry. No current-tree GCBench, all-19 Gabriel, Mezzano, or full
 conformance acceptance follows from these component gates.

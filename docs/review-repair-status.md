@@ -264,6 +264,23 @@ mutable compound names, other representation pools, and target admission remain
 open. This is not a claim that every object description or model profile is now
 admitted.
 
+## Nonbase reference encoding capacity: separate open defect
+
+The fixed `9dd8629` probe in
+[reference-variant-capacity-review.md](reference-variant-capacity-review.md)
+finds a different capacity failure. Four SemiSpace cases with one historical
+variant entry admit a real hosted tagged/interior value, then exhaust its
+encoding pool at root correction after one object has been copied and forwarded.
+They retain the stop with `:post-publication-failure`; allocation blocks and
+unbind requests retry. This is not silent successful corruption or the tested
+pre-effect mutator request rejection.
+
+The 16-case matrix uses a full base-descriptor offer. Larger variant offers and
+all MarkSweep controls complete three cycles and discharge. The test's initial
+nonbase descriptor uses the explicit private hosted encoding ABI; the report
+keeps that boundary distinct from a pure opaque-protocol input. No encoding-pool
+repair is included in the geometry patch or the reporting-only edits.
+
 ## Other confirmed review findings
 
 Still open: composed CAS event ordering and mismatch exposure-fault closure.

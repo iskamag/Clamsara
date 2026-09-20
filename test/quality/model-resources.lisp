@@ -1368,6 +1368,9 @@
        (let* ((model (model-world-model world))
               (configuration (model-world-configuration world))
               (plan (clamsara::configuration-plan configuration))
+              (setup-reference-callbacks 0)
+              (verify-reference-callbacks 0)
+              (numeric-reference-callbacks 0)
               (reference-array
                 (world-allocate-object
                  world (model-world-reference-array-kind world) bytes))
@@ -1395,7 +1398,8 @@
               (incf seen)))
            (check (and (= seen element-count)
                        (= (car (model-world-identity-count world)) element-count))
-                  "generic array mapper was not one callback per element"))
+                  "generic array mapper was not one callback per element")
+           (setf setup-reference-callbacks seen))
          (setf (car (model-world-identity-count world)) 0)
          (let ((seen 0))
            (map-reference-locations
@@ -1411,17 +1415,19 @@
               (incf seen)))
            (check (and (= seen element-count)
                        (= (car (model-world-identity-count world)) element-count))
-                  "generic array rescan did not scale linearly"))
+                  "generic array rescan callback count/order changed")
+           (setf verify-reference-callbacks seen))
          (check (= (if (evenp (1- element-count)) 1 257)
                    (map-value model reference-array (1- element-count)))
-                "O(1) generic-array endpoint lookup failed")
+                "generic-array endpoint lookup failed")
          (let ((strong-count 0))
            (map-reference-locations
             model numeric-array
             (lambda (identity location)
               (declare (ignore identity location)) (incf strong-count)))
            (check (zerop strong-count)
-                  "numeric array exposed reference locations"))
+                  "numeric array exposed reference locations")
+           (setf numeric-reference-callbacks strong-count))
          (dotimes (index element-count)
            (multiple-value-bind (stored status reason)
                (clamsara::%call-with-simulator-array-element
@@ -1521,9 +1527,19 @@
                                          entry)))
                             (plane-objects
                               (mapcar #'first (model-fixed-plane-snapshot model)))
-                            (model-storage
+                            (plane-storage
                               (loop for object in plane-objects
-                                    sum (clamsara::%host-object-storage object))))
+                                    sum (clamsara::%host-object-storage object)))
+                            (base-reference-storage
+                              (loop for reference across
+                                      (clamsara::host-model-base-references model)
+                                    sum (clamsara::%host-object-storage reference)))
+                            (staging-storage
+                              (loop for stage across (clamsara::host-model-stages model)
+                                    sum (+ (clamsara::%host-object-storage
+                                            (clamsara::host-staged-object-bytes stage))
+                                           (clamsara::%host-object-storage
+                                            (clamsara::host-staged-object-words stage))))))
                        (setf evidence
                              (list
                               :element-count element-count
@@ -1541,11 +1557,19 @@
                               (clamsara::host-model-capacity model)
                               :model-descriptor-cells
                               (length (clamsara::host-model-sizes model))
-                              :fixed-model-plane-bytes model-storage
+                              :top-level-model-plane-bytes plane-storage
+                              :base-reference-record-bytes base-reference-storage
+                              :staging-backing-bytes staging-storage
+                              ;; Explicit partial sum, not the full model account:
+                              ;; excludes model/routes/kinds/other fixed records.
+                              :partial-model-subtotal-bytes
+                              (+ plane-storage base-reference-storage staging-storage)
                               :account-physical-bytes physical
                               :account-auxiliary-bytes auxiliary
-                              :reference-callbacks element-count
-                              :numeric-strong-callbacks 0
+                              :explicit-reference-scan-callbacks
+                              (list setup-reference-callbacks verify-reference-callbacks)
+                              :explicit-numeric-scan-callbacks numeric-reference-callbacks
+                              :collector-scan-callbacks :not-measured
                               :objects-discovered discovered
                               :objects-moved moved :bytes-moved moved-bytes)))))))))))
      :extent extent :model-capacity (/ (* 2 extent) 16) :max-object-bytes bytes

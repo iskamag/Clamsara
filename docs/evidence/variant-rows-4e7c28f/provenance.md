@@ -66,3 +66,12 @@ during that run; production still matches all 41 independently reviewed hashes.
 An earlier successful integration run had only a nested IGNORE style warning,
 removed before this final run. The 500k log predates only these test additions,
 not any production change.
+
+## Normative-paper path correction
+
+The frozen snapshot manifest's `paper_root` names a nonexistent directory.
+The reviewer confirmed that the row reviews used the supplied contract/proposal
+and prior reference context, not a fresh direct normative-paper read elsewhere.
+See `docs/reference-variant-row-provenance-addendum.md`. The original manifest,
+reports, source hashes and native results remain unchanged. Parent checks of
+the real normative paper are separate evidence, not independent paper review.

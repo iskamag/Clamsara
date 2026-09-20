@@ -5,7 +5,9 @@ Independent native replay passes 108 original cases plus 12 additional edge
 cases. The [fixed-snapshot review](reference-variant-row-fixed-review.md) found
 no blocker within the serialized hosted row-closure contract. Its separate
 [integration note](reference-variant-row-integration-addendum.md) preserves the
-boundary between reviewer-run and parent-run evidence.
+boundary between reviewer-run and parent-run evidence. Read the separate
+[paper-path correction](reference-variant-row-provenance-addendum.md): the row
+review verified the supplied policy, not a fresh normative-paper audit.
 The independent defect is preserved in `reference-variant-capacity-review.md`.
 No benchmark or target acceptance is implied.
 

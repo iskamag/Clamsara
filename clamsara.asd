@@ -151,7 +151,8 @@
   :serial t
   :components ((:module "src/workload" :serial t
                 :components ((:file "protocol") (:file "roots")
-                             (:file "source") (:file "maclina") (:file "setup")
+                             (:file "source") (:file "maclina")
+                             (:file "control") (:file "setup")
                              (:file "gabriel") (:file "gcbench")))))
 
 (asdf:defsystem :clamsara/host/atomics/test
@@ -240,11 +241,13 @@
   :version "0.1.0"
   :description "Bounded adapter regressions, not the full benchmark gate."
   :depends-on (:clamsara/workload)
-  :components ((:file "test/workload/adapter"))
+  :components ((:file "test/workload/adapter") (:file "test/workload/values"))
   :perform (asdf:test-op (operation component)
              (declare (ignore operation component))
-             (unless (uiop:symbol-call :clamsara.workload.adapter.test
-                                      :run-workload-adapter-tests)
+             (unless (and (uiop:symbol-call :clamsara.workload.adapter.test
+                                           :run-workload-adapter-tests)
+                          (uiop:symbol-call :clamsara.workload.values.test
+                                           :run-workload-value-lifetime-tests))
                (error "Workload adapter tests failed"))))
 
 (asdf:defsystem :clamsara/generational

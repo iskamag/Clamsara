@@ -63,42 +63,54 @@ an automatic collection. The observed run moves 16 live nodes and checks all
 This test is not a reduced-parameter replacement for full depth-18 acceptance.
 The adapter suite reports 36 passing checks.
 
-## Open VM value-lifetime failures
+## VM value-lifetime acceptance
 
-After the structure fix (`7c0ff75`), unchanged depth-18 GCBench builds its
-stretch tree but fails with `:HEAP-EXHAUSTED` when beginning the long-lived tree.
-A 16KiB reproduction identifies the cause: the root provider still exposes
-the discarded 255-node stretch result through `VM-VALUES`. An automatic cycle
-correctly copies those nodes plus the new one-node tree: 256 objects, 16,384
-bytes. Increasing heap capacity would hide this adapter lifetime error.
+On `7c0ff75`, unchanged depth-18 GCBench built its stretch tree but then failed
+with `:HEAP-EXHAUSTED`. A 16KiB reproduction showed why: `VM-VALUES` still rooted
+the discarded 255-node tree. The collector correctly copied those objects plus
+the new root: 256 objects, 16,384 bytes. A separate test showed protected values
+becoming stale when an interpreted cleanup call overwrote `VM-VALUES`.
 
-There is also an opposite lifetime error. Maclina's cleanup path saves protected
-multiple values in a host lexical list. An interpreted cleanup call overwrites
-`VM-VALUES`; subsequent moving collection does not update the saved list.
-The returned protected references are then stale. Unconditionally clearing the
-value register is therefore not a sufficient or safe root-integration design.
+`src/workload/control.lisp` now makes the lifetimes explicit:
 
-Reproduce the three cases from the repository root:
+- Compiler contexts with nonnegative receiving counts use operand-stack values
+  or discard them. Their completed forms clear the unused value register with
+  existing VM instructions. All-values contexts retain it.
+- The workload-only UNWIND-PROTECT lowering marks its actual cleanup template.
+  Linking transfers that marker to the original Maclina function object.
+- Fixed activation slots retain active callees and the original saved-value
+  cons cells throughout cleanup, including THROW and RETURN-FROM. Collection
+  updates those physical cells rather than a detached copy of their values.
+- A bounded, identity-deduplicated traversal covers closure environments and
+  lexical cells. It does not traverse arbitrary host containers as payload.
+- Caller stack/frame/argument registers and activation slots restore on normal
+  return and host error. Frame-capacity rejection precedes VM mutation.
+
+The broader tests exposed a separate upstream compiler error: discarding a
+MULTIPLE-VALUE-CALL result could also omit its function designator. An
+immediate-only non-workload probe reproduced it. The workload-only lowering
+now always requests one callee operand, independently of the result context.
+No upstream files or global VM functions are replaced. These private compiler
+extensions remain coupled to the inspected Maclina interfaces; other clients
+use the original methods.
+
+The value suite is now part of `asdf:test-system :clamsara/workload/test`, in
+addition to the existing 36 adapter checks. It can also run alone:
 
 ```sh
 sbcl --noinform --non-interactive --load tools/probe-workload-values.lisp
 ```
 
-Observed on `7c0ff75` (the command exits **1**, not a passing admission gate):
+Nine cases pass: discarded results, MULTIPLE-VALUE-PROG1, ordinary cleanup,
+THROW, RETURN-FROM, nested saved values, host-error frame recovery, pre-effect
+frame-capacity rejection/recovery, and an active closure with a mutable cell.
+The discarded-result case now moves only the one live node instead of 256.
+The live multiple-value cases preserve both objects through movement.
 
-| Case | Result |
-| --- | --- |
-| Discarded stretch result | Fails: `:HEAP-EXHAUSTED` |
-| `MULTIPLE-VALUE-PROG1` across moving collection | Passes; two objects moved |
-| `UNWIND-PROTECT` values across an interpreted cleanup call and collection | Fails: stale returned reference |
-
-The passing case keeps its values in writable VM stack slots. The cleanup
-case needs equally explicit writable ownership across its saved-value extent.
-The next integration must distinguish dead result registers from live saved
-values, including exceptional cleanup. No VM/helper global replacement,
-fixture edit, forwarding fallback for stale encodings, or heap-size workaround
-has been installed. These are implementation gaps, not paper contradictions.
-The existing 36-check adapter suite does not establish this stronger acceptance.
+These are hosted interpreter results, not supervisor allocation-freedom or
+Mezzano admission evidence. Host-condition cleanup semantics, complete literal
+and module ownership, and the other language boundaries below still need their
+own acceptance. Full depth-18 and Gabriel acceptance are separate gates.
 
 This is not a claim of complete language adaptation. Managed REST lists,
 constant/module roots, active closures, foreign primitive argument lifetimes,

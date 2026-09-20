@@ -46,9 +46,13 @@
     ("TRUCLER::DESCRIBE-VARIABLE"
      . "WORKLOAD-MACLINA-CLIENT describes keyword constants without mutable global cells.")
     ("MACLINA.COMPILE::COMPILE-COMBINATION"
-     . "An :AROUND method scopes compiler syntax execution only for WORKLOAD-MACLINA-CLIENT.")
+     . "Workload-guarded methods scope macro syntax and emit compiler-proven value-lifetime boundaries.")
     ("MACLINA.MACHINE::COMPUTE-INSTANCE-FUNCTION"
-     . "WORKLOAD-MACLINA-CLIENT supplies compiler-phase data entries without replacing function identities.")))
+     . "WORKLOAD-MACLINA-CLIENT supplies source entries and bounded activation roots without replacing function identities.")
+    ("MACLINA.COMPILE::COMPILE-SPECIAL"
+     . "WORKLOAD-MACLINA-CLIENT marks cleanup templates and clears compiler-proven dead value registers.")
+    ("MACLINA.COMPILE::LOAD-LITERAL-INFO"
+     . "WORKLOAD-MACLINA-CLIENT transfers cleanup ownership markers from compiler objects to linked functions.")))
 
 (defparameter *definition-operators*
   '(defun defmacro defgeneric defmethod defclass defstruct define-condition
@@ -157,7 +161,11 @@
                                   :inside enclosing
                                   :location (append location
                                                     (list :path (reverse path)))))))
-             (loop for child in (rest form) for index from 1
+             ;; Macro syntax may contain dotted patterns/lambda lists. Walk
+             ;; their cons spine; an atomic tail is data, not a reader failure.
+             (loop for tail = (rest form) then (cdr tail)
+                   while (consp tail)
+                   for child = (car tail) for index from 1
                    do (%walk-source-form child nil location emit-definition emit-issue
                                         next-enclosing (cons index path))))))))))
 

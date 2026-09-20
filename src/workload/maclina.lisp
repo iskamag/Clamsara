@@ -18,7 +18,9 @@
                :reader workload-client-properties)
    ;; Compiler-control functions, not guest payload or a guest heap registry.
    (source-operators :initform (make-hash-table :test #'eq)
-                     :reader workload-client-source-operators)))
+                     :reader workload-client-source-operators)
+   (cleanup-templates :initform (make-hash-table :test #'eq)
+                      :reader workload-client-cleanup-templates)))
 
 (defvar *workload-environment* nil)
 (defvar *workload-read-depth* 0)
@@ -46,7 +48,8 @@
                    (gethash function (workload-client-source-operators client)))))
         ;; Keep the original Maclina function object and closure environment
         ;; visible. Do not hide them behind a replacement fdefinition closure.
-        (apply (or source-entry entry) arguments)))))
+        (%call-with-workload-function client function
+                                      (or source-entry entry) arguments)))))
 
 (defun %workload-install-data-function (client runtime name function)
   (let ((source-entry

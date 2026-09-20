@@ -68,6 +68,8 @@
 (defmethod fixture-native-generic ((object integer) &key token)
   (declare (ignore token)) object)
 (defun fixture-native-function (object) object)
+(defmacro fixture-native-dotted (head . tail)
+  (declare (ignore head tail)) nil)
 (defun (setf fixture-native-function) (new object)
   (declare (ignore object)) new)
 "))

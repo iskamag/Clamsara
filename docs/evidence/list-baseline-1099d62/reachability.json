@@ -1,0 +1,541 @@
+[
+  {
+    "case": [
+      ":BEHAVIOR",
+      ":EMPTY"
+    ],
+    "category": "behavior",
+    "attempted": true,
+    "native_v2_loaded": true,
+    "runtime_created": true,
+    "final_phase": ":COMPLETE",
+    "configuration": "NIL",
+    "token_active": "NIL",
+    "case_graph_rooted_at_summary": "NIL",
+    "outcome": ":PASS",
+    "condition_type": "NIL",
+    "expected_condition_recorded": "NIL",
+    "physical": {
+      "frames": 1024,
+      "saved": 1024,
+      "cells": 1024
+    },
+    "pre_unwind_limit": "Runner handler observes WITH-OWNER rethrow after internal unwind; original failing instruction/phase not captured."
+  },
+  {
+    "case": [
+      ":BEHAVIOR",
+      ":ONE"
+    ],
+    "category": "behavior",
+    "attempted": true,
+    "native_v2_loaded": true,
+    "runtime_created": true,
+    "final_phase": ":FAILED-RETAINED",
+    "configuration": ":PUBLISHED",
+    "token_active": "T",
+    "case_graph_rooted_at_summary": "NIL",
+    "outcome": ":FAIL",
+    "condition_type": "TYPE-ERROR",
+    "expected_condition_recorded": "NIL",
+    "physical": {
+      "frames": 1024,
+      "saved": 1024,
+      "cells": 1024
+    },
+    "pre_unwind_limit": "Runner handler observes WITH-OWNER rethrow after internal unwind; original failing instruction/phase not captured.",
+    "acceptance_reachability": "No completed managed graph/movement acceptance."
+  },
+  {
+    "case": [
+      ":BEHAVIOR",
+      ":MANY"
+    ],
+    "category": "behavior",
+    "attempted": true,
+    "native_v2_loaded": true,
+    "runtime_created": true,
+    "final_phase": ":FAILED-RETAINED",
+    "configuration": ":PUBLISHED",
+    "token_active": "T",
+    "case_graph_rooted_at_summary": "NIL",
+    "outcome": ":FAIL",
+    "condition_type": "TYPE-ERROR",
+    "expected_condition_recorded": "NIL",
+    "physical": {
+      "frames": 1024,
+      "saved": 1024,
+      "cells": 1024
+    },
+    "pre_unwind_limit": "Runner handler observes WITH-OWNER rethrow after internal unwind; original failing instruction/phase not captured.",
+    "acceptance_reachability": "No completed managed graph/movement acceptance."
+  },
+  {
+    "case": [
+      ":BEHAVIOR",
+      ":ORDER"
+    ],
+    "category": "behavior",
+    "attempted": true,
+    "native_v2_loaded": true,
+    "runtime_created": true,
+    "final_phase": ":FAILED-RETAINED",
+    "configuration": ":PUBLISHED",
+    "token_active": "T",
+    "case_graph_rooted_at_summary": "NIL",
+    "outcome": ":FAIL",
+    "condition_type": "TYPE-ERROR",
+    "expected_condition_recorded": "NIL",
+    "physical": {
+      "frames": 1024,
+      "saved": 1024,
+      "cells": 1024
+    },
+    "pre_unwind_limit": "Runner handler observes WITH-OWNER rethrow after internal unwind; original failing instruction/phase not captured.",
+    "acceptance_reachability": "No completed managed graph/movement acceptance."
+  },
+  {
+    "case": [
+      ":BEHAVIOR",
+      ":IDENTITY"
+    ],
+    "category": "behavior",
+    "attempted": true,
+    "native_v2_loaded": true,
+    "runtime_created": true,
+    "final_phase": ":FAILED-RETAINED",
+    "configuration": ":PUBLISHED",
+    "token_active": "T",
+    "case_graph_rooted_at_summary": "NIL",
+    "outcome": ":FAIL",
+    "condition_type": "TYPE-ERROR",
+    "expected_condition_recorded": "NIL",
+    "physical": {
+      "frames": 1024,
+      "saved": 1024,
+      "cells": 1024
+    },
+    "pre_unwind_limit": "Runner handler observes WITH-OWNER rethrow after internal unwind; original failing instruction/phase not captured.",
+    "acceptance_reachability": "No completed managed graph/movement acceptance."
+  },
+  {
+    "case": [
+      ":BEHAVIOR",
+      ":MOVING"
+    ],
+    "category": "behavior",
+    "attempted": true,
+    "native_v2_loaded": true,
+    "runtime_created": true,
+    "final_phase": ":FAILED-RETAINED",
+    "configuration": ":PUBLISHED",
+    "token_active": "T",
+    "case_graph_rooted_at_summary": "NIL",
+    "outcome": ":FAIL",
+    "condition_type": "TYPE-ERROR",
+    "expected_condition_recorded": "NIL",
+    "physical": {
+      "frames": 1024,
+      "saved": 1024,
+      "cells": 1024
+    },
+    "pre_unwind_limit": "Runner handler observes WITH-OWNER rethrow after internal unwind; original failing instruction/phase not captured.",
+    "acceptance_reachability": "No completed managed graph/movement acceptance."
+  },
+  {
+    "case": [
+      ":BEHAVIOR",
+      ":MAPC-NESTED"
+    ],
+    "category": "behavior",
+    "attempted": true,
+    "native_v2_loaded": true,
+    "runtime_created": true,
+    "final_phase": ":FAILED-RETAINED",
+    "configuration": ":PUBLISHED",
+    "token_active": "T",
+    "case_graph_rooted_at_summary": "NIL",
+    "outcome": ":FAIL",
+    "condition_type": "TYPE-ERROR",
+    "expected_condition_recorded": "NIL",
+    "physical": {
+      "frames": 1024,
+      "saved": 1024,
+      "cells": 1024
+    },
+    "pre_unwind_limit": "Runner handler observes WITH-OWNER rethrow after internal unwind; original failing instruction/phase not captured.",
+    "acceptance_reachability": "No completed managed graph/movement acceptance."
+  },
+  {
+    "case": [
+      ":CAPACITY",
+      0,
+      ":ARENA",
+      ":EXACT",
+      "NIL"
+    ],
+    "category": "capacity-proposal",
+    "attempted": true,
+    "native_v2_loaded": true,
+    "runtime_created": true,
+    "final_phase": ":COMPLETE",
+    "configuration": "NIL",
+    "token_active": "NIL",
+    "case_graph_rooted_at_summary": "NIL",
+    "outcome": ":PASS",
+    "condition_type": "NIL",
+    "expected_condition_recorded": "NIL",
+    "physical": {
+      "frames": 1024,
+      "saved": 1024,
+      "cells": 0
+    },
+    "pre_unwind_limit": "Runner handler observes WITH-OWNER rethrow after internal unwind; original failing instruction/phase not captured."
+  },
+  {
+    "case": [
+      ":CAPACITY",
+      17,
+      ":ARENA",
+      ":EXACT",
+      "NIL"
+    ],
+    "category": "capacity-proposal",
+    "attempted": true,
+    "native_v2_loaded": true,
+    "runtime_created": true,
+    "final_phase": ":FAILED-RETAINED",
+    "configuration": ":PUBLISHED",
+    "token_active": "T",
+    "case_graph_rooted_at_summary": "T",
+    "outcome": ":FAIL",
+    "condition_type": "TYPE-ERROR",
+    "expected_condition_recorded": "NIL",
+    "physical": {
+      "frames": 1024,
+      "saved": 1024,
+      "cells": 19
+    },
+    "pre_unwind_limit": "Runner handler observes WITH-OWNER rethrow after internal unwind; original failing instruction/phase not captured.",
+    "acceptance_reachability": "No completed nonempty recovery/discharge; not a capacity pass."
+  },
+  {
+    "case": [
+      ":CAPACITY",
+      17,
+      ":ARENA",
+      ":EXACT",
+      "T"
+    ],
+    "category": "capacity-proposal",
+    "attempted": true,
+    "native_v2_loaded": true,
+    "runtime_created": true,
+    "final_phase": ":FAILED-RETAINED",
+    "configuration": ":PUBLISHED",
+    "token_active": "T",
+    "case_graph_rooted_at_summary": "T",
+    "outcome": ":FAIL",
+    "condition_type": "TYPE-ERROR",
+    "expected_condition_recorded": "NIL",
+    "physical": {
+      "frames": 1024,
+      "saved": 1024,
+      "cells": 22
+    },
+    "pre_unwind_limit": "Runner handler observes WITH-OWNER rethrow after internal unwind; original failing instruction/phase not captured.",
+    "acceptance_reachability": "No completed nonempty recovery/discharge; not a capacity pass."
+  },
+  {
+    "case": [
+      ":CAPACITY",
+      17,
+      ":ARENA",
+      ":ONE-SHORT",
+      "NIL"
+    ],
+    "category": "capacity-proposal",
+    "attempted": true,
+    "native_v2_loaded": true,
+    "runtime_created": true,
+    "final_phase": ":FAILED-RETAINED",
+    "configuration": ":PUBLISHED",
+    "token_active": "T",
+    "case_graph_rooted_at_summary": "T",
+    "outcome": ":FAIL",
+    "condition_type": "TYPE-ERROR",
+    "expected_condition_recorded": "NIL",
+    "physical": {
+      "frames": 1024,
+      "saved": 1024,
+      "cells": 18
+    },
+    "pre_unwind_limit": "Runner handler observes WITH-OWNER rethrow after internal unwind; original failing instruction/phase not captured.",
+    "acceptance_reachability": "No completed nonempty recovery/discharge; not a capacity pass."
+  },
+  {
+    "case": [
+      ":CAPACITY",
+      17,
+      ":ARENA",
+      ":ONE-SHORT",
+      "T"
+    ],
+    "category": "capacity-proposal",
+    "attempted": true,
+    "native_v2_loaded": true,
+    "runtime_created": true,
+    "final_phase": ":FAILED-RETAINED",
+    "configuration": ":PUBLISHED",
+    "token_active": "T",
+    "case_graph_rooted_at_summary": "T",
+    "outcome": ":FAIL",
+    "condition_type": "TYPE-ERROR",
+    "expected_condition_recorded": "NIL",
+    "physical": {
+      "frames": 1024,
+      "saved": 1024,
+      "cells": 21
+    },
+    "pre_unwind_limit": "Runner handler observes WITH-OWNER rethrow after internal unwind; original failing instruction/phase not captured.",
+    "acceptance_reachability": "No completed nonempty recovery/discharge; not a capacity pass."
+  },
+  {
+    "case": [
+      ":CAPACITY",
+      17,
+      ":FUNCTIONS",
+      ":EXACT",
+      "NIL"
+    ],
+    "category": "capacity-proposal",
+    "attempted": true,
+    "native_v2_loaded": true,
+    "runtime_created": true,
+    "final_phase": ":FAILED-RETAINED",
+    "configuration": ":PUBLISHED",
+    "token_active": "T",
+    "case_graph_rooted_at_summary": "T",
+    "outcome": ":FAIL",
+    "condition_type": "CLAMSARA:WORKLOAD-CAPABILITY-ERROR",
+    "expected_condition_recorded": "NIL",
+    "physical": {
+      "frames": 2,
+      "saved": 1024,
+      "cells": 1024
+    },
+    "pre_unwind_limit": "Runner handler observes WITH-OWNER rethrow after internal unwind; original failing instruction/phase not captured.",
+    "acceptance_reachability": "No completed nonempty recovery/discharge; not a capacity pass."
+  },
+  {
+    "case": [
+      ":CAPACITY",
+      17,
+      ":FUNCTIONS",
+      ":EXACT",
+      "T"
+    ],
+    "category": "capacity-proposal",
+    "attempted": true,
+    "native_v2_loaded": true,
+    "runtime_created": true,
+    "final_phase": ":FAILED-RETAINED",
+    "configuration": ":PUBLISHED",
+    "token_active": "T",
+    "case_graph_rooted_at_summary": "T",
+    "outcome": ":FAIL",
+    "condition_type": "CLAMSARA:WORKLOAD-CAPABILITY-ERROR",
+    "expected_condition_recorded": "NIL",
+    "physical": {
+      "frames": 4,
+      "saved": 1024,
+      "cells": 1024
+    },
+    "pre_unwind_limit": "Runner handler observes WITH-OWNER rethrow after internal unwind; original failing instruction/phase not captured.",
+    "acceptance_reachability": "No completed nonempty recovery/discharge; not a capacity pass."
+  },
+  {
+    "case": [
+      ":CAPACITY",
+      17,
+      ":FUNCTIONS",
+      ":ONE-SHORT",
+      "NIL"
+    ],
+    "category": "capacity-proposal",
+    "attempted": true,
+    "native_v2_loaded": true,
+    "runtime_created": true,
+    "final_phase": ":FAILED-RETAINED",
+    "configuration": ":PUBLISHED",
+    "token_active": "T",
+    "case_graph_rooted_at_summary": "T",
+    "outcome": ":FAIL",
+    "condition_type": "CLAMSARA:WORKLOAD-CAPABILITY-ERROR",
+    "expected_condition_recorded": "CLAMSARA:WORKLOAD-CAPABILITY-ERROR",
+    "physical": {
+      "frames": 1,
+      "saved": 1024,
+      "cells": 1024
+    },
+    "pre_unwind_limit": "Runner handler observes WITH-OWNER rethrow after internal unwind; original failing instruction/phase not captured.",
+    "acceptance_reachability": "No completed nonempty recovery/discharge; not a capacity pass."
+  },
+  {
+    "case": [
+      ":CAPACITY",
+      17,
+      ":FUNCTIONS",
+      ":ONE-SHORT",
+      "T"
+    ],
+    "category": "capacity-proposal",
+    "attempted": true,
+    "native_v2_loaded": true,
+    "runtime_created": true,
+    "final_phase": ":FAILED-RETAINED",
+    "configuration": ":PUBLISHED",
+    "token_active": "T",
+    "case_graph_rooted_at_summary": "T",
+    "outcome": ":FAIL",
+    "condition_type": "TYPE-ERROR",
+    "expected_condition_recorded": "CLAMSARA:WORKLOAD-CAPABILITY-ERROR",
+    "physical": {
+      "frames": 3,
+      "saved": 1024,
+      "cells": 1024
+    },
+    "pre_unwind_limit": "Runner handler observes WITH-OWNER rethrow after internal unwind; original failing instruction/phase not captured.",
+    "acceptance_reachability": "No completed nonempty recovery/discharge; not a capacity pass."
+  },
+  {
+    "case": [
+      ":CAPACITY",
+      17,
+      ":SAVED",
+      ":EXACT",
+      "NIL"
+    ],
+    "category": "capacity-proposal",
+    "attempted": true,
+    "native_v2_loaded": true,
+    "runtime_created": true,
+    "final_phase": ":FAILED-RETAINED",
+    "configuration": ":PUBLISHED",
+    "token_active": "T",
+    "case_graph_rooted_at_summary": "T",
+    "outcome": ":FAIL",
+    "condition_type": "SB-INT:INVALID-ARRAY-INDEX-ERROR",
+    "expected_condition_recorded": "NIL",
+    "physical": {
+      "frames": 1024,
+      "saved": 2,
+      "cells": 1024
+    },
+    "pre_unwind_limit": "Runner handler observes WITH-OWNER rethrow after internal unwind; original failing instruction/phase not captured.",
+    "acceptance_reachability": "No completed nonempty recovery/discharge; not a capacity pass."
+  },
+  {
+    "case": [
+      ":CAPACITY",
+      17,
+      ":SAVED",
+      ":EXACT",
+      "T"
+    ],
+    "category": "capacity-proposal",
+    "attempted": true,
+    "native_v2_loaded": true,
+    "runtime_created": true,
+    "final_phase": ":FAILED-RETAINED",
+    "configuration": ":PUBLISHED",
+    "token_active": "T",
+    "case_graph_rooted_at_summary": "T",
+    "outcome": ":FAIL",
+    "condition_type": "SB-INT:INVALID-ARRAY-INDEX-ERROR",
+    "expected_condition_recorded": "NIL",
+    "physical": {
+      "frames": 1024,
+      "saved": 4,
+      "cells": 1024
+    },
+    "pre_unwind_limit": "Runner handler observes WITH-OWNER rethrow after internal unwind; original failing instruction/phase not captured.",
+    "acceptance_reachability": "No completed nonempty recovery/discharge; not a capacity pass."
+  },
+  {
+    "case": [
+      ":CAPACITY",
+      17,
+      ":SAVED",
+      ":ONE-SHORT",
+      "NIL"
+    ],
+    "category": "capacity-proposal",
+    "attempted": true,
+    "native_v2_loaded": true,
+    "runtime_created": true,
+    "final_phase": ":FAILED-RETAINED",
+    "configuration": ":PUBLISHED",
+    "token_active": "T",
+    "case_graph_rooted_at_summary": "T",
+    "outcome": ":FAIL",
+    "condition_type": "SB-INT:INVALID-ARRAY-INDEX-ERROR",
+    "expected_condition_recorded": "NIL",
+    "physical": {
+      "frames": 1024,
+      "saved": 1,
+      "cells": 1024
+    },
+    "pre_unwind_limit": "Runner handler observes WITH-OWNER rethrow after internal unwind; original failing instruction/phase not captured.",
+    "acceptance_reachability": "No completed nonempty recovery/discharge; not a capacity pass."
+  },
+  {
+    "case": [
+      ":CAPACITY",
+      17,
+      ":SAVED",
+      ":ONE-SHORT",
+      "T"
+    ],
+    "category": "capacity-proposal",
+    "attempted": true,
+    "native_v2_loaded": true,
+    "runtime_created": true,
+    "final_phase": ":FAILED-RETAINED",
+    "configuration": ":PUBLISHED",
+    "token_active": "T",
+    "case_graph_rooted_at_summary": "T",
+    "outcome": ":FAIL",
+    "condition_type": "SB-INT:INVALID-ARRAY-INDEX-ERROR",
+    "expected_condition_recorded": "NIL",
+    "physical": {
+      "frames": 1024,
+      "saved": 3,
+      "cells": 1024
+    },
+    "pre_unwind_limit": "Runner handler observes WITH-OWNER rethrow after internal unwind; original failing instruction/phase not captured.",
+    "acceptance_reachability": "No completed nonempty recovery/discharge; not a capacity pass."
+  },
+  {
+    "case": [
+      ":HOST-PAYLOAD-DIAGNOSTIC"
+    ],
+    "category": "host-payload-diagnostic",
+    "attempted": true,
+    "native_v2_loaded": true,
+    "runtime_created": true,
+    "final_phase": ":PAYLOAD-REJECTED-RETAINED",
+    "configuration": ":PUBLISHED",
+    "token_active": "T",
+    "case_graph_rooted_at_summary": "NIL",
+    "outcome": ":DIAGNOSTIC-ONLY",
+    "condition_type": "TYPE-ERROR",
+    "expected_condition_recorded": "NIL",
+    "physical": {
+      "frames": 1024,
+      "saved": 1024,
+      "cells": 1024
+    },
+    "pre_unwind_limit": "Runner handler observes WITH-OWNER rethrow after internal unwind; original failing instruction/phase not captured."
+  }
+]

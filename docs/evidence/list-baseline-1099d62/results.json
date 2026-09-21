@@ -1,0 +1,823 @@
+[
+  {
+    "case": [
+      ":BEHAVIOR",
+      ":EMPTY"
+    ],
+    "status": ":PASS",
+    "owner": {
+      "name": ":EMPTY",
+      "phase": ":COMPLETE",
+      "runtime": "T",
+      "configuration": "NIL",
+      "token-active": "NIL",
+      "condition": "NIL",
+      "expected-condition": "NIL",
+      "frame-count": 0,
+      "native-count": 0,
+      "frames": 1024,
+      "saved": 1024,
+      "cells": 1024,
+      "vm-stack-top": 0,
+      "vm-frame-pointer": 0,
+      "vm-pc": 0,
+      "vm-args": 0,
+      "vm-arg-count": 0,
+      "allocations-observed": 0,
+      "stores-observed": 0,
+      "case-rooted": "NIL",
+      "spec": "NIL"
+    }
+  },
+  {
+    "case": [
+      ":BEHAVIOR",
+      ":ONE"
+    ],
+    "status": ":FAIL",
+    "type": "TYPE-ERROR",
+    "condition": "The value\n  (:ONE)\nis not of type\n  CONS",
+    "owner": {
+      "name": ":ONE",
+      "phase": ":FAILED-RETAINED",
+      "runtime": "T",
+      "configuration": ":PUBLISHED",
+      "token-active": "T",
+      "condition": "TYPE-ERROR",
+      "expected-condition": "NIL",
+      "frame-count": 0,
+      "native-count": 0,
+      "frames": 1024,
+      "saved": 1024,
+      "cells": 1024,
+      "vm-stack-top": 0,
+      "vm-frame-pointer": 0,
+      "vm-pc": 0,
+      "vm-args": 0,
+      "vm-arg-count": 0,
+      "allocations-observed": 0,
+      "stores-observed": 0,
+      "case-rooted": "NIL",
+      "spec": "NIL"
+    }
+  },
+  {
+    "case": [
+      ":BEHAVIOR",
+      ":MANY"
+    ],
+    "status": ":FAIL",
+    "type": "TYPE-ERROR",
+    "condition": "The value\n  (0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28\n   29 30)\n\nis not of type\n  CONS",
+    "owner": {
+      "name": ":MANY",
+      "phase": ":FAILED-RETAINED",
+      "runtime": "T",
+      "configuration": ":PUBLISHED",
+      "token-active": "T",
+      "condition": "TYPE-ERROR",
+      "expected-condition": "NIL",
+      "frame-count": 0,
+      "native-count": 0,
+      "frames": 1024,
+      "saved": 1024,
+      "cells": 1024,
+      "vm-stack-top": 0,
+      "vm-frame-pointer": 0,
+      "vm-pc": 0,
+      "vm-args": 0,
+      "vm-arg-count": 0,
+      "allocations-observed": 0,
+      "stores-observed": 0,
+      "case-rooted": "NIL",
+      "spec": "NIL"
+    }
+  },
+  {
+    "case": [
+      ":BEHAVIOR",
+      ":ORDER"
+    ],
+    "status": ":FAIL",
+    "type": "TYPE-ERROR",
+    "condition": "The value\n  (3 3)\nis not of type\n  CONS",
+    "owner": {
+      "name": ":ORDER",
+      "phase": ":FAILED-RETAINED",
+      "runtime": "T",
+      "configuration": ":PUBLISHED",
+      "token-active": "T",
+      "condition": "TYPE-ERROR",
+      "expected-condition": "NIL",
+      "frame-count": 0,
+      "native-count": 0,
+      "frames": 1024,
+      "saved": 1024,
+      "cells": 1024,
+      "vm-stack-top": 0,
+      "vm-frame-pointer": 0,
+      "vm-pc": 0,
+      "vm-args": 0,
+      "vm-arg-count": 0,
+      "allocations-observed": 0,
+      "stores-observed": 0,
+      "case-rooted": "NIL",
+      "spec": "NIL"
+    }
+  },
+  {
+    "case": [
+      ":BEHAVIOR",
+      ":IDENTITY"
+    ],
+    "status": ":FAIL",
+    "type": "TYPE-ERROR",
+    "condition": "The value\n  (#S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {121B4D2893}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {121B4D2893}>\n      :DESCRIPTOR 2\n      :ADDRESS 4128\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {121B4D2893}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0))\n\nis not of type\n  CONS",
+    "owner": {
+      "name": ":IDENTITY",
+      "phase": ":FAILED-RETAINED",
+      "runtime": "T",
+      "configuration": ":PUBLISHED",
+      "token-active": "T",
+      "condition": "TYPE-ERROR",
+      "expected-condition": "NIL",
+      "frame-count": 0,
+      "native-count": 0,
+      "frames": 1024,
+      "saved": 1024,
+      "cells": 1024,
+      "vm-stack-top": 0,
+      "vm-frame-pointer": 0,
+      "vm-pc": 0,
+      "vm-args": 0,
+      "vm-arg-count": 0,
+      "allocations-observed": 0,
+      "stores-observed": 0,
+      "case-rooted": "NIL",
+      "spec": "NIL"
+    }
+  },
+  {
+    "case": [
+      ":BEHAVIOR",
+      ":MOVING"
+    ],
+    "status": ":FAIL",
+    "type": "TYPE-ERROR",
+    "condition": "The value\n  (#S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217895013}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217895013}>\n      :DESCRIPTOR 2\n      :ADDRESS 4128\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217895013}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217895013}>\n      :DESCRIPTOR 2\n      :ADDRESS 4128\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217895013}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217895013}>\n      :DESCRIPTOR 2\n      :ADDRESS 4128\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217895013}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217895013}>\n      :DESCRIPTOR 2\n      :ADDRESS 4128\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217895013}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217895013}>\n      :DESCRIPTOR 2\n      :ADDRESS 4128\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217895013}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217895013}>\n      :DESCRIPTOR 2\n      :ADDRESS 4128\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217895013}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217895013}>\n      :DESCRIPTOR 2\n      :ADDRESS 4128\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217895013}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217895013}>\n      :DESCRIPTOR 2\n      :ADDRESS 4128\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217895013}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217895013}>\n      :DESCRIPTOR 2\n      :ADDRESS 4128\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217895013}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217895013}>\n      :DESCRIPTOR 2\n      :ADDRESS 4128\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217895013}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217895013}>\n      :DESCRIPTOR 2\n      :ADDRESS 4128\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217895013}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217895013}>\n      :DESCRIPTOR 2\n      :ADDRESS 4128\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217895013}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217895013}>\n      :DESCRIPTOR 2\n      :ADDRESS 4128\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217895013}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217895013}>\n      :DESCRIPTOR 2\n      :ADDRESS 4128\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217895013}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217895013}>\n      :DESCRIPTOR 2\n      :ADDRESS 4128\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217895013}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0))\n\nis not of type\n  CONS",
+    "owner": {
+      "name": ":MOVING",
+      "phase": ":FAILED-RETAINED",
+      "runtime": "T",
+      "configuration": ":PUBLISHED",
+      "token-active": "T",
+      "condition": "TYPE-ERROR",
+      "expected-condition": "NIL",
+      "frame-count": 0,
+      "native-count": 0,
+      "frames": 1024,
+      "saved": 1024,
+      "cells": 1024,
+      "vm-stack-top": 0,
+      "vm-frame-pointer": 0,
+      "vm-pc": 0,
+      "vm-args": 0,
+      "vm-arg-count": 0,
+      "allocations-observed": 0,
+      "stores-observed": 0,
+      "case-rooted": "NIL",
+      "spec": "NIL"
+    }
+  },
+  {
+    "case": [
+      ":BEHAVIOR",
+      ":MAPC-NESTED"
+    ],
+    "status": ":FAIL",
+    "type": "TYPE-ERROR",
+    "condition": "The value\n  (#S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217B6B653}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217B6B653}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217B6B653}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217B6B653}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217B6B653}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217B6B653}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217B6B653}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217B6B653}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217B6B653}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217B6B653}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217B6B653}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217B6B653}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217B6B653}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217B6B653}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217B6B653}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217B6B653}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217B6B653}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217B6B653}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217B6B653}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217B6B653}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217B6B653}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217B6B653}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217B6B653}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217B6B653}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217B6B653}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217B6B653}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217B6B653}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217B6B653}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217B6B653}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217B6B653}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217B6B653}>\n      :DESCRIPTOR 0\n      :ADDRESS 4096\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0))\n\nis not of type\n  CONS",
+    "owner": {
+      "name": ":MAPC-NESTED",
+      "phase": ":FAILED-RETAINED",
+      "runtime": "T",
+      "configuration": ":PUBLISHED",
+      "token-active": "T",
+      "condition": "TYPE-ERROR",
+      "expected-condition": "NIL",
+      "frame-count": 0,
+      "native-count": 0,
+      "frames": 1024,
+      "saved": 1024,
+      "cells": 1024,
+      "vm-stack-top": 0,
+      "vm-frame-pointer": 0,
+      "vm-pc": 0,
+      "vm-args": 0,
+      "vm-arg-count": 0,
+      "allocations-observed": 0,
+      "stores-observed": 0,
+      "case-rooted": "NIL",
+      "spec": "NIL"
+    }
+  },
+  {
+    "case": [
+      ":CAPACITY",
+      0,
+      ":ARENA",
+      ":EXACT",
+      "NIL"
+    ],
+    "status": ":PASS",
+    "owner": {
+      "name": [
+        ":CAPACITY-N+2",
+        0,
+        ":ARENA",
+        ":EXACT",
+        "NIL"
+      ],
+      "phase": ":COMPLETE",
+      "runtime": "T",
+      "configuration": "NIL",
+      "token-active": "NIL",
+      "condition": "NIL",
+      "expected-condition": "NIL",
+      "frame-count": 0,
+      "native-count": 0,
+      "frames": 1024,
+      "saved": 1024,
+      "cells": 0,
+      "vm-stack-top": 0,
+      "vm-frame-pointer": 0,
+      "vm-pc": 0,
+      "vm-args": 0,
+      "vm-arg-count": 0,
+      "allocations-observed": 0,
+      "stores-observed": 0,
+      "case-rooted": "NIL",
+      "spec": [
+        ":CELLS",
+        0
+      ]
+    }
+  },
+  {
+    "case": [
+      ":CAPACITY",
+      17,
+      ":ARENA",
+      ":EXACT",
+      "NIL"
+    ],
+    "status": ":FAIL",
+    "type": "TYPE-ERROR",
+    "condition": "The value\n  (#S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217BE6F13}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217BE6F13}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217BE6F13}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217BE6F13}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217BE6F13}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217BE6F13}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217BE6F13}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217BE6F13}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217BE6F13}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217BE6F13}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217BE6F13}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217BE6F13}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217BE6F13}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217BE6F13}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217BE6F13}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217BE6F13}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1217BE6F13}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0))\n\nis not of type\n  CONS",
+    "owner": {
+      "name": [
+        ":CAPACITY-N+2",
+        17,
+        ":ARENA",
+        ":EXACT",
+        "NIL"
+      ],
+      "phase": ":FAILED-RETAINED",
+      "runtime": "T",
+      "configuration": ":PUBLISHED",
+      "token-active": "T",
+      "condition": "TYPE-ERROR",
+      "expected-condition": "NIL",
+      "frame-count": 0,
+      "native-count": 0,
+      "frames": 1024,
+      "saved": 1024,
+      "cells": 19,
+      "vm-stack-top": 0,
+      "vm-frame-pointer": 0,
+      "vm-pc": 0,
+      "vm-args": 0,
+      "vm-arg-count": 0,
+      "allocations-observed": 0,
+      "stores-observed": 0,
+      "case-rooted": "T",
+      "spec": [
+        ":CELLS",
+        19
+      ]
+    }
+  },
+  {
+    "case": [
+      ":CAPACITY",
+      17,
+      ":ARENA",
+      ":EXACT",
+      "T"
+    ],
+    "status": ":FAIL",
+    "type": "TYPE-ERROR",
+    "condition": "The value\n  (#S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1218CCE7D3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1218CCE7D3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1218CCE7D3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1218CCE7D3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1218CCE7D3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1218CCE7D3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1218CCE7D3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1218CCE7D3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1218CCE7D3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1218CCE7D3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1218CCE7D3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1218CCE7D3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1218CCE7D3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1218CCE7D3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1218CCE7D3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1218CCE7D3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1218CCE7D3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0))\n\nis not of type\n  CONS",
+    "owner": {
+      "name": [
+        ":CAPACITY-N+2",
+        17,
+        ":ARENA",
+        ":EXACT",
+        "T"
+      ],
+      "phase": ":FAILED-RETAINED",
+      "runtime": "T",
+      "configuration": ":PUBLISHED",
+      "token-active": "T",
+      "condition": "TYPE-ERROR",
+      "expected-condition": "NIL",
+      "frame-count": 0,
+      "native-count": 0,
+      "frames": 1024,
+      "saved": 1024,
+      "cells": 22,
+      "vm-stack-top": 0,
+      "vm-frame-pointer": 0,
+      "vm-pc": 0,
+      "vm-args": 0,
+      "vm-arg-count": 0,
+      "allocations-observed": 0,
+      "stores-observed": 0,
+      "case-rooted": "T",
+      "spec": [
+        ":CELLS",
+        22
+      ]
+    }
+  },
+  {
+    "case": [
+      ":CAPACITY",
+      17,
+      ":ARENA",
+      ":ONE-SHORT",
+      "NIL"
+    ],
+    "status": ":FAIL",
+    "type": "TYPE-ERROR",
+    "condition": "The value\n  (#S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1219263613}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1219263613}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1219263613}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1219263613}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1219263613}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1219263613}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1219263613}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1219263613}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1219263613}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1219263613}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1219263613}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1219263613}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1219263613}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1219263613}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1219263613}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1219263613}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1219263613}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0))\n\nis not of type\n  CONS",
+    "owner": {
+      "name": [
+        ":CAPACITY-N+2",
+        17,
+        ":ARENA",
+        ":ONE-SHORT",
+        "NIL"
+      ],
+      "phase": ":FAILED-RETAINED",
+      "runtime": "T",
+      "configuration": ":PUBLISHED",
+      "token-active": "T",
+      "condition": "TYPE-ERROR",
+      "expected-condition": "NIL",
+      "frame-count": 0,
+      "native-count": 0,
+      "frames": 1024,
+      "saved": 1024,
+      "cells": 18,
+      "vm-stack-top": 0,
+      "vm-frame-pointer": 0,
+      "vm-pc": 0,
+      "vm-args": 0,
+      "vm-arg-count": 0,
+      "allocations-observed": 0,
+      "stores-observed": 0,
+      "case-rooted": "T",
+      "spec": [
+        ":CELLS",
+        18
+      ]
+    }
+  },
+  {
+    "case": [
+      ":CAPACITY",
+      17,
+      ":ARENA",
+      ":ONE-SHORT",
+      "T"
+    ],
+    "status": ":FAIL",
+    "type": "TYPE-ERROR",
+    "condition": "The value\n  (#S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {121B90E5A3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {121B90E5A3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {121B90E5A3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {121B90E5A3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {121B90E5A3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {121B90E5A3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {121B90E5A3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {121B90E5A3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {121B90E5A3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {121B90E5A3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {121B90E5A3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {121B90E5A3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {121B90E5A3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {121B90E5A3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {121B90E5A3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {121B90E5A3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0)\n   #S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {121B90E5A3}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0))\n\nis not of type\n  CONS",
+    "owner": {
+      "name": [
+        ":CAPACITY-N+2",
+        17,
+        ":ARENA",
+        ":ONE-SHORT",
+        "T"
+      ],
+      "phase": ":FAILED-RETAINED",
+      "runtime": "T",
+      "configuration": ":PUBLISHED",
+      "token-active": "T",
+      "condition": "TYPE-ERROR",
+      "expected-condition": "NIL",
+      "frame-count": 0,
+      "native-count": 0,
+      "frames": 1024,
+      "saved": 1024,
+      "cells": 21,
+      "vm-stack-top": 0,
+      "vm-frame-pointer": 0,
+      "vm-pc": 0,
+      "vm-args": 0,
+      "vm-arg-count": 0,
+      "allocations-observed": 0,
+      "stores-observed": 0,
+      "case-rooted": "T",
+      "spec": [
+        ":CELLS",
+        21
+      ]
+    }
+  },
+  {
+    "case": [
+      ":CAPACITY",
+      17,
+      ":FUNCTIONS",
+      ":EXACT",
+      "NIL"
+    ],
+    "status": ":FAIL",
+    "type": "CLAMSARA:WORKLOAD-CAPABILITY-ERROR",
+    "condition": "workload WORKLOAD-CALL failed: VM-FRAME-CAPACITY-EXHAUSTED",
+    "owner": {
+      "name": [
+        ":CAPACITY-N+2",
+        17,
+        ":FUNCTIONS",
+        ":EXACT",
+        "NIL"
+      ],
+      "phase": ":FAILED-RETAINED",
+      "runtime": "T",
+      "configuration": ":PUBLISHED",
+      "token-active": "T",
+      "condition": "CLAMSARA:WORKLOAD-CAPABILITY-ERROR",
+      "expected-condition": "NIL",
+      "frame-count": 0,
+      "native-count": 0,
+      "frames": 2,
+      "saved": 1024,
+      "cells": 1024,
+      "vm-stack-top": 0,
+      "vm-frame-pointer": 0,
+      "vm-pc": 0,
+      "vm-args": 0,
+      "vm-arg-count": 0,
+      "allocations-observed": 0,
+      "stores-observed": 0,
+      "case-rooted": "T",
+      "spec": [
+        ":FUNCTIONS",
+        2
+      ]
+    }
+  },
+  {
+    "case": [
+      ":CAPACITY",
+      17,
+      ":FUNCTIONS",
+      ":EXACT",
+      "T"
+    ],
+    "status": ":FAIL",
+    "type": "CLAMSARA:WORKLOAD-CAPABILITY-ERROR",
+    "condition": "workload WORKLOAD-CALL failed: VM-FRAME-CAPACITY-EXHAUSTED",
+    "owner": {
+      "name": [
+        ":CAPACITY-N+2",
+        17,
+        ":FUNCTIONS",
+        ":EXACT",
+        "T"
+      ],
+      "phase": ":FAILED-RETAINED",
+      "runtime": "T",
+      "configuration": ":PUBLISHED",
+      "token-active": "T",
+      "condition": "CLAMSARA:WORKLOAD-CAPABILITY-ERROR",
+      "expected-condition": "NIL",
+      "frame-count": 0,
+      "native-count": 0,
+      "frames": 4,
+      "saved": 1024,
+      "cells": 1024,
+      "vm-stack-top": 0,
+      "vm-frame-pointer": 0,
+      "vm-pc": 0,
+      "vm-args": 0,
+      "vm-arg-count": 0,
+      "allocations-observed": 0,
+      "stores-observed": 0,
+      "case-rooted": "T",
+      "spec": [
+        ":FUNCTIONS",
+        4
+      ]
+    }
+  },
+  {
+    "case": [
+      ":CAPACITY",
+      17,
+      ":FUNCTIONS",
+      ":ONE-SHORT",
+      "NIL"
+    ],
+    "status": ":FAIL",
+    "type": "CLAMSARA:WORKLOAD-CAPABILITY-ERROR",
+    "condition": "workload WORKLOAD-CALL failed: VM-FRAME-CAPACITY-EXHAUSTED",
+    "owner": {
+      "name": [
+        ":CAPACITY-N+2",
+        17,
+        ":FUNCTIONS",
+        ":ONE-SHORT",
+        "NIL"
+      ],
+      "phase": ":FAILED-RETAINED",
+      "runtime": "T",
+      "configuration": ":PUBLISHED",
+      "token-active": "T",
+      "condition": "CLAMSARA:WORKLOAD-CAPABILITY-ERROR",
+      "expected-condition": "CLAMSARA:WORKLOAD-CAPABILITY-ERROR",
+      "frame-count": 0,
+      "native-count": 0,
+      "frames": 1,
+      "saved": 1024,
+      "cells": 1024,
+      "vm-stack-top": 0,
+      "vm-frame-pointer": 0,
+      "vm-pc": 0,
+      "vm-args": 0,
+      "vm-arg-count": 0,
+      "allocations-observed": 0,
+      "stores-observed": 0,
+      "case-rooted": "T",
+      "spec": [
+        ":FUNCTIONS",
+        1
+      ]
+    }
+  },
+  {
+    "case": [
+      ":CAPACITY",
+      17,
+      ":FUNCTIONS",
+      ":ONE-SHORT",
+      "T"
+    ],
+    "status": ":FAIL",
+    "type": "TYPE-ERROR",
+    "condition": "The value\n  (#S(CLAMSARA::HOST-REFERENCE\n      :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {121EC0DF63}>\n      :DESCRIPTOR 8\n      :ADDRESS 4224\n      :KIND :BASE\n      :TAG 0\n      :DISPLACEMENT 0))\n\nis not of type\n  CONS",
+    "owner": {
+      "name": [
+        ":CAPACITY-N+2",
+        17,
+        ":FUNCTIONS",
+        ":ONE-SHORT",
+        "T"
+      ],
+      "phase": ":FAILED-RETAINED",
+      "runtime": "T",
+      "configuration": ":PUBLISHED",
+      "token-active": "T",
+      "condition": "TYPE-ERROR",
+      "expected-condition": "CLAMSARA:WORKLOAD-CAPABILITY-ERROR",
+      "frame-count": 0,
+      "native-count": 0,
+      "frames": 3,
+      "saved": 1024,
+      "cells": 1024,
+      "vm-stack-top": 0,
+      "vm-frame-pointer": 0,
+      "vm-pc": 0,
+      "vm-args": 0,
+      "vm-arg-count": 0,
+      "allocations-observed": 0,
+      "stores-observed": 0,
+      "case-rooted": "T",
+      "spec": [
+        ":FUNCTIONS",
+        3
+      ]
+    }
+  },
+  {
+    "case": [
+      ":CAPACITY",
+      17,
+      ":SAVED",
+      ":EXACT",
+      "NIL"
+    ],
+    "status": ":FAIL",
+    "type": "SB-INT:INVALID-ARRAY-INDEX-ERROR",
+    "condition": "Invalid index 2 for (SIMPLE-VECTOR 2), should be a non-negative integer below 2.",
+    "owner": {
+      "name": [
+        ":CAPACITY-N+2",
+        17,
+        ":SAVED",
+        ":EXACT",
+        "NIL"
+      ],
+      "phase": ":FAILED-RETAINED",
+      "runtime": "T",
+      "configuration": ":PUBLISHED",
+      "token-active": "T",
+      "condition": "SB-INT:INVALID-ARRAY-INDEX-ERROR",
+      "expected-condition": "NIL",
+      "frame-count": 0,
+      "native-count": 0,
+      "frames": 1024,
+      "saved": 2,
+      "cells": 1024,
+      "vm-stack-top": 0,
+      "vm-frame-pointer": 0,
+      "vm-pc": 0,
+      "vm-args": 0,
+      "vm-arg-count": 0,
+      "allocations-observed": 0,
+      "stores-observed": 0,
+      "case-rooted": "T",
+      "spec": [
+        ":SAVED",
+        2
+      ]
+    }
+  },
+  {
+    "case": [
+      ":CAPACITY",
+      17,
+      ":SAVED",
+      ":EXACT",
+      "T"
+    ],
+    "status": ":FAIL",
+    "type": "SB-INT:INVALID-ARRAY-INDEX-ERROR",
+    "condition": "Invalid index 4 for (SIMPLE-VECTOR 4), should be a non-negative integer below 4.",
+    "owner": {
+      "name": [
+        ":CAPACITY-N+2",
+        17,
+        ":SAVED",
+        ":EXACT",
+        "T"
+      ],
+      "phase": ":FAILED-RETAINED",
+      "runtime": "T",
+      "configuration": ":PUBLISHED",
+      "token-active": "T",
+      "condition": "SB-INT:INVALID-ARRAY-INDEX-ERROR",
+      "expected-condition": "NIL",
+      "frame-count": 0,
+      "native-count": 0,
+      "frames": 1024,
+      "saved": 4,
+      "cells": 1024,
+      "vm-stack-top": 0,
+      "vm-frame-pointer": 0,
+      "vm-pc": 0,
+      "vm-args": 0,
+      "vm-arg-count": 0,
+      "allocations-observed": 0,
+      "stores-observed": 0,
+      "case-rooted": "T",
+      "spec": [
+        ":SAVED",
+        4
+      ]
+    }
+  },
+  {
+    "case": [
+      ":CAPACITY",
+      17,
+      ":SAVED",
+      ":ONE-SHORT",
+      "NIL"
+    ],
+    "status": ":FAIL",
+    "type": "SB-INT:INVALID-ARRAY-INDEX-ERROR",
+    "condition": "Invalid index 1 for (SIMPLE-VECTOR 1), should be a non-negative integer below 1.",
+    "owner": {
+      "name": [
+        ":CAPACITY-N+2",
+        17,
+        ":SAVED",
+        ":ONE-SHORT",
+        "NIL"
+      ],
+      "phase": ":FAILED-RETAINED",
+      "runtime": "T",
+      "configuration": ":PUBLISHED",
+      "token-active": "T",
+      "condition": "SB-INT:INVALID-ARRAY-INDEX-ERROR",
+      "expected-condition": "NIL",
+      "frame-count": 0,
+      "native-count": 0,
+      "frames": 1024,
+      "saved": 1,
+      "cells": 1024,
+      "vm-stack-top": 0,
+      "vm-frame-pointer": 0,
+      "vm-pc": 0,
+      "vm-args": 0,
+      "vm-arg-count": 0,
+      "allocations-observed": 0,
+      "stores-observed": 0,
+      "case-rooted": "T",
+      "spec": [
+        ":SAVED",
+        1
+      ]
+    }
+  },
+  {
+    "case": [
+      ":CAPACITY",
+      17,
+      ":SAVED",
+      ":ONE-SHORT",
+      "T"
+    ],
+    "status": ":FAIL",
+    "type": "SB-INT:INVALID-ARRAY-INDEX-ERROR",
+    "condition": "Invalid index 3 for (SIMPLE-VECTOR 3), should be a non-negative integer below 3.",
+    "owner": {
+      "name": [
+        ":CAPACITY-N+2",
+        17,
+        ":SAVED",
+        ":ONE-SHORT",
+        "T"
+      ],
+      "phase": ":FAILED-RETAINED",
+      "runtime": "T",
+      "configuration": ":PUBLISHED",
+      "token-active": "T",
+      "condition": "SB-INT:INVALID-ARRAY-INDEX-ERROR",
+      "expected-condition": "NIL",
+      "frame-count": 0,
+      "native-count": 0,
+      "frames": 1024,
+      "saved": 3,
+      "cells": 1024,
+      "vm-stack-top": 0,
+      "vm-frame-pointer": 0,
+      "vm-pc": 0,
+      "vm-args": 0,
+      "vm-arg-count": 0,
+      "allocations-observed": 0,
+      "stores-observed": 0,
+      "case-rooted": "T",
+      "spec": [
+        ":SAVED",
+        3
+      ]
+    }
+  },
+  {
+    "case": [
+      ":HOST-PAYLOAD-DIAGNOSTIC"
+    ],
+    "status": ":DIAGNOSTIC-ONLY",
+    "owner": {
+      "name": ":HOST-PAYLOAD",
+      "phase": ":PAYLOAD-REJECTED-RETAINED",
+      "runtime": "T",
+      "configuration": ":PUBLISHED",
+      "token-active": "T",
+      "condition": "TYPE-ERROR",
+      "expected-condition": "NIL",
+      "frame-count": 0,
+      "native-count": 0,
+      "frames": 1024,
+      "saved": 1024,
+      "cells": 1024,
+      "vm-stack-top": 0,
+      "vm-frame-pointer": 0,
+      "vm-pc": 0,
+      "vm-args": 0,
+      "vm-arg-count": 0,
+      "allocations-observed": 0,
+      "stores-observed": 0,
+      "case-rooted": "NIL",
+      "spec": "NIL"
+    }
+  }
+]

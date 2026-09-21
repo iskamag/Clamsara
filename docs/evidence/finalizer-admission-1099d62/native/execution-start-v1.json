@@ -1,0 +1,9 @@
+{
+  "pid": 22799,
+  "command": "sbcl --noinform --no-sysinit --no-userinit --non-interactive --load /tmp/clamsara-list-baseline-1099d62-xzks71ws/independent-review/finalizer-admission/finalizer-admission-native-ww84_306/bootstrap-v1.lisp > /tmp/clamsara-list-baseline-1099d62-xzks71ws/independent-review/finalizer-admission/finalizer-admission-native-ww84_306/native-v1.log 2>&1",
+  "cwd": "/tmp/clamsara-list-baseline-1099d62-xzks71ws",
+  "private_cache": "/tmp/clamsara-list-baseline-1099d62-xzks71ws/independent-review/finalizer-admission/finalizer-admission-native-ww84_306/fasl",
+  "planned_cases": 1,
+  "source": "/tmp/clamsara-list-baseline-1099d62-xzks71ws/independent-review/finalizer-admission/admission-baseline-draft-v1.lisp",
+  "strict_red_is_nonzero": true
+}

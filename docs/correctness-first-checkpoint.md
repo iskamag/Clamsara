@@ -76,6 +76,8 @@ The core-only finalizer admission baseline did run: PID22799, strict exit1.
 A native FUNCTIONP callback that was not a bound-model reference was accepted,
 returned a token and mutated registry state. No production finalizer repair is
 included here. This is admission evidence, not a lost-capture consequence test.
+The [strict native evidence](evidence/finalizer-admission-1099d62/provenance.md)
+is now preserved in the repository.
 
 [Shared copying action](shared-copy-action.md) records the later narrow runtime
 refactor and its permanent tests. Construction and collection phases genuinely
@@ -86,5 +88,6 @@ report, addendum and corrections are preserved together.
 SemiSpace/MarkSweep and their existing generational combination remain the only
 implemented collectors in this commit. Immix/Sticky Immix, Claimore MGC/OVC,
 Evha and Iso/request-private remain missing. A passing finite MGC research model
-is not a runtime collector. The broad goal is still active and language expansion
+is not a runtime collector; its [finite-model evidence](evidence/claimore-finite-mgc/provenance.md)
+is preserved separately. The broad goal is still active and language expansion
 remains paused.

@@ -1,0 +1,16 @@
+{
+  "provenance.md": "44e1ad8c277b441ac636e1710b93a015846971042b04012706a7f5adceea6993",
+  "native/fixture-manifest-verification-v1.json": "25c2c415c58cf25dd21d1b69d03d2a1949f5ed07310f6d66eb34987972da1598",
+  "native/execution-v1.json": "0933cb7a40ded25526d26b9699bc4009aaf1592d96ea95ee7289fde18239c682",
+  "native/runner-v1.lisp": "2f8dcbdefcde75cf87cca46ac0aa54f395b9eb103352c45ee4434365c80a74cf",
+  "native/source-post-v1-sha256.json": "ace1ea65638b2d18364a1868644399a4f4e1b48cff45f312729a654f8eef107a",
+  "native/bootstrap-v1.lisp": "082b2dfe8f22a694d321c3aac0ec5e008cb932592d247e4a93db0dac3457080c",
+  "native/execution-start-v1.json": "5d76bf60bb3d5d5c6d60ec4ca904a27bd31103940bd161b9830cb2fff6750dd4",
+  "native/report-v1.md": "d59508aef0ce3ff0f93e1f95533b32d303f5ac2af0c0f0a8a8195f993caec1e6",
+  "native/source-pre-v1-sha256.json": "ace1ea65638b2d18364a1868644399a4f4e1b48cff45f312729a654f8eef107a",
+  "native/owner-v1.json": "ad64abb9f733ad4db5cd0f07891649523aeba78d03dd1ae535c60b31dde9b3b1",
+  "native/native-v1.log": "0bb454c7002a8ac44931c1e43acbcf5722922f623845cd50c747dd3ef7fdc562",
+  "source/coverage-plan-v1.md": "142e89fa47363c056bb28a094f3adec0ba3bccc447094c64d43641cee4a6c710",
+  "source/admission-baseline-draft-v1.lisp": "19ed163142459a1f7e786edc43f9f004895c976f6b2e21caadd2f240ffb2bc7a",
+  "source/source-pins.json": "acd0a7580a37d94c74e6baebed40bfdefe63617b5913c90d1206527f7bb4dbed"
+}

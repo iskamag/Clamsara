@@ -64,3 +64,27 @@ extent survival coverage. Old source, results, reports and incomplete V3 notes
 are retained. No revised V3 test or LIST production implementation was written.
 Capacity values are private design proposals, not Common Lisp arity requirements.
 Settled MAPC evidence is unchanged; GCBench acceptance remains revision-specific.
+
+## Later scoped update: shared copying action
+
+The sections above record the1099 audit checkpoint, not a current full-conformance
+claim. The held88-file model/indexed/ledger work was subsequently preserved on
+`wip/held-model-indexed-ledger` at `95e5886c843889235ecfa50b9e5772c13734d22d`;
+it is committed there, not accepted or merged into master.
+
+The core-only finalizer admission baseline did run: PID22799, strict exit1.
+A native FUNCTIONP callback that was not a bound-model reference was accepted,
+returned a token and mutated registry state. No production finalizer repair is
+included here. This is admission evidence, not a lost-capture consequence test.
+
+[Shared copying action](shared-copy-action.md) records the later narrow runtime
+refactor and its permanent tests. Construction and collection phases genuinely
+use declared protocols; the independent composition review's initial claim that
+private helpers/copy duplication alone violated the paper was withdrawn. The
+report, addendum and corrections are preserved together.
+
+SemiSpace/MarkSweep and their existing generational combination remain the only
+implemented collectors in this commit. Immix/Sticky Immix, Claimore MGC/OVC,
+Evha and Iso/request-private remain missing. A passing finite MGC research model
+is not a runtime collector. The broad goal is still active and language expansion
+remains paused.

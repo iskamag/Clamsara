@@ -1,0 +1,10 @@
+{
+  "candidate": "/tmp/clamsara-shared-copy-04bff62-xzksq1om",
+  "run": "/tmp/clamsara-shared-copy-core2-vkr9k1vj",
+  "pid": 26598,
+  "command": "sbcl --noinform --no-sysinit --no-userinit --non-interactive --load /tmp/clamsara-shared-copy-core2-vkr9k1vj/bootstrap.lisp > /tmp/clamsara-shared-copy-core2-vkr9k1vj/native.log 2>&1",
+  "cwd": "/tmp/clamsara-shared-copy-04bff62-xzksq1om",
+  "start": "2026-09-21T04:42:58.374063+00:00",
+  "prior_failed_run": "/tmp/clamsara-shared-copy-full-ykcuj5ss",
+  "change": "Runner now checks loaded core and explicitly selected loaded generational ASDF closure; original workload-mode failure preserved; no production/test changes."
+}

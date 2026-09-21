@@ -335,7 +335,8 @@
   :serial t
   :components ((:file "test/quality/generational")
                (:file "test/quality/generational-history")
-               (:file "test/quality/reference-variants-generational"))
+               (:file "test/quality/reference-variants-generational")
+               (:file "test/quality/copy-action"))
   :perform (asdf:test-op (operation component)
              (declare (ignore operation component))
              (unless (and (uiop:symbol-call :clamsara.quality.generational
@@ -343,7 +344,9 @@
                           (uiop:symbol-call :clamsara.quality.generational
                                            :run-generational-history-tests)
                           (uiop:symbol-call :clamsara.quality.reference-variants
-                                           :run-row-generational-acceptance))
+                                           :run-row-generational-acceptance)
+                          (uiop:symbol-call :clamsara.quality.copy-action
+                                           :run-copy-action-tests))
                (error "Generational quality tests failed"))))
 
 (asdf:defsystem :clamsara/quality/reference-variants/test

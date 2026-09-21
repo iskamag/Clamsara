@@ -1,0 +1,10 @@
+{
+  "label": "baseline-v1",
+  "project": "/tmp/clamsara-list-baseline-1099d62-xzks71ws",
+  "source": "/tmp/clamsara-copy-action-regression-k5ucnx6e/copy-action-tests-v1.lisp",
+  "pid": 26916,
+  "command": "sbcl --noinform --no-sysinit --no-userinit --non-interactive --load /tmp/clamsara-copy-baseline-v1-tv8tnlqv/bootstrap.lisp > /tmp/clamsara-copy-baseline-v1-tv8tnlqv/native.log 2>&1",
+  "start": "2026-09-21T04:50:42.899725+00:00",
+  "run": "/tmp/clamsara-copy-baseline-v1-tv8tnlqv",
+  "scope": "16 independently authored copy graph/failure cases; retain real expected and unexpected failed worlds, no forced cleanup."
+}

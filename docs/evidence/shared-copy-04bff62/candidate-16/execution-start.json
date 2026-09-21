@@ -1,0 +1,10 @@
+{
+  "label": "candidate-v1",
+  "project": "/tmp/clamsara-shared-copy-04bff62-xzksq1om",
+  "source": "/tmp/clamsara-copy-action-regression-k5ucnx6e/copy-action-tests-v1.lisp",
+  "pid": 26954,
+  "command": "sbcl --noinform --no-sysinit --no-userinit --non-interactive --load /tmp/clamsara-copy-candidate-v1-7vz2ft83/bootstrap.lisp > /tmp/clamsara-copy-candidate-v1-7vz2ft83/native.log 2>&1",
+  "start": "2026-09-21T04:51:13.659730+00:00",
+  "run": "/tmp/clamsara-copy-candidate-v1-7vz2ft83",
+  "scope": "16 independently authored copy graph/failure cases; retain real expected and unexpected failed worlds, no forced cleanup."
+}

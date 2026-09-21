@@ -1,0 +1,94 @@
+--- a/src/runtime/generational.lisp
++++ b/src/runtime/generational.lisp
+@@ -425,72 +425,31 @@
+   (declare (ignore space start))
+   (eq (%cycle-scope cycle) :all))
+ 
++(defun %reserve-promotion-copy-destination (space cycle start model)
++  (let* ((plan (%cycle-plan cycle))
++         (destination (%gen-mature plan))
++         (bytes (object-size model start))
++         (alignment (object-alignment model start))
++         (address (%gen-promotion-destination plan space start)))
++    (unless (and (typep bytes '(integer 1 *))
++                 (%positive-power-of-two-p alignment)
++                 (<= alignment (%space-packing-quantum space))
++                 (<= (%space-base destination) address)
++                 (<= (+ address bytes) (%space-limit destination)))
++      (return-from %reserve-promotion-copy-destination
++        (values nil nil nil nil :fatal-invariant)))
++    ;; Plan preflight already reserved this Q-charged, aligned address in its
++    ;; scratch layout.  No ALLOCATE-RAW ran here: the common action must neither
++    ;; commit nor cancel the mature allocator's unrelated native reservation.
++    (values destination address bytes nil nil)))
++
+ (defmethod trace-object ((space generational-nursery-space)
+                          (context sequential-trace-context) start)
+   (when (eq (%cycle-scope (trace-context-cycle context)) :all)
+     ;; Use the ordinary SemiSpace claim/copy/forwarding protocol on majors.
+     ;; Mature tracing and reclamation still participate in the same cycle.
+     (return-from trace-object (call-next-method)))
+-  (multiple-value-bind (status claim reservation)
+-      (trace-claim-object context space start)
+-    (case status
+-      (:seen
+-       (unless (eq :complete (trace-await-claim context space start))
+-         (trace-fail context :fatal-invariant)
+-         (return-from trace-object start))
+-       (or (metadata-ref (%space-forwarding space)
+-                         (%forwarding-key space start))
+-           (progn (trace-fail context :fatal-invariant) start)))
+-      (:failed start)
+-      (:first
+-       (let* ((cycle (trace-context-cycle context))
+-              (plan (%cycle-plan cycle))
+-              (destination (%gen-mature plan))
+-              (model (%space-model space))
+-              (bytes (object-size model start))
+-              (alignment (object-alignment model start))
+-              (address (%gen-promotion-destination plan space start))
+-              (new nil)
+-              (destination-start-p nil))
+-         (unless (and (typep bytes '(integer 1 *))
+-                      (%positive-power-of-two-p alignment)
+-                      (<= alignment (%space-packing-quantum space))
+-                      (<= (%space-base destination) address)
+-                      (<= (+ address bytes) (%space-limit destination)))
+-           (trace-abandon-object context claim reservation :fatal-invariant)
+-           (return-from trace-object start))
+-         (handler-case
+-             (let* ((kind (object-kind model start))
+-                    (descriptor (object-kind-descriptor model kind)))
+-               (setf new (initialize-object model address kind bytes descriptor))
+-               (copy-object-representation model start new)
+-               (metadata-set (%space-object-start-map destination) address 1)
+-               (setf destination-start-p t)
+-               (metadata-set (%space-forwarding space)
+-                             (%forwarding-key space start) new)
+-               (setf (%cycle-forwarding-published-p cycle) t)
+-               (unless (%record-cycle-movement cycle start new)
+-                 (trace-fail context :post-publication-failure)
+-                 (return-from trace-object start))
+-               (%cycle-counter-incf cycle :bytes-moved bytes)
+-               (unless (eq :complete
+-                           (trace-commit-object context claim reservation
+-                                                destination new))
+-                 (trace-fail context :post-publication-failure)
+-                 (return-from trace-object start))
+-               new)
+-           (error ()
+-             (if (%cycle-forwarding-published-p cycle)
+-                 (trace-fail context :post-publication-failure)
+-                 (progn
+-                   (when destination-start-p
+-                     (metadata-reset (%space-object-start-map destination)
+-                                     address))
+-                   (when new
+-                     (runtime-retire-object-representation model new))
+-                   (trace-abandon-object context claim reservation
+-                                         :preflight-failed)))
+-             start)))))))
++  (%trace-copy-object space context start #'%reserve-promotion-copy-destination))
+ 
+ ;;; ------------------------------------------------------------------
+ ;;; Mature remembered sources and conditional closure.

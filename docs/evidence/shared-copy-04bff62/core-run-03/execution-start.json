@@ -1,0 +1,13 @@
+{
+  "candidate": "/tmp/clamsara-shared-copy-04bff62-xzksq1om",
+  "run": "/tmp/clamsara-shared-copy-core3-cx0r1j_2",
+  "pid": 26689,
+  "command": "sbcl --noinform --no-sysinit --no-userinit --non-interactive --load /tmp/clamsara-shared-copy-core3-cx0r1j_2/bootstrap.lisp > /tmp/clamsara-shared-copy-core3-cx0r1j_2/native.log 2>&1",
+  "cwd": "/tmp/clamsara-shared-copy-04bff62-xzksq1om",
+  "start": "2026-09-21T04:44:50.946284+00:00",
+  "prior_failed_runs": [
+    "/tmp/clamsara-shared-copy-full-ykcuj5ss",
+    "/tmp/clamsara-shared-copy-core2-vkr9k1vj"
+  ],
+  "change": "Use existing project duplicate/foreign-method whitelist arguments for explicit generational closure, same as check-project-structure. No new whitelist exemptions or production/test changes."
+}

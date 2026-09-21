@@ -1,0 +1,167 @@
+--- a/src/runtime/spaces.lisp
++++ b/src/runtime/spaces.lisp
+@@ -240,81 +240,100 @@
+   (metadata-reset-range (%space-forwarding space) (%space-range space))
+   (values))
+ 
+-(defmethod trace-object ((space semispace-space)
+-                         (context sequential-trace-context) start)
++(defun %reserve-semispace-copy-destination (space cycle start model)
++  (let* ((destination (%copying-destination space cycle start))
++         (bytes (object-size model start))
++         (alignment (object-alignment model start))
++         (quantum (%space-packing-quantum space)))
++    (unless (and (typep bytes '(integer 1 *))
++                 (%positive-power-of-two-p alignment)
++                 (<= alignment quantum))
++      (return-from %reserve-semispace-copy-destination
++        (values nil nil nil nil :fatal-invariant)))
++    (let ((allocator (%space-allocator destination))
++          (charged (%align-up bytes quantum)))
++      (multiple-value-bind (address success-p)
++          (allocate-raw allocator charged quantum (object-kind model start))
++        (if success-p
++            (values destination address bytes allocator nil)
++            (values nil nil nil nil :capacity-exhausted))))))
++
++(defun %trace-copy-object (space context start reserve-destination)
++  ;; RESERVE-DESTINATION is a top-level private function, called only for the
++  ;; first claimant.  It returns destination, address, bytes, owned allocator,
++  ;; and failure reason.  A NIL reason means success.  The allocator is non-NIL
++  ;; only if this call owns a successful ALLOCATE-RAW reservation; a promotion
++  ;; address reserved by plan preflight transfers no allocator reservation.
+   (multiple-value-bind (status claim reservation)
+       (trace-claim-object context space start)
+     (case status
+       (:seen
+        (unless (eq :complete (trace-await-claim context space start))
+          (trace-fail context :fatal-invariant)
+-         (return-from trace-object start))
++         (return-from %trace-copy-object start))
+        (or (metadata-ref (%space-forwarding space) (%forwarding-key space start))
+            (progn (trace-fail context :fatal-invariant) start)))
+       (:failed start)
+       (:first
+        (let* ((cycle (trace-context-cycle context))
+-              (destination (%copying-destination space cycle start))
+-              (model (%space-model space))
+-              (bytes (object-size model start))
+-              (alignment (object-alignment model start))
+-              (quantum (%space-packing-quantum space)))
+-         (unless (and (typep bytes '(integer 1 *))
+-                      (%positive-power-of-two-p alignment)
+-                      (<= alignment quantum))
+-           (trace-abandon-object context claim reservation :fatal-invariant)
+-           (return-from trace-object start))
+-         (let ((charged (%align-up bytes quantum)))
+-           (multiple-value-bind (address success-p)
+-               (allocate-raw (%space-allocator destination) charged quantum
+-                             (object-kind model start))
+-             (unless success-p
+-               (trace-abandon-object context claim reservation
+-                                     :capacity-exhausted)
+-               (return-from trace-object start))
+-             (let ((new nil)
+-                   (destination-start-p nil))
+-               (handler-case
+-                   (let* ((kind (object-kind model start))
+-                          (descriptor (object-kind-descriptor model kind)))
+-                     (setf new
+-                           (initialize-object model address kind bytes descriptor))
+-                     (copy-object-representation model start new)
+-                     (metadata-set (%space-object-start-map destination) address 1)
+-                     (setf destination-start-p t)
+-                     ;; Forwarding becomes visible only after the destination
+-                     ;; ABI and authoritative object-start fact exist.
+-                     (metadata-set (%space-forwarding space)
+-                                   (%forwarding-key space start) new)
+-                     (setf (%cycle-forwarding-published-p cycle) t)
+-                     (%commit-raw-allocation (%space-allocator destination))
+-                     (unless (%record-cycle-movement cycle start new)
+-                       (trace-fail context :post-publication-failure)
+-                       (return-from trace-object start))
+-                     (%cycle-counter-incf cycle :bytes-moved bytes)
+-                     (unless (eq :complete
+-                                 (trace-commit-object context claim reservation
+-                                                      destination new))
+-                       (trace-fail context :post-publication-failure)
+-                       (return-from trace-object start))
+-                     new)
+-                 (error ()
+-                   (if (%cycle-forwarding-published-p cycle)
+-                       (trace-fail context :post-publication-failure)
+-                       (progn
+-                         ;; A pre-forwarding copy fault is reversible.  Clear
+-                         ;; any authoritative destination fact before retiring
+-                         ;; its exact representation; use no post-clear lookup.
+-                         (when destination-start-p
+-                           (metadata-reset (%space-object-start-map destination)
+-                                           address))
+-                         (when new
+-                           (runtime-retire-object-representation model new))
+-                         (%cancel-raw-allocation
+-                          (%space-allocator destination))
+-                         (trace-abandon-object context claim reservation
+-                                               :preflight-failed)))
+-                   start))))))))))
++              (model (%space-model space)))
++         ;; Geometry/address selection and reservation errors retain their
++         ;; original condition path.  The copy handler starts only after a
++         ;; destination was obtained; it never guesses allocator ownership.
++         (multiple-value-bind (destination address bytes owned-allocator reason)
++             (funcall reserve-destination space cycle start model)
++           (when reason
++             (trace-abandon-object context claim reservation reason)
++             (return-from %trace-copy-object start))
++           (let ((new nil)
++                 (destination-start-p nil))
++             (handler-case
++                 (let* ((kind (object-kind model start))
++                        (descriptor (object-kind-descriptor model kind)))
++                   (setf new
++                         (initialize-object model address kind bytes descriptor))
++                   (copy-object-representation model start new)
++                   (metadata-set (%space-object-start-map destination) address 1)
++                   (setf destination-start-p t)
++                   ;; Forwarding becomes visible only after the destination
++                   ;; ABI and authoritative object-start fact exist.
++                   (metadata-set (%space-forwarding space)
++                                 (%forwarding-key space start) new)
++                   (setf (%cycle-forwarding-published-p cycle) t)
++                   (when owned-allocator
++                     (%commit-raw-allocation owned-allocator))
++                   (unless (%record-cycle-movement cycle start new)
++                     (trace-fail context :post-publication-failure)
++                     (return-from %trace-copy-object start))
++                   (%cycle-counter-incf cycle :bytes-moved bytes)
++                   (unless (eq :complete
++                               (trace-commit-object context claim reservation
++                                                    destination new))
++                     (trace-fail context :post-publication-failure)
++                     (return-from %trace-copy-object start))
++                   new)
++               (error ()
++                 ;; The cycle-wide flag is deliberate: even an unpublished
++                 ;; candidate cannot reopen a cycle with an earlier forwarding.
++                 (if (%cycle-forwarding-published-p cycle)
++                     (trace-fail context :post-publication-failure)
++                     (progn
++                       ;; Clear the authoritative fact before retiring the
++                       ;; exact representation; use no post-clear lookup.
++                       (when destination-start-p
++                         (metadata-reset (%space-object-start-map destination)
++                                         address))
++                       (when new
++                         (runtime-retire-object-representation model new))
++                       (when owned-allocator
++                         (%cancel-raw-allocation owned-allocator))
++                       (trace-abandon-object context claim reservation
++                                             :preflight-failed)))
++                 start)))))))))
++
++(defmethod trace-object ((space semispace-space)
++                         (context sequential-trace-context) start)
++  (%trace-copy-object space context start #'%reserve-semispace-copy-destination))
+ 
+ (defmethod object-live-p ((space semispace-space) cycle reference)
+   (declare (ignore cycle))

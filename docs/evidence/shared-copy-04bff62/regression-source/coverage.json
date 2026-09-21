@@ -1,0 +1,198 @@
+{
+  "status": "source-only-unexecuted",
+  "scope": "existing copy-action semantics, not full protocol composition",
+  "source_baseline": "1099d6235d7cc2730ce5066fb404daaca0bd75d9",
+  "master_at_inspection": "04bff62db4ef86868dc6d5d917e8704f9d90b62e",
+  "start_representations": [
+    "packed",
+    "scalar"
+  ],
+  "case_count": 16,
+  "positive_histories": 4,
+  "expected_failed_cycle_owners_retained": 12,
+  "execution_performed": false,
+  "families": [
+    {
+      "name": "semispace-shared-cycle",
+      "variants": 2,
+      "actions": [
+        "all",
+        "all"
+      ],
+      "live_nodes": 3,
+      "allocated_nodes_initial": 4,
+      "node_bytes": 32,
+      "expected_moves": [
+        3,
+        3
+      ],
+      "expected_dead": [
+        1,
+        0
+      ]
+    },
+    {
+      "name": "minor-major-shared-cycles",
+      "variants": 2,
+      "actions": [
+        "minor",
+        "all",
+        "minor"
+      ],
+      "initial_live_nodes": 3,
+      "new_young_cycle_nodes": 2,
+      "node_bytes": 32,
+      "expected_moves": [
+        3,
+        2,
+        2
+      ],
+      "expected_dead": [
+        1,
+        1,
+        0
+      ]
+    },
+    {
+      "name": "copy-fault",
+      "route": "semispace",
+      "ordinal": 1,
+      "variants": 2,
+      "actual_source_graph": "two managed nodes in a rooted cycle",
+      "fault": "additive COPY-OBJECT-REPRESENTATION :after, after unchanged real primary",
+      "result_status": "retained",
+      "result_reason": "preflight-failed",
+      "plan_state": "open",
+      "stop_state": "released",
+      "objects_moved": 0,
+      "bytes_moved": 0,
+      "objects_discovered": 0,
+      "objects_dead": 0,
+      "destination_authoritative_starts": 0,
+      "active_model_representations": 2,
+      "raw_allocation_calls": 1,
+      "raw_cancellation_calls": 1,
+      "owner_retained": true
+    },
+    {
+      "name": "copy-fault",
+      "route": "semispace",
+      "ordinal": 2,
+      "variants": 2,
+      "actual_source_graph": "two managed nodes in a rooted cycle",
+      "fault": "additive COPY-OBJECT-REPRESENTATION :after, after unchanged real primary",
+      "result_status": "retained",
+      "result_reason": "post-publication-failure",
+      "plan_state": "retained",
+      "stop_state": "covered",
+      "objects_moved": 1,
+      "bytes_moved": 32,
+      "objects_discovered": 1,
+      "objects_dead": 0,
+      "destination_authoritative_starts": 1,
+      "active_model_representations": 4,
+      "raw_allocation_calls": 2,
+      "raw_cancellation_calls": 0,
+      "owner_retained": true
+    },
+    {
+      "name": "copy-fault",
+      "route": "minor",
+      "ordinal": 1,
+      "variants": 2,
+      "actual_source_graph": "two managed nodes in a rooted cycle",
+      "fault": "additive COPY-OBJECT-REPRESENTATION :after, after unchanged real primary",
+      "result_status": "retained",
+      "result_reason": "preflight-failed",
+      "plan_state": "open",
+      "stop_state": "released",
+      "objects_moved": 0,
+      "bytes_moved": 0,
+      "objects_discovered": 0,
+      "objects_dead": 0,
+      "destination_authoritative_starts": 0,
+      "active_model_representations": 2,
+      "raw_allocation_calls": 0,
+      "raw_cancellation_calls": 0,
+      "owner_retained": true
+    },
+    {
+      "name": "copy-fault",
+      "route": "minor",
+      "ordinal": 2,
+      "variants": 2,
+      "actual_source_graph": "two managed nodes in a rooted cycle",
+      "fault": "additive COPY-OBJECT-REPRESENTATION :after, after unchanged real primary",
+      "result_status": "retained",
+      "result_reason": "post-publication-failure",
+      "plan_state": "retained",
+      "stop_state": "covered",
+      "objects_moved": 1,
+      "bytes_moved": 32,
+      "objects_discovered": 1,
+      "objects_dead": 0,
+      "destination_authoritative_starts": 1,
+      "active_model_representations": 4,
+      "raw_allocation_calls": 0,
+      "raw_cancellation_calls": 0,
+      "owner_retained": true
+    },
+    {
+      "name": "copy-fault",
+      "route": "major",
+      "ordinal": 1,
+      "variants": 2,
+      "actual_source_graph": "two managed nodes in a rooted cycle",
+      "fault": "additive COPY-OBJECT-REPRESENTATION :after, after unchanged real primary",
+      "result_status": "retained",
+      "result_reason": "preflight-failed",
+      "plan_state": "open",
+      "stop_state": "released",
+      "objects_moved": 0,
+      "bytes_moved": 0,
+      "objects_discovered": 0,
+      "objects_dead": 0,
+      "destination_authoritative_starts": 0,
+      "active_model_representations": 2,
+      "raw_allocation_calls": 1,
+      "raw_cancellation_calls": 1,
+      "owner_retained": true
+    },
+    {
+      "name": "copy-fault",
+      "route": "major",
+      "ordinal": 2,
+      "variants": 2,
+      "actual_source_graph": "two managed nodes in a rooted cycle",
+      "fault": "additive COPY-OBJECT-REPRESENTATION :after, after unchanged real primary",
+      "result_status": "retained",
+      "result_reason": "post-publication-failure",
+      "plan_state": "retained",
+      "stop_state": "covered",
+      "objects_moved": 1,
+      "bytes_moved": 32,
+      "objects_discovered": 1,
+      "objects_dead": 0,
+      "destination_authoritative_starts": 1,
+      "active_model_representations": 4,
+      "raw_allocation_calls": 2,
+      "raw_cancellation_calls": 0,
+      "owner_retained": true
+    }
+  ],
+  "requires_new_reviewed_seam": [
+    "partial inline copy fault",
+    "fault immediately after this object forwarding publication",
+    "forced raw to-space exhaustion without invalid fixture mutation"
+  ],
+  "not_claimed": [
+    "native execution",
+    "Lisp reader/compiler validity",
+    "full protocol composition",
+    "MGC",
+    "Mezzano",
+    "hardware/OOM evidence",
+    "failed-owner discharge",
+    "retention beyond process exit"
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "base_head": "04bff62db4ef86868dc6d5d917e8704f9d90b62e",
+  "base_runtime": "1099d6235d7cc2730ce5066fb404daaca0bd75d9",
+  "live_root": "/home/iskam/src/vibe/Clamsara",
+  "candidate_root": "/tmp/clamsara-shared-copy-04bff62-xzksq1om",
+  "production_input_hashes": {
+    "src/runtime/generational.lisp": "1c3fbedeae853d0d2531da3f2655544dffbc2b22823bdd9cc1c0feb150792ad1",
+    "src/runtime/spaces.lisp": "3a92db035fcc6873d0a62e6fbe6331f04d131d76782cb83cd63836884ff671f6"
+  },
+  "production_candidate_hashes": {
+    "src/runtime/generational.lisp": "a8d070dfdf1b0e09940ecd586cfd2d7cce183cea748f288278ccb13e5644ed53",
+    "src/runtime/spaces.lisp": "27bd725e7c2c4b280944841e44fb20407f32880d8347036fd7f204d975126bfc"
+  },
+  "exact_patch_sha256": "b58c96a32303aaf929872660729d06265efcace43aeb1da7aa352caa122aaa0b",
+  "original_archive": "/tmp/clamsara-shared-copy-04bff62-xzksq1om/independent-review/shared-copy/head04bff62.tar",
+  "original_archive_sha256": "7aeeecd092aa9fc967b6c4dbd80dce5568d1d307651b455d7169cf294c110bf8",
+  "live_input_pins_unchanged": true,
+  "validation": "source-only; no native/ASDF/subdelegation; independent review and authorization required"
+}

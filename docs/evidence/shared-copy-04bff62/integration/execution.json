@@ -1,0 +1,33 @@
+{
+  "pid": 27165,
+  "command": "sbcl --noinform --no-sysinit --no-userinit --non-interactive --load /tmp/clamsara-shared-copy-integration-f48l0iau/bootstrap.lisp > /tmp/clamsara-shared-copy-integration-f48l0iau/native.log 2>&1",
+  "candidate": "/tmp/clamsara-shared-copy-integrated-_nomuxyd",
+  "run": "/tmp/clamsara-shared-copy-integration-f48l0iau",
+  "start": "2026-09-21T04:58:01.945589+00:00",
+  "code_hashes": {
+    "src/runtime/spaces.lisp": "27bd725e7c2c4b280944841e44fb20407f32880d8347036fd7f204d975126bfc",
+    "src/runtime/generational.lisp": "a8d070dfdf1b0e09940ecd586cfd2d7cce183cea748f288278ccb13e5644ed53",
+    "test/quality/copy-action.lisp": "7c144666dd7cb8cf652f70f2073243606c903d5d537b44d15c5dae9cfc7d1e36",
+    "clamsara.asd": "a8a087a19694dc074af6f83762549789c1314dd0af3b0de4daf7ca5095a59c41"
+  },
+  "scope": "Core/tools/gen288 + permanent16 + archived16 from candidate evidence + permanent repeat16; not workload/Gabriel/GCB/target proof.",
+  "exit_code": 0,
+  "duration": 6.961651148973033,
+  "source_pins_unchanged": true,
+  "markers": [
+    "SHARED-COPY-CANDIDATE-SOURCE /tmp/clamsara-shared-copy-integrated-_nomuxyd/",
+    "SHARED-COPY-MAIN-PASS",
+    "SHARED-COPY-TOOLS-PASS",
+    "SHARED-COPY-GENERATIONAL-PASS",
+    "GENERATIONAL-HISTORIES-PASS cycles=288 minors=216 majors=72",
+    "COPY-ACTION-OBSERVED cases=16 completed=4 failed-cycle-owners-retained=12",
+    "COPY-ACTION-PERMANENT-PASS new-worlds=16 complete-configurations=4 expected-failed-worlds-retained=12",
+    "SHARED-COPY-GENERATIONAL-QUALITY-PASS",
+    "SHARED-COPY-STRUCTURE-PASS",
+    "SHARED-COPY-CORE-SUITES-COMPLETE",
+    "COPY-ACTION-OBSERVED cases=16 completed=4 failed-cycle-owners-retained=12",
+    "COPY-ACTION-OBSERVED cases=16 completed=4 failed-cycle-owners-retained=12",
+    "COPY-ACTION-PERMANENT-PASS new-worlds=16 complete-configurations=4 expected-failed-worlds-retained=12",
+    "SHARED-COPY-INTEGRATION-ARCHIVE-REPEAT-PASS"
+  ]
+}

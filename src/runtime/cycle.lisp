@@ -564,8 +564,7 @@
       (%runtime-reject :unsupported-algorithm))
     (unless (cycle-cause-known-p plan cause)
       (%runtime-reject :unsupported-cause))
-    (unless (eq (%plan-state plan) :open)
-      (%runtime-reject :collection-busy))
+    (%require-ordinary-runtime-entry plan)
     (values plan selected)))
 
 (defmethod collect (configuration scope cause result-record &key algorithm)
@@ -605,6 +604,11 @@
 (defun %close-configuration-runtime (configuration)
   "Preflight and atomically close the fixed sequential entry routes."
   (let ((plan (%configuration-runtime-plan configuration)))
+    ;; FATAL is not a recoverable retained movement/image obligation. Reject
+    ;; this post-fatal entry before the caller changes shutdown state. Existing
+    ;; fatal closure, roots, pins and acquisition ownership remain untouched.
+    (when (eq (%plan-state plan) :fatal)
+      (%runtime-reject :fatal-invariant))
     (unless (member (%plan-state plan) '(:open :retained) :test #'eq)
       (%runtime-reject :collection-busy))
     (when (plusp (%plan-active-context-count plan))
@@ -618,7 +622,9 @@
 
 (defun %drain-configuration-runtime (configuration)
   (let ((plan (%configuration-runtime-plan configuration)))
-    (cond ((eq (%plan-state plan) :retained)
+    (cond ((eq (%plan-state plan) :fatal)
+           (%runtime-reject :fatal-invariant))
+          ((eq (%plan-state plan) :retained)
            (values :retained
                    (or (%cycle-retained-reason (%plan-retained-cycle plan))
                        :fatal-invariant)))

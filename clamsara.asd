@@ -140,6 +140,7 @@
                              (asdf:test-op :clamsara/runtime/lifecycle/test)
                              (asdf:test-op :clamsara/acceptance/test)
                              (asdf:test-op :clamsara/quality/stateful/test)
+                             (asdf:test-op :clamsara/quality/barrier-history/test)
                              (asdf:test-op :clamsara/quality/allocation/test)
                              (asdf:test-op :clamsara/quality/kind-snapshots/test)
                              (asdf:test-op :clamsara/quality/representation-capacity/test)
@@ -148,6 +149,27 @@
                              (asdf:test-op :clamsara/quality/finalizer-drain/test)
                              (asdf:test-op :clamsara/quality/model-resources/test)
                              (asdf:test-op :clamsara/quality/test))))
+
+(asdf:defsystem :clamsara/quality/barrier-history/test
+  :version "0.1.0"
+  :description "Hosted composed-barrier histories; not target/full conformance."
+  :depends-on (:clamsara/quality/support)
+  :serial t
+  :components ((:file "test/quality/barrier-history")
+               (:file "test/quality/barrier-edges")
+               (:file "test/quality/barrier-claims")
+               (:file "test/quality/barrier-boundaries"))
+  :perform (asdf:test-op (operation component)
+             (declare (ignore operation component))
+             (unless (and (uiop:symbol-call :clamsara.quality.barrier-history
+                                           :run-barrier-history-tests)
+                          (uiop:symbol-call :clamsara.quality.barrier-history
+                                           :run-barrier-edge-tests)
+                          (uiop:symbol-call :clamsara.quality.barrier-claims
+                                           :run-barrier-claim-tests)
+                          (uiop:symbol-call :clamsara.quality.barrier-boundaries
+                                           :run-barrier-boundary-tests))
+               (error "Barrier history contracts failed"))))
 
 (asdf:defsystem :clamsara/workload
   :version "0.1.0"

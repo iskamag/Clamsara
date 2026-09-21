@@ -98,8 +98,22 @@
 (defun %space-contains-address-p (space address)
   (and (<= (%space-base space) address) (< address (%space-limit space))))
 
+(defun %check-raw-allocation-barrier-boundary (allocator)
+  ;; Raw allocator handles are retained by contexts too. Do not let direct
+  ;; use bypass fatal closure or allocate underneath a borrowed barrier slot.
+  ;; Collector preparation still allocates in :COLLECTING with zero pins.
+  (let ((configuration (%space-configuration (%allocator-space allocator))))
+    (when configuration
+      (let ((plan (%configuration-runtime-plan configuration)))
+        (when (eq (%plan-state plan) :fatal)
+          (%runtime-reject :fatal-invariant))
+        (when (plusp (%plan-barrier-pin-count plan))
+          (%runtime-reject :barrier-busy)))))
+  (values))
+
 (defmethod allocate-raw ((allocator bump-runtime-allocator) bytes alignment kind)
   (declare (ignore kind))
+  (%check-raw-allocation-barrier-boundary allocator)
   (let* ((old (%allocator-cursor allocator))
          (start (%align-up old alignment))
          (end (+ start bytes)))
@@ -115,6 +129,7 @@
 (defmethod allocate-raw ((allocator free-list-runtime-allocator)
                          bytes alignment kind)
   (declare (ignore kind))
+  (%check-raw-allocation-barrier-boundary allocator)
   (dotimes (index (%free-count allocator) (values nil nil))
     (let* ((old (aref (%free-starts allocator) index))
            (start (%align-up old alignment))
@@ -150,7 +165,10 @@
                            (context sequential-execution-context) request)
   ;; The sequential reference configuration allocates directly from its
   ;; bounded space allocator.  It has no hidden TLAB refill source.
-  (declare (ignore allocator context request))
+  (declare (ignore allocator request))
+  (unless (eq (%context-state context) :bound)
+    (%runtime-reject :foreign-context))
+  (%require-ordinary-runtime-entry (%context-plan context))
   nil)
 
 ;;; ------------------------------------------------------------------

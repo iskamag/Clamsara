@@ -234,8 +234,7 @@ by registration. Exhaustion rejects before publishing a record."
                (eq (%context-state context) :bound)
                (functionp callback))
     (%runtime-reject :invalid-finalizer-registration))
-  (unless (eq (%plan-state (%context-plan context)) :open)
-    (%runtime-reject :collection-busy))
+  (%require-ordinary-runtime-entry (%context-plan context))
   (unless (%registry-local-referent-p registry referent)
     (%runtime-reject :invalid-finalizer-registration))
   (let ((index (position :free (%registry-states registry) :test #'eq)))
@@ -275,8 +274,7 @@ by registration. Exhaustion rejects before publishing a record."
                    (%registry-configuration registry))
                (eq (%context-state context) :bound))
     (%runtime-reject :invalid-finalizer-context))
-  (unless (eq (%plan-state (%context-plan context)) :open)
-    (%runtime-reject :collection-busy))
+  (%require-ordinary-runtime-entry (%context-plan context))
   (let ((index (%registry-token-index registry token)))
     (if (and index (eq :active (aref (%registry-states registry) index)))
         (progn
@@ -370,8 +368,7 @@ by registration. Exhaustion rejects before publishing a record."
                    (%registry-configuration registry))
                (eq (%context-state context) :bound))
     (%runtime-reject :invalid-finalizer-context))
-  (unless (eq (%plan-state (%context-plan context)) :open)
-    (%runtime-reject :collection-busy))
+  (%require-ordinary-runtime-entry (%context-plan context))
   ;; This invocation takes at most its entry queue length. Nested drains may
   ;; consume some of that work; nested collections may append newer work.
   ;; Neither can revive this invocation's claimed record or extend its budget.

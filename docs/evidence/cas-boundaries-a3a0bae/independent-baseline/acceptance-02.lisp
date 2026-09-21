@@ -1,0 +1,684 @@
+;;;; Independently authored acceptance assertions for the frozen CAS contract.
+;;;; Parent world-construction fixture is copied below with package/name changes.
+;;;; Fixed observer/token records prove ownership histories, NOT resource-capacity
+;;;; admission or target no-allocation. No resource-union proof is claimed.
+(defpackage #:clamsara.cas-independent
+  (:use #:cl #:clamsara #:clamsara.quality.support))
+(in-package #:clamsara.cas-independent)
+(defvar *rules* nil)
+(defvar *world* nil)
+(defvar *second-context* nil)
+(defvar *cycle-record* nil)
+(defvar *capture* nil)
+(defvar *events* nil)
+(defvar *event-count* 0)
+(defvar *raw-loads* 0)
+(defvar *raw-stores* 0)
+(defvar *cases* 0)
+(defvar *failures* 0)
+(defvar *failed-worlds* nil)
+(defvar *expected-fatal-worlds* nil)
+(defvar *results* nil)
+(define-condition observer-fault (error) ())
+(defstruct token index (active nil) (acquires 0) (cancels 0) (consumes 0))
+(defclass rule ()
+  ((name :initarg :name :reader rule-name)
+   (events :initarg :events :reader rule-events)
+   (before :initarg :before :initform nil :reader rule-before)
+   (tokens :initform (vector (make-token :index 0) (make-token :index 1))
+           :reader rule-tokens)
+   (action :initform nil :accessor rule-action)
+   (phase :initform nil :accessor rule-phase)
+   (fired :initform nil :accessor rule-fired)
+   (action-result :initform nil :accessor rule-action-result)
+   (effects :initform 0 :accessor rule-effects)
+   (fault :initform (make-condition 'observer-fault) :reader rule-fault)))
+(defclass exact-read-rule (rule) ())
+(defun note (r phase operation &optional token)
+  ;; Only symbols, fixnums and NIL enter this preallocated observation buffer.
+  (when *capture*
+    (when (> (+ *event-count* 4) (length *events*)) (error (rule-fault r)))
+    (setf (aref *events* *event-count*) phase
+          (aref *events* (+ *event-count* 1)) (rule-name r)
+          (aref *events* (+ *event-count* 2)) operation
+          (aref *events* (+ *event-count* 3)) (and token (token-index token)))
+    (incf *event-count* 4)))
+(defun rows ()
+  ;; Runs only outside completed/escaped entries, never in a rule callback.
+  (loop for i from 0 below *event-count* by 4
+        collect (list (aref *events* i) (aref *events* (+ i 1))
+                      (aref *events* (+ i 2)) (aref *events* (+ i 3)))))
+(defun names-at (phase)
+  (loop for i from 0 below *event-count* by 4
+        when (eq phase (aref *events* i)) collect (aref *events* (+ i 1))))
+(defmethod load-reference :around ((model clamsara::host-bound-object-model)
+                                  location &optional order)
+  (declare (ignore location order))
+  (when *capture* (incf *raw-loads*))
+  (call-next-method))
+(defmethod store-reference-raw :around ((model clamsara::host-bound-object-model)
+                                       location value &optional order)
+  (declare (ignore location value order))
+  (when *capture* (incf *raw-stores*))
+  (call-next-method))
+(defmethod clamsara::host-root-value :around
+    ((location clamsara::simulator-root-location))
+  (declare (ignore location))
+  (when *capture* (incf *raw-loads*))
+  (call-next-method))
+(defmethod (setf clamsara::host-root-value) :around
+    (value (location clamsara::simulator-root-location))
+  (declare (ignore value location))
+  (when *capture* (incf *raw-stores*))
+  (call-next-method))
+(defmethod describe-barrier-contribution ((r rule))
+  (values (rule-name r) (copy-list (rule-events r)) nil nil nil
+          (copy-list (rule-before r)) nil :transform
+          :retry-before-exposure/fatal-after))
+(defun action (r phase context location)
+  (when (and *capture* (eq phase (rule-phase r)) (not (rule-fired r)))
+    (setf (rule-fired r) t)
+    (case (rule-action r)
+      (:retry :retry)
+      (:error (error (rule-fault r)))
+      (:throw (throw 'review-nonlocal-exit :rule-nonlocal-exit))
+      ((:reenter :second-context)
+       (multiple-value-bind (value status)
+           (barrier-read (configuration-barrier (world-configuration *world*))
+                         (if (eq (rule-action r) :second-context)
+                             *second-context* context)
+                         location)
+         (setf (rule-action-result r)
+               (if (and (null value) (eq status :retry)) :retry :unexpected)))
+       nil)
+      (:unbind
+       (setf (rule-action-result r)
+             (unbind-mutator (world-configuration *world*) context))
+       nil)
+      (:collect
+       (setf (rule-action-result r)
+             (handler-case
+                 (progn (collect (world-configuration *world*) :all :explicit
+                                 *cycle-record*) :unexpected)
+               (clamsara::runtime-rejection () :rejected)))
+       nil))))
+(defun do-reserve (r context operation location)
+  (note r :reserve operation)
+  ;; A legitimate :RETRY is failure atomic; the failing call owns no token.
+  (when (and *capture* (eq (rule-phase r) :reserve)
+             (eq (rule-action r) :retry) (not (rule-fired r)))
+    (setf (rule-fired r) t)
+    (return-from do-reserve (values nil :retry)))
+  (let ((token (find nil (rule-tokens r) :key #'token-active)))
+    (unless token (return-from do-reserve (values nil :retry)))
+    (setf (token-active token) t)
+    (incf (token-acquires token))
+    (note r :acquire operation token)
+    ;; Error here intentionally has no returned token. Tests must not presume
+    ;; this arbitrary fault is recoverable or call it a legitimate retry.
+    (action r :reserve context location)
+    (values token :ready)))
+(defmethod barrier-contribution-reserve ((r rule) context operation location)
+  (do-reserve r context operation location))
+(defmethod barrier-contribution-reserve
+    ((r exact-read-rule) context (operation (eql :read)) location)
+  (do-reserve r context operation location))
+(defun do-admit (r token context operation location)
+  (unless (token-active token) (error (rule-fault r)))
+  (note r :admit operation token)
+  (if (eq :retry (action r :admit context location)) :retry :complete))
+(defmethod barrier-contribution-admit ((r rule) token context operation location)
+  (do-admit r token context operation location))
+(defmethod barrier-contribution-admit
+    ((r exact-read-rule) token context (operation (eql :read)) location)
+  (do-admit r token context operation location))
+(defmethod barrier-contribution-transform
+    ((r rule) token context operation location old candidate)
+  (declare (ignore old))
+  (unless (token-active token) (error (rule-fault r)))
+  (note r :transform operation token)
+  (if (eq :retry (action r :transform context location))
+      (values nil :retry) (values candidate :complete)))
+(defmethod barrier-contribution-before-exposure
+    ((r rule) token context operation location old final)
+  (declare (ignore old final))
+  (unless (token-active token) (error (rule-fault r)))
+  (note r :before operation token)
+  (incf (rule-effects r))
+  (action r :before context location)
+  (values))
+(defmethod barrier-contribution-after-exposure
+    ((r rule) token context operation location old final)
+  (declare (ignore old final))
+  (unless (token-active token) (error (rule-fault r)))
+  (note r :after operation token)
+  (action r :after context location)
+  (setf (token-active token) nil)
+  (incf (token-consumes token))
+  (values))
+(defmethod barrier-contribution-cancel ((r rule) token)
+  (unless (token-active token) (error (rule-fault r)))
+  (note r :cancel nil token)
+  (setf (token-active token) nil)
+  (incf (token-cancels token))
+  (values))
+(defclass review-plan (clamsara::semispace-plan)
+  ((rules :initarg :rules :reader plan-rules)))
+(defmethod component-barrier-contributions ((p review-plan))
+  (copy-list (plan-rules p)))
+(defmethod clamsara::map-construction-auxiliary-storage ((p review-plan) f)
+  (call-next-method)
+  (clamsara::%map-construction-cons-storage (plan-rules p) f)
+  (dolist (r (plan-rules p))
+    (funcall f r) (funcall f (rule-fault r))
+    (clamsara::%map-construction-cons-storage (rule-events r) f)
+    (clamsara::%map-construction-cons-storage (rule-before r) f)
+    (funcall f (rule-tokens r))
+    (map nil f (rule-tokens r)))
+  (values))
+(defun make-review-plan (&rest args)
+  (change-class (apply #'make-semispace-plan args) 'review-plan :rules *rules*))
+
+;;;; BEGIN REUSED PARENT WORLD-CONSTRUCTION FIXTURE (not independent assertions).
+(defun make-review-world (&key
+                             (algorithm :semispace)
+                             (object-starts :packed)
+                             (base 4096)
+                             (extent 2048)
+                             (packing-quantum 16)
+                             (map-granularity packing-quantum)
+                             (root-count 8)
+                             (trace-capacity 128)
+                             (conditional-capacity 128)
+                             (finalizer-capacity 16)
+                             (finalizer-registration-capacity
+                               (max finalizer-capacity 64))
+                             (stop-capacity 64)
+                             (await-bound 32)
+                             await-fail-after
+                             configure-model
+                             (object-capacity 1024))
+  "Construct a small real hosted collector world through the public builders.
+ALGORITHM is :SEMISPACE or :MARKSWEEP.  OBJECT-STARTS is :PACKED or :SCALAR."
+  (check (member algorithm '(:semispace :marksweep) :test #'eq)
+         "Unknown quality algorithm ~S" algorithm)
+  (check (member object-starts '(:packed :scalar) :test #'eq)
+         "Unknown object-start representation ~S" object-starts)
+  (let* ((roots (make-simulator-root-client :provider-capacity 16))
+         (provider (make-simulator-root-provider root-count))
+         (root-token (register-root-provider roots :quality-roots root-count
+                                             provider))
+         (coordinator
+           (let ((value
+                   (make-simulator-coordinator
+                    roots :stop-capacity stop-capacity
+                    :await-bound await-bound)))
+             (when await-fail-after
+               (setf (clamsara::simulator-await-fail-after value)
+                     await-fail-after))
+             value))
+         (space-count (if (eq algorithm :semispace) 2 1))
+         (address-space
+           (make-simulator-address-space
+            :base base :byte-extent (* space-count extent)
+            :alignment packing-quantum :page-size 256
+            :coordinator coordinator))
+         (model
+           (make-host-object-model
+            :capacity object-capacity :kind-capacity 16 :slot-capacity 16
+            :variant-capacity 0 :location-capacity 32
+            :handle-capacity 256 :stage-capacity 16
+            :max-object-bytes 256))
+         ;; Slot zero is a managed immediate ID.  Slots one and two are the
+         ;; actual managed graph edges.  The ID lets the host-side oracle name
+         ;; objects without replacing their payload or edges with host data.
+         (node-kind
+           (prog1
+               (make-object-kind-description
+                model :quality-node :size-rule 32
+                :alignment-rule packing-quantum
+                :strong-layout '(:quality-id :left :right))
+             ;; Test-only extension seam; all descriptions still precede binding
+             ;; and immutable construction ownership/account closure.
+             (when configure-model (funcall configure-model model))))
+         (atomics (make-host-atomics))
+         (diagnostics (make-simulator-diagnostics))
+         (clients
+           (make-simulator-clients
+            :model model :roots roots :coordinator coordinator
+            :address-space address-space :atomics atomics
+            :diagnostics diagnostics))
+         (registry
+           (make-sequential-finalizer-registry
+            :capacity finalizer-capacity :root-client roots
+            :registration-capacity finalizer-registration-capacity))
+         (domain-0
+           (make-metadata-domain
+            :base base :limit (+ base extent) :granularity map-granularity))
+         (control-domain-0
+           (if (= map-granularity packing-quantum) domain-0
+               (make-metadata-domain :base base :limit (+ base extent)
+                                     :granularity packing-quantum)))
+         (map-0 (clamsara.quality.support::%object-start-map object-starts domain-0))
+         (space nil)
+         (plan
+           (ecase algorithm
+             (:semispace
+              (let* ((domain-1
+                       (make-metadata-domain
+                        :base (+ base extent) :limit (+ base (* 2 extent))
+                        :granularity map-granularity))
+                     (control-domain-1
+                       (if (= map-granularity packing-quantum) domain-1
+                           (make-metadata-domain
+                            :base (+ base extent) :limit (+ base (* 2 extent))
+                            :granularity packing-quantum)))
+                     (from
+                       (make-semispace-space
+                        :name :quality-from :object-start-map map-0
+                        :forwarding (make-side-forwarding :domain control-domain-0)
+                        :extent extent :packing-quantum packing-quantum
+                        :role :allocation))
+                     (to
+                       (make-semispace-space
+                        :name :quality-to
+                        :object-start-map
+                        (clamsara.quality.support::%object-start-map object-starts domain-1)
+                        :forwarding (make-side-forwarding :domain control-domain-1)
+                        :extent extent :packing-quantum packing-quantum
+                        :role :reserve)))
+                (setf space from)
+                (make-review-plan
+                 :from-space from :to-space to :root-client roots
+                 :coordinator coordinator :diagnostics diagnostics
+                 :registry registry :trace-capacity trace-capacity
+                 :conditional-capacity conditional-capacity
+                 :finalizer-capacity finalizer-capacity
+                 :packing-quantum packing-quantum)))
+             (:marksweep
+              (let ((marksweep
+                      (make-marksweep-space
+                       :name :quality-marksweep :object-start-map map-0
+                       :marks (make-side-marks :domain control-domain-0)
+                       :extent extent :packing-quantum packing-quantum
+                       :descriptor-capacity object-capacity)))
+                (setf space marksweep)
+                (make-marksweep-plan
+                 :space marksweep :root-client roots
+                 :coordinator coordinator :diagnostics diagnostics
+                 :registry registry :trace-capacity trace-capacity
+                 :conditional-capacity conditional-capacity
+                 :finalizer-capacity finalizer-capacity
+                 :packing-quantum packing-quantum)))))
+         (configuration (construct-plan plan clients))
+         (context (bind-mutator configuration :quality-mutator :default)))
+    (clamsara.quality.support::%make-quality-world
+     :algorithm algorithm :object-starts object-starts
+     :packing-quantum packing-quantum
+     :configuration configuration :context context
+     :model (configuration-object-model configuration)
+     :roots roots :root-token root-token :root-provider provider
+     :coordinator coordinator :plan plan :registry registry
+     :node-kind node-kind :space space :root-count root-count)))
+;;;; END REUSED PARENT WORLD-CONSTRUCTION FIXTURE.
+
+(defun new-rule (name events &optional before)
+  (make-instance 'rule :name name :events events :before before))
+(defun three-rules (event)
+  (list (new-rule :a (list event) '(:b))
+        (new-rule :b (list event) '(:c))
+        (new-rule :c (list event))))
+(defun mixed-rules ()
+  (list (new-rule :w1 '(:cas) '(:r1))
+        (new-rule :r1 '(:read) '(:w2))
+        (new-rule :w2 '(:cas) '(:r2))
+        (new-rule :r2 '(:read))))
+(defun event-for (operation)
+  (ecase operation
+    (:match :cas) (:mismatch :read) (:read :read)
+    (:store :store) (:root-store :root-store)))
+(defun clear-actions ()
+  (dolist (r *rules*) (setf (rule-action r) nil (rule-phase r) nil)))
+(defun reset-observer ()
+  (fill *events* nil)
+  (setf *event-count* 0 *raw-loads* 0 *raw-stores* 0)
+  (dolist (r *rules*)
+    (setf (rule-effects r) 0 (rule-fired r) nil (rule-action-result r) nil)
+    (map nil (lambda (token)
+               (check (not (token-active token)) "Reset would discard live token ~S" (rule-name r))
+               (setf (token-acquires token) 0 (token-cancels token) 0
+                     (token-consumes token) 0))
+         (rule-tokens r))))
+(defun token-total (r reader)
+  (loop for token across (rule-tokens r) sum (funcall reader token)))
+(defun settled ()
+  (dolist (r *rules*)
+    (map nil (lambda (token)
+               (check (and (not (token-active token))
+                           (= (token-acquires token)
+                              (+ (token-cancels token) (token-consumes token))))
+                      "Token settlement is not exactly once for ~S/~D"
+                      (rule-name r) (token-index token)))
+         (rule-tokens r))))
+(defun invoke (w source operation old new)
+  (let ((*capture* t)
+        (barrier (configuration-barrier (world-configuration w))))
+    (if (eq operation :root-store)
+        (root-provider-store (world-roots w) (world-context w) (world-root-token w)
+                             (simulator-root-location (world-root-provider w) 3) new)
+        (let ((a nil) (b nil) (c nil) (found nil) (index 0))
+          (map-reference-locations
+           (world-model w) source
+           (lambda (identity location)
+             (declare (ignore identity))
+             (when (= index 1)
+               (setf found t)
+               (multiple-value-setq (a b c)
+                 (ecase operation
+                   (:read (barrier-read barrier (world-context w) location))
+                   (:store (barrier-store barrier (world-context w) location new))
+                   (:match (barrier-compare-exchange barrier (world-context w) location old new))
+                   (:mismatch (barrier-compare-exchange barrier (world-context w) location nil new)))))
+             (incf index)))
+          (check found "Source location not found")
+          (values a b c)))))
+(defun raw-slot (w source operation)
+  ;; Oracle reads are outside the measured barrier and use a freshly mapped lease.
+  (if (eq operation :root-store)
+      (read-world-root w 3)
+      (let ((value nil) (index 0))
+        (map-reference-locations
+         (world-model w) source
+         (lambda (identity location)
+           (declare (ignore identity))
+           (when (= index 1) (setf value (load-reference (world-model w) location :acquire)))
+           (incf index)))
+        value)))
+(defun check-completion (w source operation old new)
+  (multiple-value-bind (a b c) (invoke w source operation old new)
+    (ecase operation
+      (:match (check (and (eq a old) b (eq c :complete)) "Matched CAS result"))
+      (:mismatch (check (and (eq a old) (null b) (eq c :complete)) "Mismatched CAS result"))
+      (:read (check (and (eq a old) (eq b :complete)) "Read result"))
+      ((:store :root-store) (check (and (eq a new) (eq b :stored)) "Store result"))))
+  (check (= *raw-loads* 1) "Success raw-load count ~D" *raw-loads*)
+  (check (= *raw-stores* (if (member operation '(:match :store :root-store)) 1 0))
+         "Success raw-store count ~D" *raw-stores*)
+  (check (eq (raw-slot w source operation)
+             (if (member operation '(:match :store :root-store)) new old))
+         "Success slot value")
+  (settled))
+(defun attempt-invoke (w source operation old new)
+  (handler-case
+      (catch 'clamsara::simulator-fatal
+        (catch 'review-nonlocal-exit
+          (invoke w source operation old new)
+          :ordinary-return))
+    (error () :ordinary-error)))
+(defun closure-probes (w)
+  ;; All probes run even on baseline failures. Returned new contexts are retained
+  ;; with the failed world. No raw force-close, root removal or resource release.
+  (let* ((configuration (world-configuration w))
+         (release-index (clamsara::%configuration-shutdown-release-index configuration))
+         (record (make-cycle-result-record (world-plan w)))
+         (allocation
+           (handler-case
+               (progn (allocate-object (world-context w) :quality-node 32 16 (world-node-kind w))
+                      :allowed)
+             (clamsara::runtime-rejection () :blocked)))
+         (binding
+           (handler-case
+               (progn (setf *second-context* (bind-mutator configuration :after-fatal :default))
+                      :allowed)
+             (clamsara::runtime-rejection () :blocked)))
+         (collection
+           (handler-case
+               (progn (collect configuration :all :explicit record) :allowed)
+             (clamsara::runtime-rejection () :blocked)))
+         (shutdown
+           (handler-case
+               (multiple-value-bind (status reason) (shutdown-configuration configuration)
+                 (declare (ignore reason))
+                 (if (eq status :complete) :released :blocked))
+             (clamsara::runtime-rejection () :blocked)
+             (clamsara::construction-rejected () :blocked))))
+    (format t "~&CLOSURE allocation=~S bind=~S collect=~S shutdown=~S release-index=~D->~D~%"
+            allocation binding collection shutdown release-index
+            (clamsara::%configuration-shutdown-release-index configuration))
+    (check (and (eq allocation :blocked) (eq binding :blocked)
+                (eq collection :blocked) (eq shutdown :blocked))
+           "Fatal escape reopened managed work")
+    (check (eq (cycle-result-status record) :uninitialized) "Closed collect changed caller record")
+    (check (= release-index (clamsara::%configuration-shutdown-release-index configuration))
+           "Fatal shutdown released construction resources")
+    (check (not (eq (clamsara::%configuration-state configuration) :complete))
+           "Fatal configuration reported discharged")
+    (check (not (eq (clamsara::%plan-state (world-plan w)) :open)) "Fatal plan is open")))
+(defun one (label rules body &key fatal)
+  (incf *cases*)
+  (let ((*rules* rules) (*world* nil) (*second-context* nil) (*cycle-record* nil)
+        (*events* (make-array 1024 :initial-element nil)) (*event-count* 0)
+        (*capture* nil) (*raw-loads* 0) (*raw-stores* 0))
+    (handler-case
+        (progn
+          (setf *world* (make-review-world)
+                *cycle-record* (make-cycle-result-record (world-plan *world*)))
+          (let ((source (allocate-node *world* 501))
+                (old (allocate-node *world* 502))
+                (new (allocate-node *world* 503)))
+            (set-world-root *world* 0 source)
+            (set-world-root *world* 1 old)
+            (set-world-root *world* 2 new)
+            (set-world-root *world* 3 old)
+            (set-node-slot *world* source 1 old)
+            (reset-observer)
+            (let ((outcome
+                    (catch 'clamsara::simulator-fatal
+                      (catch 'review-nonlocal-exit
+                        (funcall body *world* source old new)
+                        :body-complete))))
+              (check (eq outcome :body-complete) "Unexpected escaped entry: ~S" outcome)))
+          (let ((transcript (rows)))
+            (clear-actions)
+            (if fatal
+                (progn
+                  (check (not (eq (clamsara::%plan-state (world-plan *world*)) :open))
+                         "Expected-fatal world remains open")
+                  (push (list label *world* *second-context* transcript) *expected-fatal-worlds*))
+                (progn
+                  (when *second-context*
+                    (check (eq :unbound (unbind-mutator (world-configuration *world*) *second-context*))
+                           "Second context cleanup refused"))
+                  (close-quality-world *world*)))
+            (push (list label :pass transcript) *results*))
+          (format t "~&INDEPENDENT-PASS ~S~%" label))
+      (error (condition)
+        (incf *failures*)
+        (push (list label *world* *second-context* condition (rows)) *failed-worlds*)
+        (push (list label :fail (type-of condition) (rows)) *results*)
+        (format t "~&INDEPENDENT-FAIL ~S [~S] ~A~%TRACE ~S~%"
+                label (type-of condition) condition (rows))))))
+(defun test-retry (operation phase index &optional mixed)
+  (let* ((rules (if mixed (mixed-rules) (three-rules (event-for operation))))
+         (target (nth index rules))
+         (label (list :retry operation phase index (if mixed :union :single-path))))
+    (one label rules
+         (lambda (w source old new)
+           (setf (rule-action target) :retry (rule-phase target) phase)
+           (multiple-value-bind (a b c) (invoke w source operation old new)
+             (check (null a) "Retry exposed a value")
+             (if (member operation '(:match :mismatch))
+                 (check (and (null b) (eq c :retry)) "CAS retry result")
+                 (check (eq b :retry) "Read/store retry result")))
+           (check (eq (raw-slot w source operation) old) "Retry changed slot")
+           (check (= *raw-loads* (if (eq phase :transform) 1 0)) "Retry raw load count")
+           (check (zerop *raw-stores*) "Retry stored raw value")
+           (check (null (names-at :before)) "Retry exposed before callback")
+           (check (null (names-at :after)) "Retry consumed a reservation")
+           (check (equal (names-at :cancel)
+                         (reverse (mapcar #'rule-name
+                                          (if (eq phase :reserve) (subseq rules 0 index) rules))))
+                  "Retry cancellation order/membership")
+           (loop for r in rules for i from 0
+                 for owned = (if (and (eq phase :reserve) (>= i index)) 0 1)
+                 do (check (= (token-total r #'token-acquires) owned) "Retry acquisition cardinality")
+                    (check (= (token-total r #'token-cancels) owned) "Retry cancel cardinality")
+                    (check (zerop (token-total r #'token-consumes)) "Retry consumed a token"))
+           (settled)
+           ;; Legitimate retry must permit later reuse with newly derived location.
+           (clear-actions) (reset-observer)
+           (check-completion w source operation old new)))))
+(defun test-fatal (operation phase fault)
+  (let* ((rules (list (new-rule :first (list (event-for operation)) '(:later))
+                      (new-rule :later (list (event-for operation)))))
+         (target (first rules)))
+    (one (list :fatal operation phase fault) rules
+         (lambda (w source old new)
+           (setf (rule-action target) fault (rule-phase target) phase)
+           (let ((outcome (attempt-invoke w source operation old new))
+                 (expected-store (if (and (eq phase :after)
+                                          (member operation '(:match :store :root-store))) 1 0)))
+             (check (= *raw-loads* 1) "Fatal-point load count")
+             (check (= *raw-stores* expected-store) "Fault passed wrong store boundary")
+             (check (equal (names-at :before)
+                           (if (eq phase :before) '(:first) '(:first :later)))
+                    "First-before boundary or later callback reached")
+             (check (equal (names-at :after) (if (eq phase :after) '(:first) nil))
+                    "First-after boundary or later callback reached")
+             (check (null (names-at :cancel)) "Post-exposure ordinary cancellation")
+             (format t "~&FATAL-OUTCOME ~S~%" outcome)
+             (closure-probes w)
+             (check (member outcome '(:post-publication-failure :fatal-invariant))
+                    "Exposure failure bypassed pre-established fatal escape: ~S" outcome)
+             (check (clamsara::%barrier-failed-p (configuration-barrier (world-configuration w)))
+                    "Barrier fatal marker not sticky")))
+         :fatal t)))
+(defun test-reentry (phase &optional other-context)
+  (let* ((rules (three-rules :read)) (target (second rules)))
+    (one (list (if other-context :second-context-busy :same-context) phase) rules
+         (lambda (w source old new)
+           (when other-context
+             (setf *second-context* (bind-mutator (world-configuration w) :second :default)))
+           (setf (rule-action target) (if other-context :second-context :reenter)
+                 (rule-phase target) phase)
+           (check-completion w source :read old new)
+           (check (eq (rule-action-result target) :retry) "Nested entry did not retry")
+           (check (equal (names-at :before) '(:a :b :c)) "Nested call reached exposure/lost outer frame")
+           (check (equal (names-at :after) '(:a :b :c)) "Outer consumption lost")
+           (if other-context
+               (progn
+                 (check (equal (names-at :cancel) '(:c :b :a)) "Contender did not reverse-cancel")
+                 (dolist (r rules)
+                   (check (= (token-total r #'token-acquires) 2) "Contender acquisition count")
+                   (check (= (token-total r #'token-cancels) 1) "Contender cancellation count")
+                   (check (= (token-total r #'token-consumes) 1) "Outer consumption count")))
+               (progn
+                 (check (equal (names-at :reserve) '(:a :b :c)) "Reentry reached reserve before scratch admission")
+                 (check (null (names-at :cancel)) "Inner entry canceled outer ownership")))
+           (clear-actions) (reset-observer)
+           (check-completion w source :read old new)))))
+(defun test-active-control (action phase)
+  (let* ((rules (three-rules :read)) (target (second rules)))
+    (one (list :active-control action phase) rules
+         (lambda (w source old new)
+           (setf (rule-action target) action (rule-phase target) phase)
+           (check-completion w source :read old new)
+           (check (eq (rule-action-result target) (if (eq action :unbind) :retry :rejected))
+                  "Active barrier did not reject lifecycle transition")
+           (check (eq (clamsara::%context-state (world-context w)) :bound) "Live context retired")
+           (check (eq (cycle-result-status *cycle-record*) :uninitialized) "Rejected collect changed record")
+           (clear-actions) (reset-observer)
+           (check-completion w source :read old new)))))
+
+;;;; Independently authored acceptance matrix.
+(dolist (operation '(:match :mismatch :read :store :root-store))
+  (dolist (phase '(:reserve :admit :transform))
+    (dotimes (index 3) (test-retry operation phase index))))
+;; Union cancellation includes both event sets. It asserts no resource-capacity
+;; admission claim: the fixed token markers witness ownership only.
+(dolist (phase '(:reserve :admit :transform))
+  (dotimes (index 4) (test-retry :match phase index t)))
+(dolist (operation '(:match :mismatch :read :store :root-store))
+  (dolist (phase '(:before :after))
+    (dolist (fault '(:error :throw)) (test-fatal operation phase fault))))
+(dolist (phase '(:reserve :admit :transform)) (test-reentry phase))
+(test-reentry :admit t)
+(dolist (phase '(:reserve :admit :transform))
+  (dolist (action '(:unbind :collect)) (test-active-control action phase)))
+
+;; Mismatch settlement has two READ and two CAS rules in one explicit graph.
+(one :mismatch-disjoint-terminal-once (mixed-rules)
+     (lambda (w source old new)
+       (check-completion w source :mismatch old new)
+       (check (equal (names-at :cancel) '(:w2 :w1)) "Write-only mismatch cancellation is forward")
+       (check (equal (names-at :before) '(:r1 :r2)) "Mismatch read callback sequence")
+       (check (equal (names-at :after) '(:r1 :r2)) "Mismatch read consumption sequence")
+       (dolist (r *rules*)
+         (check (= (token-total r #'token-acquires) 1) "Mismatch reserved twice")
+         (check (= (token-total r #'token-cancels) (if (member :cas (rule-events r)) 1 0))
+                "Mismatch canceled wrong reservation")
+         (check (= (token-total r #'token-consumes) (if (member :read (rule-events r)) 1 0))
+                "Mismatch consumed wrong reservation"))))
+(one :match-disjoint-positive-control (mixed-rules)
+     (lambda (w source old new)
+       (check-completion w source :match old new)
+       (check (equal (names-at :before) '(:w1 :r1 :w2 :r2)) "Match before order")
+       (check (equal (names-at :after) '(:w1 :r1 :w2 :r2)) "Match after order")
+       (dolist (r *rules*)
+         (check (= (token-total r #'token-acquires) 1) "Disjoint rule reserved twice")
+         (check (= (token-total r #'token-consumes) 1) "Disjoint rule not consumed once")
+         (check (zerop (token-total r #'token-cancels)) "Successful disjoint rule canceled"))))
+(one :disjoint-read-first-positive-control
+     (list (new-rule :read '(:read) '(:write)) (new-rule :write '(:cas)))
+     (lambda (w source old new)
+       (check-completion w source :match old new)
+       (check (equal (names-at :before) '(:read :write)) "Read-first explicit order")
+       ;; This independently detects reserve/admit event misrouting, without
+       ;; assuming any behavior for a dual READ+CAS contribution.
+       (dolist (row (rows))
+         (when (member (first row) '(:reserve :acquire :admit))
+           (check (eq (third row) (if (eq (second row) :read) :read :cas))
+                  "Reserve/admit operation does not match admitted event path")))))
+
+;; Unknown unreturned reservation faults are NOT treated as ordinary recoverable
+;; pre-effect errors. Existing earlier tokens may be canceled, but this callback
+;; deliberately raises/throws after acquiring a private token and before return.
+(dolist (fault '(:error :throw))
+  (let* ((rules (three-rules :read)) (target (second rules)))
+    (one (list :unknown-unreturned-reservation fault) rules
+         (lambda (w source old new)
+           (setf (rule-action target) fault (rule-phase target) :reserve)
+           (let ((outcome (attempt-invoke w source :read old new)))
+             (format t "~&UNKNOWN-RESERVE-OUTCOME ~S~%" outcome)
+             (check (zerop *raw-loads*) "Unknown reserve fault loaded slot")
+             (check (zerop *raw-stores*) "Unknown reserve fault stored slot")
+             (check (null (names-at :before)) "Unknown reserve fault exposed callback")
+             (closure-probes w)
+             (check (not (eq outcome :ordinary-return)) "Unknown reserve fault returned success")))
+         :fatal t)))
+
+;; Dual rejection is a specification-gap gate, not an invented two-reserve rule.
+(incf *cases*)
+(let ((*rules* (list (new-rule :dual '(:read :cas))))
+      (*capture* nil) (w nil) (rejected nil)
+      (*construction-observation* (make-construction-observation)))
+  (handler-case
+      (progn
+        (handler-case (setf w (make-review-world))
+          (clamsara::construction-rejected () (setf rejected t)))
+        (check rejected "Ambiguous dual READ+CAS contribution was published")
+        (let ((construction (observed-construction *construction-observation*)))
+          (when construction
+            (check (not (eq (clamsara::%context-state construction) :published))
+                   "Dual rejection occurred after construction publication")))
+        (push (list :dual-prepublication-rejection :pass) *results*)
+        (format t "~&INDEPENDENT-PASS :DUAL-PREPUBLICATION-REJECTION~%"))
+    (error (condition)
+      (incf *failures*)
+      (push (list :dual-prepublication-rejection w nil condition nil) *failed-worlds*)
+      (push (list :dual-prepublication-rejection :fail (type-of condition)) *results*)
+      (format t "~&INDEPENDENT-FAIL :DUAL-PREPUBLICATION-REJECTION [~S] ~A~%"
+              (type-of condition) condition))))
+(format t "~&INDEPENDENT-SUMMARY cases=~D failures=~D failed-worlds=~D expected-fatal-worlds=~D~%"
+        *cases* *failures* (length *failed-worlds*) (length *expected-fatal-worlds*))
+(check (zerop *failures*) "Independent CAS acceptance failures: ~D" *failures*)

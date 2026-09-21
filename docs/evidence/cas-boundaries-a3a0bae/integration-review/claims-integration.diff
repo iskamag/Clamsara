@@ -1,0 +1,214 @@
+--- /tmp/clamsara-cas-final-review-pvyqoprb/independent-review/cas-final/claims-transforms-03.lisp
++++ test/quality/barrier-claims.lisp
+@@ -1,8 +1,12 @@
++;;;; Integrated independent 15 public-claim and five managed-transform histories.
++;;;; Original claims-transforms-03.lisp and both review logs remain archived.
++;;;; The explicit runner preserves earlier failed owners across repetitions.
+ ;;;; Independent public-claim/pool and non-identity transform proofs.
+ ;;;; Real make-quality-world configure-plan seam; no production method override.
+-(defpackage #:clamsara.cas-final-proofs
+-  (:use #:cl #:clamsara #:clamsara.quality.support))
+-(in-package #:clamsara.cas-final-proofs)
++(defpackage #:clamsara.quality.barrier-claims
++  (:use #:cl #:clamsara #:clamsara.quality.support)
++  (:export #:run-barrier-claim-tests))
++(in-package #:clamsara.quality.barrier-claims)
+ (defvar *capacity* 4)
+ (defvar *world* nil)
+ (defvar *last-plan* nil)
+@@ -257,7 +261,12 @@
+             (set-world-root *world* 2 new)
+             (set-node-slot *world* source 1 old)
+             (reset-observer *world*)
+-            (funcall body *world* source old new))
++            (let ((outcome
++                    (catch 'clamsara::simulator-fatal
++                      (funcall body *world* source old new)
++                      :body-complete)))
++              (check (eq outcome :body-complete)
++                     "Unexpected fatal diagnostic in public claim history: ~S" outcome)))
+           (settled *world*)
+           (clear-retries *world*)
+           (close-quality-world *world*)
+@@ -279,83 +288,6 @@
+   (dolist (rule (plan-rules (world-plan w)))
+     (check (= (rule-acquires rule) (rule-consumes rule) 1) "Success did not consume once"))
+   (settled w))
+-
+-;; Actual claims total 4 entries. Capacity 3 must fail before publication and
+-;; release the real acquisition transaction, not merely trip a busy marker.
+-(incf *cases*)
+-(let ((*capacity* 3) (*world* nil) (*last-plan* nil)
+-      (*construction-observation* (make-construction-observation)))
+-  (handler-case
+-      (let ((rejection nil))
+-        (handler-case
+-            (setf *world* (make-quality-world :configure-plan #'configure-pool-plan :root-count 12))
+-          (clamsara::construction-rejected (condition) (setf rejection condition)))
+-        (check (and rejection
+-                    (eq (clamsara::construction-rejection-reason rejection) :barrier-claim-capacity-exhausted))
+-               "Undersized public claim pool did not reject for its capacity")
+-        (check (clamsara::construction-rejection-paths rejection) "Capacity rejection has no resource path")
+-        (let* ((construction (observed-construction *construction-observation*))
+-               (configuration (clamsara::construction-configuration construction))
+-               (resource (gethash :independent-cas-pool (clamsara::%context-resources construction))))
+-          (check construction "No real resource acquisition observed")
+-          (check (eq (clamsara::%configuration-state configuration) :failed) "Undersized configuration published")
+-          (check (not (clamsara::%configuration-barrier-bound-p configuration)) "Capacity checked after barrier publication")
+-          (check (eq (clamsara::%context-state construction) :released) "Capacity rejection did not unwind")
+-          (check (= (clamsara::%resource-state-entry-capacity resource) 3) "Not the intended undersized resource")
+-          (check (clamsara::%resource-state-released-p resource) "Rejected pool resource not released")
+-          (check (every #'clamsara::%transaction-entry-released-p
+-                        (clamsara::%context-transaction-log construction)) "Acquisition unwind incomplete")
+-          (check (null (plan-pool *last-plan*)) "Rejected plan initialized runtime pool"))
+-        (format t "~&CLAIM-PROOF-PASS :PUBLIC-CLAIMS-UNDERSIZED-REJECT~%"))
+-    (error (condition)
+-      (incf *failures*)
+-      (push (list :public-claims-undersized-reject *world* *last-plan* condition nil) *failed-worlds*)
+-      (format t "~&CLAIM-PROOF-FAIL :PUBLIC-CLAIMS-UNDERSIZED-REJECT [~S] ~A~%" (type-of condition) condition))))
+-(one :exact-capacity-match-and-reuse
+-  (lambda (w source old new)
+-    (assert-match w source old new)
+-    (reset-observer w)
+-    (assert-match w source new old)))
+-(one :exact-capacity-mismatch-and-reuse
+-  (lambda (w source old new)
+-    (multiple-value-bind (observed success status) (invoke w source :cas nil new)
+-      (check (and (eq observed old) (null success) (eq status :complete)) "Shared-pool mismatch result"))
+-    (check (and (= *loads* 1) (zerop *stores*) (eq (raw-slot w source) old)) "Mismatch mutated slot/load count")
+-    (check (= (plan-peak (world-plan w)) 4) "Mismatch omitted simultaneous write/read reservation")
+-    (check (equal (names-at :cancel) '(:w2 :w1)) "Mismatch did not reverse-cancel write-only pool entries")
+-    (check (equal (names-at :transform) '(:r1 :r2)) "Mismatch ran a write transform")
+-    (check (equal (names-at :before) '(:r1 :r2)) "Mismatch exposed write-only rule")
+-    (check (equal (names-at :after) '(:r1 :r2)) "Mismatch consumed wrong pool entries")
+-    (dolist (row (rows))
+-      (when (eq (first row) :before) (check (= (fourth row) 2) "Read exposure retained write-only pool entries")))
+-    (settled w)
+-    (reset-observer w)
+-    (assert-match w source old new)))
+-(dolist (phase '(:reserve :admit :transform))
+-  (dotimes (position 4)
+-    (one (list :public-claim-retry phase position)
+-      (lambda (w source old new)
+-        (let* ((rules (plan-rules (world-plan w))) (rule (nth position rules)))
+-          (setf (rule-retry-phase rule) phase)
+-          (multiple-value-bind (observed success status) (invoke w source :cas old new)
+-            (check (and (null observed) (null success) (eq status :retry)) "Resource retry exposed candidate"))
+-          (check (eq (raw-slot w source) old) "Resource retry changed slot")
+-          (check (= *loads* (if (eq phase :transform) 1 0)) "Resource retry raw-load count")
+-          (check (zerop *stores*) "Resource retry performed a raw store")
+-          (check (= (plan-peak (world-plan w)) (if (eq phase :reserve) position 4))
+-                 "Resource live peak does not match actual acquired claims")
+-          (check (equal (names-at :cancel)
+-                        (reverse (mapcar #'rule-name (if (eq phase :reserve) (subseq rules 0 position) rules))))
+-                 "Resource retry reverse settlement order")
+-          (check (and (null (names-at :before)) (null (names-at :after))) "Retry exposed/consumed entries")
+-          (loop for r in rules for i from 0
+-                for n = (if (and (eq phase :reserve) (>= i position)) 0 1)
+-                do (check (= (rule-acquires r) (rule-cancels r) n) "Resource acquired/canceled twice")
+-                   (check (zerop (rule-consumes r)) "Retry consumed resource instead of cancellation"))
+-          (settled w)
+-          (clear-retries w)
+-          (reset-observer w)
+-          (assert-match w source old new))))))
+ 
+ (defun install-transform-targets (w old)
+   ;; Root every managed transform target before using it as an entry argument.
+@@ -434,9 +366,91 @@
+       ;; The entry-only authored transform bindings ended above. The unchanged
+       ;; collector scans actual heap slots; the graph oracle reads real objects.
+       (check-post-gc-graph w (not (member mode '(:read :mismatch-expected-is-read-result)))))))
+-(dolist (mode '(:match-raw-expected :mismatch-expected-is-read-result :read
+-                :read-transform-retry :write-transform-retry))
+-  (test-transform mode))
+-(format t "~&CLAIM-TRANSFORM-SUMMARY cases=~D failures=~D retained-failed-worlds=~D~%"
+-        *cases* *failures* (length *failed-worlds*))
+-(check (zerop *failures*) "Independent public claim/transform proofs failed")
++(defun run-barrier-claim-tests ()
++  (let ((*cases* 0) (*failures* 0)
++        (old-failed (length *failed-worlds*)))
++    ;; Actual claims total 4 entries. Capacity 3 must fail before publication and
++    ;; release the real acquisition transaction, not merely trip a busy marker.
++    (incf *cases*)
++    (let ((*capacity* 3) (*world* nil) (*last-plan* nil)
++          (*construction-observation* (make-construction-observation)))
++      (handler-case
++          (let ((rejection nil))
++            (handler-case
++                (setf *world* (make-quality-world :configure-plan #'configure-pool-plan :root-count 12))
++              (clamsara::construction-rejected (condition) (setf rejection condition)))
++            (check (and rejection
++                        (eq (clamsara::construction-rejection-reason rejection) :barrier-claim-capacity-exhausted))
++                   "Undersized public claim pool did not reject for its capacity")
++            (check (clamsara::construction-rejection-paths rejection) "Capacity rejection has no resource path")
++            (let* ((construction (observed-construction *construction-observation*))
++                   (configuration (clamsara::construction-configuration construction))
++                   (resource (gethash :independent-cas-pool (clamsara::%context-resources construction))))
++              (check construction "No real resource acquisition observed")
++              (check (eq (clamsara::%configuration-state configuration) :failed) "Undersized configuration published")
++              (check (not (clamsara::%configuration-barrier-bound-p configuration)) "Capacity checked after barrier publication")
++              (check (eq (clamsara::%context-state construction) :released) "Capacity rejection did not unwind")
++              (check (= (clamsara::%resource-state-entry-capacity resource) 3) "Not the intended undersized resource")
++              (check (clamsara::%resource-state-released-p resource) "Rejected pool resource not released")
++              (check (every #'clamsara::%transaction-entry-released-p
++                            (clamsara::%context-transaction-log construction)) "Acquisition unwind incomplete")
++              (check (null (plan-pool *last-plan*)) "Rejected plan initialized runtime pool"))
++            (format t "~&CLAIM-PROOF-PASS :PUBLIC-CLAIMS-UNDERSIZED-REJECT~%"))
++        (error (condition)
++          (incf *failures*)
++          (push (list :public-claims-undersized-reject *world* *last-plan* condition nil) *failed-worlds*)
++          (format t "~&CLAIM-PROOF-FAIL :PUBLIC-CLAIMS-UNDERSIZED-REJECT [~S] ~A~%" (type-of condition) condition))))
++    (one :exact-capacity-match-and-reuse
++      (lambda (w source old new)
++        (assert-match w source old new)
++        (reset-observer w)
++        (assert-match w source new old)))
++    (one :exact-capacity-mismatch-and-reuse
++      (lambda (w source old new)
++        (multiple-value-bind (observed success status) (invoke w source :cas nil new)
++          (check (and (eq observed old) (null success) (eq status :complete)) "Shared-pool mismatch result"))
++        (check (and (= *loads* 1) (zerop *stores*) (eq (raw-slot w source) old)) "Mismatch mutated slot/load count")
++        (check (= (plan-peak (world-plan w)) 4) "Mismatch omitted simultaneous write/read reservation")
++        (check (equal (names-at :cancel) '(:w2 :w1)) "Mismatch did not reverse-cancel write-only pool entries")
++        (check (equal (names-at :transform) '(:r1 :r2)) "Mismatch ran a write transform")
++        (check (equal (names-at :before) '(:r1 :r2)) "Mismatch exposed write-only rule")
++        (check (equal (names-at :after) '(:r1 :r2)) "Mismatch consumed wrong pool entries")
++        (dolist (row (rows))
++          (when (eq (first row) :before) (check (= (fourth row) 2) "Read exposure retained write-only pool entries")))
++        (settled w)
++        (reset-observer w)
++        (assert-match w source old new)))
++    (dolist (phase '(:reserve :admit :transform))
++      (dotimes (position 4)
++        (one (list :public-claim-retry phase position)
++          (lambda (w source old new)
++            (let* ((rules (plan-rules (world-plan w))) (rule (nth position rules)))
++              (setf (rule-retry-phase rule) phase)
++              (multiple-value-bind (observed success status) (invoke w source :cas old new)
++                (check (and (null observed) (null success) (eq status :retry)) "Resource retry exposed candidate"))
++              (check (eq (raw-slot w source) old) "Resource retry changed slot")
++              (check (= *loads* (if (eq phase :transform) 1 0)) "Resource retry raw-load count")
++              (check (zerop *stores*) "Resource retry performed a raw store")
++              (check (= (plan-peak (world-plan w)) (if (eq phase :reserve) position 4))
++                     "Resource live peak does not match actual acquired claims")
++              (check (equal (names-at :cancel)
++                            (reverse (mapcar #'rule-name (if (eq phase :reserve) (subseq rules 0 position) rules))))
++                     "Resource retry reverse settlement order")
++              (check (and (null (names-at :before)) (null (names-at :after))) "Retry exposed/consumed entries")
++              (loop for r in rules for i from 0
++                    for n = (if (and (eq phase :reserve) (>= i position)) 0 1)
++                    do (check (= (rule-acquires r) (rule-cancels r) n) "Resource acquired/canceled twice")
++                       (check (zerop (rule-consumes r)) "Retry consumed resource instead of cancellation"))
++              (settled w)
++              (clear-retries w)
++              (reset-observer w)
++              (assert-match w source old new))))))
++    
++    (dolist (mode '(:match-raw-expected :mismatch-expected-is-read-result :read
++                    :read-transform-retry :write-transform-retry))
++      (test-transform mode))
++    (format t "~&BARRIER-CLAIM-SUMMARY cases=~D failures=~D failed-worlds=~D retained-total=~D~%"
++            *cases* *failures* (- (length *failed-worlds*) old-failed)
++            (length *failed-worlds*))
++    (check (= *cases* 20) "Public claim/transform matrix changed: ~D" *cases*)
++    (check (zerop *failures*) "Independent public claim/transform proofs failed")))

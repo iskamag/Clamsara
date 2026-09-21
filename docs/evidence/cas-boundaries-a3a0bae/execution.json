@@ -1,0 +1,148 @@
+{
+  "base_commit": "a3a0bae",
+  "production_state": "Historical baseline uses a3a0bae plus held indexed/name/ledger draft. Six-file CAS repairs and later integration/candidate runs are separately pinned below.",
+  "runs": [
+    {
+      "bootstrap": "bootstrap.lisp",
+      "launcher_pid": 9571,
+      "sbcl_main_thread_tid": 9573,
+      "exit_code": 1,
+      "duration_seconds": 0.6227862969972193,
+      "cases": 8,
+      "failed_cases": 8,
+      "retained_failed_worlds": 8,
+      "observer": "host-cons transcript; not bounded-allocation evidence"
+    },
+    {
+      "bootstrap": "bootstrap-02.lisp",
+      "launcher_pid": 9654,
+      "sbcl_main_thread_tid": 9656,
+      "exit_code": 1,
+      "duration_seconds": 0.6465612580068409,
+      "cases": 8,
+      "failed_cases": 8,
+      "retained_failed_worlds": 8,
+      "observer": "384-cell preallocated symbol-only callback transcript"
+    }
+  ],
+  "scope": [
+    "Parent-authored assertions, actual construct-plan, packed SemiSpace world, real managed source/old/new and genuine roots.",
+    "No forced failure cleanup. Fixed observer is not a target/no-allocation admission proof.",
+    "Rule token is a preexisting opaque ownership marker with no declared resource claims; these runs are NOT simultaneous resource-union capacity acceptance.",
+    "Disjoint event-routing case demonstrates current construction/runtime inconsistency; the paper OPERATION wording gap is recorded separately.",
+    "Independent report is source/spec-only, not independently executed evidence.",
+    "Original logs/runners unchanged; production/test/ASDF/helper pins checked unchanged per run."
+  ],
+  "draft_runs": [
+    {
+      "log": "parent-draft-01.log",
+      "pid": 10344,
+      "exit_code": 0,
+      "duration_seconds": 0.995325425057672,
+      "scope": "Parent8 PASS;3expectedfatalworlds retained; missing harness catch of configured fatal THROW recorded as SIMPLE-CONTROL-ERROR, not a production formatting defect."
+    },
+    {
+      "log": "parent-draft-02-independent.log",
+      "pid": 10497,
+      "exit_code": 0,
+      "duration_seconds": 2.39664004300721,
+      "scope": "Parent replay of unchanged independent94 PASS;23expectedfatalworlds retained."
+    },
+    {
+      "log": "parent-full-01.log",
+      "pid": 10603,
+      "exit_code": 0,
+      "duration_seconds": 5.934211819898337,
+      "scope": "main/tools/workload/optional288/structurePASS; before finalizer pin-entry checks. Existing tool/workload diagnostics remain."
+    },
+    {
+      "log": "parent-full-02.log",
+      "pid": 10716,
+      "exit_code": 0,
+      "duration_seconds": 6.314710521022789,
+      "scope": "One pinned six-file draft: main/tools/workload/optional288/structure and unchangedindependent94+parent8 PASS; expectedfatal23+3 deliberatelyretained; not completeconformance or target admission."
+    },
+    {
+      "log": "parent-shutdown-fixed.log",
+      "pid": 11332,
+      "exit_code": 0,
+      "duration_seconds": 8.300595537992194,
+      "scope": "Fullsuite; integrated102 twice including after archived AROUND observers; unmodifiedindependent156PASS. Distinct histories164, not258. Precise fatalshutdown rejects before state change. Extra62 integration followed and is not yet natively tested."
+    }
+  ],
+  "later_runs": {
+    "integration-01": {
+      "root": "/tmp/clamsara-cas-integrated164-eiaxaqtu",
+      "pid": 12239,
+      "exit": 1,
+      "duration": 3.459475298994221,
+      "failure": "Integration edit missed EXTRA-ONE dynamic hook and algorithm bindings. Three raw fault injections never fired; MarkSweep-labelled controls actually used SemiSpace. Original source/logs/pins preserved; this is harness evidence, not production regression."
+    },
+    "integration-02": {
+      "root": "/tmp/clamsara-cas-integrated164-fixed-53w7k4wp",
+      "pid": 12532,
+      "exit": 1,
+      "duration": 6.858861351036467,
+      "scope": "Full components and integrated164 PASS; archived156 PASS; archivednew20 had18 failures because raw observer received unsupported :COMPARISON. Integration API changed without updating old observer. No production change. Original sources/logs/pins preserved."
+    },
+    "integration-03": {
+      "root": "/tmp/clamsara-cas-integrated184-x19neen7",
+      "pid": 12601,
+      "exit": 0,
+      "duration": 8.990802016924135,
+      "summary": "Full main/tools/workload/optional288/structure, integrated184+archived176+repeat184 PASS. Zero failed worlds; retained fatal49 per integrated run +46 archived;144 cumulative. Source/test/paper/bootstrap pins unchanged. Explicitly no clean-warning claim."
+    },
+    "candidate-01": {
+      "root": "/tmp/clamsara-cas-only-native-mohxf8_l",
+      "pid": 12733,
+      "exit": 1,
+      "duration": 7.586021936964244,
+      "scope": "Main integrated184 PASS; workload dependency startup failed missing ALEXANDRIA package. Private (t directory) output map flattened package.fasl from distinct source files into one. Original cache/log preserved. New runner uses :root/:implementation and asserts distinct paths. No source/dependency/cache deletion or runtime repair."
+    },
+    "candidate-02": {
+      "root": "/tmp/clamsara-cas-only-native2-oco_zjse",
+      "pid": 12854,
+      "exit": 1,
+      "duration": 0.34004881198052317,
+      "scope": "Harness configuration failed before tests: :ROOT takes relative following components; absolute pathname rejected. Read installed ASDF resolver, corrected to (t (absolute-directory-string :implementation)), which wildens relative source suffix. Assert distinct outputs before tests. No source/dependency edit."
+    },
+    "candidate-03": {
+      "root": "/tmp/clamsara-cas-only-1hf1b7ih",
+      "native_root": "/tmp/clamsara-cas-only-native3-zmv7go3l",
+      "pid": 12981,
+      "exit_code": 0,
+      "duration_seconds": 16.43008020403795,
+      "summary": "Full main/tools/workload/optional288/structure +184 integrated +176 unchanged archived +184 repeat PASS;144 expectedfatal worlds retained, zero failures; all pins unchanged. 20 fixture and whole paper pin checks unchanged in live/candidate; shared Maclina clean d92e9254. Correct private output paths proven distinct."
+    },
+    "staged-final": {
+      "candidate_root": "/tmp/clamsara-cas-staged-yik9o9qk",
+      "staged_tree_before_final_documents": "5db37bd2943e4d1c1b61d67f1cdc4d568b98f731",
+      "pid": 13509,
+      "exit_code": 0,
+      "duration_seconds": 16.33747253101319,
+      "summary": "Exact staged runtime/test/ASDF source; full components,184 integrated,176 unchanged cases loaded from staged evidence,184 repeat. Zero failed worlds;144 expectedfatal retained; allpinsunchanged. Additional paper inputs copied separately; later evidence/report additions are documentation-only."
+    }
+  },
+  "final_independent": {
+    "directory": "final-review",
+    "pid": 12020,
+    "exit_code": 0,
+    "duration_seconds": 2.628832073,
+    "cases": 176,
+    "failures": 0,
+    "expected_fatal_worlds": 46,
+    "pins": 106,
+    "scope": "Unchanged156 +15 actual public claim pool +5 rooted nonidentity-transform/two-GC graph histories. Cleared only first frozen shutdown defect. Not full admission/target/benchmarks."
+  },
+  "integration_review": {
+    "directory": "integration-review",
+    "kind": "source-only",
+    "verdict": "scoped ACCEPT",
+    "code_overlay_count": 12,
+    "pins": 104,
+    "scenarios_preserved": 38,
+    "unchanged_helper_bodies": 66,
+    "histories": 184,
+    "whole_tree_qualification": "Code-only candidate also contained manifest and25 copied paper files, and lacked new evidence archive. Later staged candidate includes archive and uses it; these are distinct snapshots."
+  }
+}

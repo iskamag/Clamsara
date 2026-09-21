@@ -71,6 +71,58 @@ independently: neither request can alter a successor or another registry's recor
 For referent correction, the specification already explicitly requires `:stale`
 on a token/state/encoding mismatch.
 
+## CAS dual subscriptions and OPERATION — current v14 complaint
+
+`chapters/execution.tex:129-141,166-190` does not settle the reservation and
+terminal-callback contract for one opaque contribution subscribed to both READ
+and CAS. Please specify:
+
+- One reserve call for the union, or separate read/write calls?
+- Which OPERATION values reach reserve/admit/transform/exposure: the outer
+  operation or each selected path?
+- How many before/after calls occur on match, in what within-contribution order,
+  and which call consumes each reservation?
+- How does mismatch settle an unused write part while retaining the read path,
+  given that cancel takes no event argument?
+
+The baseline one-token/two-after implementation had no established generic
+ownership argument. The repaired driver rejects this dual composition before
+publication. The earlier proposed two-token alternative was also an
+unsupported contract choice, not merely private storage. Do not double an
+opaque author's claims to force that choice. Under `chapters/reading.tex:48-51`,
+affected construction must reject before publication until the contract is
+resolved. No new profile label is proposed.
+
+For disjoint subscribers, contribution-first BEFORE order and reverse mismatch
+cancellation are clear requirements. The baseline also contradicted its
+own event-specialized admission by passing CAS to READ-only reserve/admit
+methods. The repair uses the selected event consistently; the OPERATION wording
+should still make the intended mapping explicit.
+The text explicitly orders BEFORE, while a matching AFTER order is consistent
+with the single frozen order rather than separately specified at line186.
+
+Finally, reserve :RETRY is explicitly failure-atomic. That does not prove an
+arbitrary ERROR/THROW before returning a token acquired nothing, nor authorize
+reopening as ordinary retry after an unknown callback fault. The driver must
+preserve known ownership and fail closed when state cannot be established.
+See [the CAS addendum](cas-barrier-contract-addendum.md).
+
+## Opaque barrier method admission — implementation limitation
+
+Current construction probes contribution methods with NIL reservation, context
+and location arguments. A valid author can specialize a method on its own opaque
+reservation class without accepting NIL. That probe can therefore reject an
+otherwise callable authored method. Nonempty COMPUTE-APPLICABLE-METHODS is also
+not a proof of effective-method success, bounded storage or non-failure.
+
+The new successful NIL-token controls prove ownership is separate from token
+value. They do not require every opaque author to accept NIL, nor fix the
+construction admission mechanism. This is an implementation proof/repair
+obligation, not a request to amend the paper or declare a new hosted profile.
+An author still cannot depend on another component's private representation.
+See `cas-barrier-fixed-review.md` for the exact scope and remaining OPERATION
+wording gap. Full opaque-author/target admission remains unproved.
+
 ## Not paper defects
 
 Duplicate method definitions, ignored initializers, permissive identity

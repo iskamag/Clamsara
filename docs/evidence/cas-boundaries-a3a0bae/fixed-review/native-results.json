@@ -1,0 +1,77 @@
+{
+  "snapshot": "/tmp/clamsara-cas-fixed-review-byz5pwd5",
+  "base_commit": "a3a0bae",
+  "pins_unchanged": true,
+  "pin_counts": {
+    "production": 41,
+    "tests_asdf": 49,
+    "paper_tex": 14
+  },
+  "production_changed_since_baseline": [
+    "src/runtime/allocation.lisp",
+    "src/runtime/barrier.lisp",
+    "src/runtime/cycle.lisp",
+    "src/runtime/finalizers.lisp",
+    "src/runtime/records.lisp",
+    "src/runtime/spaces.lisp"
+  ],
+  "canonical": "additional-05.lisp",
+  "old_cases_unchanged_sha256": "20d9b70af702cae86ffeb4a87919102c0fe7250d654ba7ecbb98d920a214ff3e",
+  "runs": [
+    {
+      "pid": 11112,
+      "exit_code": 1,
+      "duration_seconds": 2.5064208350377157,
+      "command": "sbcl --noinform --disable-debugger --no-userinit --no-sysinit --load /tmp/clamsara-cas-fixed-review-byz5pwd5/independent-review/cas-fixed/bootstrap-01.lisp --quit > /tmp/clamsara-cas-fixed-review-byz5pwd5/independent-review/cas-fixed/native-01.log 2>&1",
+      "cases": 155,
+      "passes": 153,
+      "failures": 2,
+      "failure_kind": "harness undefined-function qualification mistakes; corrected in final run",
+      "log": "native-01.log"
+    },
+    {
+      "pid": 11176,
+      "exit_code": 1,
+      "duration_seconds": 2.454684930969961,
+      "command": "sbcl --noinform --disable-debugger --no-userinit --no-sysinit --load /tmp/clamsara-cas-fixed-review-byz5pwd5/independent-review/cas-fixed/bootstrap-02.lisp --quit > /tmp/clamsara-cas-fixed-review-byz5pwd5/independent-review/cas-fixed/native-02.log 2>&1",
+      "cases": 156,
+      "passes": 155,
+      "failures": 1,
+      "expected_fatal_worlds": 45,
+      "failed_worlds": 1,
+      "failure_kind": "semantic fatal-shutdown return/state change",
+      "log": "native-02.log"
+    }
+  ],
+  "artifact_sha256": {
+    "additional-01.lisp": "f69d8f744e6e76d16ba9d145c8e10ca55b8d0a5615fa221d745795491c7e59de",
+    "additional-02.lisp": "bb587a7da53ebfb8d80802a6bb23a2736ff03adc7ff6a84d0350e284a4a11157",
+    "additional-03.lisp": "ecfcd52d517ad0733392d24dd9bbceb29a5dd4c55c447c41e26d64b9a5e4bd66",
+    "additional-04.lisp": "f23981dc8ad20a376f48ca10383680de97102f8268f01d5317219b5f6a2f911a",
+    "additional-05.lisp": "8cde4d8a07d52c00cae3a5910f602e5993cf2d98951a065af36f7243aa7a3412",
+    "bootstrap-01.lisp": "db1100884810601e4c7cb5c5c2b20020bbdee31f7139ef020352482bf61cca6d",
+    "bootstrap-02.lisp": "0bd7dee97edaeee70f8db137c62da81347c6ead4d74e63e9d0d61ff36990384f",
+    "native-01.log": "e75a7fea95ee5782ba1091d6de29c229568261e704fb801b4944f037bf8c7f6b",
+    "native-02.log": "9609eaaed7f85f3219e6efaa9d3097dee3c7db9a279439a76a821ed7afaf0a8e",
+    "report.md": "f8af595862416b913064602e1a201aba1eaa8b18a9f56240ffb4c5b946696960",
+    "source-post-sha256.json": "6e7de5183bbe7f0544e4e77546e4060aa86add11a60f2722660ccb11feb005e0",
+    "source-pre-sha256.json": "6e7de5183bbe7f0544e4e77546e4060aa86add11a60f2722660ccb11feb005e0"
+  },
+  "summaries": [
+    "INDEPENDENT-SUMMARY cases=94 failures=0 failed-worlds=0 expected-fatal-worlds=23",
+    "WORKSPACE N=3 plan-measured=272 barrier-measured=96 context-measured=160 tokens-vector-measured=48 owned-vector-measured=48 construction-auxiliary-account=332128",
+    "FATAL-SHUTDOWN-EXACT outcome=:RETAINED reason=NIL unbind=:RETRY config=:PUBLISHED->:CLOSING construction=:PUBLISHED->:CLOSING release=0->0",
+    "EXTRA-SUMMARY cases=62 failures=1 total-cases=156 total-failures=1 retained-fatal=45"
+  ],
+  "failures": [
+    "INDEPENDENT-FAIL :FATAL-SHUTDOWN-REJECT-NOT-RETAINED [SIMPLE-ERROR] Irrecoverable fatal shutdown must reject, not return a recoverable retained result"
+  ],
+  "limitations": [
+    "No full conformance/target claim",
+    "NIL-probe author admission not proved",
+    "OPERATION wording gap remains",
+    "No actual public resource-claim capacity test",
+    "Fixed observer is not allocation measurement"
+  ],
+  "native_slot": "released; no active handle"
+}

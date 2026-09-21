@@ -1,0 +1,90 @@
+CAS-FAIL :GLOBAL-BEFORE-ORDER BEFORE order is event-major
+TRACE ((:RESERVE :W1 :CAS) (:RESERVE :R :CAS) (:RESERVE :W2 :CAS)
+       (:ADMIT :W1 :CAS) (:ADMIT :R :CAS) (:ADMIT :W2 :CAS) (:BEFORE :R :READ)
+       (:BEFORE :W1 :CAS) (:BEFORE :W2 :CAS) (:AFTER :R :READ)
+       (:AFTER :W1 :CAS) (:AFTER :W2 :CAS))
+CAS-FAIL :REVERSE-WRITE-ONLY-CANCELLATION Mismatch cancellation is not reverse
+TRACE ((:RESERVE :W1 :CAS) (:RESERVE :R :CAS) (:RESERVE :W2 :CAS)
+       (:ADMIT :W1 :CAS) (:ADMIT :R :CAS) (:ADMIT :W2 :CAS) (:CANCEL :W1 NIL)
+       (:CANCEL :W2 NIL) (:BEFORE :R :READ) (:AFTER :R :READ))
+MISMATCH-FAULT (:SIGNALED INJECTED-FAULT)
+CAS-FAIL :MISMATCH-BEFORE-ERROR-STICKY Mismatch exposure fault did not poison barrier
+TRACE ((:RESERVE :R :CAS) (:ADMIT :R :CAS) (:BEFORE :R :READ))
+MATCHED-NLX (:RETURNED :ESCAPED)
+CAS-FAIL :MATCHED-BEFORE-THROW-STICKY Non-error exposure exit did not poison barrier
+TRACE ((:RESERVE :R :CAS) (:ADMIT :R :CAS) (:BEFORE :R :READ))
+CAS-FAIL :SAME-CONTEXT-ADMIT-REENTRY Nested entry erased outer scratch/ownership
+TRACE ((:RESERVE :R :READ) (:ADMIT :R :READ) (:RESERVE :R :READ))
+UNBIND-ENTRY (:RETURNED
+              (#S(CLAMSARA::HOST-REFERENCE
+                  :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1202EC4F73}>
+                  :DESCRIPTOR 2
+                  :ADDRESS 4128
+                  :KIND :BASE
+                  :TAG 0
+                  :DISPLACEMENT 0)
+               :COMPLETE))
+CAS-FAIL :ACTIVE-CONTEXT-UNBIND Active callback context was unbound
+TRACE ((:RESERVE :R :READ) (:ADMIT :R :READ))
+POST-FAULT-ALLOCATION (:RETURNED :ALLOCATED NIL)
+CAS-FAIL :POST-FAULT-ALLOCATION-CLOSED Managed allocation still succeeds after exposure fault
+TRACE ((:RESERVE :R :CAS) (:ADMIT :R :CAS) (:BEFORE :R :READ))
+CAS-FAIL :ADMITTED-EQL-READ-DISPATCH There is no applicable method for the generic function
+                                       #<STANDARD-GENERIC-FUNCTION CLAMSARA:BARRIER-CONTRIBUTION-RESERVE (2)>
+                                     when called with arguments
+                                       (#<READ-EVENT-RULE {12033EAA23}>
+                                        #<CLAMSARA::SEQUENTIAL-EXECUTION-CONTEXT {1203786973}>
+                                        :CAS
+                                        #S(CLAMSARA::HOST-REFERENCE-LOCATION
+                                           :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {12035C8493}>
+                                           :DESCRIPTOR 0
+                                           :GENERATION 1
+                                           :WORD-INDEX 1
+                                           :IDENTITY :LEFT
+                                           :STRENGTH :STRONG
+                                           :ACTIVE NIL
+                                           :STAGE NIL
+                                           :STAGE-GENERATION NIL)).
+See also:
+  The ANSI Standard, Section 7.6.6
+TRACE NIL
+CAS-BOUNDARY-SUMMARY cases=8 failures=8 retained=8
+While evaluating the form starting at line 351, column 0
+  of #P"/tmp/clamsara-cas-boundary-red-5tso_czk/cases-02.lisp":
+While evaluating the form starting at line 5, column 0
+  of #P"/tmp/clamsara-cas-boundary-red-5tso_czk/bootstrap-02.lisp":
+Unhandled SIMPLE-ERROR in thread #<SB-THREAD:THREAD tid=9656 "main thread" RUNNING
+                                    {1200450003}>:
+  CAS boundary requirements failed
+
+Backtrace for: #<SB-THREAD:THREAD tid=9656 "main thread" RUNNING {1200450003}>
+0: (SB-DEBUG::DEBUGGER-DISABLED-HOOK #<SIMPLE-ERROR "CAS boundary requirements failed" {12038E52B3}> #<unused argument> :QUIT T)
+1: (SB-DEBUG::RUN-HOOK SB-EXT:*INVOKE-DEBUGGER-HOOK* #<SIMPLE-ERROR "CAS boundary requirements failed" {12038E52B3}>)
+2: (INVOKE-DEBUGGER #<SIMPLE-ERROR "CAS boundary requirements failed" {12038E52B3}>)
+3: (ERROR "CAS boundary requirements failed")
+4: (CHECK NIL "CAS boundary requirements failed")
+5: (SB-INT:SIMPLE-EVAL-IN-LEXENV (CHECK (ZEROP *FAILURES*) "CAS boundary requirements failed") #<NULL-LEXENV>)
+6: (SB-EXT:EVAL-TLF (CHECK (ZEROP *FAILURES*) "CAS boundary requirements failed") 44 NIL)
+7: ((LABELS SB-FASL::EVAL-FORM :IN SB-INT:LOAD-AS-SOURCE) (CHECK (ZEROP *FAILURES*) "CAS boundary requirements failed") 44)
+8: ((LAMBDA (SB-KERNEL:FORM &KEY :CURRENT-INDEX &ALLOW-OTHER-KEYS) :IN SB-INT:LOAD-AS-SOURCE) (CHECK (ZEROP *FAILURES*) "CAS boundary requirements failed") :CURRENT-INDEX 44)
+9: (SB-C::%DO-FORMS-FROM-INFO #<FUNCTION (LAMBDA (SB-KERNEL:FORM &KEY :CURRENT-INDEX &ALLOW-OTHER-KEYS) :IN SB-INT:LOAD-AS-SOURCE) {7FF1372F6ADB}> #<SB-C::SOURCE-INFO {120298AA83}> SB-C::INPUT-ERROR-IN-LOAD)
+10: (SB-INT:LOAD-AS-SOURCE #<SB-INT:FORM-TRACKING-STREAM for "file /tmp/clamsara-cas-boundary-red-5tso_czk/cases-02.lisp" {12029901A3}> :VERBOSE NIL :PRINT NIL :CONTEXT "loading")
+11: ((LABELS SB-FASL::LOAD-STREAM-1 :IN LOAD) #<SB-INT:FORM-TRACKING-STREAM for "file /tmp/clamsara-cas-boundary-red-5tso_czk/cases-02.lisp" {12029901A3}> NIL)
+12: (SB-FASL::CALL-WITH-LOAD-BINDINGS #<FUNCTION (LABELS SB-FASL::LOAD-STREAM-1 :IN LOAD) {7FF1372F6E9B}> #<SB-INT:FORM-TRACKING-STREAM for "file /tmp/clamsara-cas-boundary-red-5tso_czk/cases-02.lisp" {12029901A3}> NIL #<SB-INT:FORM-TRACKING-STREAM for "file /tmp/clamsara-cas-boundary-red-5tso_czk/cases-02.lisp" {12029901A3}>)
+13: (LOAD #P"/tmp/clamsara-cas-boundary-red-5tso_czk/cases-02.lisp" :VERBOSE NIL :PRINT NIL :IF-DOES-NOT-EXIST :ERROR :EXTERNAL-FORMAT :DEFAULT)
+14: (SB-INT:SIMPLE-EVAL-IN-LEXENV (LOAD #P"/tmp/clamsara-cas-boundary-red-5tso_czk/cases-02.lisp") #<NULL-LEXENV>)
+15: (SB-EXT:EVAL-TLF (LOAD #P"/tmp/clamsara-cas-boundary-red-5tso_czk/cases-02.lisp") 3 NIL)
+16: ((LABELS SB-FASL::EVAL-FORM :IN SB-INT:LOAD-AS-SOURCE) (LOAD #P"/tmp/clamsara-cas-boundary-red-5tso_czk/cases-02.lisp") 3)
+17: ((LAMBDA (SB-KERNEL:FORM &KEY :CURRENT-INDEX &ALLOW-OTHER-KEYS) :IN SB-INT:LOAD-AS-SOURCE) (LOAD #P"/tmp/clamsara-cas-boundary-red-5tso_czk/cases-02.lisp") :CURRENT-INDEX 3)
+18: (SB-C::%DO-FORMS-FROM-INFO #<FUNCTION (LAMBDA (SB-KERNEL:FORM &KEY :CURRENT-INDEX &ALLOW-OTHER-KEYS) :IN SB-INT:LOAD-AS-SOURCE) {7FF1372F74CB}> #<SB-C::SOURCE-INFO {1204F05B73}> SB-C::INPUT-ERROR-IN-LOAD)
+19: (SB-INT:LOAD-AS-SOURCE #<SB-INT:FORM-TRACKING-STREAM for "file /tmp/clamsara-cas-boundary-red-5tso_czk/bootstrap-02.lisp" {1204F0A2B3}> :VERBOSE NIL :PRINT NIL :CONTEXT "loading")
+20: ((LABELS SB-FASL::LOAD-STREAM-1 :IN LOAD) #<SB-INT:FORM-TRACKING-STREAM for "file /tmp/clamsara-cas-boundary-red-5tso_czk/bootstrap-02.lisp" {1204F0A2B3}> NIL)
+21: (SB-FASL::CALL-WITH-LOAD-BINDINGS #<FUNCTION (LABELS SB-FASL::LOAD-STREAM-1 :IN LOAD) {7FF1372F788B}> #<SB-INT:FORM-TRACKING-STREAM for "file /tmp/clamsara-cas-boundary-red-5tso_czk/bootstrap-02.lisp" {1204F0A2B3}> NIL #<SB-INT:FORM-TRACKING-STREAM for "file /tmp/clamsara-cas-boundary-red-5tso_czk/bootstrap-02.lisp" {1204F0A2B3}>)
+22: (LOAD #P"/tmp/clamsara-cas-boundary-red-5tso_czk/bootstrap-02.lisp" :VERBOSE NIL :PRINT NIL :IF-DOES-NOT-EXIST :ERROR :EXTERNAL-FORMAT :DEFAULT)
+23: (SB-IMPL::PROCESS-EVAL/LOAD-OPTIONS ((:LOAD . "/tmp/clamsara-cas-boundary-red-5tso_czk/bootstrap-02.lisp") (:QUIT)))
+24: (SB-IMPL::TOPLEVEL-INIT)
+25: ((FLET SB-UNIX::BODY :IN SB-IMPL::START-LISP))
+26: ((FLET "WITHOUT-INTERRUPTS-BODY-3" :IN SB-IMPL::START-LISP))
+27: (SB-IMPL::%START-LISP)
+
+unhandled condition in --disable-debugger mode, quitting

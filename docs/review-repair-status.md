@@ -302,10 +302,27 @@ remaining description, callable, CAS, benchmark or target work.
 
 ## Other confirmed review findings
 
-Still open: composed CAS event ordering and mismatch exposure-fault closure.
-These have not been waived by passing existing component suites. Managed
-callback/root/barrier and model-description snapshot limitations remain as
-stated above.
+The disjoint composed-CAS order, mismatch cancellation and exposure-fault
+closure defects now have a scoped repair. Invocation ownership precedes scratch
+mutation; reverse exact-once settlement and sticky fatal closure cover nonlocal
+exits. Ordinary entry cannot bypass a live pin or a fatal heap. Fatal shutdown
+rejects before changing published states; it does not return recoverable
+`:RETAINED`. Ambiguous dual READ+CAS composition rejects before publication.
+
+The main ASDF operation now includes184 barrier histories, including real public
+claim-pool capacity and rooted non-identity transforms followed by real graph
+collections. Independent review passes176 histories and accepts the permanent
+integration at source level. The CAS-only candidate excludes the held model and
+indexed tests. Its exact staged code passes main/tools/workload/optional288/
+structure,184 permanent,176 archived and repeat184 (PID13509, exit0).
+See [cas-barrier-integration.md](cas-barrier-integration.md) for revision pins,
+preserved failed harness runs, retention counts and the source-only review.
+
+This does not admit arbitrary opaque token-specialized methods through the
+existing NIL probes, resolve OPERATION wording, establish aggregate dynamic
+context accounting, or prove target synchronization/allocation freedom. Managed
+callback/root/barrier and model-description/handle limitations remain open,
+as do current complete benchmark acceptance and Mezzano admission.
 
 ## Generational recovery
 

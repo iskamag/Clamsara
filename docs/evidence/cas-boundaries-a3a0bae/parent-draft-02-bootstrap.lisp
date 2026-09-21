@@ -1,0 +1,8 @@
+(require :asdf)
+(asdf:initialize-source-registry '(:source-registry (:directory #p"/home/iskam/src/vibe/Clamsara/") :ignore-inherited-configuration))
+(asdf:initialize-output-translations '(:output-translations (t #p"/tmp/clamsara-cas-independent-draft-gng96d17/fasl/") :ignore-inherited-configuration))
+(assert (equal (truename #p"/home/iskam/src/vibe/Clamsara/")
+               (truename (asdf:system-source-directory :clamsara))))
+(asdf:load-system :clamsara/quality/support)
+(format t "~&INDEPENDENT-SOURCE ~A~%" (asdf:system-source-directory :clamsara))
+(load #p"/tmp/clamsara-staged-ledger-review-tirxn_0p/independent-review/cas-contract/acceptance-03.lisp")

@@ -18,8 +18,7 @@
 (defmethod bind-mutator (configuration execution allocation-domain)
   (let* ((plan (%configuration-runtime-plan configuration))
          (route (%allocation-route plan allocation-domain)))
-    (unless (eq (%plan-state plan) :open)
-      (%runtime-reject :collection-busy))
+    (%require-ordinary-runtime-entry plan)
     (unless route (%runtime-reject :invalid-kind))
     (when (= (%plan-next-context-generation plan) most-positive-fixnum)
       (%runtime-reject :generation-exhausted))
@@ -52,7 +51,8 @@
       (:unbound :already-unbound)
       (:bound
        (when (or (plusp (%context-finalizer-depth context))
-                 (member (%plan-state plan) '(:collecting :retained)))
+                 (not (eq (%context-barrier-state context) :idle))
+                 (member (%plan-state plan) '(:collecting :retained :fatal)))
          (return-from unbind-mutator :retry))
        (setf (%context-state context) :unbound
              (%context-allocator context) nil
@@ -127,8 +127,7 @@
                             kind bytes alignment descriptor)
   (unless (eq (%context-state context) :bound)
     (%runtime-reject :foreign-context))
-  (unless (eq (%plan-state (%context-plan context)) :open)
-    (%runtime-reject :collection-busy))
+  (%require-ordinary-runtime-entry (%context-plan context))
   (let ((validation (%validate-allocation context kind bytes alignment descriptor)))
     (when validation
       (return-from allocate-object (values nil :failed validation))))

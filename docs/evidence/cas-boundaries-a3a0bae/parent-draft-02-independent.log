@@ -1,0 +1,292 @@
+; compiling file "/home/iskam/src/vibe/Clamsara/src/package.lisp" (written 20 SEP 2026 10:33:39 AM):
+
+; wrote /tmp/clamsara-cas-independent-draft-gng96d17/fasl/package-tmpGHU3ALSV.fasl
+; compilation finished in 0:00:00.003
+; compiling file "/home/iskam/src/vibe/Clamsara/src/client/object-model.lisp" (written 20 SEP 2026 10:29:28 AM):
+
+; wrote /tmp/clamsara-cas-independent-draft-gng96d17/fasl/object-model-tmpAAURSO1.fasl
+; compilation finished in 0:00:00.003
+; compiling file "/home/iskam/src/vibe/Clamsara/src/client/metadata.lisp" (written 20 SEP 2026 10:29:28 AM):
+
+; wrote /tmp/clamsara-cas-independent-draft-gng96d17/fasl/metadata-tmp5GEXGEG5.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/src/vibe/Clamsara/src/client/roots.lisp" (written 20 SEP 2026 10:29:28 AM):
+
+; wrote /tmp/clamsara-cas-independent-draft-gng96d17/fasl/roots-tmpAR3FSGEY.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/src/vibe/Clamsara/src/client/finalizers.lisp" (written 20 SEP 2026 10:29:28 AM):
+
+; wrote /tmp/clamsara-cas-independent-draft-gng96d17/fasl/finalizers-tmpJAIDFZTC.fasl
+; compilation finished in 0:00:00.000
+; compiling file "/home/iskam/src/vibe/Clamsara/src/client/atomics.lisp" (written 20 SEP 2026 10:29:28 AM):
+
+; wrote /tmp/clamsara-cas-independent-draft-gng96d17/fasl/atomics-tmp8V3J6PE9.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/src/vibe/Clamsara/src/client/mapping.lisp" (written 20 SEP 2026 10:29:28 AM):
+
+; wrote /tmp/clamsara-cas-independent-draft-gng96d17/fasl/mapping-tmp9V47YWQF.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/src/vibe/Clamsara/src/client/diagnostics.lisp" (written 20 SEP 2026 10:29:28 AM):
+
+; wrote /tmp/clamsara-cas-independent-draft-gng96d17/fasl/diagnostics-tmp9BN22RMA.fasl
+; compilation finished in 0:00:00.000
+; compiling file "/home/iskam/src/vibe/Clamsara/src/client/coordinator.lisp" (written 20 SEP 2026 10:29:28 AM):
+
+; wrote /tmp/clamsara-cas-independent-draft-gng96d17/fasl/coordinator-tmp1CXFJSK9.fasl
+; compilation finished in 0:00:00.000
+; compiling file "/home/iskam/src/vibe/Clamsara/src/construction/protocol.lisp" (written 20 SEP 2026 11:10:20 AM):
+
+; wrote /tmp/clamsara-cas-independent-draft-gng96d17/fasl/protocol-tmpX4BRKI0R.fasl
+; compilation finished in 0:00:00.019
+; compiling file "/home/iskam/src/vibe/Clamsara/src/construction/records.lisp" (written 20 SEP 2026 10:29:28 AM):
+
+; wrote /tmp/clamsara-cas-independent-draft-gng96d17/fasl/records-tmpQ371UGST.fasl
+; compilation finished in 0:00:00.243
+; compiling file "/home/iskam/src/vibe/Clamsara/src/construction/graph.lisp" (written 20 SEP 2026 10:29:28 AM):
+
+; wrote /tmp/clamsara-cas-independent-draft-gng96d17/fasl/graph-tmp2OWI3Q7U.fasl
+; compilation finished in 0:00:00.088
+; compiling file "/home/iskam/src/vibe/Clamsara/src/construction/validation.lisp" (written 20 SEP 2026 10:29:28 AM):
+
+; wrote /tmp/clamsara-cas-independent-draft-gng96d17/fasl/validation-tmp9KKTJMYV.fasl
+; compilation finished in 0:00:00.037
+; compiling file "/home/iskam/src/vibe/Clamsara/src/construction/layout.lisp" (written 20 SEP 2026 10:29:28 AM):
+
+; wrote /tmp/clamsara-cas-independent-draft-gng96d17/fasl/layout-tmpJU0JWO19.fasl
+; compilation finished in 0:00:00.054
+; compiling file "/home/iskam/src/vibe/Clamsara/src/construction/build.lisp" (written 20 SEP 2026 09:42:51 PM):
+
+; wrote /tmp/clamsara-cas-independent-draft-gng96d17/fasl/build-tmpZX2WN8N4.fasl
+; compilation finished in 0:00:00.068
+; compiling file "/home/iskam/src/vibe/Clamsara/src/metadata/metadata.lisp" (written 20 SEP 2026 11:08:21 AM):
+
+; wrote /tmp/clamsara-cas-independent-draft-gng96d17/fasl/metadata-tmpOU81XRV0.fasl
+; compilation finished in 0:00:00.103
+; compiling file "/home/iskam/src/vibe/Clamsara/src/host/roots.lisp" (written 20 SEP 2026 11:45:10 AM):
+
+; wrote /tmp/clamsara-cas-independent-draft-gng96d17/fasl/roots-tmpY2ML9CFA.fasl
+; compilation finished in 0:00:00.087
+; compiling file "/home/iskam/src/vibe/Clamsara/src/host/coordinator.lisp" (written 20 SEP 2026 10:29:28 AM):
+
+; wrote /tmp/clamsara-cas-independent-draft-gng96d17/fasl/coordinator-tmpX2JYJDQE.fasl
+; compilation finished in 0:00:00.024
+; compiling file "/home/iskam/src/vibe/Clamsara/src/host/resources.lisp" (written 20 SEP 2026 10:32:21 AM):
+
+; wrote /tmp/clamsara-cas-independent-draft-gng96d17/fasl/resources-tmpOPCILR65.fasl
+; compilation finished in 0:00:00.055
+; compiling file "/home/iskam/src/vibe/Clamsara/src/host/address-space.lisp" (written 20 SEP 2026 11:17:10 PM):
+
+; wrote /tmp/clamsara-cas-independent-draft-gng96d17/fasl/address-space-tmpRV9F8A9A.fasl
+; compilation finished in 0:00:00.070
+; compiling file "/home/iskam/src/vibe/Clamsara/src/runtime/protocol.lisp" (written 20 SEP 2026 10:41:20 AM):
+
+; wrote /tmp/clamsara-cas-independent-draft-gng96d17/fasl/protocol-tmpK2ZAJT4I.fasl
+; compilation finished in 0:00:00.005
+; compiling file "/home/iskam/src/vibe/Clamsara/src/runtime/records.lisp" (written 21 SEP 2026 03:34:16 AM):
+
+; wrote /tmp/clamsara-cas-independent-draft-gng96d17/fasl/records-tmpUX5S4ADN.fasl
+; compilation finished in 0:00:00.053
+; compiling file "/home/iskam/src/vibe/Clamsara/src/runtime/barrier.lisp" (written 21 SEP 2026 03:39:48 AM):
+
+; wrote /tmp/clamsara-cas-independent-draft-gng96d17/fasl/barrier-tmp10401X32.fasl
+; compilation finished in 0:00:00.024
+; compiling file "/home/iskam/src/vibe/Clamsara/src/runtime/finalizers.lisp" (written 20 SEP 2026 06:30:40 PM):
+
+; wrote /tmp/clamsara-cas-independent-draft-gng96d17/fasl/finalizers-tmpZ7CBRM0G.fasl
+; compilation finished in 0:00:00.048
+; compiling file "/home/iskam/src/vibe/Clamsara/src/runtime/trace.lisp" (written 20 SEP 2026 10:50:21 AM):
+
+; wrote /tmp/clamsara-cas-independent-draft-gng96d17/fasl/trace-tmp9OZEQ0G2.fasl
+; compilation finished in 0:00:00.036
+; compiling file "/home/iskam/src/vibe/Clamsara/src/runtime/spaces.lisp" (written 21 SEP 2026 03:39:48 AM):
+
+; wrote /tmp/clamsara-cas-independent-draft-gng96d17/fasl/spaces-tmpB2JTL1W9.fasl
+; compilation finished in 0:00:00.074
+; compiling file "/home/iskam/src/vibe/Clamsara/src/runtime/cycle.lisp" (written 21 SEP 2026 03:34:16 AM):
+
+; wrote /tmp/clamsara-cas-independent-draft-gng96d17/fasl/cycle-tmpP3BI68WQ.fasl
+; compilation finished in 0:00:00.047
+; compiling file "/home/iskam/src/vibe/Clamsara/src/runtime/allocation.lisp" (written 21 SEP 2026 03:34:16 AM):
+
+; wrote /tmp/clamsara-cas-independent-draft-gng96d17/fasl/allocation-tmpQDARA81Z.fasl
+; compilation finished in 0:00:00.012
+; compiling file "/home/iskam/src/vibe/Clamsara/src/host/object-model.lisp" (written 21 SEP 2026 01:43:01 AM):
+
+; file: /home/iskam/src/vibe/Clamsara/src/host/object-model.lisp
+; in: DEFUN %HOST-NORMALIZE-STRONG-LAYOUT
+;     'NIL
+; 
+; note: deleting unreachable code
+
+; in: DEFMETHOD MAKE-OBJECT-KIND-DESCRIPTION (HOST-OBJECT-MODEL T)
+;     'NIL
+; 
+; note: deleting unreachable code
+; 
+; note: deleting unreachable code
+
+; in: DEFMETHOD BIND-OBJECT-MODEL (HOST-OBJECT-MODEL T T)
+;     (ERROR "Hosted nonbase codes require 46-bit fixnums")
+; 
+; note: deleting unreachable code
+
+
+; wrote /tmp/clamsara-cas-independent-draft-gng96d17/fasl/object-model-tmpYEMMM7SE.fasl
+; compilation finished in 0:00:00.366
+; compiling file "/home/iskam/src/vibe/Clamsara/src/host/atomics.lisp" (written 20 SEP 2026 10:34:09 AM):
+
+; wrote /tmp/clamsara-cas-independent-draft-gng96d17/fasl/atomics-tmp73HU0RPK.fasl
+; compilation finished in 0:00:00.026
+; compiling file "/home/iskam/src/vibe/Clamsara/src/host/auxiliary.lisp" (written 20 SEP 2026 11:25:00 AM):
+
+; wrote /tmp/clamsara-cas-independent-draft-gng96d17/fasl/auxiliary-tmpIO5N7K88.fasl
+; compilation finished in 0:00:00.018
+; compiling file "/home/iskam/src/vibe/Clamsara/test/quality/support.lisp" (written 20 SEP 2026 11:17:10 PM):
+
+; wrote /tmp/clamsara-cas-independent-draft-gng96d17/fasl/support-tmpCM21U60Z.fasl
+; compilation finished in 0:00:00.069
+; 
+; compilation unit finished
+;   printed 4 notes
+INDEPENDENT-SOURCE /home/iskam/src/vibe/Clamsara/
+INDEPENDENT-PASS (:RETRY :MATCH :RESERVE 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MATCH :RESERVE 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MATCH :RESERVE 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MATCH :ADMIT 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MATCH :ADMIT 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MATCH :ADMIT 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MATCH :TRANSFORM 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MATCH :TRANSFORM 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MATCH :TRANSFORM 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MISMATCH :RESERVE 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MISMATCH :RESERVE 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MISMATCH :RESERVE 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MISMATCH :ADMIT 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MISMATCH :ADMIT 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MISMATCH :ADMIT 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MISMATCH :TRANSFORM 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MISMATCH :TRANSFORM 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MISMATCH :TRANSFORM 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :READ :RESERVE 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :READ :RESERVE 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :READ :RESERVE 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :READ :ADMIT 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :READ :ADMIT 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :READ :ADMIT 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :READ :TRANSFORM 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :READ :TRANSFORM 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :READ :TRANSFORM 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :STORE :RESERVE 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :STORE :RESERVE 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :STORE :RESERVE 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :STORE :ADMIT 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :STORE :ADMIT 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :STORE :ADMIT 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :STORE :TRANSFORM 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :STORE :TRANSFORM 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :STORE :TRANSFORM 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :ROOT-STORE :RESERVE 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :ROOT-STORE :RESERVE 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :ROOT-STORE :RESERVE 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :ROOT-STORE :ADMIT 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :ROOT-STORE :ADMIT 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :ROOT-STORE :ADMIT 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :ROOT-STORE :TRANSFORM 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :ROOT-STORE :TRANSFORM 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :ROOT-STORE :TRANSFORM 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MATCH :RESERVE 0 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :RESERVE 1 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :RESERVE 2 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :RESERVE 3 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :ADMIT 0 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :ADMIT 1 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :ADMIT 2 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :ADMIT 3 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :TRANSFORM 0 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :TRANSFORM 1 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :TRANSFORM 2 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :TRANSFORM 3 :UNION)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :MATCH :BEFORE :ERROR)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :MATCH :BEFORE :THROW)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :MATCH :AFTER :ERROR)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :MATCH :AFTER :THROW)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :MISMATCH :BEFORE :ERROR)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :MISMATCH :BEFORE :THROW)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :MISMATCH :AFTER :ERROR)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :MISMATCH :AFTER :THROW)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :READ :BEFORE :ERROR)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :READ :BEFORE :THROW)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :READ :AFTER :ERROR)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :READ :AFTER :THROW)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :STORE :BEFORE :ERROR)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :STORE :BEFORE :THROW)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :STORE :AFTER :ERROR)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :STORE :AFTER :THROW)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :ROOT-STORE :BEFORE :ERROR)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :ROOT-STORE :BEFORE :THROW)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :ROOT-STORE :AFTER :ERROR)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :ROOT-STORE :AFTER :THROW)
+INDEPENDENT-PASS (:SAME-CONTEXT :RESERVE)
+INDEPENDENT-PASS (:SAME-CONTEXT :ADMIT)
+INDEPENDENT-PASS (:SAME-CONTEXT :TRANSFORM)
+INDEPENDENT-PASS (:SECOND-CONTEXT-BUSY :ADMIT)
+INDEPENDENT-PASS (:ACTIVE-CONTROL :UNBIND :RESERVE)
+INDEPENDENT-PASS (:ACTIVE-CONTROL :COLLECT :RESERVE)
+INDEPENDENT-PASS (:ACTIVE-CONTROL :UNBIND :ADMIT)
+INDEPENDENT-PASS (:ACTIVE-CONTROL :COLLECT :ADMIT)
+INDEPENDENT-PASS (:ACTIVE-CONTROL :UNBIND :TRANSFORM)
+INDEPENDENT-PASS (:ACTIVE-CONTROL :COLLECT :TRANSFORM)
+INDEPENDENT-PASS :MISMATCH-DISJOINT-TERMINAL-ONCE
+INDEPENDENT-PASS :MATCH-DISJOINT-POSITIVE-CONTROL
+INDEPENDENT-PASS :DISJOINT-READ-FIRST-POSITIVE-CONTROL
+UNKNOWN-RESERVE-OUTCOME :FATAL-INVARIANT
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:UNKNOWN-UNRETURNED-RESERVATION :ERROR)
+UNKNOWN-RESERVE-OUTCOME :FATAL-INVARIANT
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:UNKNOWN-UNRETURNED-RESERVATION :THROW)
+FATAL-UNBIND-SHUTDOWN outcome=:POST-PUBLICATION-FAILURE unbind=:RETRY shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS :FATAL-SHUTDOWN-AFTER-PUBLIC-UNBIND
+DUAL-REJECTION-REASON :BARRIER-COMPOSITION-SIGNALED
+INDEPENDENT-PASS :DUAL-PREPUBLICATION-REJECTION
+INDEPENDENT-SUMMARY cases=94 failures=0 failed-worlds=0 expected-fatal-worlds=23

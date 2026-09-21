@@ -340,6 +340,9 @@
    (state :initform :construction :accessor %plan-state)
    (retained-cycle :initform nil :accessor %plan-retained-cycle)
    (active-context-count :initform 0 :accessor %plan-active-context-count)
+   ;; Includes unresolved fatal invocations. Never confuse these ownership pins
+   ;; with a retained collector cycle or a coordinator stop token.
+   (barrier-pin-count :initform 0 :accessor %plan-barrier-pin-count)
    (next-context-generation :initform 0 :accessor %plan-next-context-generation)
    (allocation-routes :initarg :allocation-routes :initform nil
                       :reader %plan-allocation-routes)
@@ -565,6 +568,9 @@
                          :reader %context-barrier-reservations)
    (barrier-reserved-p :initarg :barrier-reserved-p
                        :reader %context-barrier-reserved-p)
+   ;; The sole owner of the fixed barrier scratch: :IDLE, :PRE-EFFECT,
+   ;; :EXPOSING, or :FAILED. Failed ownership cannot be silently recycled.
+   (barrier-state :initform :idle :accessor %context-barrier-state)
    ;; Active callback frames pin their execution context until unwind cleanup.
    (finalizer-depth :initform 0 :accessor %context-finalizer-depth)
    (state :initform :bound :accessor %context-state)))
@@ -574,3 +580,13 @@
     (unless (typep plan 'sequential-runtime-plan)
       (%runtime-reject :unsupported-algorithm))
     plan))
+
+(defun %require-ordinary-runtime-entry (plan)
+  ;; Guard every ordinary route, not just subsequent barrier operations.
+  (when (eq (%plan-state plan) :fatal)
+    (%runtime-reject :fatal-invariant))
+  (unless (eq (%plan-state plan) :open)
+    (%runtime-reject :collection-busy))
+  (when (plusp (%plan-barrier-pin-count plan))
+    (%runtime-reject :barrier-busy))
+  (values))

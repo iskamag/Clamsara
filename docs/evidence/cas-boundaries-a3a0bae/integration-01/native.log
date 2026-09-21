@@ -1,0 +1,528 @@
+; compiling file "/home/iskam/src/vibe/Clamsara/src/package.lisp" (written 20 SEP 2026 10:33:39 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/src/package-tmpGHU3ALSV.fasl
+; compilation finished in 0:00:00.003
+; compiling file "/home/iskam/src/vibe/Clamsara/src/client/object-model.lisp" (written 20 SEP 2026 10:29:28 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/src/client/object-model-tmpAAURSO1.fasl
+; compilation finished in 0:00:00.004
+; compiling file "/home/iskam/src/vibe/Clamsara/src/client/metadata.lisp" (written 20 SEP 2026 10:29:28 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/src/client/metadata-tmp5GEXGEG5.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/src/vibe/Clamsara/src/client/roots.lisp" (written 20 SEP 2026 10:29:28 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/src/client/roots-tmpAR3FSGEY.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/src/vibe/Clamsara/src/client/finalizers.lisp" (written 20 SEP 2026 10:29:28 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/src/client/finalizers-tmpJAIDFZTC.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/src/vibe/Clamsara/src/client/atomics.lisp" (written 20 SEP 2026 10:29:28 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/src/client/atomics-tmp8V3J6PE9.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/src/vibe/Clamsara/src/client/mapping.lisp" (written 20 SEP 2026 10:29:28 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/src/client/mapping-tmp9V47YWQF.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/src/vibe/Clamsara/src/client/diagnostics.lisp" (written 20 SEP 2026 10:29:28 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/src/client/diagnostics-tmp9BN22RMA.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/src/vibe/Clamsara/src/client/coordinator.lisp" (written 20 SEP 2026 10:29:28 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/src/client/coordinator-tmp1CXFJSK9.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/src/vibe/Clamsara/src/construction/protocol.lisp" (written 20 SEP 2026 11:10:20 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/src/construction/protocol-tmpX4BRKI0R.fasl
+; compilation finished in 0:00:00.016
+; compiling file "/home/iskam/src/vibe/Clamsara/src/construction/records.lisp" (written 20 SEP 2026 10:29:28 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/src/construction/records-tmpQ371UGST.fasl
+; compilation finished in 0:00:00.229
+; compiling file "/home/iskam/src/vibe/Clamsara/src/construction/graph.lisp" (written 20 SEP 2026 10:29:28 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/src/construction/graph-tmp2OWI3Q7U.fasl
+; compilation finished in 0:00:00.057
+; compiling file "/home/iskam/src/vibe/Clamsara/src/construction/validation.lisp" (written 20 SEP 2026 10:29:28 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/src/construction/validation-tmp9KKTJMYV.fasl
+; compilation finished in 0:00:00.037
+; compiling file "/home/iskam/src/vibe/Clamsara/src/construction/layout.lisp" (written 20 SEP 2026 10:29:28 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/src/construction/layout-tmpJU0JWO19.fasl
+; compilation finished in 0:00:00.041
+; compiling file "/home/iskam/src/vibe/Clamsara/src/construction/build.lisp" (written 20 SEP 2026 09:42:51 PM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/src/construction/build-tmpZX2WN8N4.fasl
+; compilation finished in 0:00:00.066
+; compiling file "/home/iskam/src/vibe/Clamsara/src/metadata/metadata.lisp" (written 20 SEP 2026 11:08:21 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/src/metadata/metadata-tmpOU81XRV0.fasl
+; compilation finished in 0:00:00.105
+; compiling file "/home/iskam/src/vibe/Clamsara/src/host/roots.lisp" (written 20 SEP 2026 11:45:10 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/src/host/roots-tmpY2ML9CFA.fasl
+; compilation finished in 0:00:00.082
+; compiling file "/home/iskam/src/vibe/Clamsara/src/host/coordinator.lisp" (written 20 SEP 2026 10:29:28 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/src/host/coordinator-tmpX2JYJDQE.fasl
+; compilation finished in 0:00:00.024
+; compiling file "/home/iskam/src/vibe/Clamsara/src/host/resources.lisp" (written 20 SEP 2026 10:32:21 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/src/host/resources-tmpOPCILR65.fasl
+; compilation finished in 0:00:00.039
+; compiling file "/home/iskam/src/vibe/Clamsara/src/host/address-space.lisp" (written 20 SEP 2026 11:17:10 PM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/src/host/address-space-tmpRV9F8A9A.fasl
+; compilation finished in 0:00:00.071
+; compiling file "/home/iskam/src/vibe/Clamsara/src/runtime/protocol.lisp" (written 20 SEP 2026 10:41:20 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/src/runtime/protocol-tmpK2ZAJT4I.fasl
+; compilation finished in 0:00:00.005
+; compiling file "/home/iskam/src/vibe/Clamsara/src/runtime/records.lisp" (written 21 SEP 2026 03:34:16 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/src/runtime/records-tmpUX5S4ADN.fasl
+; compilation finished in 0:00:00.050
+; compiling file "/home/iskam/src/vibe/Clamsara/src/runtime/barrier.lisp" (written 21 SEP 2026 03:42:10 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/src/runtime/barrier-tmp10401X32.fasl
+; compilation finished in 0:00:00.024
+; compiling file "/home/iskam/src/vibe/Clamsara/src/runtime/finalizers.lisp" (written 21 SEP 2026 03:45:28 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/src/runtime/finalizers-tmpZ7CBRM0G.fasl
+; compilation finished in 0:00:00.047
+; compiling file "/home/iskam/src/vibe/Clamsara/src/runtime/trace.lisp" (written 20 SEP 2026 10:50:21 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/src/runtime/trace-tmp9OZEQ0G2.fasl
+; compilation finished in 0:00:00.032
+; compiling file "/home/iskam/src/vibe/Clamsara/src/runtime/spaces.lisp" (written 21 SEP 2026 03:39:48 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/src/runtime/spaces-tmpB2JTL1W9.fasl
+; compilation finished in 0:00:00.073
+; compiling file "/home/iskam/src/vibe/Clamsara/src/runtime/cycle.lisp" (written 21 SEP 2026 04:00:34 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/src/runtime/cycle-tmpP3BI68WQ.fasl
+; compilation finished in 0:00:00.038
+; compiling file "/home/iskam/src/vibe/Clamsara/src/runtime/allocation.lisp" (written 21 SEP 2026 03:34:16 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/src/runtime/allocation-tmpQDARA81Z.fasl
+; compilation finished in 0:00:00.012
+; compiling file "/home/iskam/src/vibe/Clamsara/src/host/object-model.lisp" (written 21 SEP 2026 01:43:01 AM):
+
+; file: /home/iskam/src/vibe/Clamsara/src/host/object-model.lisp
+; in: DEFUN %HOST-NORMALIZE-STRONG-LAYOUT
+;     'NIL
+; 
+; note: deleting unreachable code
+
+; in: DEFMETHOD MAKE-OBJECT-KIND-DESCRIPTION (HOST-OBJECT-MODEL T)
+;     'NIL
+; 
+; note: deleting unreachable code
+; 
+; note: deleting unreachable code
+
+; in: DEFMETHOD BIND-OBJECT-MODEL (HOST-OBJECT-MODEL T T)
+;     (ERROR "Hosted nonbase codes require 46-bit fixnums")
+; 
+; note: deleting unreachable code
+
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/src/host/object-model-tmpYEMMM7SE.fasl
+; compilation finished in 0:00:00.333
+; compiling file "/home/iskam/src/vibe/Clamsara/src/host/atomics.lisp" (written 20 SEP 2026 10:34:09 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/src/host/atomics-tmp73HU0RPK.fasl
+; compilation finished in 0:00:00.027
+; compiling file "/home/iskam/src/vibe/Clamsara/src/host/auxiliary.lisp" (written 20 SEP 2026 11:25:00 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/src/host/auxiliary-tmpIO5N7K88.fasl
+; compilation finished in 0:00:00.020
+; compiling file "/home/iskam/src/vibe/Clamsara/test/client/protocol-contract.lisp" (written 20 SEP 2026 10:29:28 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/test/client/protocol-contract-tmpCM21U60Z.fasl
+; compilation finished in 0:00:00.036
+v14 construction contracts: 105 checks passed
+; compiling file "/home/iskam/src/vibe/Clamsara/test/host/roots.lisp" (written 20 SEP 2026 10:29:28 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/test/host/roots-tmp9DT7SEFG.fasl
+; compilation finished in 0:00:00.019
+; compiling file "/home/iskam/src/vibe/Clamsara/test/host/coordination.lisp" (written 20 SEP 2026 10:29:28 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/test/host/coordination-tmp8065ESJT.fasl
+; compilation finished in 0:00:00.013
+; compiling file "/home/iskam/src/vibe/Clamsara/src/host/atomics.lisp" (written 20 SEP 2026 10:34:09 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/src/host/atomics-tmp7S8Z6FGF.fasl
+; compilation finished in 0:00:00.029
+; compiling file "/home/iskam/src/vibe/Clamsara/test/host/atomics.lisp" (written 20 SEP 2026 10:35:31 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/test/host/atomics-tmpSIT3QPKP.fasl
+; compilation finished in 0:00:00.008
+; compiling file "/home/iskam/src/vibe/Clamsara/test/barrier/barrier.lisp" (written 20 SEP 2026 11:01:08 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/test/barrier/barrier-tmpE0PA0714.fasl
+; compilation finished in 0:00:00.046
+; compiling file "/home/iskam/src/vibe/Clamsara/test/runtime/semispace.lisp" (written 20 SEP 2026 11:07:51 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/test/runtime/semispace-tmpJRWHHVG0.fasl
+; compilation finished in 0:00:00.010
+; compiling file "/home/iskam/src/vibe/Clamsara/test/runtime/marksweep.lisp" (written 20 SEP 2026 10:54:08 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/test/runtime/marksweep-tmp4WZVROCX.fasl
+; compilation finished in 0:00:00.007
+; compiling file "/home/iskam/src/vibe/Clamsara/test/runtime/retained-failure.lisp" (written 20 SEP 2026 11:17:10 PM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/test/runtime/retained-failure-tmpA0I3UKX8.fasl
+; compilation finished in 0:00:00.007
+; compiling file "/home/iskam/src/vibe/Clamsara/test/metadata/semispace.lisp" (written 20 SEP 2026 10:34:55 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/test/metadata/semispace-tmp267Y2N80.fasl
+; compilation finished in 0:00:00.003
+V14-SEMISPACE-LIFECYCLE-OK
+V14-MARKSWEEP-LIFECYCLE-OK
+V14-SEMISPACE-LIFECYCLE-OK
+METADATA-SEMISPACE-PACKED-CYCLE-OK
+V14-SEMISPACE-LIFECYCLE-OK
+METADATA-SEMISPACE-SCALAR-CYCLE-OK
+V14-RETAINED-FAILURE-OK
+; compiling file "/home/iskam/src/vibe/Clamsara/test/acceptance/metadata-safety.lisp" (written 20 SEP 2026 10:29:28 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/test/acceptance/metadata-safety-tmpOUPE5FSJ.fasl
+; compilation finished in 0:00:00.018
+; compiling file "/home/iskam/src/vibe/Clamsara/test/acceptance/host-safety.lisp" (written 20 SEP 2026 10:29:28 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/test/acceptance/host-safety-tmpIGHCU6ZA.fasl
+; compilation finished in 0:00:00.017
+; compiling file "/home/iskam/src/vibe/Clamsara/test/acceptance/resources-layout.lisp" (written 20 SEP 2026 11:39:35 PM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/test/acceptance/resources-layout-tmpBO0TUGLK.fasl
+; compilation finished in 0:00:00.047
+; compiling file "/home/iskam/src/vibe/Clamsara/test/acceptance/conditional-lifecycle.lisp" (written 20 SEP 2026 11:41:24 PM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/test/acceptance/conditional-lifecycle-tmpIIXPIQNW.fasl
+; compilation finished in 0:00:00.014
+; compiling file "/home/iskam/src/vibe/Clamsara/test/acceptance/object-model-safety.lisp" (written 20 SEP 2026 11:17:10 PM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/test/acceptance/object-model-safety-tmpOHM494YR.fasl
+; compilation finished in 0:00:00.022
+CONDITIONAL-LIFECYCLE-ACCEPTANCE-PASS
+; compiling file "/home/iskam/src/vibe/Clamsara/test/quality/support.lisp" (written 21 SEP 2026 04:17:56 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/test/quality/support-tmpOVFB07XF.fasl
+; compilation finished in 0:00:00.063
+; compiling file "/home/iskam/src/vibe/Clamsara/test/quality/stateful.lisp" (written 20 SEP 2026 11:11:09 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/test/quality/stateful-tmpG6VFGMYP.fasl
+; compilation finished in 0:00:00.034
+QUALITY-STATEFUL-PASS seed=#x14C1A05E iterations=18 profiles=4
+; compiling file "/home/iskam/src/vibe/Clamsara/test/quality/barrier-history.lisp" (written 21 SEP 2026 04:17:56 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/test/quality/barrier-history-tmp4QIPRMOF.fasl
+; compilation finished in 0:00:00.103
+; compiling file "/home/iskam/src/vibe/Clamsara/test/quality/barrier-edges.lisp" (written 21 SEP 2026 04:17:56 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/test/quality/barrier-edges-tmpGW0QV22K.fasl
+; compilation finished in 0:00:00.069
+; compiling file "/home/iskam/src/vibe/Clamsara/test/quality/barrier-boundaries.lisp" (written 21 SEP 2026 03:55:43 AM):
+
+; wrote /home/iskam/.cache/common-lisp/sbcl-2.6.8.3-db35d4561-linux-x64/home/iskam/src/vibe/Clamsara/test/quality/barrier-boundaries-tmp2K9J0HSR.fasl
+; compilation finished in 0:00:00.028
+INDEPENDENT-PASS (:RETRY :MATCH :RESERVE 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MATCH :RESERVE 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MATCH :RESERVE 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MATCH :ADMIT 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MATCH :ADMIT 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MATCH :ADMIT 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MATCH :TRANSFORM 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MATCH :TRANSFORM 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MATCH :TRANSFORM 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MISMATCH :RESERVE 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MISMATCH :RESERVE 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MISMATCH :RESERVE 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MISMATCH :ADMIT 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MISMATCH :ADMIT 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MISMATCH :ADMIT 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MISMATCH :TRANSFORM 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MISMATCH :TRANSFORM 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MISMATCH :TRANSFORM 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :READ :RESERVE 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :READ :RESERVE 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :READ :RESERVE 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :READ :ADMIT 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :READ :ADMIT 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :READ :ADMIT 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :READ :TRANSFORM 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :READ :TRANSFORM 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :READ :TRANSFORM 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :STORE :RESERVE 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :STORE :RESERVE 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :STORE :RESERVE 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :STORE :ADMIT 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :STORE :ADMIT 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :STORE :ADMIT 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :STORE :TRANSFORM 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :STORE :TRANSFORM 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :STORE :TRANSFORM 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :ROOT-STORE :RESERVE 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :ROOT-STORE :RESERVE 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :ROOT-STORE :RESERVE 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :ROOT-STORE :ADMIT 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :ROOT-STORE :ADMIT 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :ROOT-STORE :ADMIT 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :ROOT-STORE :TRANSFORM 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :ROOT-STORE :TRANSFORM 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :ROOT-STORE :TRANSFORM 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MATCH :RESERVE 0 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :RESERVE 1 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :RESERVE 2 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :RESERVE 3 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :ADMIT 0 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :ADMIT 1 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :ADMIT 2 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :ADMIT 3 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :TRANSFORM 0 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :TRANSFORM 1 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :TRANSFORM 2 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :TRANSFORM 3 :UNION)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :MATCH :BEFORE :ERROR)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :MATCH :BEFORE :THROW)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :MATCH :AFTER :ERROR)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :MATCH :AFTER :THROW)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :MISMATCH :BEFORE :ERROR)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :MISMATCH :BEFORE :THROW)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :MISMATCH :AFTER :ERROR)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :MISMATCH :AFTER :THROW)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :READ :BEFORE :ERROR)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :READ :BEFORE :THROW)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :READ :AFTER :ERROR)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :READ :AFTER :THROW)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :STORE :BEFORE :ERROR)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :STORE :BEFORE :THROW)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :STORE :AFTER :ERROR)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :STORE :AFTER :THROW)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :ROOT-STORE :BEFORE :ERROR)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :ROOT-STORE :BEFORE :THROW)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :ROOT-STORE :AFTER :ERROR)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :ROOT-STORE :AFTER :THROW)
+INDEPENDENT-PASS (:SAME-CONTEXT :RESERVE)
+INDEPENDENT-PASS (:SAME-CONTEXT :ADMIT)
+INDEPENDENT-PASS (:SAME-CONTEXT :TRANSFORM)
+INDEPENDENT-PASS (:SECOND-CONTEXT-BUSY :ADMIT)
+INDEPENDENT-PASS (:ACTIVE-CONTROL :UNBIND :RESERVE)
+INDEPENDENT-PASS (:ACTIVE-CONTROL :COLLECT :RESERVE)
+INDEPENDENT-PASS (:ACTIVE-CONTROL :UNBIND :ADMIT)
+INDEPENDENT-PASS (:ACTIVE-CONTROL :COLLECT :ADMIT)
+INDEPENDENT-PASS (:ACTIVE-CONTROL :UNBIND :TRANSFORM)
+INDEPENDENT-PASS (:ACTIVE-CONTROL :COLLECT :TRANSFORM)
+INDEPENDENT-PASS :MISMATCH-DISJOINT-TERMINAL-ONCE
+INDEPENDENT-PASS :MATCH-DISJOINT-POSITIVE-CONTROL
+INDEPENDENT-PASS :DISJOINT-READ-FIRST-POSITIVE-CONTROL
+UNKNOWN-RESERVE-OUTCOME :FATAL-INVARIANT
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:UNKNOWN-UNRETURNED-RESERVATION :ERROR)
+UNKNOWN-RESERVE-OUTCOME :FATAL-INVARIANT
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:UNKNOWN-UNRETURNED-RESERVATION :THROW)
+FATAL-UNBIND-SHUTDOWN outcome=:POST-PUBLICATION-FAILURE unbind=:RETRY shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS :FATAL-SHUTDOWN-AFTER-PUBLIC-UNBIND
+DUAL-REJECTION-REASON :BARRIER-COMPOSITION-SIGNALED
+INDEPENDENT-PASS :DUAL-PREPUBLICATION-REJECTION
+BARRIER-HISTORY-SUMMARY cases=94 failures=0 failed-worlds=0 expected-fatal-worlds=23 retained-total=23
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:ILLEGAL-PHASE :RESERVE :INVALID)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:ILLEGAL-PHASE :RESERVE :ERROR)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:ILLEGAL-PHASE :RESERVE :THROW)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:ILLEGAL-PHASE :ADMIT :INVALID)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:ILLEGAL-PHASE :ADMIT :ERROR)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:ILLEGAL-PHASE :ADMIT :THROW)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:ILLEGAL-PHASE :TRANSFORM :INVALID)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:ILLEGAL-PHASE :TRANSFORM :ERROR)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:ILLEGAL-PHASE :TRANSFORM :THROW)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:CANCEL-FAULT :ERROR 2)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:CANCEL-FAULT :ERROR 1)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:CANCEL-FAULT :THROW 2)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:CANCEL-FAULT :THROW 1)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:CAUGHT-OTHER-CONTEXT-FATAL :RESERVE)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:CAUGHT-OTHER-CONTEXT-FATAL :ADMIT)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:CAUGHT-OTHER-CONTEXT-FATAL :TRANSFORM)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:CAUGHT-OTHER-CONTEXT-FATAL :BEFORE)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:CAUGHT-OTHER-CONTEXT-FATAL :AFTER)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:CAUGHT-OTHER-CONTEXT-FATAL :CANCEL)
+INDEPENDENT-FAIL (:CAUGHT-OTHER-CONTEXT-FATAL :RAW-LOAD) [SIMPLE-ERROR] Callback did not catch the nested fatal
+TRACE ((:RESERVE :A :READ NIL) (:ACQUIRE :A :READ 0) (:RESERVE :B :READ NIL)
+       (:ACQUIRE :B :READ 0) (:RESERVE :C :READ NIL) (:ACQUIRE :C :READ 0)
+       (:ADMIT :A :READ 0) (:ADMIT :B :READ 0) (:ADMIT :C :READ 0)
+       (:TRANSFORM :A :READ 0) (:TRANSFORM :B :READ 0) (:TRANSFORM :C :READ 0)
+       (:BEFORE :A :READ 0) (:BEFORE :B :READ 0) (:BEFORE :C :READ 0)
+       (:AFTER :A :READ 0) (:AFTER :B :READ 0) (:AFTER :C :READ 0))
+INDEPENDENT-FAIL (:CAUGHT-OTHER-CONTEXT-FATAL :COMPARISON) [SIMPLE-ERROR] Callback did not catch the nested fatal
+TRACE ((:RESERVE :A :READ NIL) (:ACQUIRE :A :READ 0) (:RESERVE :B :READ NIL)
+       (:ACQUIRE :B :READ 0) (:RESERVE :C :READ NIL) (:ACQUIRE :C :READ 0)
+       (:ADMIT :A :READ 0) (:ADMIT :B :READ 0) (:ADMIT :C :READ 0)
+       (:TRANSFORM :A :READ 0) (:TRANSFORM :B :READ 0) (:TRANSFORM :C :READ 0)
+       (:BEFORE :A :READ 0) (:BEFORE :B :READ 0) (:BEFORE :C :READ 0)
+       (:AFTER :A :READ 0) (:AFTER :B :READ 0) (:AFTER :C :READ 0))
+INDEPENDENT-FAIL (:CAUGHT-OTHER-CONTEXT-FATAL :RAW-STORE) [SIMPLE-ERROR] Callback did not catch the nested fatal
+TRACE ((:RESERVE :A :READ NIL) (:ACQUIRE :A :READ 0) (:RESERVE :B :READ NIL)
+       (:ACQUIRE :B :READ 0) (:RESERVE :C :READ NIL) (:ACQUIRE :C :READ 0)
+       (:ADMIT :A :READ 0) (:ADMIT :B :READ 0) (:ADMIT :C :READ 0)
+       (:TRANSFORM :A :READ 0) (:TRANSFORM :B :READ 0) (:TRANSFORM :C :READ 0)
+       (:BEFORE :A :READ 0) (:BEFORE :B :READ 0) (:BEFORE :C :READ 0)
+       (:AFTER :A :READ 0) (:AFTER :B :READ 0) (:AFTER :C :READ 0))
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :RESERVE :RAW)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :RESERVE :REFILL)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :ADMIT :RAW)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :ADMIT :REFILL)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :TRANSFORM :RAW)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :TRANSFORM :REFILL)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :BEFORE :RAW)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :BEFORE :REFILL)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :AFTER :RAW)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :AFTER :REFILL)
+INDEPENDENT-PASS (:ORDINARY-PIN :MARKSWEEP :RESERVE :RAW)
+INDEPENDENT-PASS (:ORDINARY-PIN :MARKSWEEP :RESERVE :REFILL)
+INDEPENDENT-PASS (:ORDINARY-PIN :MARKSWEEP :ADMIT :RAW)
+INDEPENDENT-PASS (:ORDINARY-PIN :MARKSWEEP :ADMIT :REFILL)
+INDEPENDENT-PASS (:ORDINARY-PIN :MARKSWEEP :TRANSFORM :RAW)
+INDEPENDENT-PASS (:ORDINARY-PIN :MARKSWEEP :TRANSFORM :REFILL)
+INDEPENDENT-PASS (:ORDINARY-PIN :MARKSWEEP :BEFORE :RAW)
+INDEPENDENT-PASS (:ORDINARY-PIN :MARKSWEEP :BEFORE :REFILL)
+INDEPENDENT-PASS (:ORDINARY-PIN :MARKSWEEP :AFTER :RAW)
+INDEPENDENT-PASS (:ORDINARY-PIN :MARKSWEEP :AFTER :REFILL)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :RESERVE :REGISTER)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :RESERVE :CANCEL-FINALIZER)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :RESERVE :DRAIN)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :ADMIT :REGISTER)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :ADMIT :CANCEL-FINALIZER)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :ADMIT :DRAIN)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :TRANSFORM :REGISTER)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :TRANSFORM :CANCEL-FINALIZER)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :TRANSFORM :DRAIN)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :BEFORE :REGISTER)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :BEFORE :CANCEL-FINALIZER)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :BEFORE :DRAIN)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :AFTER :REGISTER)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :AFTER :CANCEL-FINALIZER)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :AFTER :DRAIN)
+INDEPENDENT-PASS (:NIL-OPAQUE-TOKEN :READ :MATCH)
+INDEPENDENT-PASS (:NIL-OPAQUE-TOKEN :CAS :MISMATCH)
+WORKSPACE N=3 plan-measured=272 barrier-measured=96 context-measured=160 tokens-vector-measured=48 owned-vector-measured=48 construction-auxiliary-account=332128
+INDEPENDENT-PASS :FIXED-WORKSPACE-ACCOUNT
+FATAL-SHUTDOWN-EXACT outcome=:REJECTED reason=:FATAL-INVARIANT unbind=:RETRY config=:PUBLISHED->:PUBLISHED construction=:PUBLISHED->:PUBLISHED release=0->0
+INDEPENDENT-PASS :FATAL-SHUTDOWN-REJECT-NOT-RETAINED
+INDEPENDENT-PASS :DUAL-EXACT-COMPLAINT
+BARRIER-EDGE-SUMMARY cases=62 failures=3 failed-worlds=3 expected-fatal-worlds=20 retained-total=46
+While evaluating the form starting at line 5, column 0
+  of #P"/tmp/clamsara-cas-integrated164-eiaxaqtu/bootstrap.lisp":
+Unhandled SIMPLE-ERROR in thread #<SB-THREAD:THREAD tid=12243 "main thread" RUNNING
+                                    {1200450003}>:
+  Fixed-repair independent acceptance failed
+
+Backtrace for: #<SB-THREAD:THREAD tid=12243 "main thread" RUNNING {1200450003}>
+0: (SB-DEBUG::DEBUGGER-DISABLED-HOOK #<SIMPLE-ERROR "Fixed-repair independent acceptance failed" {121507EE13}> #<unused argument> :QUIT T)
+1: (SB-DEBUG::RUN-HOOK *INVOKE-DEBUGGER-HOOK* #<SIMPLE-ERROR "Fixed-repair independent acceptance failed" {121507EE13}>)
+2: (INVOKE-DEBUGGER #<SIMPLE-ERROR "Fixed-repair independent acceptance failed" {121507EE13}>)
+3: (ERROR "Fixed-repair independent acceptance failed")
+4: (CLAMSARA.QUALITY.SUPPORT:CHECK NIL "Fixed-repair independent acceptance failed")
+5: (CLAMSARA.QUALITY.BARRIER-HISTORY:RUN-BARRIER-EDGE-TESTS)
+6: ((:METHOD ASDF/ACTION:PERFORM (ASDF/LISP-ACTION:TEST-OP (EQL #<ASDF/SYSTEM:SYSTEM "clamsara/quality/barrier-history/test">))) #<unused argument> #<unused argument>) [fast-method]
+7: ((SB-PCL::EMF ASDF/ACTION:PERFORM) #<unused argument> #<unused argument> #<ASDF/LISP-ACTION:TEST-OP > #<ASDF/SYSTEM:SYSTEM "clamsara/quality/barrier-history/test">)
+8: ((LAMBDA NIL :IN ASDF/ACTION:CALL-WHILE-VISITING-ACTION))
+9: ((:METHOD ASDF/ACTION:PERFORM-WITH-RESTARTS :AROUND (T T)) #<ASDF/LISP-ACTION:TEST-OP > #<ASDF/SYSTEM:SYSTEM "clamsara/quality/barrier-history/test">) [fast-method]
+10: ((:METHOD ASDF/PLAN:PERFORM-PLAN (T)) #<ASDF/PLAN:SEQUENTIAL-PLAN {120A664343}>) [fast-method]
+11: ((FLET SB-C::WITH-IT :IN SB-C::%WITH-COMPILATION-UNIT))
+12: ((:METHOD ASDF/PLAN:PERFORM-PLAN :AROUND (T)) #<ASDF/PLAN:SEQUENTIAL-PLAN {120A664343}>) [fast-method]
+13: ((:METHOD ASDF/OPERATE:OPERATE (ASDF/OPERATION:OPERATION ASDF/COMPONENT:COMPONENT)) #<ASDF/LISP-ACTION:TEST-OP > #<ASDF/SYSTEM:SYSTEM "clamsara"> :PLAN-CLASS NIL :PLAN-OPTIONS NIL) [fast-method]
+14: ((SB-PCL::EMF ASDF/OPERATE:OPERATE) #<unused argument> #<unused argument> #<ASDF/LISP-ACTION:TEST-OP > #<ASDF/SYSTEM:SYSTEM "clamsara">)
+15: ((LAMBDA NIL :IN ASDF/OPERATE:OPERATE))
+16: ((:METHOD ASDF/OPERATE:OPERATE :AROUND (T T)) #<ASDF/LISP-ACTION:TEST-OP > #<ASDF/SYSTEM:SYSTEM "clamsara">) [fast-method]
+17: ((SB-PCL::EMF ASDF/OPERATE:OPERATE) #<unused argument> #<unused argument> ASDF/LISP-ACTION:TEST-OP :CLAMSARA)
+18: ((LAMBDA NIL :IN ASDF/OPERATE:OPERATE))
+19: ((:METHOD ASDF/OPERATE:OPERATE :AROUND (T T)) ASDF/LISP-ACTION:TEST-OP :CLAMSARA) [fast-method]
+20: (ASDF/SESSION:CALL-WITH-ASDF-SESSION #<FUNCTION (LAMBDA NIL :IN ASDF/OPERATE:OPERATE) {120A636B5B}> :OVERRIDE T :KEY NIL :OVERRIDE-CACHE T :OVERRIDE-FORCING NIL)
+21: ((LAMBDA NIL :IN ASDF/OPERATE:OPERATE))
+22: (ASDF/SESSION:CALL-WITH-ASDF-SESSION #<FUNCTION (LAMBDA NIL :IN ASDF/OPERATE:OPERATE) {120A5C7C2B}> :OVERRIDE NIL :KEY NIL :OVERRIDE-CACHE NIL :OVERRIDE-FORCING NIL)
+23: ((:METHOD ASDF/OPERATE:OPERATE :AROUND (T T)) ASDF/LISP-ACTION:TEST-OP :CLAMSARA) [fast-method]
+24: (ASDF/OPERATE:TEST-SYSTEM :CLAMSARA)
+25: (SB-INT:SIMPLE-EVAL-IN-LEXENV (ASDF/OPERATE:TEST-SYSTEM :CLAMSARA) #<NULL-LEXENV>)
+26: (EVAL-TLF (ASDF/OPERATE:TEST-SYSTEM :CLAMSARA) 3 NIL)
+27: ((LABELS SB-FASL::EVAL-FORM :IN SB-INT:LOAD-AS-SOURCE) (ASDF/OPERATE:TEST-SYSTEM :CLAMSARA) 3)
+28: ((LAMBDA (SB-KERNEL:FORM &KEY :CURRENT-INDEX &ALLOW-OTHER-KEYS) :IN SB-INT:LOAD-AS-SOURCE) (ASDF/OPERATE:TEST-SYSTEM :CLAMSARA) :CURRENT-INDEX 3)
+29: (SB-C::%DO-FORMS-FROM-INFO #<FUNCTION (LAMBDA (SB-KERNEL:FORM &KEY :CURRENT-INDEX &ALLOW-OTHER-KEYS) :IN SB-INT:LOAD-AS-SOURCE) {7FCBE0CF74CB}> #<SB-C::SOURCE-INFO {12096CF8A3}> SB-C::INPUT-ERROR-IN-LOAD)
+30: (SB-INT:LOAD-AS-SOURCE #<SB-INT:FORM-TRACKING-STREAM for "file /tmp/clamsara-cas-integrated164-eiaxaqtu/bootstrap.lisp" {12096D8003}> :VERBOSE NIL :PRINT NIL :CONTEXT "loading")
+31: ((LABELS SB-FASL::LOAD-STREAM-1 :IN LOAD) #<SB-INT:FORM-TRACKING-STREAM for "file /tmp/clamsara-cas-integrated164-eiaxaqtu/bootstrap.lisp" {12096D8003}> NIL)
+32: (SB-FASL::CALL-WITH-LOAD-BINDINGS #<FUNCTION (LABELS SB-FASL::LOAD-STREAM-1 :IN LOAD) {7FCBE0CF788B}> #<SB-INT:FORM-TRACKING-STREAM for "file /tmp/clamsara-cas-integrated164-eiaxaqtu/bootstrap.lisp" {12096D8003}> NIL #<SB-INT:FORM-TRACKING-STREAM for "file /tmp/clamsara-cas-integrated164-eiaxaqtu/bootstrap.lisp" {12096D8003}>)
+33: (LOAD #P"/tmp/clamsara-cas-integrated164-eiaxaqtu/bootstrap.lisp" :VERBOSE NIL :PRINT NIL :IF-DOES-NOT-EXIST :ERROR :EXTERNAL-FORMAT :DEFAULT)
+34: (SB-IMPL::PROCESS-EVAL/LOAD-OPTIONS ((:LOAD . "/tmp/clamsara-cas-integrated164-eiaxaqtu/bootstrap.lisp") (:QUIT)))
+35: (SB-IMPL::TOPLEVEL-INIT)
+36: ((FLET SB-UNIX::BODY :IN SB-IMPL::START-LISP))
+37: ((FLET "WITHOUT-INTERRUPTS-BODY-3" :IN SB-IMPL::START-LISP))
+38: (SB-IMPL::%START-LISP)
+
+unhandled condition in --disable-debugger mode, quitting
+; 
+; compilation unit aborted
+;   caught 1 fatal ERROR condition
+;   printed 4 notes

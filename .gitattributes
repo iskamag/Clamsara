@@ -4,3 +4,4 @@ docs/*.log whitespace=-blank-at-eol
 
 # Preserve exact native/source evidence bytes, including diagnostic whitespace.
 docs/evidence/variant-rows-4e7c28f/** -whitespace
+docs/evidence/cas-boundaries-a3a0bae/** -whitespace

@@ -1,5 +1,12 @@
 # CAS barrier repair: bounded source-only design
 
+**Historical proposal, not implementation authority.** The later actual-paper
+review rejects the two-reserve dual-subscriber policy and blanket recoverable
+pre-effect exception handling below. See `cas-barrier-contract-addendum.md` and
+`cas-barrier-final-review.md`. The scoped repair rejects ambiguous READ+CAS
+composition and keeps unknown/fatal exits closed. The original proposal follows
+unchanged for provenance.
+
 Source: fixed `/tmp/clamsara-description-review-7p14doks`, manifest commit
 9dd8629. All 41 manifest source hashes matched. Paper: the original fixed
 paper-v14. No native work, source/dependency edits, or delegation. This is a

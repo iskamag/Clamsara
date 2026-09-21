@@ -1,0 +1,2962 @@
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/package.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/package-tmpGHU3ALSV.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/client/object-model.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/object-model-tmpAAURSO1.fasl
+; compilation finished in 0:00:00.004
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/client/metadata.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/metadata-tmp5GEXGEG5.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/client/roots.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/roots-tmpAR3FSGEY.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/client/finalizers.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/finalizers-tmpJAIDFZTC.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/client/atomics.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/atomics-tmp8V3J6PE9.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/client/mapping.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/mapping-tmp9V47YWQF.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/client/diagnostics.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/diagnostics-tmp9BN22RMA.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/client/coordinator.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/coordinator-tmp1CXFJSK9.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/construction/protocol.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/protocol-tmpX4BRKI0R.fasl
+; compilation finished in 0:00:00.015
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/construction/records.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/records-tmpQ371UGST.fasl
+; compilation finished in 0:00:00.230
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/construction/graph.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/graph-tmp2OWI3Q7U.fasl
+; compilation finished in 0:00:00.058
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/construction/validation.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/validation-tmp9KKTJMYV.fasl
+; compilation finished in 0:00:00.037
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/construction/layout.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/layout-tmpJU0JWO19.fasl
+; compilation finished in 0:00:00.041
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/construction/build.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/build-tmpZX2WN8N4.fasl
+; compilation finished in 0:00:00.065
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/metadata/metadata.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/metadata-tmpOU81XRV0.fasl
+; compilation finished in 0:00:00.095
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/host/roots.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/roots-tmpY2ML9CFA.fasl
+; compilation finished in 0:00:00.090
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/host/coordinator.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/coordinator-tmpX2JYJDQE.fasl
+; compilation finished in 0:00:00.025
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/host/resources.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/resources-tmpOPCILR65.fasl
+; compilation finished in 0:00:00.038
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/host/address-space.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/address-space-tmpRV9F8A9A.fasl
+; compilation finished in 0:00:00.070
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/runtime/protocol.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/protocol-tmpK2ZAJT4I.fasl
+; compilation finished in 0:00:00.005
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/runtime/records.lisp" (written 21 SEP 2026 03:34:16 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/records-tmpUX5S4ADN.fasl
+; compilation finished in 0:00:00.048
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/runtime/barrier.lisp" (written 21 SEP 2026 03:42:10 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/barrier-tmp10401X32.fasl
+; compilation finished in 0:00:00.024
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/runtime/finalizers.lisp" (written 21 SEP 2026 03:45:28 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/finalizers-tmpZ7CBRM0G.fasl
+; compilation finished in 0:00:00.048
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/runtime/trace.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/trace-tmp9OZEQ0G2.fasl
+; compilation finished in 0:00:00.032
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/runtime/spaces.lisp" (written 21 SEP 2026 03:39:48 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/spaces-tmpB2JTL1W9.fasl
+; compilation finished in 0:00:00.073
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/runtime/cycle.lisp" (written 21 SEP 2026 04:00:34 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/cycle-tmpP3BI68WQ.fasl
+; compilation finished in 0:00:00.037
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/runtime/allocation.lisp" (written 21 SEP 2026 03:34:16 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/allocation-tmpQDARA81Z.fasl
+; compilation finished in 0:00:00.011
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/host/object-model.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; file: /tmp/clamsara-cas-only-1hf1b7ih/src/host/object-model.lisp
+; in: DEFUN %HOST-NORMALIZE-STRONG-LAYOUT
+;     'NIL
+; 
+; note: deleting unreachable code
+
+; in: DEFMETHOD MAKE-OBJECT-KIND-DESCRIPTION (HOST-OBJECT-MODEL T)
+;     'NIL
+; 
+; note: deleting unreachable code
+; 
+; note: deleting unreachable code
+
+; in: DEFMETHOD BIND-OBJECT-MODEL (HOST-OBJECT-MODEL T T)
+;     (ERROR "Hosted nonbase codes require 46-bit fixnums")
+; 
+; note: deleting unreachable code
+
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/object-model-tmpYEMMM7SE.fasl
+; compilation finished in 0:00:00.308
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/host/atomics.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/atomics-tmp73HU0RPK.fasl
+; compilation finished in 0:00:00.027
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/host/auxiliary.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/auxiliary-tmpIO5N7K88.fasl
+; compilation finished in 0:00:00.019
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/client/protocol-contract.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/protocol-contract-tmpCM21U60Z.fasl
+; compilation finished in 0:00:00.028
+v14 construction contracts: 105 checks passed
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/host/roots.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/roots-tmp9DT7SEFG.fasl
+; compilation finished in 0:00:00.026
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/host/coordination.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/coordination-tmp8065ESJT.fasl
+; compilation finished in 0:00:00.014
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/host/atomics.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/atomics-tmp7S8Z6FGF.fasl
+; compilation finished in 0:00:00.030
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/host/atomics.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/atomics-tmpSIT3QPKP.fasl
+; compilation finished in 0:00:00.008
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/barrier/barrier.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/barrier-tmpE0PA0714.fasl
+; compilation finished in 0:00:00.047
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/runtime/semispace.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/semispace-tmpJRWHHVG0.fasl
+; compilation finished in 0:00:00.011
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/runtime/marksweep.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/marksweep-tmp4WZVROCX.fasl
+; compilation finished in 0:00:00.008
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/runtime/retained-failure.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/retained-failure-tmpA0I3UKX8.fasl
+; compilation finished in 0:00:00.008
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/metadata/semispace.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/semispace-tmp267Y2N80.fasl
+; compilation finished in 0:00:00.003
+V14-SEMISPACE-LIFECYCLE-OK
+V14-MARKSWEEP-LIFECYCLE-OK
+V14-SEMISPACE-LIFECYCLE-OK
+METADATA-SEMISPACE-PACKED-CYCLE-OK
+V14-SEMISPACE-LIFECYCLE-OK
+METADATA-SEMISPACE-SCALAR-CYCLE-OK
+V14-RETAINED-FAILURE-OK
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/acceptance/metadata-safety.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/metadata-safety-tmpOUPE5FSJ.fasl
+; compilation finished in 0:00:00.017
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/acceptance/host-safety.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/host-safety-tmpIGHCU6ZA.fasl
+; compilation finished in 0:00:00.017
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/acceptance/resources-layout.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/resources-layout-tmpBO0TUGLK.fasl
+; compilation finished in 0:00:00.044
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/acceptance/conditional-lifecycle.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/conditional-lifecycle-tmpIIXPIQNW.fasl
+; compilation finished in 0:00:00.013
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/acceptance/object-model-safety.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/object-model-safety-tmpOHM494YR.fasl
+; compilation finished in 0:00:00.021
+CONDITIONAL-LIFECYCLE-ACCEPTANCE-PASS
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/quality/support.lisp" (written 21 SEP 2026 04:43:59 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/support-tmpOVFB07XF.fasl
+; compilation finished in 0:00:00.059
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/quality/stateful.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/stateful-tmpG6VFGMYP.fasl
+; compilation finished in 0:00:00.031
+QUALITY-STATEFUL-PASS seed=#x14C1A05E iterations=18 profiles=4
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/quality/barrier-history.lisp" (written 21 SEP 2026 04:43:59 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/barrier-history-tmp4QIPRMOF.fasl
+; compilation finished in 0:00:00.081
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/quality/barrier-edges.lisp" (written 21 SEP 2026 04:43:59 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/barrier-edges-tmpGW0QV22K.fasl
+; compilation finished in 0:00:00.073
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/quality/barrier-claims.lisp" (written 21 SEP 2026 04:43:59 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/barrier-claims-tmp2K9J0HSR.fasl
+; compilation finished in 0:00:00.057
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/quality/barrier-boundaries.lisp" (written 21 SEP 2026 03:55:43 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/barrier-boundaries-tmpP44I4E0Y.fasl
+; compilation finished in 0:00:00.029
+INDEPENDENT-PASS (:RETRY :MATCH :RESERVE 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MATCH :RESERVE 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MATCH :RESERVE 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MATCH :ADMIT 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MATCH :ADMIT 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MATCH :ADMIT 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MATCH :TRANSFORM 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MATCH :TRANSFORM 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MATCH :TRANSFORM 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MISMATCH :RESERVE 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MISMATCH :RESERVE 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MISMATCH :RESERVE 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MISMATCH :ADMIT 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MISMATCH :ADMIT 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MISMATCH :ADMIT 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MISMATCH :TRANSFORM 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MISMATCH :TRANSFORM 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MISMATCH :TRANSFORM 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :READ :RESERVE 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :READ :RESERVE 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :READ :RESERVE 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :READ :ADMIT 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :READ :ADMIT 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :READ :ADMIT 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :READ :TRANSFORM 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :READ :TRANSFORM 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :READ :TRANSFORM 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :STORE :RESERVE 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :STORE :RESERVE 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :STORE :RESERVE 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :STORE :ADMIT 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :STORE :ADMIT 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :STORE :ADMIT 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :STORE :TRANSFORM 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :STORE :TRANSFORM 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :STORE :TRANSFORM 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :ROOT-STORE :RESERVE 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :ROOT-STORE :RESERVE 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :ROOT-STORE :RESERVE 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :ROOT-STORE :ADMIT 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :ROOT-STORE :ADMIT 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :ROOT-STORE :ADMIT 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :ROOT-STORE :TRANSFORM 0 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :ROOT-STORE :TRANSFORM 1 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :ROOT-STORE :TRANSFORM 2 :SINGLE-PATH)
+INDEPENDENT-PASS (:RETRY :MATCH :RESERVE 0 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :RESERVE 1 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :RESERVE 2 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :RESERVE 3 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :ADMIT 0 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :ADMIT 1 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :ADMIT 2 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :ADMIT 3 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :TRANSFORM 0 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :TRANSFORM 1 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :TRANSFORM 2 :UNION)
+INDEPENDENT-PASS (:RETRY :MATCH :TRANSFORM 3 :UNION)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :MATCH :BEFORE :ERROR)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :MATCH :BEFORE :THROW)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :MATCH :AFTER :ERROR)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :MATCH :AFTER :THROW)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :MISMATCH :BEFORE :ERROR)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :MISMATCH :BEFORE :THROW)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :MISMATCH :AFTER :ERROR)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :MISMATCH :AFTER :THROW)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :READ :BEFORE :ERROR)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :READ :BEFORE :THROW)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :READ :AFTER :ERROR)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :READ :AFTER :THROW)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :STORE :BEFORE :ERROR)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :STORE :BEFORE :THROW)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :STORE :AFTER :ERROR)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :STORE :AFTER :THROW)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :ROOT-STORE :BEFORE :ERROR)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :ROOT-STORE :BEFORE :THROW)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :ROOT-STORE :AFTER :ERROR)
+FATAL-OUTCOME :POST-PUBLICATION-FAILURE
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:FATAL :ROOT-STORE :AFTER :THROW)
+INDEPENDENT-PASS (:SAME-CONTEXT :RESERVE)
+INDEPENDENT-PASS (:SAME-CONTEXT :ADMIT)
+INDEPENDENT-PASS (:SAME-CONTEXT :TRANSFORM)
+INDEPENDENT-PASS (:SECOND-CONTEXT-BUSY :ADMIT)
+INDEPENDENT-PASS (:ACTIVE-CONTROL :UNBIND :RESERVE)
+INDEPENDENT-PASS (:ACTIVE-CONTROL :COLLECT :RESERVE)
+INDEPENDENT-PASS (:ACTIVE-CONTROL :UNBIND :ADMIT)
+INDEPENDENT-PASS (:ACTIVE-CONTROL :COLLECT :ADMIT)
+INDEPENDENT-PASS (:ACTIVE-CONTROL :UNBIND :TRANSFORM)
+INDEPENDENT-PASS (:ACTIVE-CONTROL :COLLECT :TRANSFORM)
+INDEPENDENT-PASS :MISMATCH-DISJOINT-TERMINAL-ONCE
+INDEPENDENT-PASS :MATCH-DISJOINT-POSITIVE-CONTROL
+INDEPENDENT-PASS :DISJOINT-READ-FIRST-POSITIVE-CONTROL
+UNKNOWN-RESERVE-OUTCOME :FATAL-INVARIANT
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:UNKNOWN-UNRETURNED-RESERVATION :ERROR)
+UNKNOWN-RESERVE-OUTCOME :FATAL-INVARIANT
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:UNKNOWN-UNRETURNED-RESERVATION :THROW)
+FATAL-UNBIND-SHUTDOWN outcome=:POST-PUBLICATION-FAILURE unbind=:RETRY shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS :FATAL-SHUTDOWN-AFTER-PUBLIC-UNBIND
+DUAL-REJECTION-REASON :BARRIER-COMPOSITION-SIGNALED
+INDEPENDENT-PASS :DUAL-PREPUBLICATION-REJECTION
+BARRIER-HISTORY-SUMMARY cases=94 failures=0 failed-worlds=0 expected-fatal-worlds=23 retained-total=23
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:ILLEGAL-PHASE :RESERVE :INVALID)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:ILLEGAL-PHASE :RESERVE :ERROR)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:ILLEGAL-PHASE :RESERVE :THROW)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:ILLEGAL-PHASE :ADMIT :INVALID)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:ILLEGAL-PHASE :ADMIT :ERROR)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:ILLEGAL-PHASE :ADMIT :THROW)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:ILLEGAL-PHASE :TRANSFORM :INVALID)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:ILLEGAL-PHASE :TRANSFORM :ERROR)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:ILLEGAL-PHASE :TRANSFORM :THROW)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:CANCEL-FAULT :ERROR 2)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:CANCEL-FAULT :ERROR 1)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:CANCEL-FAULT :THROW 2)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:CANCEL-FAULT :THROW 1)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:CAUGHT-OTHER-CONTEXT-FATAL :RESERVE)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:CAUGHT-OTHER-CONTEXT-FATAL :ADMIT)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:CAUGHT-OTHER-CONTEXT-FATAL :TRANSFORM)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:CAUGHT-OTHER-CONTEXT-FATAL :BEFORE)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:CAUGHT-OTHER-CONTEXT-FATAL :AFTER)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:CAUGHT-OTHER-CONTEXT-FATAL :CANCEL)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:CAUGHT-OTHER-CONTEXT-FATAL :RAW-LOAD)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:CAUGHT-OTHER-CONTEXT-FATAL :COMPARISON)
+CLOSURE allocation=:BLOCKED bind=:BLOCKED collect=:BLOCKED shutdown=:BLOCKED release-index=0->0
+INDEPENDENT-PASS (:CAUGHT-OTHER-CONTEXT-FATAL :RAW-STORE)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :RESERVE :RAW)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :RESERVE :REFILL)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :ADMIT :RAW)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :ADMIT :REFILL)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :TRANSFORM :RAW)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :TRANSFORM :REFILL)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :BEFORE :RAW)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :BEFORE :REFILL)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :AFTER :RAW)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :AFTER :REFILL)
+INDEPENDENT-PASS (:ORDINARY-PIN :MARKSWEEP :RESERVE :RAW)
+INDEPENDENT-PASS (:ORDINARY-PIN :MARKSWEEP :RESERVE :REFILL)
+INDEPENDENT-PASS (:ORDINARY-PIN :MARKSWEEP :ADMIT :RAW)
+INDEPENDENT-PASS (:ORDINARY-PIN :MARKSWEEP :ADMIT :REFILL)
+INDEPENDENT-PASS (:ORDINARY-PIN :MARKSWEEP :TRANSFORM :RAW)
+INDEPENDENT-PASS (:ORDINARY-PIN :MARKSWEEP :TRANSFORM :REFILL)
+INDEPENDENT-PASS (:ORDINARY-PIN :MARKSWEEP :BEFORE :RAW)
+INDEPENDENT-PASS (:ORDINARY-PIN :MARKSWEEP :BEFORE :REFILL)
+INDEPENDENT-PASS (:ORDINARY-PIN :MARKSWEEP :AFTER :RAW)
+INDEPENDENT-PASS (:ORDINARY-PIN :MARKSWEEP :AFTER :REFILL)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :RESERVE :REGISTER)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :RESERVE :CANCEL-FINALIZER)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :RESERVE :DRAIN)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :ADMIT :REGISTER)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :ADMIT :CANCEL-FINALIZER)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :ADMIT :DRAIN)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :TRANSFORM :REGISTER)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :TRANSFORM :CANCEL-FINALIZER)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :TRANSFORM :DRAIN)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :BEFORE :REGISTER)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :BEFORE :CANCEL-FINALIZER)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :BEFORE :DRAIN)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :AFTER :REGISTER)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :AFTER :CANCEL-FINALIZER)
+INDEPENDENT-PASS (:ORDINARY-PIN :SEMISPACE :AFTER :DRAIN)
+INDEPENDENT-PASS (:NIL-OPAQUE-TOKEN :READ :MATCH)
+INDEPENDENT-PASS (:NIL-OPAQUE-TOKEN :CAS :MISMATCH)
+WORKSPACE N=3 plan-measured=272 barrier-measured=96 context-measured=160 tokens-vector-measured=48 owned-vector-measured=48 construction-auxiliary-account=329968
+INDEPENDENT-PASS :FIXED-WORKSPACE-ACCOUNT
+FATAL-SHUTDOWN-EXACT outcome=:REJECTED reason=:FATAL-INVARIANT unbind=:RETRY config=:PUBLISHED->:PUBLISHED construction=:PUBLISHED->:PUBLISHED release=0->0
+INDEPENDENT-PASS :FATAL-SHUTDOWN-REJECT-NOT-RETAINED
+INDEPENDENT-PASS :DUAL-EXACT-COMPLAINT
+BARRIER-EDGE-SUMMARY cases=62 failures=0 failed-worlds=0 expected-fatal-worlds=23 retained-total=46
+CLAIM-PROOF-PASS :PUBLIC-CLAIMS-UNDERSIZED-REJECT
+CLAIM-PROOF-PASS :EXACT-CAPACITY-MATCH-AND-REUSE
+CLAIM-PROOF-PASS :EXACT-CAPACITY-MISMATCH-AND-REUSE
+CLAIM-PROOF-PASS (:PUBLIC-CLAIM-RETRY :RESERVE 0)
+CLAIM-PROOF-PASS (:PUBLIC-CLAIM-RETRY :RESERVE 1)
+CLAIM-PROOF-PASS (:PUBLIC-CLAIM-RETRY :RESERVE 2)
+CLAIM-PROOF-PASS (:PUBLIC-CLAIM-RETRY :RESERVE 3)
+CLAIM-PROOF-PASS (:PUBLIC-CLAIM-RETRY :ADMIT 0)
+CLAIM-PROOF-PASS (:PUBLIC-CLAIM-RETRY :ADMIT 1)
+CLAIM-PROOF-PASS (:PUBLIC-CLAIM-RETRY :ADMIT 2)
+CLAIM-PROOF-PASS (:PUBLIC-CLAIM-RETRY :ADMIT 3)
+CLAIM-PROOF-PASS (:PUBLIC-CLAIM-RETRY :TRANSFORM 0)
+CLAIM-PROOF-PASS (:PUBLIC-CLAIM-RETRY :TRANSFORM 1)
+CLAIM-PROOF-PASS (:PUBLIC-CLAIM-RETRY :TRANSFORM 2)
+CLAIM-PROOF-PASS (:PUBLIC-CLAIM-RETRY :TRANSFORM 3)
+CLAIM-PROOF-PASS (:MANAGED-NONIDENTITY-TRANSFORM :MATCH-RAW-EXPECTED)
+CLAIM-PROOF-PASS (:MANAGED-NONIDENTITY-TRANSFORM
+                  :MISMATCH-EXPECTED-IS-READ-RESULT)
+CLAIM-PROOF-PASS (:MANAGED-NONIDENTITY-TRANSFORM :READ)
+CLAIM-PROOF-PASS (:MANAGED-NONIDENTITY-TRANSFORM :READ-TRANSFORM-RETRY)
+CLAIM-PROOF-PASS (:MANAGED-NONIDENTITY-TRANSFORM :WRITE-TRANSFORM-RETRY)
+BARRIER-CLAIM-SUMMARY cases=20 failures=0 failed-worlds=0 retained-total=0
+CAS-PASS :GLOBAL-BEFORE-ORDER
+CAS-PASS :REVERSE-WRITE-ONLY-CANCELLATION
+MISMATCH-FAULT (:RETURNED :POST-PUBLICATION-FAILURE)
+CAS-PASS :MISMATCH-BEFORE-ERROR-STICKY
+MATCHED-NLX (:RETURNED :POST-PUBLICATION-FAILURE)
+CAS-PASS :MATCHED-BEFORE-THROW-STICKY
+CAS-PASS :SAME-CONTEXT-ADMIT-REENTRY
+UNBIND-ENTRY (:RETURNED
+              (#S(CLAMSARA::HOST-REFERENCE
+                  :MODEL #<CLAMSARA::HOST-BOUND-OBJECT-MODEL {1218C372D3}>
+                  :DESCRIPTOR 2
+                  :ADDRESS 4128
+                  :KIND :BASE
+                  :TAG 0
+                  :DISPLACEMENT 0)
+               :COMPLETE))
+CAS-PASS :ACTIVE-CONTEXT-UNBIND
+POST-FAULT-ALLOCATION (:SIGNALED CLAMSARA::RUNTIME-REJECTION)
+CAS-PASS :POST-FAULT-ALLOCATION-CLOSED
+CAS-PASS :ADMITTED-EQL-READ-DISPATCH
+BARRIER-BOUNDARY-SUMMARY cases=8 failures=0 failed-worlds=0 expected-fatal-worlds=3 retained-total=3
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/quality/allocation.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/allocation-tmp63LQ7EX6.fasl
+; compilation finished in 0:00:00.016
+ALLOCATION-ADMISSION-PASS :SEMISPACE :PACKED
+ALLOCATION-ADMISSION-PASS :SEMISPACE :SCALAR
+ALLOCATION-ADMISSION-PASS :MARKSWEEP :PACKED
+ALLOCATION-ADMISSION-PASS :MARKSWEEP :SCALAR
+ALLOCATION-ADMISSION-TESTS-PASS
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/quality/kind-snapshots.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/kind-snapshots-tmp86F1A8FB.fasl
+; compilation finished in 0:00:00.015
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/quality/kind-history.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/kind-history-tmpH7D4HL98.fasl
+; compilation finished in 0:00:00.039
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/quality/construction-exit-history.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/construction-exit-history-tmpCDM7YXYI.fasl
+; compilation finished in 0:00:00.025
+KIND-GEOMETRY-PASS :SEMISPACE :PACKED :SIZE
+KIND-GEOMETRY-PASS :SEMISPACE :PACKED :ALIGNMENT
+KIND-GEOMETRY-PASS :SEMISPACE :PACKED :VARIABLE
+KIND-GEOMETRY-PASS :SEMISPACE :SCALAR :SIZE
+KIND-GEOMETRY-PASS :SEMISPACE :SCALAR :ALIGNMENT
+KIND-GEOMETRY-PASS :SEMISPACE :SCALAR :VARIABLE
+KIND-GEOMETRY-PASS :MARKSWEEP :PACKED :SIZE
+KIND-GEOMETRY-PASS :MARKSWEEP :PACKED :ALIGNMENT
+KIND-GEOMETRY-PASS :MARKSWEEP :PACKED :VARIABLE
+KIND-GEOMETRY-PASS :MARKSWEEP :SCALAR :SIZE
+KIND-GEOMETRY-PASS :MARKSWEEP :SCALAR :ALIGNMENT
+KIND-GEOMETRY-PASS :MARKSWEEP :SCALAR :VARIABLE
+KIND-GEOMETRY-SNAPSHOTS-PASS cases=12 rejections=8 escapes=8
+CHECK :ACCOUNT (:UNIQUE-REQUIRED 40 :ALIAS-COUNT 6)
+CHECK :CYCLE (:SEMISPACE :PACKED :DISCOVERED 4 :MOVED 4)
+CHECK :ACCOUNT (:UNIQUE-REQUIRED 40 :ALIAS-COUNT 6)
+CHECK :CYCLE (:SEMISPACE :PACKED :DISCOVERED 4 :MOVED 4)
+CHECK :CYCLE (:SEMISPACE :PACKED :DISCOVERED 4 :MOVED 4)
+CHECK :ACCOUNT (:UNIQUE-REQUIRED 40 :ALIAS-COUNT 6)
+CHECK :SHARED-BINDINGS-PASS (:SEMISPACE :PACKED :FUNCTION-CALLS (4 4))
+CHECK :PREBINDING-INVALID-PASS (:SEMISPACE :PACKED :HEADER -1
+                                :BIND-OBJECT-MODEL-SIGNALED)
+CHECK :PREBINDING-INVALID-PASS (:SEMISPACE :PACKED :HEADER 24
+                                :BIND-OBJECT-MODEL-SIGNALED)
+CHECK :PREBINDING-INVALID-PASS (:SEMISPACE :PACKED :ELEMENT 0
+                                :BIND-OBJECT-MODEL-SIGNALED)
+CHECK :PREBINDING-INVALID-PASS (:SEMISPACE :PACKED :ELEMENT 16
+                                :BIND-OBJECT-MODEL-SIGNALED)
+CHECK :PREBINDING-INVALID-PASS (:SEMISPACE :PACKED :MINIMUM -1
+                                :BIND-OBJECT-MODEL-SIGNALED)
+CHECK :PREBINDING-INVALID-PASS (:SEMISPACE :PACKED :MAXIMUM 0
+                                :BIND-OBJECT-MODEL-SIGNALED)
+CHECK :PREBINDING-INVALID-PASS (:SEMISPACE :PACKED :KIND :NUMERIC
+                                :BIND-OBJECT-MODEL-SIGNALED)
+CHECK :ACCOUNT (:UNIQUE-REQUIRED 40 :ALIAS-COUNT 6)
+CHECK :CYCLE (:SEMISPACE :SCALAR :DISCOVERED 4 :MOVED 4)
+CHECK :ACCOUNT (:UNIQUE-REQUIRED 40 :ALIAS-COUNT 6)
+CHECK :CYCLE (:SEMISPACE :SCALAR :DISCOVERED 4 :MOVED 4)
+CHECK :CYCLE (:SEMISPACE :SCALAR :DISCOVERED 4 :MOVED 4)
+CHECK :ACCOUNT (:UNIQUE-REQUIRED 40 :ALIAS-COUNT 6)
+CHECK :SHARED-BINDINGS-PASS (:SEMISPACE :SCALAR :FUNCTION-CALLS (4 4))
+CHECK :PREBINDING-INVALID-PASS (:SEMISPACE :SCALAR :HEADER -1
+                                :BIND-OBJECT-MODEL-SIGNALED)
+CHECK :PREBINDING-INVALID-PASS (:SEMISPACE :SCALAR :HEADER 24
+                                :BIND-OBJECT-MODEL-SIGNALED)
+CHECK :PREBINDING-INVALID-PASS (:SEMISPACE :SCALAR :ELEMENT 0
+                                :BIND-OBJECT-MODEL-SIGNALED)
+CHECK :PREBINDING-INVALID-PASS (:SEMISPACE :SCALAR :ELEMENT 16
+                                :BIND-OBJECT-MODEL-SIGNALED)
+CHECK :PREBINDING-INVALID-PASS (:SEMISPACE :SCALAR :MINIMUM -1
+                                :BIND-OBJECT-MODEL-SIGNALED)
+CHECK :PREBINDING-INVALID-PASS (:SEMISPACE :SCALAR :MAXIMUM 0
+                                :BIND-OBJECT-MODEL-SIGNALED)
+CHECK :PREBINDING-INVALID-PASS (:SEMISPACE :SCALAR :KIND :NUMERIC
+                                :BIND-OBJECT-MODEL-SIGNALED)
+CHECK :ACCOUNT (:UNIQUE-REQUIRED 40 :ALIAS-COUNT 6)
+CHECK :CYCLE (:MARKSWEEP :PACKED :DISCOVERED 4 :MOVED 0)
+CHECK :ACCOUNT (:UNIQUE-REQUIRED 40 :ALIAS-COUNT 6)
+CHECK :CYCLE (:MARKSWEEP :PACKED :DISCOVERED 4 :MOVED 0)
+CHECK :CYCLE (:MARKSWEEP :PACKED :DISCOVERED 4 :MOVED 0)
+CHECK :ACCOUNT (:UNIQUE-REQUIRED 40 :ALIAS-COUNT 6)
+CHECK :SHARED-BINDINGS-PASS (:MARKSWEEP :PACKED :FUNCTION-CALLS (4 4))
+CHECK :PREBINDING-INVALID-PASS (:MARKSWEEP :PACKED :HEADER -1
+                                :BIND-OBJECT-MODEL-SIGNALED)
+CHECK :PREBINDING-INVALID-PASS (:MARKSWEEP :PACKED :HEADER 24
+                                :BIND-OBJECT-MODEL-SIGNALED)
+CHECK :PREBINDING-INVALID-PASS (:MARKSWEEP :PACKED :ELEMENT 0
+                                :BIND-OBJECT-MODEL-SIGNALED)
+CHECK :PREBINDING-INVALID-PASS (:MARKSWEEP :PACKED :ELEMENT 16
+                                :BIND-OBJECT-MODEL-SIGNALED)
+CHECK :PREBINDING-INVALID-PASS (:MARKSWEEP :PACKED :MINIMUM -1
+                                :BIND-OBJECT-MODEL-SIGNALED)
+CHECK :PREBINDING-INVALID-PASS (:MARKSWEEP :PACKED :MAXIMUM 0
+                                :BIND-OBJECT-MODEL-SIGNALED)
+CHECK :PREBINDING-INVALID-PASS (:MARKSWEEP :PACKED :KIND :NUMERIC
+                                :BIND-OBJECT-MODEL-SIGNALED)
+CHECK :ACCOUNT (:UNIQUE-REQUIRED 40 :ALIAS-COUNT 6)
+CHECK :CYCLE (:MARKSWEEP :SCALAR :DISCOVERED 4 :MOVED 0)
+CHECK :ACCOUNT (:UNIQUE-REQUIRED 40 :ALIAS-COUNT 6)
+CHECK :CYCLE (:MARKSWEEP :SCALAR :DISCOVERED 4 :MOVED 0)
+CHECK :CYCLE (:MARKSWEEP :SCALAR :DISCOVERED 4 :MOVED 0)
+CHECK :ACCOUNT (:UNIQUE-REQUIRED 40 :ALIAS-COUNT 6)
+CHECK :SHARED-BINDINGS-PASS (:MARKSWEEP :SCALAR :FUNCTION-CALLS (4 4))
+CHECK :PREBINDING-INVALID-PASS (:MARKSWEEP :SCALAR :HEADER -1
+                                :BIND-OBJECT-MODEL-SIGNALED)
+CHECK :PREBINDING-INVALID-PASS (:MARKSWEEP :SCALAR :HEADER 24
+                                :BIND-OBJECT-MODEL-SIGNALED)
+CHECK :PREBINDING-INVALID-PASS (:MARKSWEEP :SCALAR :ELEMENT 0
+                                :BIND-OBJECT-MODEL-SIGNALED)
+CHECK :PREBINDING-INVALID-PASS (:MARKSWEEP :SCALAR :ELEMENT 16
+                                :BIND-OBJECT-MODEL-SIGNALED)
+CHECK :PREBINDING-INVALID-PASS (:MARKSWEEP :SCALAR :MINIMUM -1
+                                :BIND-OBJECT-MODEL-SIGNALED)
+CHECK :PREBINDING-INVALID-PASS (:MARKSWEEP :SCALAR :MAXIMUM 0
+                                :BIND-OBJECT-MODEL-SIGNALED)
+CHECK :PREBINDING-INVALID-PASS (:MARKSWEEP :SCALAR :KIND :NUMERIC
+                                :BIND-OBJECT-MODEL-SIGNALED)
+CHECK :CYCLE (:SEMISPACE :PACKED :DISCOVERED 1 :MOVED 1)
+CHECK :EXACT-ALIAS-PASS (:REJECTED 7 :ACCEPTED 2)
+CHECK :ACCOUNT (:UNIQUE-REQUIRED 45 :ALIAS-COUNT 10)
+CHECK :CYCLE (:SEMISPACE :PACKED :DISCOVERED 4 :MOVED 4)
+CHECK :ACCOUNT (:UNIQUE-REQUIRED 45 :ALIAS-COUNT 10)
+CHECK :STAGING-PASS (:PACKED :FIXED-CALLS (1 1))
+CHECK :ACCOUNT (:UNIQUE-REQUIRED 45 :ALIAS-COUNT 10)
+CHECK :CYCLE (:SEMISPACE :SCALAR :DISCOVERED 4 :MOVED 4)
+CHECK :ACCOUNT (:UNIQUE-REQUIRED 45 :ALIAS-COUNT 10)
+CHECK :STAGING-PASS (:SCALAR :FIXED-CALLS (1 1))
+CHECK :INDEPENDENT-GEOMETRY-FINISHED (:CASES 35)
+LATE-PASS (:PHASE :INITIALIZE :MODE :THROW :CLEANUP-FAULT NIL :RELEASED 10
+           :DEACTIVATED 1 :OBSERVER-AFTER-CLEANUP NIL :EXACT-THROW-VALUES T)
+LATE-PASS (:PHASE :INITIALIZE :MODE :THROW :CLEANUP-FAULT T :RELEASED 10
+           :DEACTIVATED 1 :OBSERVER-AFTER-CLEANUP T :EXACT-THROW-VALUES NIL)
+LATE-PASS (:PHASE :INITIALIZE :MODE :ERROR :CLEANUP-FAULT NIL :RELEASED 10
+           :DEACTIVATED 1 :OBSERVER-AFTER-CLEANUP T :EXACT-THROW-VALUES NIL)
+LATE-PASS (:PHASE :INITIALIZE :MODE :ERROR :CLEANUP-FAULT T :RELEASED 10
+           :DEACTIVATED 1 :OBSERVER-AFTER-CLEANUP T :EXACT-THROW-VALUES NIL)
+LATE-PASS (:PHASE :ACTIVATE :MODE :THROW :CLEANUP-FAULT NIL :RELEASED 10
+           :DEACTIVATED 1 :OBSERVER-AFTER-CLEANUP NIL :EXACT-THROW-VALUES T)
+LATE-PASS (:PHASE :ACTIVATE :MODE :THROW :CLEANUP-FAULT T :RELEASED 10
+           :DEACTIVATED 1 :OBSERVER-AFTER-CLEANUP T :EXACT-THROW-VALUES NIL)
+LATE-PASS (:PHASE :ACTIVATE :MODE :ERROR :CLEANUP-FAULT NIL :RELEASED 10
+           :DEACTIVATED 1 :OBSERVER-AFTER-CLEANUP T :EXACT-THROW-VALUES NIL)
+LATE-PASS (:PHASE :ACTIVATE :MODE :ERROR :CLEANUP-FAULT T :RELEASED 10
+           :DEACTIVATED 1 :OBSERVER-AFTER-CLEANUP T :EXACT-THROW-VALUES NIL)
+SUCCESS-GUARD-PASS released=10
+LATE-UNWIND-FINISHED cases=9
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/quality/representation-capacity.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/representation-capacity-tmpLM57P5P.fasl
+; compilation finished in 0:00:00.018
+REPRESENTATION-CAPACITY-PASS :SEMISPACE :PACKED granularity=8
+REPRESENTATION-CAPACITY-PASS :SEMISPACE :PACKED granularity=16
+REPRESENTATION-CAPACITY-PASS :SEMISPACE :SCALAR granularity=8
+REPRESENTATION-CAPACITY-PASS :SEMISPACE :SCALAR granularity=16
+REPRESENTATION-CAPACITY-PASS :MARKSWEEP :PACKED granularity=8
+REPRESENTATION-CAPACITY-PASS :MARKSWEEP :PACKED granularity=16
+REPRESENTATION-CAPACITY-PASS :MARKSWEEP :SCALAR granularity=8
+REPRESENTATION-CAPACITY-PASS :MARKSWEEP :SCALAR granularity=16
+REPRESENTATION-CAPACITY-TESTS-PASS rejections=24 survivor-histories=16
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/quality/reference-variant-fixture.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/reference-variant-fixture-tmpZE69DN33.fasl
+; compilation finished in 0:00:00.058
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/quality/reference-variants.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/reference-variants-tmpG8099TO3.fasl
+; compilation finished in 0:00:00.020
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/quality/reference-variant-directory.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/reference-variant-directory-tmpTASQCYAW.fasl
+; compilation finished in 0:00:00.011
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/quality/reference-variant-edges.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/reference-variant-edges-tmp35U57IV6.fasl
+; compilation finished in 0:00:00.019
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 0))
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870913 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 0)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 0)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 0)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 0))
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 1))
+ROW :BUILDER-RELEASED (:ACQUIRED 11 :RELEASED 12)
+ROW :PASS ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 1))
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 63))
+ROW :BUILDER-RELEASED (:ACQUIRED 11 :RELEASED 12)
+ROW :PASS ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 63))
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 64))
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435464 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 64)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 64)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 64)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 64))
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 127))
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435464 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 127)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 127)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 127)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 127))
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 128))
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870914 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 128)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 128)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 128)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 128))
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 131))
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870914 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 131)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 131)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 131)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 16 :C 64 :H 131))
+ROW :BEGIN ((:HISTORY :SEMISPACE :PACKED 16 536870913))
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :PACKED 16 536870913) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :PACKED 16 536870913) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :PACKED 16 536870913) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :PASS ((:HISTORY :SEMISPACE :PACKED 16 536870913))
+ROW :BEGIN ((:HISTORY :SEMISPACE :PACKED 16 268435464))
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :PACKED 16 268435464) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :PACKED 16 268435464) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :PACKED 16 268435464) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :PASS ((:HISTORY :SEMISPACE :PACKED 16 268435464))
+ROW :BEGIN ((:ALL-CELLS :SEMISPACE :PACKED 16))
+ROW :ALL-DESCRIPTOR-CELLS (:CELLS 64 :PASSES 2 :GRANULARITIES (16 16))
+ROW :PASS ((:ALL-CELLS :SEMISPACE :PACKED 16))
+ROW :BEGIN ((:FUTURE-LARGE :SEMISPACE :PACKED 16))
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870913 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :PASS ((:FUTURE-LARGE :SEMISPACE :PACKED 16))
+ROW :BEGIN ((:STAGED :SEMISPACE :PACKED 16))
+ROW :CYCLE (:CASE (:STAGED :SEMISPACE :PACKED 16) :ROUND 0 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:STAGED :SEMISPACE :PACKED 16) :ROUND 1 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:STAGED :SEMISPACE :PACKED 16) :ROUND 2 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :PASS ((:STAGED :SEMISPACE :PACKED 16))
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 0))
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870913 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 0)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 0)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 0)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 0))
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 1))
+ROW :BUILDER-RELEASED (:ACQUIRED 11 :RELEASED 12)
+ROW :PASS ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 1))
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 127))
+ROW :BUILDER-RELEASED (:ACQUIRED 11 :RELEASED 12)
+ROW :PASS ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 127))
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 128))
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435464 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 128)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 128)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 128)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 128))
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 255))
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435464 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 255)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 255)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 255)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 255))
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 256))
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870914 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 256)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 256)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 256)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 256))
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 259))
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870914 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 259)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 259)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 259)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :SEMISPACE :PACKED :GRANULARITY 8 :C 128 :H 259))
+ROW :BEGIN ((:HISTORY :SEMISPACE :PACKED 8 536870913))
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :PACKED 8 536870913) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :PACKED 8 536870913) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :PACKED 8 536870913) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :PASS ((:HISTORY :SEMISPACE :PACKED 8 536870913))
+ROW :BEGIN ((:HISTORY :SEMISPACE :PACKED 8 268435464))
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :PACKED 8 268435464) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :PACKED 8 268435464) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :PACKED 8 268435464) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :PASS ((:HISTORY :SEMISPACE :PACKED 8 268435464))
+ROW :BEGIN ((:ALL-CELLS :SEMISPACE :PACKED 8))
+ROW :ALL-DESCRIPTOR-CELLS (:CELLS 128 :PASSES 2 :GRANULARITIES (8 8))
+ROW :PASS ((:ALL-CELLS :SEMISPACE :PACKED 8))
+ROW :BEGIN ((:FUTURE-LARGE :SEMISPACE :PACKED 8))
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870913 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :PASS ((:FUTURE-LARGE :SEMISPACE :PACKED 8))
+ROW :BEGIN ((:STAGED :SEMISPACE :PACKED 8))
+ROW :CYCLE (:CASE (:STAGED :SEMISPACE :PACKED 8) :ROUND 0 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:STAGED :SEMISPACE :PACKED 8) :ROUND 1 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:STAGED :SEMISPACE :PACKED 8) :ROUND 2 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :PASS ((:STAGED :SEMISPACE :PACKED 8))
+ROW :BEGIN ((:OBSERVER-CONTROL :SEMISPACE :PACKED))
+ROW :BUILDER-RELEASED (:ACQUIRED 11 :RELEASED 12)
+ROW :PASS ((:OBSERVER-CONTROL :SEMISPACE :PACKED))
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 0))
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870913 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 0)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 0)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 0)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 0))
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 1))
+ROW :BUILDER-RELEASED (:ACQUIRED 11 :RELEASED 12)
+ROW :PASS ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 1))
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 63))
+ROW :BUILDER-RELEASED (:ACQUIRED 11 :RELEASED 12)
+ROW :PASS ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 63))
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 64))
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435464 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 64)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 64)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 64)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 64))
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 127))
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435464 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 127)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 127)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 127)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 127))
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 128))
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870914 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 128)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 128)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 128)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 128))
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 131))
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870914 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 131)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 131)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 131)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 16 :C 64 :H 131))
+ROW :BEGIN ((:HISTORY :SEMISPACE :SCALAR 16 536870913))
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :SCALAR 16 536870913) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :SCALAR 16 536870913) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :SCALAR 16 536870913) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :PASS ((:HISTORY :SEMISPACE :SCALAR 16 536870913))
+ROW :BEGIN ((:HISTORY :SEMISPACE :SCALAR 16 268435464))
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :SCALAR 16 268435464) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :SCALAR 16 268435464) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :SCALAR 16 268435464) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :PASS ((:HISTORY :SEMISPACE :SCALAR 16 268435464))
+ROW :BEGIN ((:ALL-CELLS :SEMISPACE :SCALAR 16))
+ROW :ALL-DESCRIPTOR-CELLS (:CELLS 64 :PASSES 2 :GRANULARITIES (16 16))
+ROW :PASS ((:ALL-CELLS :SEMISPACE :SCALAR 16))
+ROW :BEGIN ((:FUTURE-LARGE :SEMISPACE :SCALAR 16))
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870913 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :PASS ((:FUTURE-LARGE :SEMISPACE :SCALAR 16))
+ROW :BEGIN ((:STAGED :SEMISPACE :SCALAR 16))
+ROW :CYCLE (:CASE (:STAGED :SEMISPACE :SCALAR 16) :ROUND 0 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:STAGED :SEMISPACE :SCALAR 16) :ROUND 1 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:STAGED :SEMISPACE :SCALAR 16) :ROUND 2 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :PASS ((:STAGED :SEMISPACE :SCALAR 16))
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 0))
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870913 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 0)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 0)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 0)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 0))
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 1))
+ROW :BUILDER-RELEASED (:ACQUIRED 11 :RELEASED 12)
+ROW :PASS ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 1))
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 127))
+ROW :BUILDER-RELEASED (:ACQUIRED 11 :RELEASED 12)
+ROW :PASS ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 127))
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 128))
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435464 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 128)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 128)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 128)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 128))
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 255))
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435464 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 255)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 255)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 255)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 255))
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 256))
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870914 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 256)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 256)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 256)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 256))
+ROW :BEGIN ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 259))
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870914 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 259)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 259)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 259)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            2 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :SEMISPACE :SCALAR :GRANULARITY 8 :C 128 :H 259))
+ROW :BEGIN ((:HISTORY :SEMISPACE :SCALAR 8 536870913))
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :SCALAR 8 536870913) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :SCALAR 8 536870913) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :SCALAR 8 536870913) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :PASS ((:HISTORY :SEMISPACE :SCALAR 8 536870913))
+ROW :BEGIN ((:HISTORY :SEMISPACE :SCALAR 8 268435464))
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :SCALAR 8 268435464) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :SCALAR 8 268435464) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :SEMISPACE :SCALAR 8 268435464) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :PASS ((:HISTORY :SEMISPACE :SCALAR 8 268435464))
+ROW :BEGIN ((:ALL-CELLS :SEMISPACE :SCALAR 8))
+ROW :ALL-DESCRIPTOR-CELLS (:CELLS 128 :PASSES 2 :GRANULARITIES (8 8))
+ROW :PASS ((:ALL-CELLS :SEMISPACE :SCALAR 8))
+ROW :BEGIN ((:FUTURE-LARGE :SEMISPACE :SCALAR 8))
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870913 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :PASS ((:FUTURE-LARGE :SEMISPACE :SCALAR 8))
+ROW :BEGIN ((:STAGED :SEMISPACE :SCALAR 8))
+ROW :CYCLE (:CASE (:STAGED :SEMISPACE :SCALAR 8) :ROUND 0 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:STAGED :SEMISPACE :SCALAR 8) :ROUND 1 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:STAGED :SEMISPACE :SCALAR 8) :ROUND 2 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :PASS ((:STAGED :SEMISPACE :SCALAR 8))
+ROW :BEGIN ((:OBSERVER-CONTROL :SEMISPACE :SCALAR))
+ROW :BUILDER-RELEASED (:ACQUIRED 11 :RELEASED 12)
+ROW :PASS ((:OBSERVER-CONTROL :SEMISPACE :SCALAR))
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 0))
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870913 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 0)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 0)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 0)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 0))
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 1))
+ROW :BUILDER-RELEASED (:ACQUIRED 9 :RELEASED 10)
+ROW :PASS ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 1))
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 31))
+ROW :BUILDER-RELEASED (:ACQUIRED 9 :RELEASED 10)
+ROW :PASS ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 31))
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 32))
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435464 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 32)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 32)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 32)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 32))
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 63))
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435464 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 63)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 63)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 63)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 63))
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 64))
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870914 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 64)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 64)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 64)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 64))
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 67))
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870914 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 67)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 67)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 67)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 16 :C 32 :H 67))
+ROW :BEGIN ((:HISTORY :MARKSWEEP :PACKED 16 536870913))
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :PACKED 16 536870913) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :PACKED 16 536870913) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :PACKED 16 536870913) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :PASS ((:HISTORY :MARKSWEEP :PACKED 16 536870913))
+ROW :BEGIN ((:HISTORY :MARKSWEEP :PACKED 16 268435464))
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :PACKED 16 268435464) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :PACKED 16 268435464) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :PACKED 16 268435464) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :PASS ((:HISTORY :MARKSWEEP :PACKED 16 268435464))
+ROW :BEGIN ((:ALL-CELLS :MARKSWEEP :PACKED 16))
+ROW :ALL-DESCRIPTOR-CELLS (:CELLS 32 :PASSES 2 :GRANULARITIES (16))
+ROW :PASS ((:ALL-CELLS :MARKSWEEP :PACKED 16))
+ROW :BEGIN ((:FUTURE-LARGE :MARKSWEEP :PACKED 16))
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870913 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :PASS ((:FUTURE-LARGE :MARKSWEEP :PACKED 16))
+ROW :BEGIN ((:STAGED :MARKSWEEP :PACKED 16))
+ROW :CYCLE (:CASE (:STAGED :MARKSWEEP :PACKED 16) :ROUND 0 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:STAGED :MARKSWEEP :PACKED 16) :ROUND 1 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:STAGED :MARKSWEEP :PACKED 16) :ROUND 2 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :PASS ((:STAGED :MARKSWEEP :PACKED 16))
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 0))
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870913 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 0)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 0)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 0)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 0))
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 1))
+ROW :BUILDER-RELEASED (:ACQUIRED 9 :RELEASED 10)
+ROW :PASS ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 1))
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 63))
+ROW :BUILDER-RELEASED (:ACQUIRED 9 :RELEASED 10)
+ROW :PASS ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 63))
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 64))
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435464 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 64)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 64)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 64)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 64))
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 127))
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435464 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 127)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 127)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 127)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 127))
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 128))
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870914 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 128)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 128)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 128)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 128))
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 131))
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870914 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 131)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 131)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 131)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :MARKSWEEP :PACKED :GRANULARITY 8 :C 64 :H 131))
+ROW :BEGIN ((:HISTORY :MARKSWEEP :PACKED 8 536870913))
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :PACKED 8 536870913) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :PACKED 8 536870913) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :PACKED 8 536870913) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :PASS ((:HISTORY :MARKSWEEP :PACKED 8 536870913))
+ROW :BEGIN ((:HISTORY :MARKSWEEP :PACKED 8 268435464))
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :PACKED 8 268435464) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :PACKED 8 268435464) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :PACKED 8 268435464) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :PASS ((:HISTORY :MARKSWEEP :PACKED 8 268435464))
+ROW :BEGIN ((:ALL-CELLS :MARKSWEEP :PACKED 8))
+ROW :ALL-DESCRIPTOR-CELLS (:CELLS 64 :PASSES 2 :GRANULARITIES (8))
+ROW :PASS ((:ALL-CELLS :MARKSWEEP :PACKED 8))
+ROW :BEGIN ((:FUTURE-LARGE :MARKSWEEP :PACKED 8))
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870913 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :PASS ((:FUTURE-LARGE :MARKSWEEP :PACKED 8))
+ROW :BEGIN ((:STAGED :MARKSWEEP :PACKED 8))
+ROW :CYCLE (:CASE (:STAGED :MARKSWEEP :PACKED 8) :ROUND 0 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:STAGED :MARKSWEEP :PACKED 8) :ROUND 1 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:STAGED :MARKSWEEP :PACKED 8) :ROUND 2 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :PASS ((:STAGED :MARKSWEEP :PACKED 8))
+ROW :BEGIN ((:OBSERVER-CONTROL :MARKSWEEP :PACKED))
+ROW :BUILDER-RELEASED (:ACQUIRED 9 :RELEASED 10)
+ROW :PASS ((:OBSERVER-CONTROL :MARKSWEEP :PACKED))
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 0))
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870913 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 0)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 0)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 0)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 0))
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 1))
+ROW :BUILDER-RELEASED (:ACQUIRED 9 :RELEASED 10)
+ROW :PASS ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 1))
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 31))
+ROW :BUILDER-RELEASED (:ACQUIRED 9 :RELEASED 10)
+ROW :PASS ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 31))
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 32))
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435464 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 32)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 32)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 32)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 32))
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 63))
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435464 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 63)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 63)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 63)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 63))
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 64))
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870914 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 64)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 64)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 64)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 64))
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 67))
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870914 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 67)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 67)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 67)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 16 :C 32 :H 67))
+ROW :BEGIN ((:HISTORY :MARKSWEEP :SCALAR 16 536870913))
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :SCALAR 16 536870913) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :SCALAR 16 536870913) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :SCALAR 16 536870913) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :PASS ((:HISTORY :MARKSWEEP :SCALAR 16 536870913))
+ROW :BEGIN ((:HISTORY :MARKSWEEP :SCALAR 16 268435464))
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :SCALAR 16 268435464) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :SCALAR 16 268435464) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :SCALAR 16 268435464) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :PASS ((:HISTORY :MARKSWEEP :SCALAR 16 268435464))
+ROW :BEGIN ((:ALL-CELLS :MARKSWEEP :SCALAR 16))
+ROW :ALL-DESCRIPTOR-CELLS (:CELLS 32 :PASSES 2 :GRANULARITIES (16))
+ROW :PASS ((:ALL-CELLS :MARKSWEEP :SCALAR 16))
+ROW :BEGIN ((:FUTURE-LARGE :MARKSWEEP :SCALAR 16))
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870913 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :PASS ((:FUTURE-LARGE :MARKSWEEP :SCALAR 16))
+ROW :BEGIN ((:STAGED :MARKSWEEP :SCALAR 16))
+ROW :CYCLE (:CASE (:STAGED :MARKSWEEP :SCALAR 16) :ROUND 0 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:STAGED :MARKSWEEP :SCALAR 16) :ROUND 1 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:STAGED :MARKSWEEP :SCALAR 16) :ROUND 2 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :PASS ((:STAGED :MARKSWEEP :SCALAR 16))
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 0))
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870913 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 0)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 0)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 0)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 0))
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 1))
+ROW :BUILDER-RELEASED (:ACQUIRED 9 :RELEASED 10)
+ROW :PASS ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 1))
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 63))
+ROW :BUILDER-RELEASED (:ACQUIRED 9 :RELEASED 10)
+ROW :PASS ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 63))
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 64))
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435464 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 64)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 64)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 64)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 64))
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 127))
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435464 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 127)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 127)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 127)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 127))
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 128))
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870914 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 128)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 128)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 128)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 128))
+ROW :BEGIN ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 131))
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870914 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 131)
+            :ROUND 0 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 131)
+            :ROUND 1 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 131)
+            :ROUND 2 :STATUS :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED
+            0 :DISCOVERED 2)
+ROW :PASS ((:BOUNDARY :MARKSWEEP :SCALAR :GRANULARITY 8 :C 64 :H 131))
+ROW :BEGIN ((:HISTORY :MARKSWEEP :SCALAR 8 536870913))
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :SCALAR 8 536870913) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :SCALAR 8 536870913) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :SCALAR 8 536870913) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :PASS ((:HISTORY :MARKSWEEP :SCALAR 8 536870913))
+ROW :BEGIN ((:HISTORY :MARKSWEEP :SCALAR 8 268435464))
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :SCALAR 8 268435464) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :SCALAR 8 268435464) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:HISTORY :MARKSWEEP :SCALAR 8 268435464) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :PASS ((:HISTORY :MARKSWEEP :SCALAR 8 268435464))
+ROW :BEGIN ((:ALL-CELLS :MARKSWEEP :SCALAR 8))
+ROW :ALL-DESCRIPTOR-CELLS (:CELLS 64 :PASSES 2 :GRANULARITIES (8))
+ROW :PASS ((:ALL-CELLS :MARKSWEEP :SCALAR 8))
+ROW :BEGIN ((:FUTURE-LARGE :MARKSWEEP :SCALAR 8))
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870913 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :PASS ((:FUTURE-LARGE :MARKSWEEP :SCALAR 8))
+ROW :BEGIN ((:STAGED :MARKSWEEP :SCALAR 8))
+ROW :CYCLE (:CASE (:STAGED :MARKSWEEP :SCALAR 8) :ROUND 0 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:STAGED :MARKSWEEP :SCALAR 8) :ROUND 1 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:STAGED :MARKSWEEP :SCALAR 8) :ROUND 2 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :PASS ((:STAGED :MARKSWEEP :SCALAR 8))
+ROW :BEGIN ((:OBSERVER-CONTROL :MARKSWEEP :SCALAR))
+ROW :BUILDER-RELEASED (:ACQUIRED 9 :RELEASED 10)
+ROW :PASS ((:OBSERVER-CONTROL :MARKSWEEP :SCALAR))
+ROW :BEGIN ((:MIXED-GRANULARITY-HISTORY :PACKED))
+ROW :CYCLE (:CASE (:MIXED-GRANULARITY-HISTORY :PACKED) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:MIXED-GRANULARITY-HISTORY :PACKED) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:MIXED-GRANULARITY-HISTORY :PACKED) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :PASS ((:MIXED-GRANULARITY-HISTORY :PACKED))
+ROW :BEGIN ((:MIXED-GRANULARITY-ALL-CELLS :PACKED))
+ROW :ALL-DESCRIPTOR-CELLS (:CELLS 96 :PASSES 2 :GRANULARITIES (8 16))
+ROW :PASS ((:MIXED-GRANULARITY-ALL-CELLS :PACKED))
+ROW :BEGIN ((:MIXED-GRANULARITY-HISTORY :SCALAR))
+ROW :CYCLE (:CASE (:MIXED-GRANULARITY-HISTORY :SCALAR) :ROUND 0 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:MIXED-GRANULARITY-HISTORY :SCALAR) :ROUND 1 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:MIXED-GRANULARITY-HISTORY :SCALAR) :ROUND 2 :STATUS
+            :COMPLETE :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :PASS ((:MIXED-GRANULARITY-HISTORY :SCALAR))
+ROW :BEGIN ((:MIXED-GRANULARITY-ALL-CELLS :SCALAR))
+ROW :ALL-DESCRIPTOR-CELLS (:CELLS 96 :PASSES 2 :GRANULARITIES (8 16))
+ROW :PASS ((:MIXED-GRANULARITY-ALL-CELLS :SCALAR))
+ROW :FINISHED (:PASSED 104 :FAILED 0 :PRESERVED-WORLDS 0)
+ROW :BEGIN ((:DIRECTORY :SEMISPACE :PACKED))
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435487 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:DIRECTORY :SEMISPACE :PACKED) :ROUND 0 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:DIRECTORY :SEMISPACE :PACKED) :ROUND 1 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:DIRECTORY :SEMISPACE :PACKED) :ROUND 2 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :PASS ((:DIRECTORY :SEMISPACE :PACKED))
+ROW :BEGIN ((:DIRECTORY :SEMISPACE :SCALAR))
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435487 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:DIRECTORY :SEMISPACE :SCALAR) :ROUND 0 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:DIRECTORY :SEMISPACE :SCALAR) :ROUND 1 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:DIRECTORY :SEMISPACE :SCALAR) :ROUND 2 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 2 :DISCOVERED 2)
+ROW :PASS ((:DIRECTORY :SEMISPACE :SCALAR))
+ROW :BEGIN ((:DIRECTORY :MARKSWEEP :PACKED))
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435487 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:DIRECTORY :MARKSWEEP :PACKED) :ROUND 0 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:DIRECTORY :MARKSWEEP :PACKED) :ROUND 1 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:DIRECTORY :MARKSWEEP :PACKED) :ROUND 2 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :PASS ((:DIRECTORY :MARKSWEEP :PACKED))
+ROW :BEGIN ((:DIRECTORY :MARKSWEEP :SCALAR))
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435487 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :CYCLE (:CASE (:DIRECTORY :MARKSWEEP :SCALAR) :ROUND 0 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:DIRECTORY :MARKSWEEP :SCALAR) :ROUND 1 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :CYCLE (:CASE (:DIRECTORY :MARKSWEEP :SCALAR) :ROUND 2 :STATUS :COMPLETE
+            :REASON :COMPLETE :PHASE :RELEASE :MOVED 0 :DISCOVERED 2)
+ROW :PASS ((:DIRECTORY :MARKSWEEP :SCALAR))
+ROW :DIRECTORY-FINISHED (:PASSED 4 :FAILED 0)
+ROW :BEGIN ((:ENDPOINT-HOLES :SEMISPACE :PACKED 8))
+ROW :EXACT-ROW-ACCOUNT (:REQUIRED 132 :H 128 :RESERVED 0)
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435456 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870912 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 805306368 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 1073741824 :CONDITION
+                            "Malformed reference reconstruction descriptor")
+ROW :ATOMIC-CODE-REJECTION (:CODE -1 :CONDITION
+                            "Malformed reference reconstruction descriptor")
+ROW :ATOMIC-CODE-REJECTION (:CODE :BAD :CONDITION
+                            "Malformed reference reconstruction descriptor")
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435487 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435487 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870913 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :EXACT-ROW-ACCOUNT (:REQUIRED 132 :H 128 :RESERVED 128)
+ROW :PASS ((:ENDPOINT-HOLES :SEMISPACE :PACKED 8))
+ROW :BEGIN ((:ENDPOINT-HOLES :SEMISPACE :PACKED 16))
+ROW :EXACT-ROW-ACCOUNT (:REQUIRED 68 :H 64 :RESERVED 0)
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435456 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870912 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 805306368 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 1073741824 :CONDITION
+                            "Malformed reference reconstruction descriptor")
+ROW :ATOMIC-CODE-REJECTION (:CODE -1 :CONDITION
+                            "Malformed reference reconstruction descriptor")
+ROW :ATOMIC-CODE-REJECTION (:CODE :BAD :CONDITION
+                            "Malformed reference reconstruction descriptor")
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435487 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435487 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870913 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :EXACT-ROW-ACCOUNT (:REQUIRED 68 :H 64 :RESERVED 64)
+ROW :PASS ((:ENDPOINT-HOLES :SEMISPACE :PACKED 16))
+ROW :BEGIN ((:MAXIMUM-CANONICAL-FIELDS :SEMISPACE :PACKED))
+ROW :EXACT-ROW-ACCOUNT (:REQUIRED 16 :H 12 :RESERVED 0)
+ROW :ATOMIC-CODE-REJECTION (:CODE 805306369 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 1072693248 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 269484032 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 1073741824 :CONDITION
+                            "Malformed reference reconstruction descriptor")
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870913 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :EXACT-ROW-ACCOUNT (:REQUIRED 16 :H 12 :RESERVED 12)
+ROW :PASS ((:MAXIMUM-CANONICAL-FIELDS :SEMISPACE :PACKED))
+ROW :BEGIN ((:ENDPOINT-HOLES :SEMISPACE :SCALAR 8))
+ROW :EXACT-ROW-ACCOUNT (:REQUIRED 132 :H 128 :RESERVED 0)
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435456 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870912 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 805306368 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 1073741824 :CONDITION
+                            "Malformed reference reconstruction descriptor")
+ROW :ATOMIC-CODE-REJECTION (:CODE -1 :CONDITION
+                            "Malformed reference reconstruction descriptor")
+ROW :ATOMIC-CODE-REJECTION (:CODE :BAD :CONDITION
+                            "Malformed reference reconstruction descriptor")
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435487 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435487 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870913 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :EXACT-ROW-ACCOUNT (:REQUIRED 132 :H 128 :RESERVED 128)
+ROW :PASS ((:ENDPOINT-HOLES :SEMISPACE :SCALAR 8))
+ROW :BEGIN ((:ENDPOINT-HOLES :SEMISPACE :SCALAR 16))
+ROW :EXACT-ROW-ACCOUNT (:REQUIRED 68 :H 64 :RESERVED 0)
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435456 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870912 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 805306368 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 1073741824 :CONDITION
+                            "Malformed reference reconstruction descriptor")
+ROW :ATOMIC-CODE-REJECTION (:CODE -1 :CONDITION
+                            "Malformed reference reconstruction descriptor")
+ROW :ATOMIC-CODE-REJECTION (:CODE :BAD :CONDITION
+                            "Malformed reference reconstruction descriptor")
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435487 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435487 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870913 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :EXACT-ROW-ACCOUNT (:REQUIRED 68 :H 64 :RESERVED 64)
+ROW :PASS ((:ENDPOINT-HOLES :SEMISPACE :SCALAR 16))
+ROW :BEGIN ((:MAXIMUM-CANONICAL-FIELDS :SEMISPACE :SCALAR))
+ROW :EXACT-ROW-ACCOUNT (:REQUIRED 16 :H 12 :RESERVED 0)
+ROW :ATOMIC-CODE-REJECTION (:CODE 805306369 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 1072693248 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 269484032 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 1073741824 :CONDITION
+                            "Malformed reference reconstruction descriptor")
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870913 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :EXACT-ROW-ACCOUNT (:REQUIRED 16 :H 12 :RESERVED 12)
+ROW :PASS ((:MAXIMUM-CANONICAL-FIELDS :SEMISPACE :SCALAR))
+ROW :BEGIN ((:ENDPOINT-HOLES :MARKSWEEP :PACKED 8))
+ROW :EXACT-ROW-ACCOUNT (:REQUIRED 68 :H 64 :RESERVED 0)
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435456 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870912 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 805306368 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 1073741824 :CONDITION
+                            "Malformed reference reconstruction descriptor")
+ROW :ATOMIC-CODE-REJECTION (:CODE -1 :CONDITION
+                            "Malformed reference reconstruction descriptor")
+ROW :ATOMIC-CODE-REJECTION (:CODE :BAD :CONDITION
+                            "Malformed reference reconstruction descriptor")
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435487 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870913 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :EXACT-ROW-ACCOUNT (:REQUIRED 68 :H 64 :RESERVED 64)
+ROW :PASS ((:ENDPOINT-HOLES :MARKSWEEP :PACKED 8))
+ROW :BEGIN ((:ENDPOINT-HOLES :MARKSWEEP :PACKED 16))
+ROW :EXACT-ROW-ACCOUNT (:REQUIRED 36 :H 32 :RESERVED 0)
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435456 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870912 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 805306368 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 1073741824 :CONDITION
+                            "Malformed reference reconstruction descriptor")
+ROW :ATOMIC-CODE-REJECTION (:CODE -1 :CONDITION
+                            "Malformed reference reconstruction descriptor")
+ROW :ATOMIC-CODE-REJECTION (:CODE :BAD :CONDITION
+                            "Malformed reference reconstruction descriptor")
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435487 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870913 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :EXACT-ROW-ACCOUNT (:REQUIRED 36 :H 32 :RESERVED 32)
+ROW :PASS ((:ENDPOINT-HOLES :MARKSWEEP :PACKED 16))
+ROW :BEGIN ((:MAXIMUM-CANONICAL-FIELDS :MARKSWEEP :PACKED))
+ROW :EXACT-ROW-ACCOUNT (:REQUIRED 10 :H 6 :RESERVED 0)
+ROW :ATOMIC-CODE-REJECTION (:CODE 805306369 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 1072693248 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 269484032 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 1073741824 :CONDITION
+                            "Malformed reference reconstruction descriptor")
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870913 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :EXACT-ROW-ACCOUNT (:REQUIRED 10 :H 6 :RESERVED 6)
+ROW :PASS ((:MAXIMUM-CANONICAL-FIELDS :MARKSWEEP :PACKED))
+ROW :BEGIN ((:ENDPOINT-HOLES :MARKSWEEP :SCALAR 8))
+ROW :EXACT-ROW-ACCOUNT (:REQUIRED 68 :H 64 :RESERVED 0)
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435456 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870912 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 805306368 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 1073741824 :CONDITION
+                            "Malformed reference reconstruction descriptor")
+ROW :ATOMIC-CODE-REJECTION (:CODE -1 :CONDITION
+                            "Malformed reference reconstruction descriptor")
+ROW :ATOMIC-CODE-REJECTION (:CODE :BAD :CONDITION
+                            "Malformed reference reconstruction descriptor")
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435487 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870913 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :EXACT-ROW-ACCOUNT (:REQUIRED 68 :H 64 :RESERVED 64)
+ROW :PASS ((:ENDPOINT-HOLES :MARKSWEEP :SCALAR 8))
+ROW :BEGIN ((:ENDPOINT-HOLES :MARKSWEEP :SCALAR 16))
+ROW :EXACT-ROW-ACCOUNT (:REQUIRED 36 :H 32 :RESERVED 0)
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435456 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870912 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 805306368 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 1073741824 :CONDITION
+                            "Malformed reference reconstruction descriptor")
+ROW :ATOMIC-CODE-REJECTION (:CODE -1 :CONDITION
+                            "Malformed reference reconstruction descriptor")
+ROW :ATOMIC-CODE-REJECTION (:CODE :BAD :CONDITION
+                            "Malformed reference reconstruction descriptor")
+ROW :ATOMIC-CODE-REJECTION (:CODE 268435487 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870913 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :EXACT-ROW-ACCOUNT (:REQUIRED 36 :H 32 :RESERVED 32)
+ROW :PASS ((:ENDPOINT-HOLES :MARKSWEEP :SCALAR 16))
+ROW :BEGIN ((:MAXIMUM-CANONICAL-FIELDS :MARKSWEEP :SCALAR))
+ROW :EXACT-ROW-ACCOUNT (:REQUIRED 10 :H 6 :RESERVED 0)
+ROW :ATOMIC-CODE-REJECTION (:CODE 805306369 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 1072693248 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 269484032 :CONDITION
+                            "Reference descriptor is outside the admitted domain")
+ROW :ATOMIC-CODE-REJECTION (:CODE 1073741824 :CONDITION
+                            "Malformed reference reconstruction descriptor")
+ROW :ATOMIC-CODE-REJECTION (:CODE 536870913 :CONDITION
+                            "Reference encoding code-row capacity exhausted")
+ROW :EXACT-ROW-ACCOUNT (:REQUIRED 10 :H 6 :RESERVED 6)
+ROW :PASS ((:MAXIMUM-CANONICAL-FIELDS :MARKSWEEP :SCALAR))
+ROW :ADDITIONAL-FINISHED (:PASSED 12 :FAILED 0)
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/quality/finalizers.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/finalizers-tmpTZOONXRW.fasl
+; compilation finished in 0:00:00.024
+FINALIZER-REGISTRATION-HISTORIES-PASS profiles=4
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/quality/finalizer-drain.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/finalizer-drain-tmpWN0UKDSV.fasl
+; compilation finished in 0:00:00.024
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/quality/finalizer-history.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/finalizer-history-tmpBF3HHBTQ.fasl
+; compilation finished in 0:00:00.016
+FINALIZER-DRAIN :NORMAL :SEMISPACE :PACKED PASS
+FINALIZER-DRAIN :ERROR :SEMISPACE :PACKED PASS
+FINALIZER-DRAIN :THROW :SEMISPACE :PACKED PASS
+FINALIZER-DRAIN :RECURSIVE :SEMISPACE :PACKED PASS
+FINALIZER-DRAIN :NESTED-PUBLICATION :SEMISPACE :PACKED PASS
+FINALIZER-DRAIN :APPENDS :SEMISPACE :PACKED PASS
+FINALIZER-DRAIN :RUNNING-ROOTS :SEMISPACE :PACKED PASS
+FINALIZER-DRAIN :ACTIVE-CONTEXT :SEMISPACE :PACKED PASS
+FINALIZER-DRAIN :THROW-KEEPS-REST :SEMISPACE :PACKED PASS
+FINALIZER-DRAIN :RECURSIVE-THROW :SEMISPACE :PACKED PASS
+FINALIZER-DRAIN :SINGLE-RECORD :SEMISPACE :PACKED PASS
+FINALIZER-DRAIN (:COLLECTION-FAILURE :RETURN) :SEMISPACE :PACKED PASS
+FINALIZER-DRAIN (:COLLECTION-FAILURE :THROW) :SEMISPACE :PACKED PASS
+FINALIZER-DRAIN (:COLLECTION-FAILURE :ERROR) :SEMISPACE :PACKED PASS
+FINALIZER-DRAIN :NORMAL :SEMISPACE :SCALAR PASS
+FINALIZER-DRAIN :ERROR :SEMISPACE :SCALAR PASS
+FINALIZER-DRAIN :THROW :SEMISPACE :SCALAR PASS
+FINALIZER-DRAIN :RECURSIVE :SEMISPACE :SCALAR PASS
+FINALIZER-DRAIN :NESTED-PUBLICATION :SEMISPACE :SCALAR PASS
+FINALIZER-DRAIN :APPENDS :SEMISPACE :SCALAR PASS
+FINALIZER-DRAIN :RUNNING-ROOTS :SEMISPACE :SCALAR PASS
+FINALIZER-DRAIN :ACTIVE-CONTEXT :SEMISPACE :SCALAR PASS
+FINALIZER-DRAIN :THROW-KEEPS-REST :SEMISPACE :SCALAR PASS
+FINALIZER-DRAIN :RECURSIVE-THROW :SEMISPACE :SCALAR PASS
+FINALIZER-DRAIN :SINGLE-RECORD :SEMISPACE :SCALAR PASS
+FINALIZER-DRAIN (:COLLECTION-FAILURE :RETURN) :SEMISPACE :SCALAR PASS
+FINALIZER-DRAIN (:COLLECTION-FAILURE :THROW) :SEMISPACE :SCALAR PASS
+FINALIZER-DRAIN (:COLLECTION-FAILURE :ERROR) :SEMISPACE :SCALAR PASS
+FINALIZER-DRAIN :NORMAL :MARKSWEEP :PACKED PASS
+FINALIZER-DRAIN :ERROR :MARKSWEEP :PACKED PASS
+FINALIZER-DRAIN :THROW :MARKSWEEP :PACKED PASS
+FINALIZER-DRAIN :RECURSIVE :MARKSWEEP :PACKED PASS
+FINALIZER-DRAIN :NESTED-PUBLICATION :MARKSWEEP :PACKED PASS
+FINALIZER-DRAIN :APPENDS :MARKSWEEP :PACKED PASS
+FINALIZER-DRAIN :RUNNING-ROOTS :MARKSWEEP :PACKED PASS
+FINALIZER-DRAIN :ACTIVE-CONTEXT :MARKSWEEP :PACKED PASS
+FINALIZER-DRAIN :THROW-KEEPS-REST :MARKSWEEP :PACKED PASS
+FINALIZER-DRAIN :RECURSIVE-THROW :MARKSWEEP :PACKED PASS
+FINALIZER-DRAIN :SINGLE-RECORD :MARKSWEEP :PACKED PASS
+FINALIZER-DRAIN (:COLLECTION-FAILURE :RETURN) :MARKSWEEP :PACKED PASS
+FINALIZER-DRAIN (:COLLECTION-FAILURE :THROW) :MARKSWEEP :PACKED PASS
+FINALIZER-DRAIN (:COLLECTION-FAILURE :ERROR) :MARKSWEEP :PACKED PASS
+FINALIZER-DRAIN :NORMAL :MARKSWEEP :SCALAR PASS
+FINALIZER-DRAIN :ERROR :MARKSWEEP :SCALAR PASS
+FINALIZER-DRAIN :THROW :MARKSWEEP :SCALAR PASS
+FINALIZER-DRAIN :RECURSIVE :MARKSWEEP :SCALAR PASS
+FINALIZER-DRAIN :NESTED-PUBLICATION :MARKSWEEP :SCALAR PASS
+FINALIZER-DRAIN :APPENDS :MARKSWEEP :SCALAR PASS
+FINALIZER-DRAIN :RUNNING-ROOTS :MARKSWEEP :SCALAR PASS
+FINALIZER-DRAIN :ACTIVE-CONTEXT :MARKSWEEP :SCALAR PASS
+FINALIZER-DRAIN :THROW-KEEPS-REST :MARKSWEEP :SCALAR PASS
+FINALIZER-DRAIN :RECURSIVE-THROW :MARKSWEEP :SCALAR PASS
+FINALIZER-DRAIN :SINGLE-RECORD :MARKSWEEP :SCALAR PASS
+FINALIZER-DRAIN (:COLLECTION-FAILURE :RETURN) :MARKSWEEP :SCALAR PASS
+FINALIZER-DRAIN (:COLLECTION-FAILURE :THROW) :MARKSWEEP :SCALAR PASS
+FINALIZER-DRAIN (:COLLECTION-FAILURE :ERROR) :MARKSWEEP :SCALAR PASS
+FINALIZER-DRAIN-HISTORIES-PASS cases=56
+COMPOSED-WRAP-PASS :SEMISPACE :PACKED rounds=10 callbacks=50 failures=30
+TWO-REGISTRY-ESCAPE-PASS :SEMISPACE :PACKED
+RECURSIVE-FAILURE-PASS :SEMISPACE :PACKED escape=NIL actual=:COLLECTION-BUSY inner=:COLLECTION-BUSY
+RECURSIVE-FAILURE-PASS :SEMISPACE :PACKED escape=T actual=:ESCAPED inner=NIL
+COMPOSED-WRAP-PASS :SEMISPACE :SCALAR rounds=10 callbacks=50 failures=30
+TWO-REGISTRY-ESCAPE-PASS :SEMISPACE :SCALAR
+RECURSIVE-FAILURE-PASS :SEMISPACE :SCALAR escape=NIL actual=:COLLECTION-BUSY inner=:COLLECTION-BUSY
+RECURSIVE-FAILURE-PASS :SEMISPACE :SCALAR escape=T actual=:ESCAPED inner=NIL
+COMPOSED-WRAP-PASS :MARKSWEEP :PACKED rounds=10 callbacks=50 failures=30
+TWO-REGISTRY-ESCAPE-PASS :MARKSWEEP :PACKED
+RECURSIVE-FAILURE-PASS :MARKSWEEP :PACKED escape=NIL actual=1 inner=2
+RECURSIVE-FAILURE-PASS :MARKSWEEP :PACKED escape=T actual=:ESCAPED inner=NIL
+COMPOSED-WRAP-PASS :MARKSWEEP :SCALAR rounds=10 callbacks=50 failures=30
+TWO-REGISTRY-ESCAPE-PASS :MARKSWEEP :SCALAR
+RECURSIVE-FAILURE-PASS :MARKSWEEP :SCALAR escape=NIL actual=1 inner=2
+RECURSIVE-FAILURE-PASS :MARKSWEEP :SCALAR escape=T actual=:ESCAPED inner=NIL
+INDEPENDENT-QUEUE-PASS cases=16
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/quality/model-resources.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/model-resources-tmpGYUNPZCY.fasl
+; compilation finished in 0:00:00.129
+MODEL-RESOURCE-QUALITY-OK (:ELEMENT-COUNT 4096 :OBJECT-BYTES 32784 :SPACE-BASE
+                           4096 :SPACE-EXTENT 66592 :PACKING-QUANTUM 16
+                           :ARENA-ELEMENT-TYPE (UNSIGNED-BYTE 8)
+                           :WORD-PLANE-ELEMENT-TYPE T
+                           :MODEL-REPRESENTATION-CAPACITY 8324
+                           :MODEL-DESCRIPTOR-CELLS 8324
+                           :TOP-LEVEL-MODEL-PLANE-BYTES 666272
+                           :BASE-REFERENCE-RECORD-BYTES 532736
+                           :STAGING-BACKING-BYTES 65600
+                           :PARTIAL-MODEL-SUBTOTAL-BYTES 1264608
+                           :ACCOUNT-PHYSICAL-BYTES 402752
+                           :ACCOUNT-AUXILIARY-BYTES 1602112
+                           :EXPLICIT-REFERENCE-SCAN-CALLBACKS (4096 4096)
+                           :EXPLICIT-NUMERIC-SCAN-CALLBACKS 0
+                           :COLLECTOR-SCAN-CALLBACKS :NOT-MEASURED
+                           :OBJECTS-DISCOVERED 2 :OBJECTS-MOVED 2 :BYTES-MOVED
+                           65568)
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/tools/debug.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/debug-tmpD68Q8WCA.fasl
+; compilation finished in 0:00:00.029
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/tools/check-structure.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; file: /tmp/clamsara-cas-only-1hf1b7ih/tools/check-structure.lisp
+; in: DEFUN %PACKAGE-DESIGNATOR
+;     (TYPECASE CLAMSARA.STRUCTURE::VALUE
+;       (PACKAGE CLAMSARA.STRUCTURE::VALUE)
+;       (SYMBOL (SYMBOL-NAME CLAMSARA.STRUCTURE::VALUE))
+;       (STRING CLAMSARA.STRUCTURE::VALUE)
+;       (T CLAMSARA.STRUCTURE::VALUE))
+; --> IF IF IF THE 
+; ==>
+;   CLAMSARA.STRUCTURE::VALUE
+; 
+; note: deleting unreachable code
+
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/check-structure-tmp7MK9KM9C.fasl
+; compilation finished in 0:00:00.112
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/quality/structure.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/structure-tmpJJ71X849.fasl
+; compilation finished in 0:00:00.014
+; compiling file "/tmp/clamsara-structure-3998936794-4047042964791612174/native-clean.lisp" (written 21 SEP 2026 04:46:34 AM):
+
+; wrote /tmp/clamsara-structure-3998936794-4047042964791612174/native-clean.fasl
+; compilation finished in 0:00:00.004
+Structure fixture tests passed (30 checks).
+(:STATUS :OK :ROOT "/tmp/clamsara-cas-only-1hf1b7ih/" :FILES
+ ("/tmp/clamsara-cas-only-1hf1b7ih/src/client/atomics.lisp"
+  "/tmp/clamsara-cas-only-1hf1b7ih/src/client/coordinator.lisp"
+  "/tmp/clamsara-cas-only-1hf1b7ih/src/client/diagnostics.lisp"
+  "/tmp/clamsara-cas-only-1hf1b7ih/src/client/finalizers.lisp"
+  "/tmp/clamsara-cas-only-1hf1b7ih/src/client/mapping.lisp"
+  "/tmp/clamsara-cas-only-1hf1b7ih/src/client/metadata.lisp"
+  "/tmp/clamsara-cas-only-1hf1b7ih/src/client/object-model.lisp"
+  "/tmp/clamsara-cas-only-1hf1b7ih/src/client/roots.lisp"
+  "/tmp/clamsara-cas-only-1hf1b7ih/src/construction/build.lisp"
+  "/tmp/clamsara-cas-only-1hf1b7ih/src/construction/graph.lisp"
+  "/tmp/clamsara-cas-only-1hf1b7ih/src/construction/layout.lisp"
+  "/tmp/clamsara-cas-only-1hf1b7ih/src/construction/protocol.lisp"
+  "/tmp/clamsara-cas-only-1hf1b7ih/src/construction/records.lisp"
+  "/tmp/clamsara-cas-only-1hf1b7ih/src/construction/validation.lisp"
+  "/tmp/clamsara-cas-only-1hf1b7ih/src/host/address-space.lisp"
+  "/tmp/clamsara-cas-only-1hf1b7ih/src/host/atomics.lisp"
+  "/tmp/clamsara-cas-only-1hf1b7ih/src/host/auxiliary.lisp"
+  "/tmp/clamsara-cas-only-1hf1b7ih/src/host/coordinator.lisp"
+  "/tmp/clamsara-cas-only-1hf1b7ih/src/host/object-model.lisp"
+  "/tmp/clamsara-cas-only-1hf1b7ih/src/host/resources.lisp"
+  "/tmp/clamsara-cas-only-1hf1b7ih/src/host/roots.lisp"
+  "/tmp/clamsara-cas-only-1hf1b7ih/src/metadata/metadata.lisp"
+  "/tmp/clamsara-cas-only-1hf1b7ih/src/package.lisp"
+  "/tmp/clamsara-cas-only-1hf1b7ih/src/runtime/allocation.lisp"
+  "/tmp/clamsara-cas-only-1hf1b7ih/src/runtime/barrier.lisp"
+  "/tmp/clamsara-cas-only-1hf1b7ih/src/runtime/cycle.lisp"
+  "/tmp/clamsara-cas-only-1hf1b7ih/src/runtime/finalizers.lisp"
+  "/tmp/clamsara-cas-only-1hf1b7ih/src/runtime/protocol.lisp"
+  "/tmp/clamsara-cas-only-1hf1b7ih/src/runtime/records.lisp"
+  "/tmp/clamsara-cas-only-1hf1b7ih/src/runtime/spaces.lisp"
+  "/tmp/clamsara-cas-only-1hf1b7ih/src/runtime/trace.lisp")
+ :DEFINITION-COUNT 952 :NATIVE-READER T :NATIVE-INTROSPECTION T
+ :NATIVE-COMPILATION-PREREQUISITE
+ "Load :CLAMSARA through ASDF before INSPECT-LOADED." :ISSUES NIL)
+; 
+; compilation unit finished
+;   printed 5 notes
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/client/atomics.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/atomics-tmp75WVSJEW.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/client/mapping.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/mapping-tmpBU5UM3S4.fasl
+; compilation finished in 0:00:00.000
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/client/diagnostics.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/diagnostics-tmpOBHVA3CD.fasl
+; compilation finished in 0:00:00.000
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/client/coordinator.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/coordinator-tmpJ6ELVFLF.fasl
+; compilation finished in 0:00:00.000
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/test/tools/debug.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/debug-tmpULDB0RG.fasl
+; compilation finished in 0:00:00.006
+; compiling file "/tmp/clamsara-debug-G5154.lisp" (written 21 SEP 2026 04:46:34 AM):
+
+; wrote /tmp/clamsara-debug-test.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/tmp/clamsara-debug-G5157.lisp" (written 21 SEP 2026 04:46:34 AM):
+
+; file: /tmp/clamsara-debug-G5157.lisp
+; in: DEFUN BAD-IF
+;     (IF T
+;         1
+;         2
+;         3)
+; 
+; caught ERROR:
+;   Error while parsing arguments to special operator IF:
+;     too many elements in
+;       (T 1 2 3)
+;     to satisfy lambda list
+;       (TEST THEN &OPTIONAL ELSE):
+;     between 2 and 3 expected, but got 4
+
+
+; wrote /tmp/clamsara-debug-test.fasl
+; compilation finished in 0:00:00.000
+DEBUG-TOOLS: 14 checks passed
+; 
+; compilation unit finished
+;   caught 1 ERROR condition
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/construction/protocol.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/protocol-tmpUTZ0UUTE.fasl
+; compilation finished in 0:00:00.015
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/construction/records.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/records-tmpOOSRA8PZ.fasl
+; compilation finished in 0:00:00.215
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/construction/graph.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/graph-tmpDMIL0RVK.fasl
+; compilation finished in 0:00:00.053
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/construction/validation.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/validation-tmp8MR9IMIO.fasl
+; compilation finished in 0:00:00.034
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/construction/layout.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/layout-tmpJQDKAVAY.fasl
+; compilation finished in 0:00:00.037
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/construction/build.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/build-tmp3I8CEEQY.fasl
+; compilation finished in 0:00:00.060
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/metadata/metadata.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/metadata-tmpA3RHFLWZ.fasl
+; compilation finished in 0:00:00.087
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/host/roots.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/roots-tmpYZIB7VXO.fasl
+; compilation finished in 0:00:00.073
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/host/coordinator.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/coordinator-tmpR8PK79V8.fasl
+; compilation finished in 0:00:00.021
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/host/resources.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/resources-tmpN1ZVB1HZ.fasl
+; compilation finished in 0:00:00.092
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/host/address-space.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/address-space-tmpZGRRPISB.fasl
+; compilation finished in 0:00:00.067
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/runtime/protocol.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/protocol-tmpFNKDE5XP.fasl
+; compilation finished in 0:00:00.004
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/runtime/records.lisp" (written 21 SEP 2026 03:34:16 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/records-tmpRJTU435C.fasl
+; compilation finished in 0:00:00.045
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/runtime/barrier.lisp" (written 21 SEP 2026 03:42:10 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/barrier-tmpI9WG87JK.fasl
+; compilation finished in 0:00:00.022
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/runtime/finalizers.lisp" (written 21 SEP 2026 03:45:28 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/finalizers-tmpYDE6I9E6.fasl
+; compilation finished in 0:00:00.052
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/runtime/trace.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/trace-tmp319UV2V8.fasl
+; compilation finished in 0:00:00.034
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/runtime/spaces.lisp" (written 21 SEP 2026 03:39:48 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/spaces-tmpLYQINFYS.fasl
+; compilation finished in 0:00:00.082
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/runtime/cycle.lisp" (written 21 SEP 2026 04:00:34 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/cycle-tmpGA31XWNO.fasl
+; compilation finished in 0:00:00.040
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/runtime/allocation.lisp" (written 21 SEP 2026 03:34:16 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/allocation-tmp5HT23M6C.fasl
+; compilation finished in 0:00:00.013
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/host/object-model.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; file: /tmp/clamsara-cas-only-1hf1b7ih/src/host/object-model.lisp
+; in: DEFUN %HOST-NORMALIZE-STRONG-LAYOUT
+;     'NIL
+; 
+; note: deleting unreachable code
+
+; in: DEFMETHOD MAKE-OBJECT-KIND-DESCRIPTION (HOST-OBJECT-MODEL T)
+;     'NIL
+; 
+; note: deleting unreachable code
+; 
+; note: deleting unreachable code
+
+; in: DEFMETHOD BIND-OBJECT-MODEL (HOST-OBJECT-MODEL T T)
+;     (ERROR "Hosted nonbase codes require 46-bit fixnums")
+; 
+; note: deleting unreachable code
+
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/object-model-tmpA60KLDKY.fasl
+; compilation finished in 0:00:00.327
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/host/atomics.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/atomics-tmpD801X3GJ.fasl
+; compilation finished in 0:00:00.028
+; compiling file "/tmp/clamsara-cas-only-1hf1b7ih/src/host/auxiliary.lisp" (written 21 SEP 2026 12:13:03 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/auxiliary-tmpGOW1GC70.fasl
+; compilation finished in 0:00:00.020
+; compiling file "/home/iskam/quicklisp/dists/quicklisp/software/trivial-indent-20260101-git/indent.lisp" (written 05 AUG 2026 11:11:24 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/indent-tmpPQ1X28TL.fasl
+; compilation finished in 0:00:00.010
+; compiling file "/home/iskam/quicklisp/dists/quicklisp/software/documentation-utils-20260101-git/package.lisp" (written 05 AUG 2026 11:11:25 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/package-tmpE92ECU7O.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/dists/quicklisp/software/documentation-utils-20260101-git/toolkit.lisp" (written 05 AUG 2026 11:11:25 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/toolkit-tmp8S0II570.fasl
+; compilation finished in 0:00:00.033
+; compiling file "/home/iskam/quicklisp/dists/quicklisp/software/documentation-utils-20260101-git/documentation.lisp" (written 05 AUG 2026 11:11:25 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/documentation-tmpJE88A12F.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Clostrum/packages.lisp" (written 18 MAY 2026 12:34:10 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/packages-tmpA5FNLPLT.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Clostrum/clostrum.lisp" (written 18 MAY 2026 12:34:10 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/clostrum-tmpHKCV9TP8.fasl
+; compilation finished in 0:00:00.011
+; compiling file "/home/iskam/quicklisp/local-projects/Clostrum/default-methods.lisp" (written 18 MAY 2026 12:34:10 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/default-methods-tmpZ18MA7XE.fasl
+; compilation finished in 0:00:00.077
+; compiling file "/home/iskam/quicklisp/local-projects/Clostrum/conditions.lisp" (written 18 MAY 2026 12:34:10 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/conditions-tmp6LQJ9T0C.fasl
+; compilation finished in 0:00:00.012
+; compiling file "/home/iskam/quicklisp/local-projects/Clostrum/documentation.lisp" (written 18 MAY 2026 12:34:10 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/documentation-tmpTX7OA81T.fasl
+; compilation finished in 0:00:00.012
+; compiling file "/home/iskam/quicklisp/dists/quicklisp/software/acclimation-20241012-git/packages.lisp" (written 16 AUG 2026 10:13:22 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/packages-tmpWOTC3PB7.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/dists/quicklisp/software/acclimation-20241012-git/locale.lisp" (written 16 AUG 2026 10:13:22 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/locale-tmpHQE95SAC.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/dists/quicklisp/software/acclimation-20241012-git/date.lisp" (written 16 AUG 2026 10:13:22 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/date-tmpO87FP9NR.fasl
+; compilation finished in 0:00:00.000
+; compiling file "/home/iskam/quicklisp/dists/quicklisp/software/acclimation-20241012-git/language.lisp" (written 16 AUG 2026 10:13:22 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/language-tmpP6A3E92I.fasl
+; compilation finished in 0:00:00.000
+; compiling file "/home/iskam/quicklisp/dists/quicklisp/software/acclimation-20241012-git/language-english.lisp" (written 16 AUG 2026 10:13:22 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/language-english-tmpUSHT8RIL.fasl
+; compilation finished in 0:00:00.018
+; compiling file "/home/iskam/quicklisp/dists/quicklisp/software/acclimation-20241012-git/language-french.lisp" (written 16 AUG 2026 10:13:22 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/language-french-tmp7YCPD44Y.fasl
+; compilation finished in 0:00:00.018
+; compiling file "/home/iskam/quicklisp/dists/quicklisp/software/acclimation-20241012-git/language-swedish.lisp" (written 16 AUG 2026 10:13:22 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/language-swedish-tmpQXR7SNXD.fasl
+; compilation finished in 0:00:00.018
+; compiling file "/home/iskam/quicklisp/dists/quicklisp/software/acclimation-20241012-git/language-vietnamese.lisp" (written 16 AUG 2026 10:13:22 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/language-vietnamese-tmp6FLI1OC3.fasl
+; compilation finished in 0:00:00.007
+; compiling file "/home/iskam/quicklisp/dists/quicklisp/software/acclimation-20241012-git/language-japanese.lisp" (written 16 AUG 2026 10:13:22 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/language-japanese-tmpWBK8JTS9.fasl
+; compilation finished in 0:00:00.006
+; compiling file "/home/iskam/quicklisp/dists/quicklisp/software/acclimation-20241012-git/language-polish.lisp" (written 16 AUG 2026 10:13:22 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/language-polish-tmpUVEUD2ZN.fasl
+; compilation finished in 0:00:00.019
+; compiling file "/home/iskam/quicklisp/dists/quicklisp/software/acclimation-20241012-git/language-german.lisp" (written 16 AUG 2026 10:13:22 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/language-german-tmpOWNJOEU.fasl
+; compilation finished in 0:00:00.018
+; compiling file "/home/iskam/quicklisp/dists/quicklisp/software/acclimation-20241012-git/language-afrikaans.lisp" (written 16 AUG 2026 10:13:22 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/language-afrikaans-tmpVT5BMTA5.fasl
+; compilation finished in 0:00:00.017
+; compiling file "/home/iskam/quicklisp/dists/quicklisp/software/acclimation-20241012-git/condition.lisp" (written 16 AUG 2026 10:13:22 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/condition-tmpN3CFVWZF.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/dists/quicklisp/software/acclimation-20241012-git/restart.lisp" (written 16 AUG 2026 10:13:22 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/restart-tmpNK27C0R1.fasl
+; compilation finished in 0:00:00.005
+; compiling file "/home/iskam/quicklisp/dists/quicklisp/software/acclimation-20241012-git/documentation.lisp" (written 16 AUG 2026 10:13:22 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/documentation-tmp3BPE71HR.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/dists/quicklisp/software/acclimation-20241012-git/init.lisp" (written 16 AUG 2026 10:13:22 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/init-tmp758YUXMV.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Trucler/Code/packages.lisp" (written 28 JUN 2023 11:10:05 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/packages-tmpGMQXK1HK.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Trucler/Code/query-functions.lisp" (written 19 MAR 2023 10:41:37 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/query-functions-tmp49Q238TW.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/local-projects/Trucler/Code/query-class-accessors.lisp" (written 19 MAR 2023 10:41:37 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/query-class-accessors-tmpMXPMJ5KG.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/local-projects/Trucler/Code/cloning-information.lisp" (written 19 MAR 2023 10:41:37 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/cloning-information-tmpB69313KI.fasl
+; compilation finished in 0:00:00.000
+; compiling file "/home/iskam/quicklisp/local-projects/Trucler/Code/quasi-clone.lisp" (written 19 MAR 2023 10:41:37 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/quasi-clone-tmp9ZT99EEA.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Trucler/Code/query-mixin-classes.lisp" (written 19 MAR 2023 10:41:37 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/query-mixin-classes-tmpW045U8V2.fasl
+; compilation finished in 0:00:00.018
+; compiling file "/home/iskam/quicklisp/local-projects/Trucler/Code/query-classes.lisp" (written 19 MAR 2023 10:41:37 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/query-classes-tmp6XOIRI3N.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Trucler/Code/query-factories.lisp" (written 01 OCT 2023 05:03:48 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/query-factories-tmp9ZHTLHSG.fasl
+; compilation finished in 0:00:00.006
+; compiling file "/home/iskam/quicklisp/local-projects/Trucler/Code/merge-functions.lisp" (written 19 MAR 2023 10:41:37 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/merge-functions-tmpRW73Q691.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/local-projects/Trucler/Code/merge-methods.lisp" (written 01 OCT 2023 05:03:48 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/merge-methods-tmp4TM0ME1F.fasl
+; compilation finished in 0:00:00.014
+; compiling file "/home/iskam/quicklisp/local-projects/Trucler/Code/low-level-augmentation-functions.lisp" (written 19 MAR 2023 10:41:37 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/low-level-augmentation-functions-tmpU2IL9N4.fasl
+; compilation finished in 0:00:00.000
+; compiling file "/home/iskam/quicklisp/local-projects/Trucler/Code/augmentation-functions.lisp" (written 28 JUN 2023 11:10:05 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/augmentation-functions-tmpOPW41KDL.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/local-projects/Trucler/Code/environment-builder.lisp" (written 19 MAR 2023 10:41:37 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/environment-builder-tmpIPVWLON2.fasl
+; compilation finished in 0:00:00.000
+; compiling file "/home/iskam/quicklisp/local-projects/Trucler/Code/macro-functions.lisp" (written 19 MAR 2023 10:41:37 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/macro-functions-tmpO0LCOIDS.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/local-projects/Trucler/Code/conditions.lisp" (written 28 JUN 2023 11:10:05 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/conditions-tmpP264WQ6O.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Trucler/Code/condition-reporters-english.lisp" (written 28 JUN 2023 11:10:05 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/condition-reporters-english-tmpESC43OCR.fasl
+; compilation finished in 0:00:00.012
+; compiling file "/home/iskam/quicklisp/local-projects/Trucler/Code/docstrings-english.lisp" (written 28 JUN 2023 11:10:05 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/docstrings-english-tmpWCAM54ZJ.fasl
+; compilation finished in 0:00:00.011
+; compiling file "/home/iskam/quicklisp/local-projects/Trucler/Code/Implementations/Native/packages.lisp" (written 19 MAR 2023 10:41:37 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/packages-tmpVTMW561L.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/local-projects/Trucler/Code/Implementations/Native/client.lisp" (written 19 MAR 2023 10:41:37 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/client-tmpUNNGT9CF.fasl
+; compilation finished in 0:00:00.000
+; compiling file "/home/iskam/quicklisp/local-projects/Trucler/Code/Implementations/Native/methods.lisp" (written 19 MAR 2023 10:41:37 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/methods-tmp4L3W83SU.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Trucler/Code/Implementations/Native/SBCL/packages.lisp" (written 01 OCT 2023 05:03:48 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/packages-tmpGE7QNNEE.fasl
+; compilation finished in 0:00:00.000
+; compiling file "/home/iskam/quicklisp/local-projects/Trucler/Code/Implementations/Native/SBCL/utilities.lisp" (written 19 MAR 2023 10:41:37 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/utilities-tmp9B0UZGT4.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Trucler/Code/Implementations/Native/SBCL/query-classes.lisp" (written 19 MAR 2023 10:41:37 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/query-classes-tmpAJ5U325P.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Trucler/Code/Implementations/Native/SBCL/describe-block.lisp" (written 01 OCT 2023 05:03:48 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/describe-block-tmpAOF1CYAS.fasl
+; compilation finished in 0:00:00.003
+; compiling file "/home/iskam/quicklisp/local-projects/Trucler/Code/Implementations/Native/SBCL/describe-function.lisp" (written 19 MAR 2023 10:41:37 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/describe-function-tmpIXCQTSHA.fasl
+; compilation finished in 0:00:00.007
+; compiling file "/home/iskam/quicklisp/local-projects/Trucler/Code/Implementations/Native/SBCL/describe-optimize.lisp" (written 01 OCT 2023 05:03:48 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/describe-optimize-tmp5E6VIEMS.fasl
+; compilation finished in 0:00:00.003
+; compiling file "/home/iskam/quicklisp/local-projects/Trucler/Code/Implementations/Native/SBCL/describe-declarations.lisp" (written 19 MAR 2023 10:41:37 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/describe-declarations-tmpI0PODGVV.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Trucler/Code/Implementations/Native/SBCL/describe-tag.lisp" (written 19 MAR 2023 10:41:37 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/describe-tag-tmp1Z95I17K.fasl
+; compilation finished in 0:00:00.003
+; compiling file "/home/iskam/quicklisp/local-projects/Trucler/Code/Implementations/Native/SBCL/describe-variable.lisp" (written 19 MAR 2023 10:41:37 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/describe-variable-tmpCFVK1AC1.fasl
+; compilation finished in 0:00:00.011
+; compiling file "/home/iskam/quicklisp/local-projects/Trucler/Code/Implementations/Native/SBCL/global-environment.lisp" (written 19 MAR 2023 10:41:37 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/global-environment-tmpHHRR8E8N.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/local-projects/Trucler/Code/Implementations/Native/SBCL/global-environment-p.lisp" (written 19 MAR 2023 10:41:37 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/global-environment-p-tmpWWJ02E3I.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/dists/quicklisp/software/ecclesia-20250622-git/packages.lisp" (written 20 MAY 2026 03:37:15 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/packages-tmpONTOHUJ2.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/dists/quicklisp/software/ecclesia-20250622-git/conditions.lisp" (written 20 MAY 2026 03:37:15 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/conditions-tmpQT9APWMH.fasl
+; compilation finished in 0:00:00.006
+; compiling file "/home/iskam/quicklisp/dists/quicklisp/software/ecclesia-20250622-git/condition-reporters-english.lisp" (written 20 MAY 2026 03:37:15 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/condition-reporters-english-tmp6LYQXY0L.fasl
+; compilation finished in 0:00:00.032
+; compiling file "/home/iskam/quicklisp/dists/quicklisp/software/ecclesia-20250622-git/argcount.lisp" (written 20 MAY 2026 03:37:15 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/argcount-tmpNKVDR0J1.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/dists/quicklisp/software/ecclesia-20250622-git/list-structure.lisp" (written 20 MAY 2026 03:37:15 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/list-structure-tmp6F83SDCV.fasl
+; compilation finished in 0:00:00.007
+; compiling file "/home/iskam/quicklisp/dists/quicklisp/software/ecclesia-20250622-git/form.lisp" (written 20 MAY 2026 03:37:15 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/form-tmpEJNPPMJY.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/dists/quicklisp/software/ecclesia-20250622-git/declarations.lisp" (written 20 MAY 2026 03:37:15 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/declarations-tmp31RWPSX2.fasl
+; compilation finished in 0:00:00.008
+; compiling file "/home/iskam/quicklisp/dists/quicklisp/software/ecclesia-20250622-git/lambda-list-parsing.lisp" (written 20 MAY 2026 03:37:15 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/lambda-list-parsing-tmp1HKLMSTH.fasl
+; compilation finished in 0:00:00.071
+; compiling file "/home/iskam/quicklisp/dists/quicklisp/software/ecclesia-20250622-git/lambda-list-canonicalization.lisp" (written 20 MAY 2026 03:37:15 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/lambda-list-canonicalization-tmpEWG5XJ53.fasl
+; compilation finished in 0:00:00.042
+; compiling file "/home/iskam/quicklisp/dists/quicklisp/software/ecclesia-20250622-git/destructuring.lisp" (written 20 MAY 2026 03:37:15 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/destructuring-tmpXHL60MUV.fasl
+; compilation finished in 0:00:00.026
+; compiling file "/home/iskam/quicklisp/dists/quicklisp/software/ecclesia-20250622-git/canonicalized-destructuring.lisp" (written 20 MAY 2026 03:37:15 PM):
+
+; file: /home/iskam/quicklisp/dists/quicklisp/software/ecclesia-20250622-git/canonicalized-destructuring.lisp
+; in: DEFUN PARSE-DEFTYPE-USING-CANONICALIZATION
+;     (DEFUN ECCLESIA:PARSE-DEFTYPE-USING-CANONICALIZATION
+;            (ECCLESIA::NAME ECCLESIA:LAMBDA-LIST ECCLESIA::BODY
+;             &OPTIONAL ECCLESIA:ENVIRONMENT ECCLESIA::HEADER-DECLARATIONS)
+;       (DECLARE (IGNORE ECCLESIA::NAME))
+;       (LET* ((ECCLESIA::CANONICALIZED-LAMBDA-LIST
+;               (ECCLESIA::CANONICALIZE-DEFTYPE-LAMBDA-LIST ECCLESIA:LAMBDA-LIST))
+;              (ECCLESIA::ENVIRONMENT-GROUP
+;               (ECCLESIA:EXTRACT-NAMED-GROUP ECCLESIA::CANONICALIZED-LAMBDA-LIST
+;                                             '&ENVIRONMENT))
+;              (ECCLESIA::ENVIRONMENT-PARAMETER
+;               (IF #
+;                   #
+;                   #))
+;              (ECCLESIA::WHOLE-GROUP
+;               (ECCLESIA:EXTRACT-NAMED-GROUP ECCLESIA::CANONICALIZED-LAMBDA-LIST
+;                                             '&WHOLE))
+;              (ECCLESIA::WHOLE-PARAMETER
+;               (IF #
+;                   #
+;                   #))
+;              (ECCLESIA::REMAINING
+;               (REMOVE '&ENVIRONMENT # :KEY #'FIRST :TEST #'EQ))
+;              (ECCLESIA::ARGS-VAR (GENSYM)))
+;         (MULTIPLE-VALUE-BIND
+;             (ECCLESIA::DECLARATIONS DOCUMENTATION ECCLESIA::FORMS)
+;             (ECCLESIA:SEPARATE-FUNCTION-BODY ECCLESIA::BODY)
+;           (MULTIPLE-VALUE-BIND (ECCLESIA::BINDINGS ECCLESIA::IGNORED-VARIABLES)
+;               (ECCLESIA:DESTRUCTURE-CANONICALIZED-LAMBDA-LIST ECCLESIA::REMAINING
+;                ECCLESIA::ARGS-VAR)
+;             `(LAMBDA # ,@# ,@# #)))))
+; --> SB-IMPL::%DEFUN SB-IMPL::%DEFUN SB-INT:NAMED-LAMBDA 
+; ==>
+;   #'(SB-INT:NAMED-LAMBDA ECCLESIA:PARSE-DEFTYPE-USING-CANONICALIZATION
+;         (ECCLESIA::NAME ECCLESIA:LAMBDA-LIST ECCLESIA::BODY &OPTIONAL
+;          ECCLESIA:ENVIRONMENT ECCLESIA::HEADER-DECLARATIONS)
+;       (DECLARE (SB-C::TOP-LEVEL-FORM))
+;       (DECLARE (IGNORE ECCLESIA::NAME))
+;       (BLOCK ECCLESIA:PARSE-DEFTYPE-USING-CANONICALIZATION
+;         (LET* ((ECCLESIA::CANONICALIZED-LAMBDA-LIST #)
+;                (ECCLESIA::ENVIRONMENT-GROUP #)
+;                (ECCLESIA::ENVIRONMENT-PARAMETER #)
+;                (ECCLESIA::WHOLE-GROUP #)
+;                (ECCLESIA::WHOLE-PARAMETER #)
+;                (ECCLESIA::REMAINING #)
+;                (ECCLESIA::ARGS-VAR #))
+;           (MULTIPLE-VALUE-BIND
+;               (ECCLESIA::DECLARATIONS DOCUMENTATION ECCLESIA::FORMS)
+;               (ECCLESIA:SEPARATE-FUNCTION-BODY ECCLESIA::BODY)
+;             (MULTIPLE-VALUE-BIND # # `#)))))
+; 
+; caught STYLE-WARNING:
+;   The variable ENVIRONMENT is defined but never used.
+; 
+; caught STYLE-WARNING:
+;   The variable HEADER-DECLARATIONS is defined but never used.
+
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/canonicalized-destructuring-tmpB7NPDQCW.fasl
+; compilation finished in 0:00:00.017
+WARNING:
+   Lisp compilation had style-warnings while
+   compiling #<CL-SOURCE-FILE "ecclesia" "canonicalized-destructuring">
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/packages-extrinsic.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/packages-extrinsic-tmpGZ70QILE.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/condition-types.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/condition-types-tmpKYD38Q95.fasl
+; compilation finished in 0:00:00.048
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/utilities.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/utilities-tmpV4YQ0HKA.fasl
+; compilation finished in 0:00:00.009
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/when.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/when-tmpJXWE1HN2.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/unless.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/unless-tmpMNC5LX5B.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/and.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/and-tmp4RNSVVC1.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/or.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/or-tmpN626KU7B.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/cond.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/cond-tmpOO0K1B0C.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/case.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/case-tmpVFL7JAFK.fasl
+; compilation finished in 0:00:00.003
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/ecase.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/ecase-tmpU45RTF.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/return.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/return-tmpZTS6G7ND.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/multiple-value-bind.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/multiple-value-bind-tmp5TNBATEG.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/multiple-value-list.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/multiple-value-list-tmpJL6JXW7Z.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/multiple-value-setq.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/multiple-value-setq-tmp5PQ00DH7.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/nth-value.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/nth-value-tmp5R1KP4O2.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/defvar.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/defvar-tmpXQDKKJYI.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/expand-defmethod.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/expand-defmethod-tmpGJ3P31TF.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/expand-deftype.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/expand-deftype-tmpT2P2LFJI.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/expand-defpackage.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/expand-defpackage-tmpKOV75BS9.fasl
+; compilation finished in 0:00:00.022
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/expand-defun.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/expand-defun-tmpP07HWIXP.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/expand-defclass.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/expand-defclass-tmpURW0SA3C.fasl
+; compilation finished in 0:00:00.016
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/expand-defgeneric.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/expand-defgeneric-tmp627QKRZN.fasl
+; compilation finished in 0:00:00.007
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/expand-declaim.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/expand-declaim-tmpK8OFNZFV.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/defsetf.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/defsetf-tmpRMCY5COB.fasl
+; compilation finished in 0:00:00.005
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/destructuring-bind.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/destructuring-bind-tmp9TN1FOJ6.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/do-symbols.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/do-symbols-tmpEID7NJG3.fasl
+; compilation finished in 0:00:00.005
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/lambda.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/lambda-tmp8CJLVG9R.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/prog.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/prog-tmpZCJK45JG.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/progstar.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/progstar-tmpQC4TENAZ.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/prog1.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/prog1-tmp4HJFFDY3.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/prog2.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/prog2-tmp78H81ZL.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/handler-case.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/handler-case-tmp86K6JU7V.fasl
+; compilation finished in 0:00:00.012
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/ignore-errors.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/ignore-errors-tmp2L6X9BVQ.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/in-package.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/in-package-tmpES5DCUFN.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/iteration-support.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/iteration-support-tmpDVKOEP6R.fasl
+; compilation finished in 0:00:00.004
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/dolist.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/dolist-tmp4TWTKS75.fasl
+; compilation finished in 0:00:00.003
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/dotimes.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/dotimes-tmpXSOQ2I78.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/do.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/do-tmpUA03GLW1.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/dostar.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/dostar-tmpO0OW34V4.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/psetq.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/psetq-tmpU8KQLETJ.fasl
+; compilation finished in 0:00:00.000
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/restart-case.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/restart-case-tmpLBWGBOTB.fasl
+; compilation finished in 0:00:00.015
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/check-type.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/check-type-tmpRX2XGI9U.fasl
+; compilation finished in 0:00:00.005
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/typecase.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/typecase-tmpT2A3PQL9.fasl
+; compilation finished in 0:00:00.004
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/etypecase.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/etypecase-tmpOVHYA3BO.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/with-accessors.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/with-accessors-tmpLT3TYWCE.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/with-input-from-string.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/with-input-from-string-tmp3YF2HENI.fasl
+; compilation finished in 0:00:00.003
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/with-open-file.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/with-open-file-tmp9EEV8FN4.fasl
+; compilation finished in 0:00:00.003
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/with-open-stream.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/with-open-stream-tmpDK25NJJO.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/with-output-to-string.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; file: /home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/with-output-to-string.lisp
+; in: DEFMACRO WITH-OUTPUT-TO-STRING
+;     (COMMON-MACRO-DEFINITIONS:DEFMACRO WITH-OUTPUT-TO-STRING
+;         ((COMMON-MACRO-DEFINITIONS::STREAM-VARIABLE &OPTIONAL
+;           COMMON-MACRO-DEFINITIONS::STRING-FORM &KEY
+;           (COMMON-MACRO-DEFINITIONS::ELEMENT-TYPE ''CHARACTER))
+;          &BODY COMMON-MACRO-DEFINITIONS::BODY)
+;       (IF (NULL COMMON-MACRO-DEFINITIONS::STRING-FORM)
+;           `(LET ((,COMMON-MACRO-DEFINITIONS::STREAM-VARIABLE #))
+;              (UNWIND-PROTECT (PROGN # #)
+;                (CLOSE ,COMMON-MACRO-DEFINITIONS::STREAM-VARIABLE)))
+;           (LET ((COMMON-MACRO-DEFINITIONS::STRING-VARIABLE #))
+;             `(LET* (# #)
+;                (UNWIND-PROTECT # #)))))
+; 
+; caught STYLE-WARNING:
+;   &OPTIONAL and &KEY found in the same lambda list: (STREAM-VARIABLE &OPTIONAL
+;                                                      STRING-FORM &KEY
+;                                                      (ELEMENT-TYPE
+;                                                       (QUOTE (QUOTE CHARACTER))))
+
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/with-output-to-string-tmpNMZ5RT9R.fasl
+; compilation finished in 0:00:00.004
+WARNING:
+   Lisp compilation had style-warnings while compiling
+   #<CL-SOURCE-FILE "common-macro-definitions-low" "with-output-to-string">
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/with-simple-restart.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/with-simple-restart-tmp8K51P1O1.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/Low/with-slots.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/with-slots-tmpXAVJ8WEV.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/utilities.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/utilities-tmpOZHFIU2N.fasl
+; compilation finished in 0:00:00.000
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/defmethod.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/defmethod-tmpJD9SCIW3.fasl
+; compilation finished in 0:00:00.004
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/deftype.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/deftype-tmpICVK4HSI.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/defpackage.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/defpackage-tmpA5CK3QHN.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/defparameter.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/defparameter-tmp5KE6HXAY.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/defmacro.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/defmacro-tmp5UBS1APN.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/define-compiler-macro.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/define-compiler-macro-tmpSI9E4AQB.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/define-setf-expander.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/define-setf-expander-tmpID7X8UGC.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/defun.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/defun-tmpFYN8G5D1.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/defclass.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/defclass-tmpG1VNK6NW.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/defgeneric.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/defgeneric-tmpV4YWE7CS.fasl
+; compilation finished in 0:00:00.003
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/declaim.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/declaim-tmpC487WU3K.fasl
+; compilation finished in 0:00:00.002
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/ccase.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/ccase-tmpKMQH3GP.fasl
+; compilation finished in 0:00:00.004
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/ctypecase.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/ctypecase-tmp8N0WO2QA.fasl
+; compilation finished in 0:00:00.003
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/decf.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/decf-tmpZ9QI367A.fasl
+; compilation finished in 0:00:00.003
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/incf.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/incf-tmpRD10QMAI.fasl
+; compilation finished in 0:00:00.003
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/pop.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/pop-tmp2L2R3A8M.fasl
+; compilation finished in 0:00:00.003
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/psetf.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/psetf-tmp1CJ2OZ96.fasl
+; compilation finished in 0:00:00.015
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/push.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/push-tmpDKS9KGUG.fasl
+; compilation finished in 0:00:00.003
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/pushnew.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/pushnew-tmp3E37X9HX.fasl
+; compilation finished in 0:00:00.007
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/remf.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/remf-tmpXPWOLC8S.fasl
+; compilation finished in 0:00:00.004
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/rotatef.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/rotatef-tmpUSWNVC8E.fasl
+; compilation finished in 0:00:00.009
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/setf.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/setf-tmp68FKQK8H.fasl
+; compilation finished in 0:00:00.003
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/shiftf.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/shiftf-tmpMU3D23G2.fasl
+; compilation finished in 0:00:00.012
+; compiling file "/home/iskam/quicklisp/local-projects/Common-macros/Common-macro-definitions/define-modify-macro.lisp" (written 18 MAY 2026 11:54:42 AM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/define-modify-macro-tmpP7RRFRW4.fasl
+; compilation finished in 0:00:00.005
+; compiling file "/home/iskam/quicklisp/local-projects/closer-mop/closer-mop-packages.lisp" (written 28 AUG 2026 11:05:22 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/closer-mop-packages-tmp11AFZINB.fasl
+; compilation finished in 0:00:00.049
+; compiling file "/home/iskam/quicklisp/local-projects/closer-mop/closer-mop-shared.lisp" (written 29 AUG 2026 03:23:51 AM):
+
+; file: /home/iskam/quicklisp/local-projects/closer-mop/closer-mop-shared.lisp
+; in: DEFUN GET-EMF
+;     (SUBSEQ CLOSER-MOP::ARGS 0 CLOSER-MOP::NOF-REQUIRED-ARGS)
+; 
+; note: unable to
+;   optimize
+; due to type uncertainty:
+;   The first argument is a SEQUENCE, not a VECTOR.
+; 
+; note: unable to
+;   optimize
+; due to type uncertainty:
+;   The first argument is a SEQUENCE, not a LIST.
+; 
+; note: unable to
+;   optimize
+; due to type uncertainty:
+;   The first argument is a SEQUENCE, not a SB-KERNEL:EXTENDED-SEQUENCE.
+
+; in: DEFUN ONLY-STANDARD-METHODS
+;     (TYPEP CLOSER-MOP::GF SB-MOP:SPECIALIZER)
+; 
+; note: unable to optimize because: can't open-code test of non-constant type
+
+;     (EQL (SB-MOP:EQL-SPECIALIZER-OBJECT SB-MOP:SPECIALIZER) CLOSER-MOP::GF)
+; 
+; note: forced to do IF-EQL (cost 15)
+;       unable to do inline float comparison (cost 4) because:
+;       The first argument is a T, not a SINGLE-FLOAT.
+;       The second argument is a T, not a SINGLE-FLOAT.
+;       unable to do inline float comparison (cost 4) because:
+;       The first argument is a T, not a DOUBLE-FLOAT.
+;       The second argument is a T, not a DOUBLE-FLOAT.
+;       etc.
+
+; in: DEFUN METHODS-ALL-THE-SAME-SPECIALIZERS
+;     (EQL (SB-MOP:EQL-SPECIALIZER-OBJECT CLOSER-MOP::SPEC1)
+;          (SB-MOP:EQL-SPECIALIZER-OBJECT CLOSER-MOP::SPEC2))
+; 
+; note: forced to do IF-EQL (cost 15)
+;       unable to do inline float comparison (cost 4) because:
+;       The first argument is a T, not a SINGLE-FLOAT.
+;       The second argument is a T, not a SINGLE-FLOAT.
+;       unable to do inline float comparison (cost 4) because:
+;       The first argument is a T, not a DOUBLE-FLOAT.
+;       The second argument is a T, not a DOUBLE-FLOAT.
+;       etc.
+
+; in: DEFUN COMPUTE-DISCRIMINATOR
+;     (FUNCALL CLOSER-MOP::COMPUTE-NATIVE-DISCRIMINATOR)
+; 
+; note: unable to
+;   optimize away possible call to FDEFINITION at runtime
+; because:
+;   COMPUTE-NATIVE-DISCRIMINATOR is not known to be a function
+
+;     (TYPEP CLOSER-MOP::ARG CLOSER-MOP::SPEC)
+; 
+; note: unable to optimize because: can't open-code test of non-constant type
+
+;     (FUNCALL CLOSER-MOP::COMPUTE-NATIVE-DISCRIMINATOR)
+; 
+; note: unable to
+;   optimize away possible call to FDEFINITION at runtime
+; because:
+;   COMPUTE-NATIVE-DISCRIMINATOR is not known to be a function
+
+;     (EQL CLOSER-MOP::ARG (SB-MOP:EQL-SPECIALIZER-OBJECT CLOSER-MOP::SPEC))
+; 
+; note: forced to do IF-EQL (cost 15)
+;       unable to do inline float comparison (cost 4) because:
+;       The first argument is a T, not a SINGLE-FLOAT.
+;       The second argument is a T, not a SINGLE-FLOAT.
+;       unable to do inline float comparison (cost 4) because:
+;       The first argument is a T, not a DOUBLE-FLOAT.
+;       The second argument is a T, not a DOUBLE-FLOAT.
+;       etc.
+
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/closer-mop-shared-tmpN84Z1F4D.fasl
+; compilation finished in 0:00:00.051
+; compiling file "/home/iskam/quicklisp/local-projects/closer-mop/closer-sbcl.lisp" (written 28 AUG 2026 11:05:22 PM):
+
+; wrote /tmp/clamsara-cas-only-native-mohxf8_l/fasl/closer-sbcl-tmpHX0IAQ8A.fasl
+; compilation finished in 0:00:00.000
+; compiling file "/home/iskam/quicklisp/local-projects/alexandria/alexandria-1/definitions.lisp" (written 19 MAY 2026 08:15:21 PM):
+While evaluating the form starting at line 7, column 0
+  of #P"/tmp/clamsara-cas-only-native-mohxf8_l/bootstrap.lisp":
+Unhandled PACKAGE-DOES-NOT-EXIST in thread #<SB-THREAD:THREAD tid=12736 "main thread" RUNNING
+                                              {1200450003}>:
+  The name "ALEXANDRIA" does not designate any package.
+
+Backtrace for: #<SB-THREAD:THREAD tid=12736 "main thread" RUNNING {1200450003}>
+0: (SB-DEBUG::DEBUGGER-DISABLED-HOOK #<PACKAGE-DOES-NOT-EXIST "The name ~S does not designate any package." {121607F743}> #<unused argument> :QUIT T)
+1: (SB-DEBUG::RUN-HOOK *INVOKE-DEBUGGER-HOOK* #<PACKAGE-DOES-NOT-EXIST "The name ~S does not designate any package." {121607F743}>)
+2: (INVOKE-DEBUGGER #<PACKAGE-DOES-NOT-EXIST "The name ~S does not designate any package." {121607F743}>)
+3: (ERROR #<PACKAGE-DOES-NOT-EXIST "The name ~S does not designate any package." {121607F743}>)
+4: (SB-KERNEL:WITH-SIMPLE-CONDITION-RESTARTS ERROR NIL PACKAGE-DOES-NOT-EXIST :PACKAGE "ALEXANDRIA" :FORMAT-CONTROL "The name ~S does not designate any package." :FORMAT-ARGUMENTS ("ALEXANDRIA"))
+5: (SB-INT:%FIND-PACKAGE-OR-LOSE "ALEXANDRIA")
+6: (SB-INT:FIND-UNDELETED-PACKAGE-OR-LOSE "ALEXANDRIA")
+7: ("top level form") [toplevel]
+8: ((FLET "G" :IN SB-C::%COMPILE-IN-LEXENV))
+9: (SB-C::%COMPILE-IN-LEXENV (SETQ *PACKAGE* (SB-INT:FIND-UNDELETED-PACKAGE-OR-LOSE "ALEXANDRIA")) #<NULL-LEXENV> NIL #<SB-C::SOURCE-INFO {1215FC5403}> 0 NIL T T)
+10: (SB-C:EVAL-WITH-COMPILE-IN-LEXENV (SETQ *PACKAGE* (SB-INT:FIND-UNDELETED-PACKAGE-OR-LOSE "ALEXANDRIA")) #<NULL-LEXENV> #<SB-C::SOURCE-INFO {1215FC5403}> 0 NIL)
+11: (SB-IMPL::%SIMPLE-EVAL (SETQ *PACKAGE* (SB-INT:FIND-UNDELETED-PACKAGE-OR-LOSE "ALEXANDRIA")) #<NULL-LEXENV>)
+12: (SB-INT:SIMPLE-EVAL-IN-LEXENV (SETQ *PACKAGE* (SB-INT:FIND-UNDELETED-PACKAGE-OR-LOSE "ALEXANDRIA")) #<NULL-LEXENV>)
+13: (SB-INT:SIMPLE-EVAL-IN-LEXENV (PROGN (SETQ *PACKAGE* (SB-INT:FIND-UNDELETED-PACKAGE-OR-LOSE "ALEXANDRIA"))) #<NULL-LEXENV>)
+14: (EVAL-TLF (PROGN (SETQ *PACKAGE* (SB-INT:FIND-UNDELETED-PACKAGE-OR-LOSE "ALEXANDRIA"))) 0 #<NULL-LEXENV>)
+15: ((FLET SB-C::FROB :IN SB-C::EVAL-COMPILE-TOPLEVEL))
+16: (SB-C::EVAL-COMPILE-TOPLEVEL ((SETQ *PACKAGE* (SB-INT:FIND-UNDELETED-PACKAGE-OR-LOSE "ALEXANDRIA"))) (#1=(SETQ *PACKAGE* (SB-INT:FIND-UNDELETED-PACKAGE-OR-LOSE "ALEXANDRIA")) (EVAL-WHEN (:COMPILE-TOPLEVEL :LOAD-TOPLEVEL :EXECUTE) #1#) SB-C::ORIGINAL-SOURCE-START 0 0))
+17: (SB-C::PROCESS-TOPLEVEL-FORM (SETQ *PACKAGE* (SB-INT:FIND-UNDELETED-PACKAGE-OR-LOSE "ALEXANDRIA")) ((EVAL-WHEN (:COMPILE-TOPLEVEL :LOAD-TOPLEVEL :EXECUTE) (SETQ *PACKAGE* (SB-INT:FIND-UNDELETED-PACKAGE-OR-LOSE "ALEXANDRIA"))) SB-C::ORIGINAL-SOURCE-START 0 0) (:COMPILE-TOPLEVEL))
+18: (SB-C::PROCESS-TOPLEVEL-PROGN ((SETQ *PACKAGE* (SB-INT:FIND-UNDELETED-PACKAGE-OR-LOSE "ALEXANDRIA"))) ((EVAL-WHEN (:COMPILE-TOPLEVEL :LOAD-TOPLEVEL :EXECUTE) (SETQ *PACKAGE* (SB-INT:FIND-UNDELETED-PACKAGE-OR-LOSE "ALEXANDRIA"))) SB-C::ORIGINAL-SOURCE-START 0 0) (:COMPILE-TOPLEVEL))
+19: (SB-C::PROCESS-TOPLEVEL-FORM (EVAL-WHEN (:COMPILE-TOPLEVEL :LOAD-TOPLEVEL :EXECUTE) (SETQ *PACKAGE* (SB-INT:FIND-UNDELETED-PACKAGE-OR-LOSE "ALEXANDRIA"))) (SB-C::ORIGINAL-SOURCE-START 0 0) NIL)
+20: (SB-C::PROCESS-TOPLEVEL-FORM (IN-PACKAGE :ALEXANDRIA) (SB-C::ORIGINAL-SOURCE-START 0 0) NIL)
+21: ((LAMBDA (SB-KERNEL:FORM &KEY :CURRENT-INDEX &ALLOW-OTHER-KEYS) :IN SB-C::SUB-COMPILE-FILE) (IN-PACKAGE :ALEXANDRIA) :CURRENT-INDEX 0)
+22: (SB-C::%DO-FORMS-FROM-INFO #<FUNCTION (LAMBDA (SB-KERNEL:FORM &KEY :CURRENT-INDEX &ALLOW-OTHER-KEYS) :IN SB-C::SUB-COMPILE-FILE) {12006126FB}> #<SB-C::SOURCE-INFO {1215FC5403}> SB-C::INPUT-ERROR-IN-COMPILE-FILE)
+23: ((LAMBDA NIL :IN SB-C::SUB-COMPILE-FILE))
+24: ((FLET SB-C::WITH-IT :IN SB-C::%WITH-COMPILATION-UNIT))
+25: (SB-C::SUB-COMPILE-FILE #<SB-C::SOURCE-INFO {1215FC5403}> NIL)
+26: (COMPILE-FILE #P"/home/iskam/quicklisp/local-projects/alexandria/alexandria-1/definitions.lisp" :OUTPUT-FILE #P"/tmp/clamsara-cas-only-native-mohxf8_l/fasl/definitions-tmp8MQVZGT.fasl" :VERBOSE NIL :PRINT NIL :EXTERNAL-FORMAT :UTF-8 :PROGRESS NIL :TRACE-FILE NIL :BLOCK-COMPILE NIL :ENTRY-POINTS NIL :EMIT-CFASL NIL)
+27: (UIOP/UTILITY:CALL-WITH-MUFFLED-CONDITIONS #<FUNCTION (LAMBDA NIL :IN UIOP/LISP-BUILD:COMPILE-FILE*) {121606129B}> NIL)
+28: (UIOP/PATHNAME:CALL-WITH-ENOUGH-PATHNAME #P"/home/iskam/quicklisp/local-projects/alexandria/alexandria-1/definitions.lisp" NIL #<FUNCTION (LAMBDA (UIOP/LISP-BUILD::INPUT-FILE) :IN UIOP/LISP-BUILD:COMPILE-FILE*) {121606121B}>)
+29: (UIOP/LISP-BUILD:COMPILE-FILE* #P"/home/iskam/quicklisp/local-projects/alexandria/alexandria-1/definitions.lisp" :OUTPUT-FILE #P"/tmp/clamsara-cas-only-native-mohxf8_l/fasl/definitions.fasl" :EXTERNAL-FORMAT :UTF-8 :WARNINGS-FILE NIL)
+30: (ASDF/LISP-ACTION:PERFORM-LISP-COMPILATION #<ASDF/LISP-ACTION:COMPILE-OP > #<ASDF/LISP-ACTION:CL-SOURCE-FILE "alexandria" "alexandria-1" "definitions">)
+31: ((SB-PCL::EMF ASDF/ACTION:PERFORM) #<unused argument> #<unused argument> #<ASDF/LISP-ACTION:COMPILE-OP > #<ASDF/LISP-ACTION:CL-SOURCE-FILE "alexandria" "alexandria-1" "definitions">)
+32: ((LAMBDA NIL :IN ASDF/ACTION:CALL-WHILE-VISITING-ACTION))
+33: ((:METHOD ASDF/ACTION:PERFORM-WITH-RESTARTS :AROUND (T T)) #<ASDF/LISP-ACTION:COMPILE-OP > #<ASDF/LISP-ACTION:CL-SOURCE-FILE "alexandria" "alexandria-1" "definitions">) [fast-method]
+34: ((:METHOD ASDF/PLAN:PERFORM-PLAN (T)) #<ASDF/PLAN:SEQUENTIAL-PLAN {12107177A3}>) [fast-method]
+35: ((FLET SB-C::WITH-IT :IN SB-C::%WITH-COMPILATION-UNIT))
+36: ((:METHOD ASDF/PLAN:PERFORM-PLAN :AROUND (T)) #<ASDF/PLAN:SEQUENTIAL-PLAN {12107177A3}>) [fast-method]
+37: ((:METHOD ASDF/OPERATE:OPERATE (ASDF/OPERATION:OPERATION ASDF/COMPONENT:COMPONENT)) #<ASDF/LISP-ACTION:TEST-OP > #<ASDF/SYSTEM:SYSTEM "clamsara/workload/test"> :PLAN-CLASS NIL :PLAN-OPTIONS NIL) [fast-method]
+38: ((SB-PCL::EMF ASDF/OPERATE:OPERATE) #<unused argument> #<unused argument> #<ASDF/LISP-ACTION:TEST-OP > #<ASDF/SYSTEM:SYSTEM "clamsara/workload/test">)
+39: ((LAMBDA NIL :IN ASDF/OPERATE:OPERATE))
+40: ((:METHOD ASDF/OPERATE:OPERATE :AROUND (T T)) #<ASDF/LISP-ACTION:TEST-OP > #<ASDF/SYSTEM:SYSTEM "clamsara/workload/test">) [fast-method]
+41: ((SB-PCL::EMF ASDF/OPERATE:OPERATE) #<unused argument> #<unused argument> ASDF/LISP-ACTION:TEST-OP :CLAMSARA/WORKLOAD/TEST)
+42: ((LAMBDA NIL :IN ASDF/OPERATE:OPERATE))
+43: ((:METHOD ASDF/OPERATE:OPERATE :AROUND (T T)) ASDF/LISP-ACTION:TEST-OP :CLAMSARA/WORKLOAD/TEST) [fast-method]
+44: (ASDF/SESSION:CALL-WITH-ASDF-SESSION #<FUNCTION (LAMBDA NIL :IN ASDF/OPERATE:OPERATE) {121089233B}> :OVERRIDE T :KEY NIL :OVERRIDE-CACHE T :OVERRIDE-FORCING NIL)
+45: ((LAMBDA NIL :IN ASDF/OPERATE:OPERATE))
+46: (ASDF/SESSION:CALL-WITH-ASDF-SESSION #<FUNCTION (LAMBDA NIL :IN ASDF/OPERATE:OPERATE) {121068A5EB}> :OVERRIDE NIL :KEY NIL :OVERRIDE-CACHE NIL :OVERRIDE-FORCING NIL)
+47: ((:METHOD ASDF/OPERATE:OPERATE :AROUND (T T)) ASDF/LISP-ACTION:TEST-OP :CLAMSARA/WORKLOAD/TEST) [fast-method]
+48: (ASDF/OPERATE:TEST-SYSTEM :CLAMSARA/WORKLOAD/TEST)
+49: (SB-INT:SIMPLE-EVAL-IN-LEXENV (ASDF/OPERATE:TEST-SYSTEM :CLAMSARA/WORKLOAD/TEST) #<NULL-LEXENV>)
+50: (EVAL-TLF (ASDF/OPERATE:TEST-SYSTEM :CLAMSARA/WORKLOAD/TEST) 6 NIL)
+51: ((LABELS SB-FASL::EVAL-FORM :IN SB-INT:LOAD-AS-SOURCE) (ASDF/OPERATE:TEST-SYSTEM :CLAMSARA/WORKLOAD/TEST) 6)
+52: ((LAMBDA (SB-KERNEL:FORM &KEY :CURRENT-INDEX &ALLOW-OTHER-KEYS) :IN SB-INT:LOAD-AS-SOURCE) (ASDF/OPERATE:TEST-SYSTEM :CLAMSARA/WORKLOAD/TEST) :CURRENT-INDEX 6)
+53: (SB-C::%DO-FORMS-FROM-INFO #<FUNCTION (LAMBDA (SB-KERNEL:FORM &KEY :CURRENT-INDEX &ALLOW-OTHER-KEYS) :IN SB-INT:LOAD-AS-SOURCE) {7F5A32AF74CB}> #<SB-C::SOURCE-INFO {12096CF8A3}> SB-C::INPUT-ERROR-IN-LOAD)
+54: (SB-INT:LOAD-AS-SOURCE #<SB-INT:FORM-TRACKING-STREAM for "file /tmp/clamsara-cas-only-native-mohxf8_l/bootstrap.lisp" {12096D8003}> :VERBOSE NIL :PRINT NIL :CONTEXT "loading")
+55: ((LABELS SB-FASL::LOAD-STREAM-1 :IN LOAD) #<SB-INT:FORM-TRACKING-STREAM for "file /tmp/clamsara-cas-only-native-mohxf8_l/bootstrap.lisp" {12096D8003}> NIL)
+56: (SB-FASL::CALL-WITH-LOAD-BINDINGS #<FUNCTION (LABELS SB-FASL::LOAD-STREAM-1 :IN LOAD) {7F5A32AF788B}> #<SB-INT:FORM-TRACKING-STREAM for "file /tmp/clamsara-cas-only-native-mohxf8_l/bootstrap.lisp" {12096D8003}> NIL #<SB-INT:FORM-TRACKING-STREAM for "file /tmp/clamsara-cas-only-native-mohxf8_l/bootstrap.lisp" {12096D8003}>)
+57: (LOAD #P"/tmp/clamsara-cas-only-native-mohxf8_l/bootstrap.lisp" :VERBOSE NIL :PRINT NIL :IF-DOES-NOT-EXIST :ERROR :EXTERNAL-FORMAT :DEFAULT)
+58: (SB-IMPL::PROCESS-EVAL/LOAD-OPTIONS ((:LOAD . "/tmp/clamsara-cas-only-native-mohxf8_l/bootstrap.lisp") (:QUIT)))
+59: (SB-IMPL::TOPLEVEL-INIT)
+60: ((FLET SB-UNIX::BODY :IN SB-IMPL::START-LISP))
+61: ((FLET "WITHOUT-INTERRUPTS-BODY-3" :IN SB-IMPL::START-LISP))
+62: (SB-IMPL::%START-LISP)
+
+unhandled condition in --disable-debugger mode, quitting
+; compilation aborted after 0:00:00.001
+; 
+; compilation unit aborted
+;   caught 2 fatal ERROR conditions
+;   caught 3 STYLE-WARNING conditions
+;   printed 14 notes

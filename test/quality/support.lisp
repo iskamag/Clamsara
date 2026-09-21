@@ -80,6 +80,58 @@
     (setf (observed-object-model *construction-observation*) model
           (observed-layout *construction-observation*) layout)))
 
+;; One shared observer path, rather than competing :AROUND replacements in
+;; separate suites. The test function receives only :LOAD or :STORE,
+;; never a managed value or borrowed location. Real primaries still execute.
+(defvar *reference-operation-observer* nil)
+(defmethod load-reference :before ((model clamsara::host-bound-object-model)
+                                  location &optional order)
+  (declare (ignore model location order))
+  (when *reference-operation-observer*
+    (funcall *reference-operation-observer* :load)))
+(defmethod store-reference-raw :before ((model clamsara::host-bound-object-model)
+                                       location value &optional order)
+  (declare (ignore model location value order))
+  (when *reference-operation-observer*
+    (funcall *reference-operation-observer* :store)))
+(defmethod clamsara::host-root-value :before
+    ((location clamsara::simulator-root-location))
+  (declare (ignore location))
+  (when *reference-operation-observer*
+    (funcall *reference-operation-observer* :load)))
+(defmethod (setf clamsara::host-root-value) :before
+    (value (location clamsara::simulator-root-location))
+  (declare (ignore value location))
+  (when *reference-operation-observer*
+    (funcall *reference-operation-observer* :store)))
+
+;; Active test hooks run immediately after a real raw operation. A borrowed
+;; location is passed only for this call and must not be retained. These hooks
+;; inject faults in tests; they are not production callbacks or target evidence.
+(defvar *reference-boundary-hook* nil)
+;; Separate comparison instrumentation preserves the two-event raw observer.
+(defvar *reference-comparison-observer* nil)
+(defmethod reference-encoding-equal-p :before
+    ((model clamsara::host-bound-object-model) left right)
+  (declare (ignore model left right))
+  (when *reference-comparison-observer*
+    (funcall *reference-comparison-observer*)))
+(defmethod load-reference :after ((model clamsara::host-bound-object-model)
+                                 location &optional order)
+  (declare (ignore order))
+  (when *reference-boundary-hook*
+    (funcall *reference-boundary-hook* :raw-load model location)))
+(defmethod reference-encoding-equal-p :after
+    ((model clamsara::host-bound-object-model) left right)
+  (declare (ignore left right))
+  (when *reference-boundary-hook*
+    (funcall *reference-boundary-hook* :comparison model nil)))
+(defmethod store-reference-raw :after ((model clamsara::host-bound-object-model)
+                                      location value &optional order)
+  (declare (ignore value order))
+  (when *reference-boundary-hook*
+    (funcall *reference-boundary-hook* :raw-store model location)))
+
 (defstruct (quality-world (:constructor %make-quality-world)
                           (:conc-name world-))
   algorithm
@@ -120,7 +172,7 @@
                              (stop-capacity 64)
                              (await-bound 32)
                              await-fail-after
-                             configure-model
+                             configure-model configure-plan
                              (object-capacity 1024))
   "Construct a small real hosted collector world through the public builders.
 ALGORITHM is :SEMISPACE or :MARKSWEEP.  OBJECT-STARTS is :PACKED or :SCALAR."
@@ -234,7 +286,11 @@ ALGORITHM is :SEMISPACE or :MARKSWEEP.  OBJECT-STARTS is :PACKED or :SCALAR."
                  :conditional-capacity conditional-capacity
                  :finalizer-capacity finalizer-capacity
                  :packing-quantum packing-quantum)))))
-         (configuration (construct-plan plan clients))
+         ;; Test-only extension seam, like CONFIGURE-MODEL: before graph
+         ;; discovery, initialization, accounting or configuration publication.
+         (configuration (progn
+                          (when configure-plan (funcall configure-plan plan))
+                          (construct-plan plan clients)))
          (context (bind-mutator configuration :quality-mutator :default)))
     (%make-quality-world
      :algorithm algorithm :object-starts object-starts

@@ -24,6 +24,11 @@
                    (or (listp events) (vectorp events))
                    (member policy '(:observe :transform :observe-final)))
         (%runtime-reject :invalid-barrier-composition))
+      ;; The paper does not settle shared-vs-separate reservation/callback
+      ;; ownership for a dual READ+CAS contribution. Do not choose a contract
+      ;; by allocating more scratch. Reject before publishing this composition.
+      (when (and (find :read events) (find :cas events))
+        (%runtime-reject :ambiguous-cas-reservation-contract))
       ;; Admit the actual authored CLOS methods.  Contribution methods must
       ;; dispatch on their opaque contribution and accept the protocol's
       ;; opaque reservation/context/location arguments; NIL probes no host
@@ -52,17 +57,15 @@
   (find event (getf (aref (%barrier-facts barrier) index) :events)
         :test #'eq))
 
-(defun %barrier-any-event-p (barrier index events)
-  (dolist (event events nil)
-    (when (%barrier-event-p barrier index event)
-      (return t))))
-
 (defun %validate-barrier-entry (barrier context)
   (let ((configuration (%context-configuration context)))
     (unless (and (eq (%context-state context) :bound)
                  (typep configuration '%configuration)
                  (eq barrier (configuration-barrier configuration)))
       (%runtime-reject :foreign-context)))
+  (when (or (%barrier-failed-p barrier)
+            (eq (%plan-state (%context-plan context)) :fatal))
+    (%runtime-reject :fatal-invariant))
   (unless (eq (%plan-state (%context-plan context)) :open)
     (%runtime-reject :collection-busy))
   (values))
@@ -77,141 +80,231 @@
       (setf (host-root-value location) value)
       (store-reference-raw (%barrier-model barrier) location value :release)))
 
-(defun %cancel-barrier-reservations (barrier reservations reserved-p count)
-  (loop for index downfrom (1- count) to 0
-        when (aref reserved-p index)
-          do (barrier-contribution-cancel
-              (aref (%barrier-contributions barrier) index)
-              (aref reservations index))
-             (setf (aref reserved-p index) nil
-                   (aref reservations index) nil))
+(defun %barrier-fatal (barrier context reason)
+  ;; Close before invoking a hosted diagnostic: ERROR or THROW may be caught
+  ;; outside this entry. Preserve unresolved scratch and its configuration pin.
+  (setf (%barrier-failed-p barrier) t
+        (%context-barrier-state context) :failed
+        (%plan-state (%context-plan context)) :fatal)
+  (fatal-diagnostic (%plan-diagnostics (%context-plan context)) reason)
+  (%runtime-reject reason))
+
+(defun %check-barrier-still-open (barrier context)
+  ;; A callback can catch a diagnostic from another nested context. That must
+  ;; not turn its enclosing operation into a successful or retrying heap entry.
+  (unless (and (not (%barrier-failed-p barrier))
+               (eq (%plan-state (%context-plan context)) :open))
+    (%barrier-fatal barrier context :fatal-invariant))
   (values))
 
-(defun %ensure-context-barrier-storage (context count)
-  (unless (and (slot-boundp context 'barrier-reservations)
-               (>= (length (%context-barrier-reservations context)) count))
-    (%runtime-reject :barrier-capacity-exhausted))
-  (fill (%context-barrier-reserved-p context) nil)
-  (fill (%context-barrier-reservations context) nil)
-  (values (%context-barrier-reservations context)
-          (%context-barrier-reserved-p context)))
+(defun %barrier-operation-event (barrier index operation)
+  ;; Dual READ+CAS is rejected at construction. A disjoint rule has exactly one
+  ;; applicable path. Keep reserve/admit consistent with admitted event methods
+  ;; and the existing transform/exposure convention (see contract addendum).
+  (if (eq operation :cas)
+      (cond ((%barrier-event-p barrier index :read) :read)
+            ((%barrier-event-p barrier index :cas) :cas))
+      (when (%barrier-event-p barrier index operation) operation)))
 
-(defun %reserve-barrier-path (barrier context events location)
-  (let ((count (length (%barrier-contributions barrier))))
-    (multiple-value-bind (reservations reserved-p)
-        (%ensure-context-barrier-storage context count)
-      (dotimes (index count (values reservations reserved-p :ready))
-        (when (%barrier-any-event-p barrier index events)
+(defun %check-context-barrier-storage (context count)
+  (unless (and (slot-boundp context 'barrier-reservations)
+               (slot-boundp context 'barrier-reserved-p)
+               (= (length (%context-barrier-reservations context)) count)
+               (= (length (%context-barrier-reserved-p context)) count))
+    (%runtime-reject :barrier-capacity-exhausted))
+  (values))
+
+(defun %cancel-barrier-reservations (barrier context &optional write-only-p)
+  (let ((reservations (%context-barrier-reservations context))
+        (owned (%context-barrier-reserved-p context)))
+    (loop for index downfrom (1- (length owned)) to 0
+          when (and (aref owned index)
+                    (or (not write-only-p)
+                        (not (%barrier-event-p barrier index :read))))
+            do (barrier-contribution-cancel
+                (aref (%barrier-contributions barrier) index)
+                (aref reservations index))
+               ;; A nested fatal escape could have been caught inside CANCEL.
+               ;; In that case retain the token as unresolved, never cancel it
+               ;; again. Otherwise its normal terminal return settles ownership.
+               (%check-barrier-still-open barrier context)
+               (setf (aref owned index) nil (aref reservations index) nil)))
+  (values))
+
+(defun %reserve-barrier-path (barrier context operation location)
+  (let ((reservations (%context-barrier-reservations context))
+        (owned (%context-barrier-reserved-p context)))
+    (dotimes (index (length owned) :ready)
+      (let ((event (%barrier-operation-event barrier index operation)))
+        (when event
           (multiple-value-bind (reservation status)
               (barrier-contribution-reserve
                (aref (%barrier-contributions barrier) index)
-               context (first events) location)
-            (unless (eq status :ready)
-              (%cancel-barrier-reservations barrier reservations reserved-p index)
-              (return (values reservations reserved-p :retry)))
-            (setf (aref reservations index) reservation
-                  (aref reserved-p index) t)))))))
+               context event location)
+            (case status
+              (:ready
+               ;; NIL can be an opaque successful token. Ownership is separate.
+               (setf (aref reservations index) reservation
+                     (aref owned index) t))
+              (:retry)
+              (otherwise (%runtime-reject :invalid-barrier-reserve-result)))
+            (%check-barrier-still-open barrier context)
+            (when (eq status :retry) (return :retry))))))))
 
-(defun %admit-barrier-path (barrier context events location reservations reserved-p)
-  (dotimes (index (length (%barrier-contributions barrier)) :complete)
-    (when (and (aref reserved-p index)
-               (%barrier-any-event-p barrier index events))
-      (unless (eq :complete
-                  (barrier-contribution-admit
-                   (aref (%barrier-contributions barrier) index)
-                   (aref reservations index) context (first events) location))
-        (return :retry)))))
+(defun %admit-barrier-path (barrier context operation location)
+  (let ((reservations (%context-barrier-reservations context))
+        (owned (%context-barrier-reserved-p context)))
+    (dotimes (index (length owned) :complete)
+      (when (aref owned index)
+        (let ((status
+                (barrier-contribution-admit
+                 (aref (%barrier-contributions barrier) index)
+                 (aref reservations index) context
+                 (%barrier-operation-event barrier index operation) location)))
+          (%check-barrier-still-open barrier context)
+          (case status
+            (:complete)
+            (:retry (return :retry))
+            (otherwise (%runtime-reject :invalid-barrier-admit-result))))))))
 
-(defun %transform-barrier-path (barrier context event location old candidate
-                                reservations reserved-p)
-  (dotimes (index (length (%barrier-contributions barrier))
-                  (values candidate :complete))
-    (when (and (aref reserved-p index)
-               (%barrier-event-p barrier index event)
-               (eq :transform
-                   (getf (aref (%barrier-facts barrier) index)
-                         :replacement-policy)))
-      (multiple-value-bind (next status)
-          (barrier-contribution-transform
-           (aref (%barrier-contributions barrier) index)
-           (aref reservations index) context event location old candidate)
-        (unless (eq status :complete)
-          (return (values nil :retry)))
-        (setf candidate next)))))
+(defun %transform-barrier-path (barrier context event location old candidate)
+  (let ((reservations (%context-barrier-reservations context))
+        (owned (%context-barrier-reserved-p context)))
+    (dotimes (index (length owned) (values candidate :complete))
+      (when (and (aref owned index)
+                 (%barrier-event-p barrier index event)
+                 (eq :transform
+                     (getf (aref (%barrier-facts barrier) index)
+                           :replacement-policy)))
+        (multiple-value-bind (next status)
+            (barrier-contribution-transform
+             (aref (%barrier-contributions barrier) index)
+             (aref reservations index) context event location old candidate)
+          (%check-barrier-still-open barrier context)
+          (case status
+            (:complete (setf candidate next))
+            (:retry (return (values nil :retry)))
+            (otherwise (%runtime-reject :invalid-barrier-transform-result))))))))
 
-(defun %barrier-exposure-callbacks (barrier context event location old final
-                                    reservations reserved-p before-p)
-  (dotimes (index (length (%barrier-contributions barrier)))
-    (when (and (aref reserved-p index)
-               (%barrier-event-p barrier index event))
-      (if before-p
-          (barrier-contribution-before-exposure
-           (aref (%barrier-contributions barrier) index)
-           (aref reservations index) context event location old final)
-          (barrier-contribution-after-exposure
-           (aref (%barrier-contributions barrier) index)
-           (aref reservations index) context event location old final))))
+(defun %barrier-exposure-callbacks (barrier context operation location old
+                                    observed final before-p)
+  (let ((reservations (%context-barrier-reservations context))
+        (owned (%context-barrier-reserved-p context)))
+    ;; One contribution-first pass. All fallible transforms have finished.
+    ;; Mismatch has already canceled write-only tokens, leaving only READ.
+    (dotimes (index (length owned))
+      (when (aref owned index)
+        (let* ((event (%barrier-operation-event barrier index operation))
+               (value (if (eq event :read) observed final))
+               (actual (aref (%barrier-contributions barrier) index))
+               (reservation (aref reservations index)))
+          (if before-p
+              (barrier-contribution-before-exposure
+               actual reservation context event location old value)
+              (progn
+                (barrier-contribution-after-exposure
+                 actual reservation context event location old value)
+                (%check-barrier-still-open barrier context)
+                (setf (aref owned index) nil
+                      (aref reservations index) nil)))
+          (%check-barrier-still-open barrier context)))))
   (values))
 
-(defun %barrier-fatal (barrier context reason)
-  (setf (%barrier-failed-p barrier) t)
-  (let ((diagnostics (%plan-diagnostics (%context-plan context))))
-    (fatal-diagnostic diagnostics reason))
-  ;; FATAL-DIAGNOSTIC is required not to return on this path.
-  (%runtime-reject reason))
+(defun %finish-barrier-invocation (barrier context outcome guard-owned-p)
+  ;; This runs on *every* exit after scratch acquisition, including a reserve
+  ;; which signals/throws before returning a token. Such an unknown violation
+  ;; cannot be relabeled :RETRY or assumed failure-atomic.
+  (unless (eq (%context-barrier-state context) :failed)
+    (%check-barrier-still-open barrier context)
+    (unless outcome
+      (%barrier-fatal barrier context
+                      (if (eq (%context-barrier-state context) :exposing)
+                          :post-publication-failure
+                          :fatal-invariant)))
+    (let ((settled-p nil))
+      (unwind-protect
+           (progn
+             (when (eq outcome :retry)
+               (%cancel-barrier-reservations barrier context))
+             (when (find t (%context-barrier-reserved-p context))
+               (%barrier-fatal barrier context :fatal-invariant))
+             (setf settled-p t))
+        ;; CANCEL is required not to fail, but an ERROR or non-error exit must
+        ;; still leave the runtime closed rather than drop remaining tokens.
+        (unless (or settled-p (eq (%context-barrier-state context) :failed))
+          (%barrier-fatal barrier context :fatal-invariant))))
+    (when guard-owned-p (setf (%barrier-busy-p barrier) nil))
+    (setf (%context-barrier-state context) :idle)
+    (decf (%plan-barrier-pin-count (%context-plan context))))
+  (values))
+
+(defun %execute-barrier-operation (barrier context location operation expected new)
+  (%validate-barrier-entry barrier context)
+  ;; Acquire the invocation *before* any scratch clear or authored callback.
+  ;; This is not the core location guard: reserve still precedes that guard.
+  (unless (eq (%context-barrier-state context) :idle)
+    (return-from %execute-barrier-operation (values nil nil :retry)))
+  (%check-context-barrier-storage context (length (%barrier-contributions barrier)))
+  (let ((outcome nil) (guard-owned-p nil))
+    (setf (%context-barrier-state context) :pre-effect)
+    ;; Each admitted bound context owns at most one pin. Context generations
+    ;; bound the total by MOST-POSITIVE-FIXNUM; no per-call history is consumed.
+    (incf (%plan-barrier-pin-count (%context-plan context)))
+    (unwind-protect
+         (macrolet ((retry ()
+                      '(progn (setf outcome :retry)
+                              (return-from %execute-barrier-operation
+                                (values nil nil :retry)))))
+           (fill (%context-barrier-reservations context) nil)
+           (fill (%context-barrier-reserved-p context) nil)
+           (when (eq (%reserve-barrier-path barrier context operation location) :retry)
+             (retry))
+           (when (%barrier-busy-p barrier) (retry))
+           (setf (%barrier-busy-p barrier) t guard-owned-p t)
+           (when (eq (%admit-barrier-path barrier context operation location) :retry)
+             (retry))
+           (let* ((raw (%barrier-raw-load barrier location operation))
+                  (matched-p nil)
+                  (write-p nil)
+                  (observed raw)
+                  (final new))
+             (%check-barrier-still-open barrier context)
+             (when (eq operation :cas)
+               (setf matched-p (reference-encoding-equal-p
+                                (%barrier-model barrier) raw expected))
+               (%check-barrier-still-open barrier context))
+             (setf write-p (or matched-p (member operation '(:store :root-store))))
+             (when (member operation '(:read :cas))
+               (multiple-value-bind (value status)
+                   (%transform-barrier-path barrier context :read location raw raw)
+                 (when (eq status :retry) (retry))
+                 (setf observed value)))
+             (when write-p
+               (multiple-value-bind (value status)
+                   (%transform-barrier-path barrier context operation location raw new)
+                 (when (eq status :retry) (retry))
+                 (setf final value)))
+             (when (and (eq operation :cas) (not matched-p))
+               (%cancel-barrier-reservations barrier context t))
+             ;; Enter the non-failing phase before the first BEFORE invocation,
+             ;; not after it or after the raw store. No later cancel is an undo.
+             (setf (%context-barrier-state context) :exposing)
+             (%barrier-exposure-callbacks
+              barrier context operation location raw observed final t)
+             (when write-p (%barrier-raw-store barrier location final operation))
+             (%check-barrier-still-open barrier context)
+             (%barrier-exposure-callbacks
+              barrier context operation location raw observed final nil)
+             (setf outcome :complete)
+             (values (if (member operation '(:read :cas)) observed final)
+                     matched-p :complete)))
+      (%finish-barrier-invocation barrier context outcome guard-owned-p))))
 
 (defun %barrier-store-operation (barrier context location new operation)
-  (%validate-barrier-entry barrier context)
-  (when (%barrier-failed-p barrier)
-    (%runtime-reject :fatal-invariant))
-  (multiple-value-bind (reservations reserved-p reserve-status)
-      (%reserve-barrier-path barrier context (ecase operation
-                                (:store '(:store))
-                                (:root-store '(:root-store))) location)
-    (unless (eq reserve-status :ready)
-      (return-from %barrier-store-operation (values nil :retry)))
-    (when (%barrier-busy-p barrier)
-      (%cancel-barrier-reservations barrier reservations reserved-p
-                                    (length (%barrier-contributions barrier)))
-      (return-from %barrier-store-operation (values nil :retry)))
-    (setf (%barrier-busy-p barrier) t)
-    (unwind-protect
-         (progn
-           (unless (eq :complete
-                       (%admit-barrier-path barrier context (ecase operation
-                                (:store '(:store))
-                                (:root-store '(:root-store)))
-                                            location reservations reserved-p))
-             (%cancel-barrier-reservations
-              barrier reservations reserved-p
-              (length (%barrier-contributions barrier)))
-             (return-from %barrier-store-operation (values nil :retry)))
-           (let ((old (%barrier-raw-load barrier location operation)))
-             (multiple-value-bind (final transform-status)
-                 (%transform-barrier-path barrier context operation location
-                                          old new reservations reserved-p)
-               (unless (eq transform-status :complete)
-                 (%cancel-barrier-reservations
-                  barrier reservations reserved-p
-                  (length (%barrier-contributions barrier)))
-                 (return-from %barrier-store-operation (values nil :retry)))
-               (handler-case
-                   (progn
-                     (%barrier-exposure-callbacks
-                      barrier context operation location old final
-                      reservations reserved-p t)
-                     (%barrier-raw-store barrier location final operation)
-                     (%barrier-exposure-callbacks
-                      barrier context operation location old final
-                      reservations reserved-p nil))
-                 (error () (%barrier-fatal barrier context
-                                           :post-publication-failure)))
-               ;; After callbacks consume reservations.  Clear local ownership
-               ;; without calling CANCEL.
-               (fill reserved-p nil)
-               (fill reservations nil)
-               (values final :stored))))
-      (setf (%barrier-busy-p barrier) nil))))
+  (multiple-value-bind (value matched-p status)
+      (%execute-barrier-operation barrier context location operation nil new)
+    (declare (ignore matched-p))
+    (values value (if (eq status :complete) :stored status))))
 
 (defmethod barrier-store ((barrier composed-barrier)
                           (context sequential-execution-context) location new)
@@ -219,141 +312,15 @@
 
 (defmethod barrier-read ((barrier composed-barrier)
                          (context sequential-execution-context) location)
-  (%validate-barrier-entry barrier context)
-  (when (%barrier-failed-p barrier) (%runtime-reject :fatal-invariant))
-  (multiple-value-bind (reservations reserved-p reserve-status)
-      (%reserve-barrier-path barrier context '(:read) location)
-    (unless (eq reserve-status :ready)
-      (return-from barrier-read (values nil :retry)))
-    (when (%barrier-busy-p barrier)
-      (%cancel-barrier-reservations barrier reservations reserved-p
-                                    (length (%barrier-contributions barrier)))
-      (return-from barrier-read (values nil :retry)))
-    (setf (%barrier-busy-p barrier) t)
-    (unwind-protect
-         (progn
-           (unless (eq :complete
-                       (%admit-barrier-path barrier context '(:read) location
-                                            reservations reserved-p))
-             (%cancel-barrier-reservations
-              barrier reservations reserved-p
-              (length (%barrier-contributions barrier)))
-             (return-from barrier-read (values nil :retry)))
-           (let ((raw (%barrier-raw-load barrier location :read)))
-             (multiple-value-bind (usable status)
-                 (%transform-barrier-path barrier context :read location raw raw
-                                          reservations reserved-p)
-               (unless (eq status :complete)
-                 (%cancel-barrier-reservations
-                  barrier reservations reserved-p
-                  (length (%barrier-contributions barrier)))
-                 (return-from barrier-read (values nil :retry)))
-               (handler-case
-                   (progn
-                     (%barrier-exposure-callbacks
-                      barrier context :read location raw usable
-                      reservations reserved-p t)
-                     (%barrier-exposure-callbacks
-                      barrier context :read location raw usable
-                      reservations reserved-p nil))
-                 (error () (%barrier-fatal barrier context
-                                           :post-publication-failure)))
-               (fill reserved-p nil)
-               (fill reservations nil)
-               (values usable :complete))))
-      (setf (%barrier-busy-p barrier) nil))))
+  (multiple-value-bind (value matched-p status)
+      (%execute-barrier-operation barrier context location :read nil nil)
+    (declare (ignore matched-p))
+    (values value status)))
 
 (defmethod barrier-compare-exchange
     ((barrier composed-barrier) (context sequential-execution-context)
      location expected new)
-  (%validate-barrier-entry barrier context)
-  (when (%barrier-failed-p barrier) (%runtime-reject :fatal-invariant))
-  ;; CAS reserves the simultaneous union of its write and returned-read paths.
-  (multiple-value-bind (reservations reserved-p reserve-status)
-      (%reserve-barrier-path barrier context '(:cas :read) location)
-    (unless (eq reserve-status :ready)
-      (return-from barrier-compare-exchange (values nil nil :retry)))
-    (when (%barrier-busy-p barrier)
-      (%cancel-barrier-reservations barrier reservations reserved-p
-                                    (length (%barrier-contributions barrier)))
-      (return-from barrier-compare-exchange (values nil nil :retry)))
-    (setf (%barrier-busy-p barrier) t)
-    (unwind-protect
-         (progn
-           (unless (eq :complete
-                       (%admit-barrier-path barrier context '(:cas :read)
-                                            location reservations reserved-p))
-             (%cancel-barrier-reservations
-              barrier reservations reserved-p
-              (length (%barrier-contributions barrier)))
-             (return-from barrier-compare-exchange
-               (values nil nil :retry)))
-           (let ((raw (%barrier-raw-load barrier location :cas)))
-             (multiple-value-bind (observed read-status)
-                 (%transform-barrier-path barrier context :read location raw raw
-                                          reservations reserved-p)
-               (unless (eq read-status :complete)
-                 (%cancel-barrier-reservations
-                  barrier reservations reserved-p
-                  (length (%barrier-contributions barrier)))
-                 (return-from barrier-compare-exchange
-                   (values nil nil :retry)))
-               (if (not (reference-encoding-equal-p
-                         (%barrier-model barrier) raw expected))
-                   (progn
-                     ;; Mismatch exposes only the read path.  Write-only
-                     ;; reservations are cancelled exactly.
-                     (dotimes (index (length (%barrier-contributions barrier)))
-                       (when (and (aref reserved-p index)
-                                  (not (%barrier-event-p barrier index :read)))
-                         (barrier-contribution-cancel
-                          (aref (%barrier-contributions barrier) index)
-                          (aref reservations index))
-                         (setf (aref reserved-p index) nil
-                               (aref reservations index) nil)))
-                     (%barrier-exposure-callbacks
-                      barrier context :read location raw observed
-                      reservations reserved-p t)
-                     (%barrier-exposure-callbacks
-                      barrier context :read location raw observed
-                      reservations reserved-p nil)
-                     (fill reserved-p nil)
-                     (fill reservations nil)
-                     (values observed nil :complete))
-                   (multiple-value-bind (final write-status)
-                       (%transform-barrier-path
-                        barrier context :cas location raw new
-                        reservations reserved-p)
-                     (unless (eq write-status :complete)
-                       (%cancel-barrier-reservations
-                        barrier reservations reserved-p
-                        (length (%barrier-contributions barrier)))
-                       (return-from barrier-compare-exchange
-                         (values nil nil :retry)))
-                     (handler-case
-                         (progn
-                           (%barrier-exposure-callbacks
-                            barrier context :read location raw observed
-                            reservations reserved-p t)
-                           (%barrier-exposure-callbacks
-                            barrier context :cas location raw final
-                            reservations reserved-p t)
-                           ;; The sequential guard makes this sole release
-                           ;; store equivalent to the raw CAS success.
-                           (%barrier-raw-store barrier location final :cas)
-                           (%barrier-exposure-callbacks
-                            barrier context :read location raw observed
-                            reservations reserved-p nil)
-                           (%barrier-exposure-callbacks
-                            barrier context :cas location raw final
-                            reservations reserved-p nil))
-                       (error () (%barrier-fatal
-                                  barrier context :post-publication-failure)))
-                     (fill reserved-p nil)
-                     (fill reservations nil)
-                     (values observed t :complete))))))
-      (setf (%barrier-busy-p barrier) nil))))
-
+  (%execute-barrier-operation barrier context location :cas expected new))
 
 (defmethod barrier-store ((barrier composed-barrier) context location new)
   (declare (ignore barrier context location new))

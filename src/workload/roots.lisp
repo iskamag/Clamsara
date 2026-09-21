@@ -111,6 +111,24 @@ list and has a deterministic cleanup order."
    (source-index :initform 0 :accessor workload-location-source-index)
    (value :initform nil :accessor workload-location-value)))
 
+(defstruct (workload-root-walk (:constructor %make-workload-root-walk (queue seen)))
+  queue seen (count 0))
+
+(defun %new-workload-root-walk (capacity)
+  (%make-workload-root-walk
+   (make-array capacity :initial-element nil)
+   (make-hash-table :test #'eq :size (* 2 capacity) :rehash-threshold 1.0)))
+
+(defun %clear-workload-root-walk (walk)
+  (fill (workload-root-walk-queue walk) nil)
+  (clrhash (workload-root-walk-seen walk))
+  (setf (workload-root-walk-count walk) 0))
+
+(defun %make-workload-native-cells (capacity)
+  ;; These are interpreter control sources, never boxed guest list payload.
+  (let ((cells (make-array capacity)))
+    (dotimes (i capacity cells) (setf (aref cells i) (cons nil nil)))))
+
 (defclass workload-root-provider ()
   ((locations :initarg :locations :reader workload-provider-locations)
    (capacity :initarg :capacity :reader workload-provider-capacity)
@@ -121,9 +139,10 @@ list and has a deterministic cleanup order."
    (functions :initarg :functions :reader workload-provider-functions)
    (saved-values :initarg :saved-values :reader workload-provider-saved-values)
    (frame-count :initform 0 :accessor workload-provider-frame-count)
-   (control-queue :initarg :control-queue :reader workload-provider-control-queue)
-   (control-seen :initarg :control-seen :reader workload-provider-control-seen)
-   (control-count :initform 0 :accessor workload-provider-control-count)))
+   (control-walk :initarg :control-walk :reader workload-provider-control-walk)
+   (census-walk :initarg :census-walk :reader workload-provider-census-walk)
+   (native-cells :initarg :native-cells :reader workload-provider-native-cells)
+   (native-cell-count :initform 0 :accessor workload-provider-native-cell-count)))
 
 (defun make-workload-root-provider (capacity &key (temporary-capacity 16))
   "Provision CAPACITY immutable location tokens for a Maclina provider.
@@ -139,10 +158,9 @@ arguments; collector refresh never retargets or clears those tokens."
                                  :locations (make-array capacity)
                                  :functions (make-array capacity :initial-element nil)
                                  :saved-values (make-array capacity :initial-element nil)
-                                 :control-queue (make-array capacity :initial-element nil)
-                                 :control-seen (make-hash-table
-                                                :test #'eq :size (* 2 capacity)
-                                                :rehash-threshold 1.0))))
+                                 :control-walk (%new-workload-root-walk capacity)
+                                 :census-walk (%new-workload-root-walk capacity)
+                                 :native-cells (%make-workload-native-cells capacity))))
     (dotimes (index capacity provider)
       (setf (aref (workload-provider-locations provider) index)
             (make-instance 'workload-root-location
@@ -263,30 +281,30 @@ arguments; collector refresh never retargets or clears those tokens."
     (1+ cursor)))
 
 
-(defun %provider-enqueue-control (provider cursor value)
+(defun %provider-enqueue-control (walk cursor value)
   ;; Queue only known interpreter control objects. Never traverse arbitrary
   ;; host containers as if they were an admitted guest representation.
   (when (and (or (typep value 'maclina.machine:closure)
                  (typep value 'maclina.machine:function)
                  (typep value 'maclina.machine:module)
                  (typep value 'maclina.vm-cross::cell))
-             (not (gethash value (workload-provider-control-seen provider))))
-    (let ((count (workload-provider-control-count provider)))
-      (when (= count (length (workload-provider-control-queue provider)))
+             (not (gethash value (workload-root-walk-seen walk))))
+    (let ((count (workload-root-walk-count walk)))
+      (when (= count (length (workload-root-walk-queue walk)))
         (error 'workload-capability-error :operation 'map-provider-roots
                :reason :control-root-capacity-exhausted))
-      (setf (gethash value (workload-provider-control-seen provider)) t
-            (aref (workload-provider-control-queue provider) count) value
-            (workload-provider-control-count provider) (1+ count))))
+      (setf (gethash value (workload-root-walk-seen walk)) t
+            (aref (workload-root-walk-queue walk) count) value
+            (workload-root-walk-count walk) (1+ count))))
   cursor)
 
-(defun %provider-drain-control-roots (provider cursor)
+(defun %provider-drain-control-roots (provider walk cursor activate)
   (loop for index from 0
-        while (< index (workload-provider-control-count provider))
-        for object = (aref (workload-provider-control-queue provider) index)
+        while (< index (workload-root-walk-count walk))
+        for object = (aref (workload-root-walk-queue walk) index)
         do (etypecase object
              (maclina.machine:function
-              (%provider-enqueue-control provider cursor (maclina.machine:module object)))
+              (%provider-enqueue-control walk cursor (maclina.machine:module object)))
              (maclina.machine:module
               (let ((literals (maclina.machine:literals object))
                     (environment (workload-client-workload
@@ -296,92 +314,80 @@ arguments; collector refresh never retargets or clears those tokens."
                     ;; A literal slot itself is writable, unlike a detached
                     ;; copy of its current value. Host syntax is not traversed.
                     (when (workload-reference-p environment value)
-                      (setf cursor (%provider-activate provider cursor :literal object i)))
-                    (%provider-enqueue-control provider cursor value)))))
+                      (setf cursor (funcall activate provider cursor :literal object i)))
+                    (%provider-enqueue-control walk cursor value)))))
              (maclina.machine:closure
-              (%provider-enqueue-control provider cursor (maclina.machine:template object))
+              (%provider-enqueue-control walk cursor (maclina.machine:template object))
               (let ((environment (maclina.machine:environment object)))
                 (dotimes (i (length environment))
-                  (setf cursor (%provider-activate provider cursor :closure object i))
-                  (%provider-enqueue-control provider cursor (aref environment i)))))
+                  (setf cursor (funcall activate provider cursor :closure object i))
+                  (%provider-enqueue-control walk cursor (aref environment i)))))
              (maclina.vm-cross::cell
-              (setf cursor (%provider-activate provider cursor :lexical-cell object))
-              (%provider-enqueue-control provider cursor
+              (setf cursor (funcall activate provider cursor :lexical-cell object))
+              (%provider-enqueue-control walk cursor
                                           (maclina.vm-cross::cell-value object)))))
   cursor)
 
-(defun %provider-refresh (provider)
-  "Retarget tokens to active vm-cross roots using bounded control storage.
-
-This hosted path uses fixed token storage.  The interpreter must provision a
-capacity covering its stack, values, dynamic cells and closure environments;
-exhaustion is reported as a capability failure rather than dropping roots."
-  (%provider-clear-locations provider)
-  (clrhash (workload-provider-control-seen provider))
-  (fill (workload-provider-control-queue provider) nil)
-  (setf (workload-provider-control-count provider) 0)
+(defun %provider-walk-root-sources (provider walk activate
+                                    &key extra-function entry-local-start entry-end)
+  "Enumerate the same physical sources for snapshot installation and census.
+ACTIVATE may install a descriptor only in the protected snapshot path. The
+census uses separate bounded control scratch and never changes descriptors."
+  (%clear-workload-root-walk walk)
   (let ((cursor (workload-provider-temporary-capacity provider))
         (vm (workload-provider-vm provider))
         (client (workload-provider-client provider)))
     (when vm
       (dotimes (index (maclina.vm-cross::vm-stack-top vm))
-        (setf cursor (%provider-activate provider cursor :stack vm index))
+        (setf cursor (funcall activate provider cursor :stack vm index))
         (setf cursor
-              (%provider-enqueue-control
-               provider cursor
+              (%provider-enqueue-control walk cursor
                (svref (maclina.vm-cross::vm-stack vm) index))))
       ;; VM-VALUES is a host list.  Each cons cell is a stable physical source
       ;; for this protected snapshot; no location is retained after release.
       (loop for value-cell = (maclina.vm-cross::vm-values vm)
               then (cdr value-cell)
             while (consp value-cell)
-            do (setf cursor (%provider-activate
-                             provider cursor :values value-cell))
-               (setf cursor (%provider-enqueue-control
-                             provider cursor (car value-cell))))
+            do (setf cursor (funcall activate provider cursor :values value-cell))
+               (setf cursor (%provider-enqueue-control walk cursor (car value-cell))))
       ;; Dynamic special-binding/progv cells are host conses holding managed
       ;; values.  They are active roots for the current bytecode extent.
       (dolist (dynenv (maclina.vm-cross::vm-dynenv-stack vm))
         (typecase dynenv
           (maclina.vm-cross::sbind-dynenv
            (let ((cell (maclina.vm-cross::sbind-dynenv-cell dynenv)))
-             (setf cursor (%provider-activate provider cursor :cell cell))
-             (%provider-enqueue-control provider cursor (car cell))))
+             (setf cursor (funcall activate provider cursor :cell cell))
+             (%provider-enqueue-control walk cursor (car cell))))
           (maclina.vm-cross::progv-dynenv
            (dolist (pair (maclina.vm-cross::progv-dynenv-mapping dynenv))
-             (setf cursor (%provider-activate provider cursor :cell (cdr pair)))
-             (%provider-enqueue-control provider cursor (cadr pair))))
+             (setf cursor (funcall activate provider cursor :cell (cdr pair)))
+             (%provider-enqueue-control walk cursor (cadr pair))))
           (maclina.vm-cross::protection-dynenv
            (setf cursor
-                 (%provider-enqueue-control
-                  provider cursor
+                 (%provider-enqueue-control walk cursor
                   (maclina.vm-cross::protection-dynenv-cleanup dynenv)))))))
     ;; Active callees can have left the operand stack. Saved cleanup values
     ;; outlive changes to VM-VALUES and must update the original host conses.
     (dotimes (frame (workload-provider-frame-count provider))
-      (%provider-enqueue-control
-       provider cursor (aref (workload-provider-functions provider) frame))
+      (%provider-enqueue-control walk cursor (aref (workload-provider-functions provider) frame))
       (loop for cell on (aref (workload-provider-saved-values provider) frame)
-            do (setf cursor (%provider-activate provider cursor :values cell))
-               (%provider-enqueue-control provider cursor (car cell))))
+            do (setf cursor (funcall activate provider cursor :values cell))
+               (%provider-enqueue-control walk cursor (car cell))))
     ;; Symbol/property values are host hash-table payloads but are managed
     ;; references.  Retarget a fixed location directly to each hash entry.
     (when client
       (maphash (lambda (key value)
-                 (setf cursor (%provider-activate
-                               provider cursor :property
+                 (setf cursor (funcall activate provider cursor :property
                                (workload-client-properties client) key))
-                 (%provider-enqueue-control provider cursor value))
+                 (%provider-enqueue-control walk cursor value))
                (workload-client-properties client)))
     ;; Registered global cells are maintained in a fixed client vector by the
     ;; adapter.  They are covered even when their value is NIL.
     (when client
       (dotimes (index (workload-client-global-cell-count client))
-        (setf cursor (%provider-activate
-                      provider cursor :cell
+        (setf cursor (funcall activate provider cursor :cell
                       (aref (workload-client-global-cells client) index)))
-        (%provider-enqueue-control
-         provider cursor (car (aref (workload-client-global-cells client) index)))))
+        (%provider-enqueue-control walk cursor (car (aref (workload-client-global-cells client) index)))))
     ;; Follow the current environment's declared code owners. Rebinding or
     ;; FMAKUNBOUND naturally releases the previous definition; no history of
     ;; every compiled function is promoted into a permanent root registry.
@@ -390,25 +396,59 @@ exhaustion is reported as a capability failure rather than dropping roots."
         (maphash
          (lambda (name entry)
            (declare (ignore name))
-           (%provider-enqueue-control provider cursor (car (clostrum-basic::cell entry)))
-           (%provider-enqueue-control provider cursor
+           (%provider-enqueue-control walk cursor (car (clostrum-basic::cell entry)))
+           (%provider-enqueue-control walk cursor
                                        (clostrum-basic::compiler-macro-function entry))
-           (%provider-enqueue-control provider cursor
+           (%provider-enqueue-control walk cursor
                                        (clostrum-basic::setf-expander entry)))
          (clostrum-basic::functions environment))
         (maphash
          (lambda (name entry)
            (declare (ignore name))
            (when (slot-boundp entry 'clostrum-basic::symbol-macro-expander)
-             (%provider-enqueue-control provider cursor
+             (%provider-enqueue-control walk cursor
                                          (clostrum-basic::symbol-macro-expander entry))))
          (clostrum-basic::variables environment))
         (maphash
          (lambda (name entry)
            (declare (ignore name))
-           (%provider-enqueue-control provider cursor (clostrum-basic::type-expander entry)))
+           (%provider-enqueue-control walk cursor (clostrum-basic::type-expander entry)))
          (clostrum-basic::types environment))))
-    (%provider-drain-control-roots provider cursor)))
+    ;; A proposed callback owns its known code/capture graph before publication.
+    (%provider-enqueue-control walk cursor extra-function)
+    ;; VM locals are not initialized by BYTECODE-CALL. Census their actual
+    ;; existing control values, not fabricated NILs. Argument words come from
+    ;; managed cons payload, not arbitrary host control containers.
+    (when entry-local-start
+      (loop for i from entry-local-start below entry-end do
+        (%provider-enqueue-control walk cursor
+          (svref (maclina.vm-cross::vm-stack vm) i))))
+    (%provider-drain-control-roots provider walk cursor activate)))
+
+(defun %provider-refresh (provider)
+  "Retarget only inside the protected provider snapshot."
+  (%provider-clear-locations provider)
+  (%provider-walk-root-sources provider (workload-provider-control-walk provider)
+                              #'%provider-activate))
+
+(defun %provider-count-location (provider cursor kind source &optional index)
+  (declare (ignore kind source index))
+  (when (or (>= cursor (workload-provider-capacity provider))
+            (>= cursor (length (workload-provider-locations provider))))
+    (error 'workload-capability-error :operation 'workload-mapc
+           :reason :root-provider-capacity-exhausted))
+  (1+ cursor))
+
+(defun %provider-root-demand (provider &key extra-function entry-local-start entry-end)
+  "Count current sources plus known proposed control owners, without retargeting."
+  (let ((walk (workload-provider-census-walk provider)))
+    (unwind-protect
+         (let ((roots (%provider-walk-root-sources
+                       provider walk #'%provider-count-location
+                       :extra-function extra-function
+                       :entry-local-start entry-local-start :entry-end entry-end)))
+           (values roots (workload-root-walk-count walk)))
+      (%clear-workload-root-walk walk))))
 
 (defmethod map-provider-roots
     ((provider workload-root-provider) function)

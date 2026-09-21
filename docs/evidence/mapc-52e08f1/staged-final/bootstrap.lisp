@@ -1,0 +1,31 @@
+(require :asdf)
+(asdf:initialize-source-registry
+ '(:source-registry (:directory #p"/tmp/clamsara-mapc-staged-zm23n7ms/") :ignore-inherited-configuration))
+(asdf:initialize-output-translations
+ '(:output-translations (t ("/tmp/clamsara-mapc-staged-native-b7vwoyqo/fasl/" :implementation)) :ignore-inherited-configuration))
+(assert (equal (truename #p"/tmp/clamsara-mapc-staged-zm23n7ms/")
+               (truename (asdf:system-source-directory :clamsara))))
+(assert (not (equal (asdf:apply-output-translations #p"/one/package.fasl")
+                    (asdf:apply-output-translations #p"/two/package.fasl"))))
+(asdf:load-system :clamsara/workload)
+(assert (equal (truename #p"/tmp/clamsara-mapc-staged-zm23n7ms/")
+               (truename (asdf:system-source-directory :clamsara/workload))))
+(assert (equal (truename #p"/home/iskam/quicklisp/local-projects/Maclina/")
+               (truename (asdf:system-source-directory :maclina))))
+
+
+(asdf:test-system :clamsara)
+(asdf:test-system :clamsara/tools/test)
+(asdf:test-system :clamsara/workload/test)
+(asdf:test-system :clamsara/generational/test)
+(asdf:test-system :clamsara/quality/generational/test)
+(asdf:load-system :clamsara/quality)
+(clamsara.structure:assert-project-structure :include-optional-loaded t)
+;; Unchanged independent behavior and capacity sources, in distinct packages.
+(load #p"/tmp/clamsara-mapc-staged-zm23n7ms/docs/evidence/mapc-52e08f1/independent-baseline/mapc-strict-regression-v2.lisp")
+(load #p"/tmp/clamsara-mapc-staged-zm23n7ms/docs/evidence/mapc-52e08f1/independent-baseline/runner.lisp")
+(load #p"/tmp/clamsara-mapc-staged-zm23n7ms/docs/evidence/mapc-52e08f1/capacity-v3-source-review/capacity-ownership-v3.lisp")
+(load #p"/tmp/clamsara-mapc-staged-zm23n7ms/docs/evidence/mapc-52e08f1/independent-capacity-v3/runner.lisp")
+(assert (clamsara.workload.mapc.test:run-workload-mapc-tests))
+(assert (clamsara.workload.mapc-capacity.test:run-workload-mapc-capacity-tests))
+(format t "~&MAPC-EXACT-STAGED-ARCHIVE-PASS~%")

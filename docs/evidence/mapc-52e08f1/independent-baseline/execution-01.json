@@ -1,0 +1,10 @@
+{
+  "pid": 17570,
+  "command": "sbcl --noinform --non-interactive --load /tmp/clamsara-gcbench-52e08f1-tfa6uf75/independent-review/gabriel-next/native-strict9-c2zybsxw/bootstrap.lisp > /tmp/clamsara-gcbench-52e08f1-tfa6uf75/independent-review/gabriel-next/native-strict9-c2zybsxw/native.log 2>&1",
+  "cwd": "/tmp/clamsara-gcbench-52e08f1-tfa6uf75",
+  "exit_code": 1,
+  "seconds": 11.22485278302338,
+  "classification": "harness bootstrap EOF in name-audit LET; zero groups reached",
+  "groups": 0,
+  "pins_unchanged": true
+}

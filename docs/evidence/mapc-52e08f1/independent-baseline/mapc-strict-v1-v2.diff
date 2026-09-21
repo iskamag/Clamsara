@@ -1,0 +1,190 @@
+--- mapc-strict-regression-draft.lisp
++++ mapc-strict-regression-v2.lisp
+@@ -1,4 +1,6 @@
+-;;;; NEW SOURCE-ONLY DRAFT. Not loaded or executed. No production implementation.
++;;;; Canonical strict baseline source v2. No production implementation.
++;;;; V1 is preserved. PHASE was inherited CL:PHASE; renamed helper and all calls.
++;;;; The expected ERROR gate now checks identity of one native sentinel condition.
+ ;;;; Preserve MAPC-PROBE.LISP as historical source; do not use its cleanup policy.
+ ;;;; The caller owns runtime construction. Pass a fresh, already-owned runtime
+ ;;;; (suggested: extent 16384, max-object-bytes 8192, root-capacity 512).
+@@ -34,7 +36,7 @@
+           (maclina.vm-cross::vm-args vm)
+           (maclina.vm-cross::vm-arg-count vm)
+           (clamsara::workload-provider-frame-count (provider owner)))))
+-(defun phase (owner phase) (setf (owner-phase owner) phase))
++(defun note-probe-phase (owner phase) (setf (owner-phase owner) phase))
+ (defun full-cycle (owner)
+   (let* ((rt (owner-runtime owner))
+          (record (make-cycle-result-record (clamsara::workload-runtime-plan rt))))
+@@ -51,11 +53,11 @@
+ (defun finish-success (owner)
+   ;; Called ONLY after every assertion and case-owned definition/property
+   ;; release succeeds. A failure here also keeps the runtime handle.
+-  (phase owner :consume-proven-result)
++  (note-probe-phase owner :consume-proven-result)
+   (workload-eval (env owner) nil)
+-  (phase owner :discharge)
++  (note-probe-phase owner :discharge)
+   (assert (zerop (cycle-result-count (full-cycle owner) :objects-discovered)))
+-  (phase owner :close)
++  (note-probe-phase owner :close)
+   (close-workload-runtime (owner-runtime owner))
+   (setf (owner-phase owner) :complete (owner-status owner) :complete)
+   owner)
+@@ -80,7 +82,7 @@
+         trace))))
+ 
+ (defun check-direct-empty (owner)
+-  (phase owner :direct-empty-arity)
++  (note-probe-phase owner :direct-empty-arity)
+   (let ((callback (workload-eval
+                     (env owner)
+                     '(lambda (a b) (declare (ignore a b))
+@@ -101,14 +103,14 @@
+                    (nil (3 4) (5 6))
+                    ((1 2) nil (5 6))
+                    ((1 2) (3 4) nil)))
+-    (phase owner (list :semantic lists))
++    (note-probe-phase owner (list :semantic lists))
+     (let* ((form (semantic-form lists))
+            (native (multiple-value-list (eval form))))
+       (assert (eq t (first native)))
+       (assert (equal native (multiple-value-list (workload-eval (env owner) form)))))))
+ 
+ (defun check-single-result (owner)
+-  (phase owner :single-mapc-result)
++  (note-probe-phase owner :single-mapc-result)
+   (let* ((form '(funcall #'mapc (lambda (x) (values x 71 73))
+                          (cons 1 (cons 2 nil))))
+          (native (multiple-value-list (eval form))))
+@@ -186,19 +188,19 @@
+     (assert (null cursor))
+     (assert (= count (hash-table-count seen)))))
+ (defun check-moving (owner form known-total)
+-  (phase owner :native-moving-semantic-oracle)
++  (note-probe-phase owner :native-moving-semantic-oracle)
+   (let ((native (multiple-value-list (eval form))))
+     (assert (equal '(1 2 3) (mapcar #'car (first native))))
+     (assert (= known-total (second native))))
+-  (phase owner :managed-callback-movement)
++  (note-probe-phase owner :managed-callback-movement)
+   (workload-eval (env owner) form) ; discard host snapshot, not the VM owner
+   (automatic-movement owner)
+   (no-active-scopes owner)
+-  (phase owner :corrected-return-graph)
++  (note-probe-phase owner :corrected-return-graph)
+   (check-returned-graph owner '(1 2 3) known-total 6))
+ 
+ (defun check-designator (owner)
+-  (phase owner :install-case-owned-guest-callback)
++  (note-probe-phase owner :install-case-owned-guest-callback)
+   (assert (not (clostrum:fboundp (client owner) (guest-environment owner)
+                                  'designator-callback)))
+   (workload-eval (env owner) '(defparameter designator-total 0))
+@@ -206,7 +208,7 @@
+                 '(defun designator-callback (x)
+                    (dotimes (i 600) (cons nil nil))
+                    (incf designator-total (car x))))
+-  (phase owner :symbol-designator)
++  (note-probe-phase owner :symbol-designator)
+   (assert (= 3 (workload-eval
+                 (env owner)
+                 '(progn
+@@ -216,7 +218,7 @@
+   (automatic-movement owner)
+   ;; Remove only definitions this successful case installed. A wrong lookup,
+   ;; collection failure, or assertion above leaves them intact for inspection.
+-  (phase owner :release-case-owned-definition)
++  (note-probe-phase owner :release-case-owned-definition)
+   (clostrum:fmakunbound (client owner) (guest-environment owner) 'designator-callback)
+   (workload-eval (env owner) '(makunbound 'designator-total)))
+ 
+@@ -226,7 +228,7 @@
+        (dotimes (i 600) (cons nil nil))
+        (unless (= 17 (car x)) (error 'wrong-host-designator))
+        (unless (= 23 (car y)) (error 'wrong-host-designator))
+-       (error 'expected-mapc-stop))
++       (signal-expected-mapc-stop))
+      (cons (cons 17 nil) nil) (cons (cons 23 nil) nil)))
+ (defparameter *throw-form*
+   '(catch 'mapc-done
+@@ -236,28 +238,41 @@
+          (throw 'mapc-done (values x y)))
+        (cons (cons 17 nil) nil) (cons (cons 23 nil) nil))))
+ (defun check-retry (owner before)
+-  (phase owner :normal-call-after-nlx)
++  (note-probe-phase owner :normal-call-after-nlx)
+   (let ((form (semantic-form '((1 2 9) (3 4)))))
+     (assert (equal (multiple-value-list (eval form))
+                    (multiple-value-list (workload-eval (env owner) form)))))
+   (assert (equal before (registers owner)))
+   (no-active-scopes owner))
+ (defun check-error (owner)
+-  (let ((before (registers owner)))
+-    (phase owner :expected-callback-error)
+-    ;; Only this exact intended condition is caught. Unexpected errors escape
+-    ;; to the retaining owner handler; no EVAL NIL/close happens on that path.
++  (let ((before (registers owner))
++        (sentinel (make-condition 'expected-mapc-stop)))
++    (note-probe-phase owner :native-error-identity)
++    (assert (handler-case (error sentinel)
++              (expected-mapc-stop (condition) (eq condition sentinel))))
++    ;; Test-only native emitter: retains no managed argument/capture, does not
++    ;; allocate guest storage, and signals precisely this condition object.
++    (assert (not (clostrum:fboundp (client owner) (guest-environment owner)
++                                   'signal-expected-mapc-stop)))
++    (setf (clostrum:fdefinition (client owner) (guest-environment owner)
++                               'signal-expected-mapc-stop)
++          (lambda () (error sentinel)))
++    (note-probe-phase owner :expected-callback-error)
++    ;; A wrong-arity PROGRAM-ERROR is not the expected condition and must fail.
+     (assert (handler-case (progn (workload-eval (env owner) *error-form*) nil)
+-              (expected-mapc-stop () t)))
++              (expected-mapc-stop (condition) (eq condition sentinel))))
+     (automatic-movement owner)
+     (assert (equal before (registers owner)))
+     (no-active-scopes owner)
+-    (check-retry owner before)))
++    (check-retry owner before)
++    ;; The emitter is released only after the expected history and retry pass.
++    (clostrum:fmakunbound (client owner) (guest-environment owner)
++                          'signal-expected-mapc-stop)))
+ (defun check-throw (owner)
+   (let ((before (registers owner)))
+-    (phase owner :native-throw-oracle)
++    (note-probe-phase owner :native-throw-oracle)
+     (assert (equal '(17 23) (mapcar #'car (multiple-value-list (eval *throw-form*)))))
+-    (phase owner :throw-multiple-values)
++    (note-probe-phase owner :throw-multiple-values)
+     (workload-eval (env owner) *throw-form*)
+     (automatic-movement owner)
+     (assert (equal before (registers owner)))
+@@ -285,15 +300,15 @@
+                           "//DDERIV" "DDERIV" "DDERIV-RUN" "TESTDDERIV")))
+          (handlers (subseq names 1 5))
+          (properties (clamsara::workload-client-properties (client owner))))
+-    (phase owner :fixture-ownership-precheck)
++    (note-probe-phase owner :fixture-ownership-precheck)
+     (dolist (name names)
+       (assert (not (clostrum:fboundp (client owner) (guest-environment owner) name))))
+     (dolist (op ops)
+       (assert (not (nth-value 1 (gethash (clamsara::%property-key op indicator)
+                                         properties)))))
+-    (phase owner :original-dderiv-load)
++    (note-probe-phase owner :original-dderiv-load)
+     (workload-load (env owner) pathname) ; ALL original forms, unchanged bytes
+-    (phase owner :four-property-identities)
++    (note-probe-phase owner :four-property-identities)
+     (loop for op in ops for handler in handlers do
+       (assert (eq t (workload-eval
+                       (env owner)
+@@ -305,7 +320,7 @@
+       (assert (eq (clamsara::%property-value (client owner) op indicator)
+                   (clostrum:fdefinition (client owner) (guest-environment owner)
+                                        handler))))
+-    (phase owner :release-successful-fixture-load-owners)
++    (note-probe-phase owner :release-successful-fixture-load-owners)
+     ;; No REMPROP host fallback or CLRHash; remove the four own property entries.
+     (dolist (op ops) (remhash (clamsara::%property-key op indicator) properties))
+     (dolist (name names)

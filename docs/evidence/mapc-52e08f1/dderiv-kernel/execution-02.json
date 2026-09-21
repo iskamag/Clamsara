@@ -1,0 +1,15 @@
+{
+  "pid": 18744,
+  "exit_code": 1,
+  "process_seconds": 3.806379724992439,
+  "snapshot": "/tmp/clamsara-mapc-draft-wd3ba0th",
+  "native_oracles_computed": 1,
+  "managed_kernels_passed": 0,
+  "managed_kernels_attempted": 1,
+  "unreached_kernels": 5,
+  "failure_phase": "managed-eval",
+  "reason": "%GUEST-CAR rejects host (// 0 3) in LIST guest (LAMBDA (&REST VALUES)) LABELS BUILD; upstream host REST list reaches strict guest primitive",
+  "retained_worlds_through_summary": 1,
+  "pins_unchanged": true,
+  "full_benchmark_run": false
+}

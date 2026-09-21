@@ -1,0 +1,6 @@
+{
+  "pid": 17620,
+  "command": "sbcl --noinform --non-interactive --load /tmp/clamsara-gcbench-52e08f1-tfa6uf75/independent-review/gabriel-next/native-strict9-c2zybsxw/bootstrap-02.lisp > /tmp/clamsara-gcbench-52e08f1-tfa6uf75/independent-review/gabriel-next/native-strict9-c2zybsxw/native-02.log 2>&1",
+  "cwd": "/tmp/clamsara-gcbench-52e08f1-tfa6uf75",
+  "cache": "/tmp/clamsara-gcbench-52e08f1-tfa6uf75/independent-review/gabriel-next/native-strict9-c2zybsxw/fasl"
+}

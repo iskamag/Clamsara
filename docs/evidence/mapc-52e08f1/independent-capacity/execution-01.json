@@ -1,0 +1,21 @@
+{
+  "pid": 19086,
+  "command": "sbcl --noinform --non-interactive --load /tmp/clamsara-gcbench-52e08f1-tfa6uf75/independent-review/gabriel-next/capacity-native-7l6mqmdt/bootstrap.lisp > /tmp/clamsara-gcbench-52e08f1-tfa6uf75/independent-review/gabriel-next/capacity-native-7l6mqmdt/native-01.log 2>&1",
+  "cwd": "/tmp/clamsara-mapc-draft-wd3ba0th",
+  "exit_code": 0,
+  "process_seconds": 12.130560813937336,
+  "top_level_groups": 3,
+  "passed_groups": 3,
+  "failed_groups": 0,
+  "boundary_constructions": 12,
+  "boundary_constructions_complete": 12,
+  "calibration_constructions": 1,
+  "additional_witness_owners": 2,
+  "all_owners": 15,
+  "owners_complete_closed": 15,
+  "failed_owners": 0,
+  "exact_stack_scope": "entry-only helper admission; no full nonempty callback execution",
+  "source_version": "v2 observation-only revision; original v1 preserved",
+  "pins_unchanged": true,
+  "production_edits": false
+}

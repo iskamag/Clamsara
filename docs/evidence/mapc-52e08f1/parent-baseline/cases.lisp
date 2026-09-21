@@ -1,0 +1,67 @@
+;;;; Strict parent baseline. No fixture edits or failed-owner cleanup.
+(defpackage #:clamsara.workload.mapc.parent-red
+  (:use #:cl #:clamsara))
+(in-package #:clamsara.workload.mapc.parent-red)
+(defvar *cases* 0)
+(defvar *failures* 0)
+(defvar *failed-runtimes* nil)
+(defun one (name body)
+  (incf *cases*)
+  (let ((runtime nil))
+    (handler-case
+        (progn
+          (setf runtime (make-workload-runtime :extent 16384 :max-object-bytes 8192
+                                               :root-capacity 512))
+          (funcall body runtime)
+          (close-workload-runtime runtime)
+          (assert (null (clamsara::workload-runtime-configuration runtime)))
+          (format t "~&MAPC-PARENT-PASS ~S~%" name))
+      (error (condition)
+        (incf *failures*)
+        (push (list name runtime condition) *failed-runtimes*)
+        (format t "~&MAPC-PARENT-FAIL ~S [~S] ~A~%" name (type-of condition) condition)))))
+(defun empty-call (runtime two-lists-p)
+  (let* ((environment (clamsara::workload-runtime-environment runtime))
+         (client (clamsara::workload-maclina-client environment))
+         (compiler-environment (clamsara::workload-maclina-environment environment))
+         (function (clostrum:fdefinition client compiler-environment 'cl:mapc))
+         (calls 0)
+         (callback (lambda (&rest arguments) (declare (ignore arguments)) (incf calls))))
+    (assert (null (if two-lists-p (funcall function callback nil nil)
+                     (funcall function callback nil))))
+    (assert (zerop calls))))
+(one :one-list-empty-control (lambda (runtime) (empty-call runtime nil)))
+(one :two-list-empty-required (lambda (runtime) (empty-call runtime t)))
+(one :unchanged-dderiv-load
+     (lambda (runtime)
+       (let* ((environment (clamsara::workload-runtime-environment runtime))
+              (client (clamsara::workload-maclina-client environment))
+              (compiler-environment (clamsara::workload-maclina-environment environment)))
+         (workload-load environment
+                        (asdf:system-relative-pathname :clamsara "bench/gabriel/reference/dderiv.cl"))
+         ;; Compare function identities within this exact guest environment.
+         (dolist (pair '(("+" "+DDERIV") ("-" "-DDERIV")
+                         ("*" "*DDERIV") ("//" "//DDERIV")))
+           (let ((operator (intern (first pair) :clamsara))
+                 (name (intern (second pair) :clamsara))
+                 (indicator (intern "DDERIV" :clamsara)))
+             (assert (eq (funcall (clostrum:fdefinition client compiler-environment 'cl:get)
+                                 operator indicator)
+                         (clostrum:fdefinition client compiler-environment name)))))
+         ;; Success-only, owner-driven property release; no failure cleanup.
+         (dolist (operator '(cl:+ cl:- cl:* clamsara:://))
+           (funcall (clostrum:fdefinition client compiler-environment '(setf cl:get))
+                    nil operator 'clamsara::dderiv))
+         (workload-eval environment nil))))
+(format t "~&MAPC-PARENT-STRICT-SUMMARY cases=~D failures=~D retained=~D~%"
+        *cases* *failures* (length *failed-runtimes*))
+(dolist (entry *failed-runtimes*)
+  (let* ((runtime (second entry))
+         (configuration (and runtime (clamsara::workload-runtime-configuration runtime))))
+    (format t "~&MAPC-PARENT-RETAINED ~S runtime=~S config=~S root-token-active=~S~%"
+            (first entry) (not (null runtime))
+            (and configuration (clamsara::%configuration-state configuration))
+            (and runtime (clamsara::simulator-provider-token-active-p
+                          (clamsara::workload-runtime-root-token runtime))))))
+(assert (= *cases* 3))
+(assert (zerop *failures*))

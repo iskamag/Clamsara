@@ -1,0 +1,47 @@
+{
+  "clamsara_revision_as_given": "52e08f1",
+  "maclina_revision_as_given": "d92e9254",
+  "status": "source-only; no native Lisp execution",
+  "fixtures": {
+    "bench/gabriel/reference/boyer.cl": "2b101d18fa3d0f4da7169023e0e26762581affb1dd85881f5f64bd4a081aeb2a",
+    "bench/gabriel/reference/browse.cl": "4d63b927f696a73d0d8b25d18f9e23bb55d5a923db38854e95137c6c3f49f535",
+    "bench/gabriel/reference/ctak.cl": "b69917093d7111460568dc50c8705fdc3e1cbeaa5bbac9bba3c1ed56e5dd2c37",
+    "bench/gabriel/reference/dderiv.cl": "e5a328d3c19133cfb789bd6e00b2a29f838496e6e48af71a0a39cf20f643cba2",
+    "bench/gabriel/reference/deriv.cl": "ecd0f4aa792c17e9d2b11d9157b04a030fa1086d81b78b8daae42e58f976f96d",
+    "bench/gabriel/reference/destru.cl": "39e87f89ec5949f00e9a292908646ddc0d674a5481797f6c4856347ebb606e26",
+    "bench/gabriel/reference/div2.cl": "026a7266775af158f9438ed2f63fe2225c0c0186ff2c7f66ce25538783f8e073",
+    "bench/gabriel/reference/fft.cl": "9ae6c7ee2a95b60eff642a545238d77963072c8a50d3f97ad6a7212149182b05",
+    "bench/gabriel/reference/fprint.cl": "5c729e515bfaf013ed07ad91cee40ae8ad0bf5a211e939bd8fb192bc8ba0f7ab",
+    "bench/gabriel/reference/fread.cl": "c2085afd915b6605ffa114adfe9a88a3feb3bdba6d351a630b36dedd06e7eee3",
+    "bench/gabriel/reference/frpoly.cl": "9fe598964c0e4e0456f1f170a0f4b0858c596d075dc173fbbb1ca11d2acfd6f6",
+    "bench/gabriel/reference/puzzle.cl": "614ad64d1d8b7a07c29c2d962d597a668b4d2509a29788479404c6d7fecf5c63",
+    "bench/gabriel/reference/stak.cl": "731a4cd95db02533f7b6c68970831a665fa900a819d4e1cb4c8a6ce529409a04",
+    "bench/gabriel/reference/tak.cl": "f364648b26e86e31c609979fa12f1ac35ad874d42c7e806d96f41270970ba590",
+    "bench/gabriel/reference/takl.cl": "43dac7dbc09621ab21f685c2bf9e0dc82d05934c960a91207ef589bd5122aad6",
+    "bench/gabriel/reference/takr.cl": "f8a8e9051b5a4343089dfe443b90a7039477bb35842277a231011715625db407",
+    "bench/gabriel/reference/tprint.cl": "f5faaf2067967fb8096b9a911cd52adc86d4829c7b075e67f43a04f533f327f6",
+    "bench/gabriel/reference/traverse.cl": "45a8ea94a3dcb073d131724357adaa98de2bb5ce049a264d2113eb0e76d0e5db",
+    "bench/gabriel/reference/triang.cl": "d5e2deac6ad983650f40576904caedc1cf6517780678b575aed6816fea0c39e8",
+    "test/fixtures/boehm-gc.lisp": "0a2af82bc5a1c0e2246d3d0709111c43a67577a51445b7ab2860abb346603153"
+  },
+  "clamsara_sources": {
+    "src/workload/control.lisp": "02555e857d3cf0831920f2c025cd5e8b514db96b6cc2a4e4629de9801594b517",
+    "src/workload/gabriel.lisp": "60904bf5cf7fc549a8a0125be4aed546be261a1232358bbf97d88ec9196c95ac",
+    "src/workload/gcbench.lisp": "f6edd0ec75f619a83440feb116dccaa220fad9733e950163692881a20c53fbc1",
+    "src/workload/maclina.lisp": "12389dae70f20bcac2747829e5eebe11163a64931e385e94aef8b2e82c178456",
+    "src/workload/numbers.lisp": "1ab7c0111a114cd3a6431388f18aed2888f287b49b578ed1c87c0e43867ac3ae",
+    "src/workload/protocol.lisp": "7a621f51d33e3275db7c391e4fd7b2f29332dad1b8dc0c2b03040536e2192181",
+    "src/workload/roots.lisp": "2df4240fc855747f0a1c4653ac1ae48a54980740f5bbca1628ec5709eada7935",
+    "src/workload/setup.lisp": "8f34d75e3b209813d7b875bb1b1830c99727115a7fab2f6efc7721b4f7201525",
+    "src/workload/source.lisp": "36ec9c48470b78c1ee9db4a994122d84c7af2a5802d25638c49b5217746fa484"
+  },
+  "maclina_read_sources": {
+    "compile/compile.lisp": "1589f0ad66459e8b3d0829e54e3e75053f2b45b7d6de7764e5d5b94832779c4d",
+    "vm-cross.lisp": "eb4c7043e182e3a524c828589a9c72c0dc9f05d9b4a9d50f6a1f9c7da35280df",
+    "vm-shared.lisp": "ecabf9ad16ea94f722fb1e304afa599c22f53324fb79b9f6e877f12b6700c8c6",
+    "arg-conditions.lisp": "abe0cc8cd3aabb07c995e73cda7ef17ba6d670fdc11f9860721a2c65b812bb32",
+    "machine.lisp": "20ad803a28c319eeec9008df73f5f6352b77cbf7d26cf4267a5941727d0c2374"
+  },
+  "report": "9872165f1089bfff680423a2ceec114003b72656c0143c1a0592b2dbc02f20f4",
+  "probe": "f1bbe8771f93899666c67d2a04b5b7310bd884fff83367576ee53f84f4f73425"
+}

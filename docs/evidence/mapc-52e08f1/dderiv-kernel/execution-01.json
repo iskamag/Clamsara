@@ -1,0 +1,13 @@
+{
+  "pid": 18604,
+  "exit_code": 1,
+  "process_seconds": 3.8584422799758613,
+  "snapshot": "/tmp/clamsara-mapc-draft-wd3ba0th",
+  "kernels_passed": 0,
+  "attempted": 1,
+  "unreached": 5,
+  "result": "TYPE-ERROR expected CONS datum host list (// 0 3)",
+  "retained_worlds_through_summary": 1,
+  "pins_unchanged": true,
+  "limitation": "First probe phases do not distinguish native oracle/managed eval; separate trace probe authored. It also failed to reject unmanaged host result conses in its shape oracle; fixed only in new probe02."
+}

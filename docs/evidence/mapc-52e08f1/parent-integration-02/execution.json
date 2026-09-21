@@ -1,0 +1,16 @@
+{
+  "pid": 19986,
+  "command": "sbcl --dynamic-space-size 8192 --noinform --non-interactive --load /tmp/clamsara-mapc-integration2-native-ro_f9w5j/bootstrap.lisp > /tmp/clamsara-mapc-integration2-native-ro_f9w5j/native.log 2>&1",
+  "cwd": "/home/iskam/src/vibe/Clamsara",
+  "exit_code": 0,
+  "process_seconds": 19.602143156924285,
+  "snapshot": "/tmp/clamsara-mapc-integrated2-0gtrq1cb",
+  "gates": "full main/tools/workload/generational/quality-generational/structure; unchanged archived behavior9 and capacity5; permanent9/5 repeat",
+  "behavior_owners_per_run": 9,
+  "capacity_owners_per_run": 17,
+  "mapc_owners_total_three_runs": 78,
+  "unexpected_failures": 0,
+  "pins_unchanged": true,
+  "separate_core_expected_fatal_worlds": 49,
+  "scope_limit": "Not full DDERIV/Gabriel/GCBench replay or general native callback/target admission"
+}

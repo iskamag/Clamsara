@@ -1,0 +1,13 @@
+{
+  "draft_files_unchanged": true,
+  "source_native_run": false,
+  "parenthesis_check": {
+    "paren_balance": 0,
+    "unterminated_string": false
+  },
+  "test_source_sha256": "b8c55cbedf94aa3879c0ed613656095f3cdc003d89910cd288109f8f1afd5510",
+  "report_sha256": "bd259f061aee211b2eec5b0febd3ac4ecacca1372ab18ed9cc08e8c1fb160281",
+  "native_slot_used": false,
+  "production_edits": false,
+  "fixture_edits": false
+}

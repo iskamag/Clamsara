@@ -1,0 +1,10 @@
+{
+  "root": "/tmp/clamsara-mapc-draft-wd3ba0th",
+  "files": {
+    "src/workload/roots.lisp": "64c89eec0424dda738ba61da4c314ce7b333efc4100e17692ee5dd8619e6e139",
+    "src/workload/control.lisp": "d9205997f29c6d71ceb1a05d821940cbf38a0f6a287524af4c46407fade3e0b0",
+    "src/workload/maclina.lisp": "f1ecdd3072830a4073d442d1d9c88256d9babe48bcfcfc50abf7b4004453f0d5",
+    "src/workload/setup.lisp": "8f34d75e3b209813d7b875bb1b1830c99727115a7fab2f6efc7721b4f7201525"
+  },
+  "native_execution": false
+}

@@ -1,0 +1,82 @@
+{
+  "direct-empty": {
+    "result": "fail",
+    "reached": "installed function + actual ML callback + two NIL lists",
+    "blocker": "3 arguments, expected 2",
+    "callback_reached": false
+  },
+  "semantics": {
+    "result": "fail",
+    "matrix_cases_declared": 9,
+    "matrix_cases_passed": 1,
+    "matrix_cases_failed": 1,
+    "matrix_cases_unreached": 7,
+    "failed_input_lists": [
+      [
+        1,
+        2,
+        9
+      ],
+      [
+        3,
+        4
+      ]
+    ],
+    "single_result_gate": "unreached"
+  },
+  "moving": {
+    "result": "fail",
+    "native_oracle": "passed: first list leaves (1 2 3), checksum 33",
+    "managed_callback_gc": "unreached"
+  },
+  "nested": {
+    "result": "fail",
+    "native_oracle": "passed: first list leaves (1 2 3), checksum 99",
+    "managed_inner_mapc": "unreached",
+    "scratch_alias_test": "unreached"
+  },
+  "closure": {
+    "result": "pass",
+    "native_and_guest_checksum": 27,
+    "automatic_objects_moved": "positive asserted; exact counter not logged",
+    "explicit_discovered_and_moved": 6,
+    "returned_leaf_values": [
+      1,
+      2,
+      3
+    ],
+    "final_discoveries": 0,
+    "close": "complete"
+  },
+  "designator": {
+    "result": "pass",
+    "guest_sum": 3,
+    "poison_same_name_host_definition": "not called",
+    "automatic_objects_moved": "positive asserted; exact counter not logged",
+    "final_discoveries": 0,
+    "close": "complete"
+  },
+  "error": {
+    "result": "fail",
+    "native_sentinel_identity": "passed",
+    "managed_sentinel_emitter": "unreached",
+    "retry": "unreached",
+    "failure": "wrong-arity is NOT counted as expected error"
+  },
+  "throw": {
+    "result": "fail",
+    "native_multiple_value_oracle": [
+      17,
+      23
+    ],
+    "managed_throw": "unreached",
+    "retry": "unreached"
+  },
+  "dderiv-load": {
+    "result": "fail",
+    "fixture": "unchanged full source load attempted",
+    "stopped_at": "top-level MAPC lines 46-48",
+    "four_property_identity_checks": "unreached",
+    "testdderiv_entry": "not part of this setup gate"
+  }
+}

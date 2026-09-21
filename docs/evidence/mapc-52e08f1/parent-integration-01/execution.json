@@ -1,0 +1,9 @@
+{
+  "pid": 19852,
+  "exit_code": 1,
+  "process_seconds": 14.043882886995561,
+  "snapshot": "/tmp/clamsara-mapc-integrated-tard99a7",
+  "scope": "main and tools passed, workload TEST compilation failed before MAPC cases",
+  "cause": "Parent-added RUN-WORKLOAD-MAPC-TESTS wrapper missing closing parenthesis; original independent bodies unchanged",
+  "pins_unchanged": true
+}

@@ -1,0 +1,13 @@
+{
+  "pid": 18283,
+  "exit_code": 0,
+  "process_seconds": 11.933683240087703,
+  "snapshot": "/tmp/clamsara-mapc-draft-wd3ba0th",
+  "groups": 9,
+  "passes": 9,
+  "failures": 0,
+  "closed_owners": 9,
+  "failed_retained": 0,
+  "source_pins_unchanged": true,
+  "scope": "All unchanged independent strict9 groups incl internal semantics/movement/nesting/captures/ERROR identity/THROW MVs/retry/DDERIV load identity. Not capacity or full DDERIV."
+}

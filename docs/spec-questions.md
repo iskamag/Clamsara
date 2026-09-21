@@ -107,21 +107,31 @@ reopening as ordinary retry after an unknown callback fault. The driver must
 preserve known ownership and fail closed when state cannot be established.
 See [the CAS addendum](cas-barrier-contract-addendum.md).
 
-## Opaque barrier method admission — implementation limitation
+## Opaque barrier method admission — signature repair and remaining limits
 
-Current construction probes contribution methods with NIL reservation, context
-and location arguments. A valid author can specialize a method on its own opaque
-reservation class without accepting NIL. That probe can therefore reject an
-otherwise callable authored method. Nonempty COMPUTE-APPLICABLE-METHODS is also
-not a proof of effective-method success, bounded storage or non-failure.
+At `06b2615`, construction substituted NIL for unknown reservation, context,
+location and value arguments. The independent34-case baseline demonstrated18
+false rejections of valid author-owned-token methods and3 false acceptances of
+auxiliary-only ADMIT methods. The original evidence is preserved in
+`opaque-barrier-admission-baseline.md`.
 
-The new successful NIL-token controls prove ownership is separate from token
-value. They do not require every opaque author to accept NIL, nor fix the
-construction admission mechanism. This is an implementation proof/repair
-obligation, not a request to amend the paper or declare a new hosted profile.
-An author still cannot depend on another component's private representation.
-See `cas-barrier-fixed-review.md` for the exact scope and remaining OPERATION
-wording gap. Full opaque-author/target admission remains unproved.
+The scoped repair uses a private construction-only necessary signature check:
+match known actual contribution/event specializers and require a compatible
+primary under the existing STANDARD method combination. Leave unknown arguments
+unknown. Preserve per-event rejection and conditional TRANSFORM. It adds no
+sample-token API, compulsory superclass or obligation to accept NIL. Unsupported
+host introspection/combination is a capability complaint, not evidence that the
+author's method is missing. See `opaque-barrier-admission.md` for revision-specific
+native and independent results.
+
+Successful NIL-token controls prove ownership is separate from token value.
+They do not require all authors to accept NIL. Likewise, a primary candidate
+does not establish the RESERVE result domain, inter-phase overlap, effective
+method success, non-failure, storage bounds or target entry admission. An author
+still cannot depend on another component's private representation. These duties
+remain open; they are not waived by a structural check or by the hosted tests.
+The OPERATION wording gap and full opaque-author/Mezzano admission remain
+unresolved. No paper amendment or new author declaration is proposed here.
 
 ## Not paper defects
 

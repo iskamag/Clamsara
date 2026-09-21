@@ -1,0 +1,51 @@
+{
+  "base": "06b2615",
+  "snapshot": "/tmp/clamsara-opaque-draft-8qjnkk81",
+  "code_test_asdf_diff": [
+    [
+      "src/runtime/barrier.lisp",
+      "changed"
+    ]
+  ],
+  "noncode_extras": [
+    "head-06b2615.tar",
+    "paper-v14/Makefile",
+    "paper-v14/README.md",
+    "paper-v14/chapters/claimore.tex",
+    "paper-v14/chapters/clients.tex",
+    "paper-v14/chapters/collectors.tex",
+    "paper-v14/chapters/construction.tex",
+    "paper-v14/chapters/evha.tex",
+    "paper-v14/chapters/execution.tex",
+    "paper-v14/chapters/glossary.tex",
+    "paper-v14/chapters/metadata.tex",
+    "paper-v14/chapters/overview.tex",
+    "paper-v14/chapters/persistence.tex",
+    "paper-v14/chapters/reading.tex",
+    "paper-v14/chapters/threst.tex",
+    "paper-v14/chapters/validation.tex",
+    "paper-v14/check-paper.py",
+    "paper-v14/clamsara-v14.aux",
+    "paper-v14/clamsara-v14.bbl",
+    "paper-v14/clamsara-v14.blg",
+    "paper-v14/clamsara-v14.log",
+    "paper-v14/clamsara-v14.out",
+    "paper-v14/clamsara-v14.pdf",
+    "paper-v14/clamsara-v14.tex",
+    "paper-v14/clamsara-v14.toc",
+    "paper-v14/clamsara.bib"
+  ],
+  "runtime_tail_byte_identical": true,
+  "snapshot_pins": 345,
+  "snapshot_pins_unchanged": true,
+  "native_pins": 349,
+  "native_pins_unchanged": true,
+  "warnings": [],
+  "verdict": "scoped accept; necessary hosted construction signature check, not full admission proof",
+  "real_new_builder_runtime_cases": 4,
+  "private_metadata_capability_cases": 16,
+  "source_path_for_unchanged_34": "/tmp/clamsara-cas-staged-yik9o9qk/independent-review/opaque-admission/acceptance-source-02.lisp",
+  "canonical_edge_source": "additional-source-02.lisp",
+  "native_result": "native-results.json",
+  "report": "report.md"
+}

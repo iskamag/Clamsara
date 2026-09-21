@@ -330,3 +330,14 @@ Commit `31e73a4` fixes the separate mature-capacity/major-recovery defect and ad
 96 conditional combinations plus 288 independently written graph-oracle cycles.
 See [generational.md](generational.md) for policy, geometry and limits. This does
 not repair shared-core failures listed above.
+
+## Opaque barrier signature admission (post-06b2615)
+
+The NIL-probe restriction and auxiliary-only false admission have a scoped
+construction-only repair. Independent54 and parent full integrated54/replay
+checks pass. The54 split into38 real builder histories (24 valid,14 rejecting)
+and16 private metadata/capability checks. No execution body, runtime scratch,
+registry or author API was added by the checker. See
+[opaque-barrier-admission.md](opaque-barrier-admission.md) for exact revisions,
+retained owners and unchanged limits. Full method-domain/behavior, opaque
+storage, benchmark and Mezzano admission remain unproved.

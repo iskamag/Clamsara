@@ -1,0 +1,270 @@
+PRIVATE-OUTPUT-PATHS #P"/tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/one/package.fasl" #P"/tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/two/package.fasl"
+; compiling file "/tmp/clamsara-opaque-draft-8qjnkk81/src/package.lisp" (written 21 SEP 2026 05:05:05 AM):
+
+; wrote /tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/tmp/clamsara-opaque-draft-8qjnkk81/src/package-tmpGHU3ALSV.fasl
+; compilation finished in 0:00:00.003
+; compiling file "/tmp/clamsara-opaque-draft-8qjnkk81/src/client/object-model.lisp" (written 21 SEP 2026 05:05:05 AM):
+
+; wrote /tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/tmp/clamsara-opaque-draft-8qjnkk81/src/client/object-model-tmpAAURSO1.fasl
+; compilation finished in 0:00:00.004
+; compiling file "/tmp/clamsara-opaque-draft-8qjnkk81/src/client/metadata.lisp" (written 21 SEP 2026 05:05:05 AM):
+
+; wrote /tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/tmp/clamsara-opaque-draft-8qjnkk81/src/client/metadata-tmp5GEXGEG5.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/tmp/clamsara-opaque-draft-8qjnkk81/src/client/roots.lisp" (written 21 SEP 2026 05:05:05 AM):
+
+; wrote /tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/tmp/clamsara-opaque-draft-8qjnkk81/src/client/roots-tmpAR3FSGEY.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/tmp/clamsara-opaque-draft-8qjnkk81/src/client/finalizers.lisp" (written 21 SEP 2026 05:05:05 AM):
+
+; wrote /tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/tmp/clamsara-opaque-draft-8qjnkk81/src/client/finalizers-tmpJAIDFZTC.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/tmp/clamsara-opaque-draft-8qjnkk81/src/client/atomics.lisp" (written 21 SEP 2026 05:05:05 AM):
+
+; wrote /tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/tmp/clamsara-opaque-draft-8qjnkk81/src/client/atomics-tmp8V3J6PE9.fasl
+; compilation finished in 0:00:00.000
+; compiling file "/tmp/clamsara-opaque-draft-8qjnkk81/src/client/mapping.lisp" (written 21 SEP 2026 05:05:05 AM):
+
+; wrote /tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/tmp/clamsara-opaque-draft-8qjnkk81/src/client/mapping-tmp9V47YWQF.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/tmp/clamsara-opaque-draft-8qjnkk81/src/client/diagnostics.lisp" (written 21 SEP 2026 05:05:05 AM):
+
+; wrote /tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/tmp/clamsara-opaque-draft-8qjnkk81/src/client/diagnostics-tmp9BN22RMA.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/tmp/clamsara-opaque-draft-8qjnkk81/src/client/coordinator.lisp" (written 21 SEP 2026 05:05:05 AM):
+
+; wrote /tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/tmp/clamsara-opaque-draft-8qjnkk81/src/client/coordinator-tmp1CXFJSK9.fasl
+; compilation finished in 0:00:00.001
+; compiling file "/tmp/clamsara-opaque-draft-8qjnkk81/src/construction/protocol.lisp" (written 21 SEP 2026 05:05:05 AM):
+
+; wrote /tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/tmp/clamsara-opaque-draft-8qjnkk81/src/construction/protocol-tmpX4BRKI0R.fasl
+; compilation finished in 0:00:00.016
+; compiling file "/tmp/clamsara-opaque-draft-8qjnkk81/src/construction/records.lisp" (written 21 SEP 2026 05:05:05 AM):
+
+; wrote /tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/tmp/clamsara-opaque-draft-8qjnkk81/src/construction/records-tmpQ371UGST.fasl
+; compilation finished in 0:00:00.238
+; compiling file "/tmp/clamsara-opaque-draft-8qjnkk81/src/construction/graph.lisp" (written 21 SEP 2026 05:05:05 AM):
+
+; wrote /tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/tmp/clamsara-opaque-draft-8qjnkk81/src/construction/graph-tmp2OWI3Q7U.fasl
+; compilation finished in 0:00:00.059
+; compiling file "/tmp/clamsara-opaque-draft-8qjnkk81/src/construction/validation.lisp" (written 21 SEP 2026 05:05:05 AM):
+
+; wrote /tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/tmp/clamsara-opaque-draft-8qjnkk81/src/construction/validation-tmp9KKTJMYV.fasl
+; compilation finished in 0:00:00.067
+; compiling file "/tmp/clamsara-opaque-draft-8qjnkk81/src/construction/layout.lisp" (written 21 SEP 2026 05:05:05 AM):
+
+; wrote /tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/tmp/clamsara-opaque-draft-8qjnkk81/src/construction/layout-tmpJU0JWO19.fasl
+; compilation finished in 0:00:00.048
+; compiling file "/tmp/clamsara-opaque-draft-8qjnkk81/src/construction/build.lisp" (written 21 SEP 2026 05:05:05 AM):
+
+; wrote /tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/tmp/clamsara-opaque-draft-8qjnkk81/src/construction/build-tmpZX2WN8N4.fasl
+; compilation finished in 0:00:00.075
+; compiling file "/tmp/clamsara-opaque-draft-8qjnkk81/src/metadata/metadata.lisp" (written 21 SEP 2026 05:05:05 AM):
+
+; wrote /tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/tmp/clamsara-opaque-draft-8qjnkk81/src/metadata/metadata-tmpOU81XRV0.fasl
+; compilation finished in 0:00:00.100
+; compiling file "/tmp/clamsara-opaque-draft-8qjnkk81/src/host/roots.lisp" (written 21 SEP 2026 05:05:05 AM):
+
+; wrote /tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/tmp/clamsara-opaque-draft-8qjnkk81/src/host/roots-tmpY2ML9CFA.fasl
+; compilation finished in 0:00:00.080
+; compiling file "/tmp/clamsara-opaque-draft-8qjnkk81/src/host/coordinator.lisp" (written 21 SEP 2026 05:05:05 AM):
+
+; wrote /tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/tmp/clamsara-opaque-draft-8qjnkk81/src/host/coordinator-tmpX2JYJDQE.fasl
+; compilation finished in 0:00:00.026
+; compiling file "/tmp/clamsara-opaque-draft-8qjnkk81/src/host/resources.lisp" (written 21 SEP 2026 05:05:05 AM):
+
+; wrote /tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/tmp/clamsara-opaque-draft-8qjnkk81/src/host/resources-tmpOPCILR65.fasl
+; compilation finished in 0:00:00.039
+; compiling file "/tmp/clamsara-opaque-draft-8qjnkk81/src/host/address-space.lisp" (written 21 SEP 2026 05:05:05 AM):
+
+; wrote /tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/tmp/clamsara-opaque-draft-8qjnkk81/src/host/address-space-tmpRV9F8A9A.fasl
+; compilation finished in 0:00:00.070
+; compiling file "/tmp/clamsara-opaque-draft-8qjnkk81/src/runtime/protocol.lisp" (written 21 SEP 2026 05:05:05 AM):
+
+; wrote /tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/tmp/clamsara-opaque-draft-8qjnkk81/src/runtime/protocol-tmpK2ZAJT4I.fasl
+; compilation finished in 0:00:00.017
+; compiling file "/tmp/clamsara-opaque-draft-8qjnkk81/src/runtime/records.lisp" (written 21 SEP 2026 05:05:05 AM):
+
+; wrote /tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/tmp/clamsara-opaque-draft-8qjnkk81/src/runtime/records-tmpUX5S4ADN.fasl
+; compilation finished in 0:00:00.049
+; compiling file "/tmp/clamsara-opaque-draft-8qjnkk81/src/runtime/barrier.lisp" (written 21 SEP 2026 05:32:14 AM):
+
+; wrote /tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/tmp/clamsara-opaque-draft-8qjnkk81/src/runtime/barrier-tmp10401X32.fasl
+; compilation finished in 0:00:00.025
+; compiling file "/tmp/clamsara-opaque-draft-8qjnkk81/src/runtime/finalizers.lisp" (written 21 SEP 2026 05:05:05 AM):
+
+; wrote /tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/tmp/clamsara-opaque-draft-8qjnkk81/src/runtime/finalizers-tmpZ7CBRM0G.fasl
+; compilation finished in 0:00:00.050
+; compiling file "/tmp/clamsara-opaque-draft-8qjnkk81/src/runtime/trace.lisp" (written 21 SEP 2026 05:05:05 AM):
+
+; wrote /tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/tmp/clamsara-opaque-draft-8qjnkk81/src/runtime/trace-tmp9OZEQ0G2.fasl
+; compilation finished in 0:00:00.032
+; compiling file "/tmp/clamsara-opaque-draft-8qjnkk81/src/runtime/spaces.lisp" (written 21 SEP 2026 05:05:05 AM):
+
+; wrote /tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/tmp/clamsara-opaque-draft-8qjnkk81/src/runtime/spaces-tmpB2JTL1W9.fasl
+; compilation finished in 0:00:00.076
+; compiling file "/tmp/clamsara-opaque-draft-8qjnkk81/src/runtime/cycle.lisp" (written 21 SEP 2026 05:05:05 AM):
+
+; wrote /tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/tmp/clamsara-opaque-draft-8qjnkk81/src/runtime/cycle-tmpP3BI68WQ.fasl
+; compilation finished in 0:00:00.039
+; compiling file "/tmp/clamsara-opaque-draft-8qjnkk81/src/runtime/allocation.lisp" (written 21 SEP 2026 05:05:05 AM):
+
+; wrote /tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/tmp/clamsara-opaque-draft-8qjnkk81/src/runtime/allocation-tmpQDARA81Z.fasl
+; compilation finished in 0:00:00.012
+; compiling file "/tmp/clamsara-opaque-draft-8qjnkk81/src/host/object-model.lisp" (written 21 SEP 2026 05:05:05 AM):
+
+; file: /tmp/clamsara-opaque-draft-8qjnkk81/src/host/object-model.lisp
+; in: DEFUN %HOST-NORMALIZE-STRONG-LAYOUT
+;     'NIL
+; 
+; note: deleting unreachable code
+
+; in: DEFMETHOD MAKE-OBJECT-KIND-DESCRIPTION (HOST-OBJECT-MODEL T)
+;     'NIL
+; 
+; note: deleting unreachable code
+; 
+; note: deleting unreachable code
+
+; in: DEFMETHOD BIND-OBJECT-MODEL (HOST-OBJECT-MODEL T T)
+;     (ERROR "Hosted nonbase codes require 46-bit fixnums")
+; 
+; note: deleting unreachable code
+
+
+; wrote /tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/tmp/clamsara-opaque-draft-8qjnkk81/src/host/object-model-tmpYEMMM7SE.fasl
+; compilation finished in 0:00:00.343
+; compiling file "/tmp/clamsara-opaque-draft-8qjnkk81/src/host/atomics.lisp" (written 21 SEP 2026 05:05:05 AM):
+
+; wrote /tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/tmp/clamsara-opaque-draft-8qjnkk81/src/host/atomics-tmp73HU0RPK.fasl
+; compilation finished in 0:00:00.028
+; compiling file "/tmp/clamsara-opaque-draft-8qjnkk81/src/host/auxiliary.lisp" (written 21 SEP 2026 05:05:05 AM):
+
+; wrote /tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/tmp/clamsara-opaque-draft-8qjnkk81/src/host/auxiliary-tmpIO5N7K88.fasl
+; compilation finished in 0:00:00.019
+; compiling file "/tmp/clamsara-opaque-draft-8qjnkk81/test/quality/support.lisp" (written 21 SEP 2026 05:05:05 AM):
+
+; wrote /tmp/clamsara-opaque-draft-8qjnkk81/independent-review/opaque-admission/fasl-01/sbcl-2.6.8.3-db35d4561-linux-x64/tmp/clamsara-opaque-draft-8qjnkk81/test/quality/support-tmpCM21U60Z.fasl
+; compilation finished in 0:00:00.075
+; 
+; compilation unit finished
+;   printed 4 notes
+OPAQUE-DRAFT-ROOT /tmp/clamsara-opaque-draft-8qjnkk81/ implementation=SBCL/2.6.8.3-db35d4561
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::BROAD-RULE NIL
+                       CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::BROAD-RULE
+                       :RETRY-TRANSFORM
+                       CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::TYPED-ADMIT-RULE
+                       NIL CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::TYPED-ADMIT-RULE
+                       :RETRY-TRANSFORM
+                       CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::TYPED-TRANSFORM-RULE
+                       NIL CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::TYPED-TRANSFORM-RULE
+                       :RETRY-TRANSFORM
+                       CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::TYPED-BEFORE-RULE
+                       NIL CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::TYPED-BEFORE-RULE
+                       :RETRY-TRANSFORM
+                       CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::TYPED-AFTER-RULE
+                       NIL CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::TYPED-AFTER-RULE
+                       :RETRY-TRANSFORM
+                       CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::TYPED-CANCEL-RULE
+                       NIL CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::TYPED-CANCEL-RULE
+                       :RETRY-TRANSFORM
+                       CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::TYPED-ALL-RULE
+                       NIL CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::TYPED-ALL-RULE
+                       :RETRY-TRANSFORM
+                       CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::TYPED-EQL-READ-RULE
+                       NIL CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::TYPED-EQL-READ-RULE
+                       :RETRY-TRANSFORM
+                       CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::TYPED-ALL-RULE
+                       NIL
+                       CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN-CHILD)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::OBSERVE-NO-TRANSFORM-RULE
+                       NIL CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::MISSING-RESERVE-RULE
+                       :REJECT
+                       CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::MISSING-ADMIT-RULE
+                       :REJECT
+                       CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::MISSING-TRANSFORM-RULE
+                       :REJECT
+                       CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::MISSING-BEFORE-RULE
+                       :REJECT
+                       CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::MISSING-AFTER-RULE
+                       :REJECT
+                       CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::MISSING-CANCEL-RULE
+                       :REJECT
+                       CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::WRONG-RESERVE-EVENT-RULE
+                       :REJECT
+                       CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::WRONG-ADMIT-EVENT-RULE
+                       :REJECT
+                       CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::WRONG-TRANSFORM-EVENT-RULE
+                       :REJECT
+                       CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::WRONG-BEFORE-EVENT-RULE
+                       :REJECT
+                       CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::WRONG-AFTER-EVENT-RULE
+                       :REJECT
+                       CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::BEFORE-ONLY-RULE
+                       :REJECT
+                       CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::AFTER-ONLY-RULE
+                       :REJECT
+                       CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::AROUND-ONLY-RULE
+                       :REJECT
+                       CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::COMBINED-RULE NIL
+                       CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::COMBINED-RULE
+                       :RETRY-TRANSFORM
+                       CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-SUMMARY cases=34 failures=0 new-failed=0 new-rejected=14 retained-failed=0 retained-rejected=14
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-EDGES::INHERITED-CONTRIBUTION
+                       NIL CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-ADMISSION-PASS (CLAMSARA.INDEPENDENT.OPAQUE-EDGES::INHERITED-CONTRIBUTION
+                       :RETRY-TRANSFORM
+                       CLAMSARA.INDEPENDENT.OPAQUE-ADMISSION::PRIVATE-TOKEN)
+OPAQUE-EDGE-PASS (:EQL-VECTOR-ACTUAL NIL)
+OPAQUE-EDGE-PASS (:EQL-VECTOR-ACTUAL :RETRY-TRANSFORM)
+OPAQUE-EDGE-PASS :UNKNOWN-TAIL-IS-NOT-NIL
+OPAQUE-EDGE-PASS :KNOWN-CONTRIBUTION-SUBCLASS
+OPAQUE-EDGE-PASS :KNOWN-CONTRIBUTION-CLASS-MISMATCH
+OPAQUE-EDGE-PASS :KNOWN-CONTRIBUTION-EQL-SYMBOL
+OPAQUE-EDGE-PASS :KNOWN-CONTRIBUTION-EQL-MISMATCH
+OPAQUE-EDGE-PASS :KNOWN-EVENT-EQL-MISMATCH
+OPAQUE-EDGE-PASS :RESERVE-EVENT-POSITION-TWO
+OPAQUE-EDGE-PASS :RESERVE-EVENT-MISMATCH
+OPAQUE-EDGE-PASS :CANCEL-NO-EVENT-POSITION
+OPAQUE-EDGE-PASS :KNOWN-EVENT-CLASS
+OPAQUE-EDGE-PASS :KNOWN-EVENT-CLASS-MISMATCH
+OPAQUE-EDGE-PASS :STANDARD-AUXILIARY-NOT-PRIMARY
+OPAQUE-EDGE-PASS :EMPTY-STANDARD-GENERIC
+OPAQUE-EDGE-PASS :PRIVATE-NONSTANDARD-COMBINATION-IS-CAPABILITY-REJECTION
+OPAQUE-EDGE-PASS :OTHER-HOST-BRANCH-IS-CAPABILITY-REJECTION-ONLY
+OPAQUE-EDGE-PASS :PRODUCTION-METHOD-COMBINATIONS-UNCHANGED
+OPAQUE-EDGE-SUMMARY cases=20 failures=0 new-failed=0 retained-failed=0 rejected-delta=0 probe-bodies=0
+OPAQUE-DRAFT-RETENTION failed=0 rejected=14 published-failed=0

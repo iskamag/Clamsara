@@ -1,0 +1,19 @@
+{
+  "kind": "parent full one-file draft native",
+  "pid": 15212,
+  "exit_code": 0,
+  "duration_seconds": 16.383415152085945,
+  "snapshot": "/tmp/clamsara-opaque-draft-8qjnkk81",
+  "opaque_histories_per_run": 34,
+  "opaque_runs": 2,
+  "opaque_failed_owners": 0,
+  "opaque_expected_rejected_owners_retained": 28,
+  "CAS_permanent_histories": 184,
+  "CAS_permanent_runs": 2,
+  "CAS_archived_histories": 176,
+  "CAS_expected_fatal_retained": 144,
+  "component_gate": "main/tools/workload/optional288/structure",
+  "pins_unchanged": true,
+  "command": "sbcl --dynamic-space-size 8192 --noinform --non-interactive --load /tmp/clamsara-opaque-full-4r072chb/bootstrap.lisp > /tmp/clamsara-opaque-full-4r072chb/native.log 2>&1",
+  "warnings": "Existing workload/dependency/archived-helper warnings preserved in log; not a clean-warning claim."
+}

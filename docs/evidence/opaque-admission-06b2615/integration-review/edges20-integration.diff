@@ -1,0 +1,33 @@
+--- native15448/additional-source-02.lisp
++++ installed/barrier-admission-edges.lisp
+@@ -1,15 +1,15 @@
+-;;;; Additional bounded draft-only admission edges. Not yet executed.
+-;;;; Load CLAMSARA/QUALITY/SUPPORT and the unchanged acceptance-source-02.lisp
+-;;;; from the preceding independent review first. No production GF is redefined.
+-(defpackage #:clamsara.independent.opaque-edges
++;;;; Hosted opaque-admission edges: four real histories and sixteen metadata
++;;;; capability checks. The latter are not execution/domain/target admission.
++;;;; Based on the unchanged independent edge suite; no load-time test runner.
++(defpackage #:clamsara.quality.barrier-admission-edges
+   (:use #:cl #:clamsara #:clamsara.quality.support)
+-  (:import-from #:clamsara.independent.opaque-admission
++  (:import-from #:clamsara.quality.barrier-admission
+    #:rule #:private-token #:proof-plan #:typed-all-rule
+    #:rule-token #:rule-calls #:rule-auxiliary-calls #:rule-mode
+    #:reserve-token #:perform-phase #:assert-never-executed #:invoke-and-check
+    #:*rule* #:*last-plan* #:*cases* #:*failures* #:*failed-worlds* #:*rejected-builds*)
+   (:export #:run-opaque-admission-edge-tests))
+-(in-package #:clamsara.independent.opaque-edges)
++(in-package #:clamsara.quality.barrier-admission-edges)
+ 
+ ;; The actual contributor inherits its primary methods; exact CLASS-OF equality
+ ;; would wrongly reject it. The existing real-fixture runner exercises its body.
+@@ -218,7 +218,7 @@
+         (helper (fdefinition 'clamsara::%barrier-primary-candidate-p))
+         (actual (make-instance 'probe-actual)))
+     (dolist (mode '(nil :retry-transform))
+-      (clamsara.independent.opaque-admission::one 'inherited-contribution mode))
++      (clamsara.quality.barrier-admission::one 'inherited-contribution mode))
+     (dolist (mode '(nil :retry-transform)) (vector-one mode))
+     (meta-one :unknown-tail-is-not-nil
+       (lambda ()

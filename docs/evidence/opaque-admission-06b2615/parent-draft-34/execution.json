@@ -1,0 +1,14 @@
+{
+  "kind": "parent one-file draft native",
+  "snapshot": "/tmp/clamsara-opaque-draft-8qjnkk81",
+  "pid": 15069,
+  "exit_code": 0,
+  "duration_seconds": 2.430415509035811,
+  "histories": 34,
+  "passed": 34,
+  "failed": 0,
+  "expected_rejected_owners_retained": 14,
+  "failed_owners": 0,
+  "pins_unchanged": true,
+  "command": "sbcl --noinform --non-interactive --load /tmp/clamsara-opaque-native-q9jnovg4/bootstrap.lisp > /tmp/clamsara-opaque-native-q9jnovg4/native.log 2>&1"
+}

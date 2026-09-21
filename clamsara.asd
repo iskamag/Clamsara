@@ -141,6 +141,7 @@
                              (asdf:test-op :clamsara/acceptance/test)
                              (asdf:test-op :clamsara/quality/stateful/test)
                              (asdf:test-op :clamsara/quality/barrier-history/test)
+                             (asdf:test-op :clamsara/quality/barrier-admission/test)
                              (asdf:test-op :clamsara/quality/allocation/test)
                              (asdf:test-op :clamsara/quality/kind-snapshots/test)
                              (asdf:test-op :clamsara/quality/representation-capacity/test)
@@ -170,6 +171,21 @@
                           (uiop:symbol-call :clamsara.quality.barrier-boundaries
                                            :run-barrier-boundary-tests))
                (error "Barrier history contracts failed"))))
+
+(asdf:defsystem :clamsara/quality/barrier-admission/test
+  :version "0.1.0"
+  :description "Hosted opaque-token admission histories; not full/target admission."
+  :depends-on (:clamsara/quality/support)
+  :serial t
+  :components ((:file "test/quality/barrier-admission")
+               (:file "test/quality/barrier-admission-edges"))
+  :perform (asdf:test-op (operation component)
+             (declare (ignore operation component))
+             (unless (and (uiop:symbol-call :clamsara.quality.barrier-admission
+                                           :run-opaque-admission-tests)
+                          (uiop:symbol-call :clamsara.quality.barrier-admission-edges
+                                           :run-opaque-admission-edge-tests))
+               (error "Barrier admission contracts failed"))))
 
 (asdf:defsystem :clamsara/workload
   :version "0.1.0"

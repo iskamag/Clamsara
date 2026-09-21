@@ -1,0 +1,9 @@
+{
+  "kind": "parent host-CLOS semantics probe, NOT Clamsara admission acceptance",
+  "pid": 14391,
+  "exit_code": 0,
+  "duration_seconds": 0.29445857007522136,
+  "script_sha256": "822e11ca9b859c3c6ae2f798a3e41e4ed0c620d35e72e5f371646167f3c05dd0",
+  "log_sha256": "a1f89cdbafc8cc103d2739907bc99712cd2b708a8efd9b86141930bbc46d4066",
+  "finding": "Around-only, before-only, after-only, guarded-around and unguarded-around all signal SB-PCL::NO-PRIMARY-METHOD-ERROR; split primary tokenA works, tokenB-onlyaround fails. Current standard method combination requires an applicable primary."
+}

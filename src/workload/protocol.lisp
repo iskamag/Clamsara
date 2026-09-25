@@ -110,6 +110,10 @@ This constructor performs no binding and is intended for setup only."
       (error 'workload-capability-error :operation operation
              :reason :missing-configuration-method))))
 
+(defun %mapc-capability-reject (reason)
+  ;; One shared raise site for every MAPC admission bound.
+  (error 'workload-capability-error :operation 'workload-mapc :reason reason))
+
 (defun %store-outcome (operation effective status)
   ;; Shared shape of every root/barrier store boundary: the stored encoding is
   ;; authoritative, any other status (including :RETRY) is a caller error.

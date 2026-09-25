@@ -708,8 +708,6 @@ runs BODY zero times."
                  :fact (list :abstract-logical-role condition))))))
   storage)
 
-(declaim (ftype (function (t) t) %validate-field-description))
-
 (defmethod validate-component :after ((storage metadata-storage) configuration)
   (declare (ignore configuration))
   (%provision-storage storage)

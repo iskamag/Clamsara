@@ -60,19 +60,10 @@
         ;; Log before validating any returned field.
         (setf (gethash identity (%context-resources construction)) state)
         (%record-transaction construction :resource identity state)
-        (dolist (pair `((,physical-bytes
-                         . ,(%resource-description-minimum-physical-bytes
-                             description))
-                        (,entry-capacity
-                         . ,(%resource-description-logical-entry-bound
-                             description))
-                        (,auxiliary-bytes
-                         . ,(%resource-description-auxiliary-bytes
-                             description))))
-          (unless (and (%nonnegative-integer-p (car pair))
-                       (<= (car pair) target-maximum)
-                       (>= (car pair) (cdr pair)))
-            (%reject :insufficient-or-invalid-resource-capacity (list path))))
+        (%check-resource-capacity
+         physical-bytes entry-capacity auxiliary-bytes
+         description target-maximum path
+         :insufficient-or-invalid-resource-capacity)
         (when (and placement
                    (> physical-bytes (- (cdr placement) (car placement))))
           (%reject :resource-does-not-fit-placement (list path)))
@@ -330,6 +321,26 @@ space/model-consuming group before any component initialization occurs."
   ;; the reference out of call position, so no undefined-function warning.
   (if (fboundp name) (symbol-function name) (%reject reason)))
 
+(defun %check-resource-capacity (physical-bytes entry-capacity auxiliary-bytes
+                                 description target-maximum path reason)
+  ;; Each actual must be a nonnegative integer within the target address
+  ;; space and at least its advertised minimum.  Callers keep distinct
+  ;; rejection reasons because the lifecycle stage differs.
+  (dolist (pair `((,physical-bytes
+                   . ,(%resource-description-minimum-physical-bytes
+                       description))
+                  (,entry-capacity
+                   . ,(%resource-description-logical-entry-bound
+                       description))
+                  (,auxiliary-bytes
+                   . ,(%resource-description-auxiliary-bytes
+                       description))))
+    (unless (and (%nonnegative-integer-p (car pair))
+                 (<= (car pair) target-maximum)
+                 (>= (car pair) (cdr pair)))
+      (%reject reason (list path))))
+  (values))
+
 (defun %register-configuration-auxiliary (construction object)
   (let ((register
           (%runtime-entry-point
@@ -521,21 +532,14 @@ backing it.  Component/client/host objects are registered by their owners."
   (values))
 
 (defun %validate-final-resource-state (state target-maximum)
-  (let* ((description (%resource-state-description state))
-         (path (%resource-description-path description)))
-    (dolist (pair `((,(%resource-state-physical-bytes state)
-                       . ,(%resource-description-minimum-physical-bytes
-                           description))
-                      (,(%resource-state-entry-capacity state)
-                       . ,(%resource-description-logical-entry-bound
-                           description))
-                      (,(%resource-state-auxiliary-bytes state)
-                       . ,(%resource-description-auxiliary-bytes
-                           description))))
-      (unless (and (%nonnegative-integer-p (car pair))
-                   (<= (car pair) target-maximum)
-                   (>= (car pair) (cdr pair)))
-        (%reject :invalid-final-resource-capacity (list path))))))
+  (let ((description (%resource-state-description state)))
+    (%check-resource-capacity
+     (%resource-state-physical-bytes state)
+     (%resource-state-entry-capacity state)
+     (%resource-state-auxiliary-bytes state)
+     description target-maximum
+     (%resource-description-path description)
+     :invalid-final-resource-capacity)))
 
 (defun %make-capacity-account (resources construction)
   (map 'simple-vector

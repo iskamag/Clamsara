@@ -52,33 +52,28 @@
          (frames (+ (if active-scope-p 0 1) (if template 1 0)))
          (frame (workload-provider-frame-count provider)))
     (unless (and vm (eq vm maclina.vm-cross::*vm*))
-      (error 'workload-capability-error :operation 'workload-mapc :reason :foreign-vm))
+      (%mapc-capability-reject :foreign-vm))
     (when (or (> (+ frame frames) (length (workload-provider-functions provider)))
               (> (+ frame frames) (length (workload-provider-saved-values provider))))
-      (error 'workload-capability-error :operation 'workload-mapc
-             :reason :vm-frame-capacity-exhausted))
+      (%mapc-capability-reject :vm-frame-capacity-exhausted))
     (when (> (+ (workload-provider-native-cell-count provider) cells)
              (length (workload-provider-native-cells provider)))
-      (error 'workload-capability-error :operation 'workload-mapc
-             :reason :native-cell-capacity-exhausted))
+      (%mapc-capability-reject :native-cell-capacity-exhausted))
     (let* ((top (maclina.vm-cross::vm-stack-top vm))
            (end (+ top entry-slots)))
       (when (> end (length (maclina.vm-cross::vm-stack vm)))
-        (error 'workload-capability-error :operation 'workload-mapc
-               :reason :vm-stack-capacity-exhausted))
+        (%mapc-capability-reject :vm-stack-capacity-exhausted))
       (multiple-value-bind (current controls)
           (%provider-root-demand
            provider :extra-function function
            :entry-local-start (and template (+ top list-count)) :entry-end end)
         (when (> controls (length (workload-root-walk-queue
                                   (workload-provider-control-walk provider))))
-          (error 'workload-capability-error :operation 'workload-mapc
-                 :reason :control-root-capacity-exhausted))
+          (%mapc-capability-reject :control-root-capacity-exhausted))
         (let ((demand (+ current cells entry-slots)))
           (when (or (> demand (workload-provider-capacity provider))
                     (> demand (length (workload-provider-locations provider))))
-            (error 'workload-capability-error :operation 'workload-mapc
-                   :reason :root-provider-capacity-exhausted))
+            (%mapc-capability-reject :root-provider-capacity-exhausted))
           ;; Live frame/cell extents are the reservation. A nested census
           ;; counts them; no separate counter can double-spend that storage.
           demand)))))

@@ -52,9 +52,6 @@ created by this function."
 (defun workload-root-place (root-set index value)
   (%root-store root-set index value))
 
-(export '(workload-root-set make-workload-root-set workload-root-load
-          workload-root-clear workload-root-place))
-
 
 ;;; ---- fixed Maclina execution/root provider -------------------------------
 ;;;
@@ -397,8 +394,7 @@ census uses separate bounded control scratch and never changes descriptors."
   (declare (ignore kind source index))
   (when (or (>= cursor (workload-provider-capacity provider))
             (>= cursor (length (workload-provider-locations provider))))
-    (error 'workload-capability-error :operation 'workload-mapc
-           :reason :root-provider-capacity-exhausted))
+    (%mapc-capability-reject :root-provider-capacity-exhausted))
   (1+ cursor))
 
 (defun %provider-root-demand (provider &key extra-function entry-local-start entry-end)

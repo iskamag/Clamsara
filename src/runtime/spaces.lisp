@@ -535,7 +535,10 @@
 
 (defmethod prepare-space ((space marksweep-space) cycle)
   (declare (ignore cycle))
-  (metadata-reset-range (%space-marks space) (%space-range space))
+  ;; A stopped cycle prepares a fresh logical mark epoch without changing the
+  ;; allocation map.  A bit map retires by clearing; an epoch map advances a
+  ;; counter and leaves stale bits physically set but inactive.
+  (marks-retire (%space-marks space))
   (setf (%marksweep-candidate-count space) 0
         (%marksweep-candidate-ready-p space) nil)
   (values))
@@ -568,8 +571,8 @@
         (multiple-value-bind (start descriptor) (normalize-reference model reference)
           (declare (ignore descriptor))
           (and (%space-contains-address-p space (reference-address model start))
-               (eql 1 (metadata-ref (%space-marks space)
-                                    (reference-address model start))))))))
+               (marks-active-p (%space-marks space)
+                               (reference-address model start)))))))
 
 (defun %marksweep-add-free (space start limit)
   (when (< start limit)
@@ -592,7 +595,7 @@
     (unless (and (>= address (%marksweep-reclaim-cursor space))
                  (> end address) (<= end (%space-limit space)))
       (%runtime-reject :fatal-invariant))
-    (if (eql 1 (metadata-ref (%space-marks space) address))
+    (if (marks-active-p (%space-marks space) address)
         (progn
           (unless (%marksweep-add-free space
                                        (%marksweep-reclaim-free-start space)

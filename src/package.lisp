@@ -13,6 +13,9 @@
    #:scalar-object-start-marks
    #:make-scalar-object-start-marks
    #:make-side-marks
+   #:make-epoch-marks
+   #:marks-retire
+   #:marks-active-p
    #:make-inline-marks
    #:make-scalar-inline-marks
    #:make-simulator-root-client

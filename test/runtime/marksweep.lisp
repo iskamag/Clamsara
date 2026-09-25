@@ -25,6 +25,12 @@
   (values))
 
 (defun run-marksweep-runtime-tests ()
+  (run-marksweep-lifecycle (function clamsara::make-side-marks) nil)
+  (run-marksweep-lifecycle (function clamsara::make-epoch-marks) t)
+  (format t "~&V14-MARKSWEEP-LIFECYCLE-OK~%")
+  t)
+
+(defun run-marksweep-lifecycle (make-marks epoch-p)
   (let* ((q 16) (extent 1024) (base 4096)
          (roots (clamsara::make-simulator-root-client :provider-capacity 8))
          (application-roots (clamsara::make-simulator-root-provider 1))
@@ -156,8 +162,22 @@
                       "Repeat cycle did not retire the replacement")
               (%check (= dead-address
                          (reference-address bound (allocate-node)))
-                      "Repeat cycle did not make the same hole reusable"))))))
+                      "Repeat cycle did not make the same hole reusable")))
+          ;; Epoch maps retire logically.  The live object `a` is re-marked in
+          ;; the current epoch, so it must be active; a dead address that no
+          ;; cycle marked this epoch must not be.  (The one-address check is
+          ;; read after the final cycle, whose epoch is current.)
+          (when epoch-p
+            (%check (marks-active-p
+                     (clamsara::%space-marks space) a-address)
+                    "Live object is not marked in the current epoch")
+            ;; The replacement from the last cycle was allocated and is live at
+            ;; that address; the *previous* retired bit there must not fool the
+            ;; epoch check.  Retire once more and confirm it is now inactive.
+            (marks-retire (clamsara::%space-marks space))
+            (%check (not (marks-active-p
+                          (clamsara::%space-marks space) a-address))
+                    "Retired epoch mark is still active")))))
     (%check (eq :unbound (unbind-mutator configuration context))
             "Mutator did not unbind")
-    (format t "~&V14-MARKSWEEP-LIFECYCLE-OK~%")
     t))

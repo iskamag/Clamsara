@@ -170,6 +170,23 @@ index to the provider's canonical key and is used only for traversal."
                 (metadata-ref source source-key))
   destination)
 
+;;; Logical mark epoch.  A cycle prepares a fresh epoch, marks cells, and
+;;; retires the epoch afterwards.  Physical bit maps implement retirement by
+;;; clearing; epoch maps instead store the marking epoch per cell, so retirement
+;;; is a bounded counter advance and stale bits remain physically set but
+;;; inactive (collectors.tex: "mark bits may remain physically set if logical
+;;; epoch retirement makes them inactive").
+(defgeneric marks-retire (marks))
+(defgeneric marks-active-p (marks key))
+
+(defmethod marks-retire ((marks mark-map))
+  ;; Bit-map retirement is its fresh epoch: clear the whole range.
+  (metadata-reset-range marks (%full-range marks))
+  marks)
+
+(defmethod marks-active-p ((marks mark-map) key)
+  (eql 1 (metadata-ref marks key)))
+
 ;;; Additional logical roles used by moving spaces.
 (defclass object-start-map (mark-map) ())
 (defclass forwarding-metadata (range-metadata transferable-metadata) ())
@@ -204,6 +221,43 @@ index to the provider's canonical key and is used only for traversal."
 (defclass enumerated-offered-bit-storage (offered-bit-storage range-metadata) ())
 (defclass side-marks (mark-map packed-bit-storage) ())
 (defclass scalar-side-marks (mark-map scalar-bit-storage) ())
+
+;;; Epoch-backed marks: an ordinal integer plane whose value is the epoch that
+;;; marked the cell, zero when never marked.  Retirement is a bounded counter
+;;; advance rather than a whole-range clear, so stale bit values remain
+;;; physically present and inactive.
+(defclass epoch-marks (mark-map scalar-bit-storage)
+  ((epoch :initform 1 :accessor %marks-epoch)))
+
+(defmethod metadata-default-value ((marks epoch-marks) key)
+  (declare (ignore marks key)) 0)
+(defmethod metadata-value-valid-p ((marks epoch-marks) key value)
+  (declare (ignore marks key))
+  (and (integerp value) (<= 0 value)))
+(defmethod metadata-value-equal-p ((marks epoch-marks) key left right)
+  (declare (ignore marks key))
+  (eql left right))
+(defmethod metadata-reset ((marks epoch-marks) key)
+  (metadata-set marks key 0))
+(defmethod metadata-set-bit ((marks epoch-marks) key)
+  ;; Mark for the current epoch, not the scalar 1.
+  (let ((old (metadata-ref marks key)))
+    (metadata-set marks key (%marks-epoch marks))
+    old))
+
+(defmethod marks-retire ((marks epoch-marks))
+  (when (>= (%marks-epoch marks) most-positive-fixnum)
+    (error 'metadata-capacity-error :metadata marks :fact :epoch-exhausted))
+  (incf (%marks-epoch marks))
+  marks)
+
+(defmethod marks-active-p ((marks epoch-marks) key)
+  (let ((stored (metadata-ref marks key)))
+    (and (integerp stored) (plusp stored)
+         (= stored (%marks-epoch marks)))))
+
+(defun make-epoch-marks (&rest initargs)
+  (apply #'make-instance 'epoch-marks initargs))
 (defclass inline-marks (mark-map enumerated-offered-bit-storage) ())
 (defclass scalar-inline-marks (mark-map offered-bit-storage) ())
 (defclass side-forwarding (forwarding-metadata metadata-storage) ())

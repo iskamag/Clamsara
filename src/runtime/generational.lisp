@@ -38,7 +38,6 @@
    (barrier-descriptions :initform nil :accessor %gen-barrier-descriptions)
    ;; Fixed construction-time enumeration callbacks use these dynamic slots.
    (enumeration-cycle :initform nil :accessor %gen-enumeration-cycle)
-   (enumeration-function :initform nil :accessor %gen-enumeration-function)
    (enumeration-mode :initform nil :accessor %gen-enumeration-mode)
    (nursery-callback :initform nil :accessor %gen-nursery-callback)
    (mature-callback :initform nil :accessor %gen-mature-callback)))
@@ -556,8 +555,6 @@ rather than clearing the range (collectors.tex, MarkSweep mark epoch)."
          (:strong
           (map-reference-locations model start
                                    (%cycle-strong-callback cycle)))
-         (:conditional
-          (funcall (%gen-enumeration-function plan) mature start))
          (:free
           (let* ((bytes (object-size model start))
                  (end (+ address

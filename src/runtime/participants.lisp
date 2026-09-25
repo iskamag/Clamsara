@@ -23,11 +23,15 @@
    (values :initform nil :accessor %participant-values)
    (dead-p :initform nil :accessor %participant-dead-p)
    (count :initform 0 :accessor %participant-count)
-   (prepared-p :initform nil :accessor %participant-prepared-p)
-   (epoch :initform 0 :accessor %participant-epoch)))
+   (prepared-p :initform nil :accessor %participant-prepared-p)))
 
 (defun make-source-directory-participant (&key capacity)
-  "One source-indexed movement participant with a bounded row table."
+  "One source-indexed movement participant with a bounded row table.
+
+CAPACITY bounds distinct sources per cycle: every moved source and every dead
+source gets one row, so it must cover the whole source population (moves plus
+deaths), not just survivors.  Exhaustion is a precommit failure that retains the
+cycle."
   (unless (typep capacity '(integer 1 #.most-positive-fixnum))
     (%runtime-reject :invalid-participant-capacity))
   (make-instance 'source-directory-participant :capacity capacity))
@@ -83,10 +87,12 @@ construction-fixed row bound."
 
 (defmethod prepare-movement-participant
     ((participant source-directory-participant) cycle)
+  ;; A second prepare for the same cycle without an intervening finish/cancel is
+  ;; an invariant fault, not permission to reuse stale rows.  The driver calls
+  ;; prepare once per cycle per participant.
   (when (%participant-prepared-p participant)
-    (return-from prepare-movement-participant (values :ready nil)))
-  ;; Rising epoch: staged rows are this cycle's evidence, never a reuse.
-  (incf (%participant-epoch participant))
+    (%runtime-reject :fatal-invariant))
+  ;; Stage from scratch for this cycle.
   (setf (%participant-count participant) 0)
   (fill (%participant-keys participant) nil)
   (fill (%participant-values participant) nil)

@@ -100,6 +100,109 @@
       (check (zerop (participant-directory-count participant))
              "Cancelled participant has rows"))))
 
+(defun run-directory-matches-cycle-counts ()
+  ;; The staged rows must agree with the cycle's own movement/death counts.
+  (run-profile
+   (lambda (algorithm starts)
+     (let ((participant (make-source-directory-participant :capacity 64)))
+       (with-quality-world (w :algorithm algorithm :object-starts starts
+                              :movement-participants (list participant))
+         (let ((nodes nil))
+           (dotimes (index 8)
+             (let ((node (allocate-node w index)))
+               (push node nodes)
+               (set-world-root w index node)))
+           (loop for (a b) on nodes while b do (set-node-slot w a 1 b)))
+         (let ((record (collect-world w :scope :all)))
+           (check (eq :complete (cycle-result-status record))
+                  "cycle failed: ~S" (cycle-result-reason record))
+           (let ((moves 0) (deaths 0))
+             (map-participant-directory
+              participant
+              (lambda (key value dead)
+                (declare (ignore key value))
+                (if (eq dead 1) (incf deaths) (incf moves))))
+             (multiple-value-bind (moved moved-known)
+                 (cycle-result-count record :objects-moved)
+               (multiple-value-bind (dead dead-known)
+                   (cycle-result-count record :objects-dead)
+                 (check (and moved-known dead-known)
+                        "cycle counts unavailable")
+                 (check (= moves moved)
+                        "Move rows ~D disagree with :objects-moved ~D"
+                        moves moved)
+                 (check (= deaths dead)
+                        "Tombstone rows ~D disagree with :objects-dead ~D"
+                        deaths dead))))))))
+   :algorithms '(:semispace :marksweep)))
+
+(defun run-capacity-boundary ()
+  ;; Exactly at capacity succeeds and stages every source; one over fails
+  ;; precommit and leaves no rows.
+  (flet ((attempt (capacity objects)
+           (let ((participant (make-source-directory-participant :capacity capacity)))
+             (handler-case
+                 (let ((world (make-quality-world
+                               :algorithm :semispace
+                               :movement-participants (list participant))))
+                   (set-world-root world 0 (allocate-node world 1))
+                   (dotimes (index (1- objects))
+                     (set-world-root world 1 (allocate-node world (+ 2 index))))
+                   (values participant (collect-world world :scope :all)))
+               (error () (values participant nil))))))
+    ;; A single live root: exactly one source, capacity one succeeds.
+    (multiple-value-bind (participant record) (attempt 1 1)
+      (check (and record (eq :complete (cycle-result-status record)))
+             "Exact-capacity cycle failed")
+      (check (= 1 (participant-directory-count participant))
+             "Exact-capacity participant did not stage one row"))
+    ;; Four distinct live sources with capacity two fails precommit.
+    (multiple-value-bind (participant record) (attempt 2 4)
+      (check (and record (eq :retained (cycle-result-status record))
+                  (eq :capacity-exhausted (cycle-result-reason record)))
+             "Over-capacity cycle did not retain with :capacity-exhausted")
+      (check (zerop (participant-directory-count participant))
+             "Over-capacity participant retained staged rows"))))
+
+(defclass prepare-once-participant (movement-participant)
+  ((prepared :initform nil :accessor once-prepared)))
+(defmethod prepare-movement-participant ((p prepare-once-participant) cycle)
+  (declare (ignore cycle))
+  (when (once-prepared p)
+    (error "prepare called twice for one cycle"))
+  (setf (once-prepared p) t)
+  (values :ready nil))
+(defmethod cancel-movement-participant ((p prepare-once-participant) cycle)
+  (declare (ignore cycle)) (values))
+(defmethod finish-movement-participant ((p prepare-once-participant) cycle)
+  (declare (ignore cycle)) (setf (once-prepared p) nil) (values))
+
+(defun run-prepare-exactly-once-per-cycle ()
+  ;; The driver must call prepare exactly once per cycle, and a manual second
+  ;; prepare on a staged source directory is an invariant rejection, not a
+  ;; silent reuse of stale rows.
+  (let ((participant (make-instance 'prepare-once-participant)))
+    (with-quality-world (w :algorithm :semispace
+                           :movement-participants (list participant))
+      (set-world-root w 0 (allocate-node w 1))
+      (dotimes (round 3)
+        (collect-world w :scope :all)
+        (check (not (once-prepared participant))
+               "Participant stayed prepared after collect"))))
+  (let ((participant (make-source-directory-participant :capacity 8)))
+    (with-quality-world (w :algorithm :semispace
+                           :movement-participants (list participant))
+      (set-world-root w 0 (allocate-node w 1))
+      (collect-world w :scope :all)
+      (let ((cycle (clamsara::%plan-cycle (world-plan w))))
+        (prepare-movement-participant participant cycle)
+        (check (handler-case
+                   (progn (prepare-movement-participant participant cycle) nil)
+                 (clamsara::runtime-rejection () t))
+               "Second prepare was silently admitted")
+        ;; Leave the participant clean so the fixture can discharge and close.
+        (cancel-movement-participant participant cycle)))))
+
 (defclass counting-participant (movement-participant)
   ((prepared-p :initform nil :accessor count-prepared-p)
    (cancels :initform 0 :accessor count-cancels)
@@ -176,6 +279,9 @@
   (run-source-directory-death)
   (run-source-directory-failure)
   (run-source-directory-cancel-idempotent)
+  (run-directory-matches-cycle-counts)
+  (run-prepare-exactly-once-per-cycle)
+  (run-capacity-boundary)
   (run-ready-participant-cancelled-once)
   (run-failed-finish-holds-stop)
   (format t "~&MOVEMENT-PARTICIPANT-PASS~%")

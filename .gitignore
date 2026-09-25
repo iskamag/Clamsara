@@ -2,7 +2,6 @@ paper
 paper-*
 /.agent-shell/
 *.fasl
-*.fasl
 .commandcode
 AGENTS.md
 slop-archives

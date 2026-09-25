@@ -7,7 +7,8 @@
                 #:make-generational-mature-space
                 #:make-generational-plan)
   (:export #:run-generational-quality-tests #:run-generational-history-tests
-           #:run-generational-quality-tests-with-cards))
+           #:run-generational-quality-tests-with-cards
+           #:run-minor-capacity-allocation-recovery))
 (in-package #:clamsara.quality.generational)
 
 (defstruct (generation-world
@@ -469,7 +470,58 @@ Only requested old objects are allocated before the setup minor."
         (run-remembered-edges starts operation card-granularity)
         (check-card-mode starts card-granularity))))
   t)
+(defun run-minor-capacity-allocation-recovery (starts)
+  ;; Mature holds one live object; the nursery holds only garbage.  A minor
+  ;; cannot reserve promotion room, but it also has nothing to promote, so a
+  ;; clean pre-effect failure must let the allocation ladder escalate to a full
+  ;; collection (a major needs no promotion room) instead of deadlocking.
+  (let* ((world (make-generation-world :object-starts starts
+                                       :nursery-extent 64 :mature-extent 32))
+         (old (allocate-leaf world)))
+    (set-world-root world 0 old)
+    (complete-cycle world :minor)
+    (check (mature-p world (read-world-root world 0)) "leaf not promoted")
+    ;; Mature is now full.  Drop the mature root but keep it allocated
+    ;; unreachable, then fill the nursery with garbage.
+    (set-world-root world 0 nil)
+    (allocate-leaf world)
+    (allocate-leaf world)
+    ;; A minor still cannot pre-reserve promotion space for the garbage, and a
+    ;; direct collect reports the clean pre-effect failure.
+    (let ((record (collect-world world :scope :minor)))
+      (check (and (eq :retained (cycle-result-status record))
+                  (eq :preparing (cycle-result-phase record))
+                  (eq :capacity-exhausted (cycle-result-reason record)))
+             "Clean minor failure changed: ~S/~S/~S"
+             (cycle-result-status record) (cycle-result-phase record)
+             (cycle-result-reason record))
+      (check (eq :open (clamsara::%plan-state (world-plan world)))
+             "Clean minor failure did not reopen the plan"))
+    ;; The allocation ladder must now recover via a full collection.
+    (let ((leaf (allocate-leaf world)))
+      (check (valid-reference-p (world-model world) leaf)
+             "Allocation did not recover after a clean minor failure"))
+    (close-quality-world world)))
+
+(defun run-retained-stop-refuses-allocation (starts)
+  ;; A genuinely retained stop must refuse ordinary allocation outright: the
+  ;; ladder must never escalate through a retained cycle.
+  (let* ((world (make-generation-world :object-starts starts
+                                       :nursery-extent 64 :mature-extent 32)))
+    (set-world-root world 0 (allocate-leaf world))
+    (complete-cycle world :minor)
+    (setf (clamsara::%plan-state (world-plan world)) :retained)
+    (check (handler-case
+               (progn (allocate-leaf world) nil)
+             (clamsara::runtime-rejection () t))
+           "A retained stop admitted ordinary allocation")
+    (setf (clamsara::%plan-state (world-plan world)) :open)
+    (close-quality-world world)))
+
 (defun run-generational-quality-tests-with-cards ()
+  (dolist (starts '(:packed :scalar))
+    (run-minor-capacity-allocation-recovery starts)
+    (run-retained-stop-refuses-allocation starts))
   (run-card-remembered-edges)
   (run-generational-quality-tests-with-participants)
   (format t "~&QUALITY-GENERATIONAL-CARDS-PASS~%")

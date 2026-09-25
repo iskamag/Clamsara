@@ -154,25 +154,39 @@
     (multiple-value-bind (status outcome)
         (automatic-collect (%context-configuration context) route-scope
                            :allocation-route)
-      (when (eq status :retained)
-        (return-from allocate-object (values nil :failed outcome)))
       (when (%automatic-success-p status outcome)
         (multiple-value-bind (reference success-p)
             (%attempt-object-allocation context kind bytes descriptor)
           (when success-p
             (return-from allocate-object (values reference :allocated nil)))))
-      ;; Rejection does not count as permission to retry, but a distinct full
-      ;; scope is still attempted once when construction admits it.
-      (unless (eq route-scope :all)
-        (multiple-value-bind (full-status full-outcome)
-            (automatic-collect (%context-configuration context) :all
-                               :allocation-full)
-          (when (eq full-status :retained)
-            (return-from allocate-object (values nil :failed full-outcome)))
-          (when (%automatic-success-p full-status full-outcome)
-            (multiple-value-bind (reference success-p)
-                (%attempt-object-allocation context kind bytes descriptor)
-              (when success-p
-                (return-from allocate-object
-                  (values reference :allocated nil)))))))
+      ;; A retained cycle stops escalation only when it actually retained the
+      ;; stop.  A clean pre-effect failure reopens the plan and holds nothing,
+      ;; so a distinct full collection may still recover it (the ladder's
+      ;; "full collection" arm).  A genuinely retained stop never escalates.
+      ;; This is the deliberate policy the generational minor needs: a minor
+      ;; that cannot reserve promotion capacity before tracing leaves the plan
+      ;; :open with the stop released, and a full collection (a major) needs no
+      ;; promotion room, so it recovers the heap instead of deadlocking.
+      (let ((escalate-p
+              (and (not (eq route-scope :all))
+                   (if (eq status :retained)
+                       (eq :open (%plan-state plan))
+                       t))))
+        (unless escalate-p
+          (when (eq status :retained)
+            (return-from allocate-object (values nil :failed outcome))))
+        ;; Rejection does not count as permission to retry, but a distinct full
+        ;; scope is still attempted once when construction admits it.
+        (when escalate-p
+          (multiple-value-bind (full-status full-outcome)
+              (automatic-collect (%context-configuration context) :all
+                                 :allocation-full)
+            (when (eq full-status :retained)
+              (return-from allocate-object (values nil :failed full-outcome)))
+            (when (%automatic-success-p full-status full-outcome)
+              (multiple-value-bind (reference success-p)
+                  (%attempt-object-allocation context kind bytes descriptor)
+                (when success-p
+                  (return-from allocate-object
+                    (values reference :allocated nil))))))))
       (values nil :failed :heap-exhausted))))

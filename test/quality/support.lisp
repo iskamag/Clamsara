@@ -173,6 +173,7 @@
                              (await-bound 32)
                              await-fail-after
                              configure-model configure-plan
+                             movement-participants
                              (object-capacity 1024))
   "Construct a small real hosted collector world through the public builders.
 ALGORITHM is :SEMISPACE or :MARKSWEEP.  OBJECT-STARTS is :PACKED or :SCALAR."
@@ -270,7 +271,8 @@ ALGORITHM is :SEMISPACE or :MARKSWEEP.  OBJECT-STARTS is :PACKED or :SCALAR."
                  :registry registry :trace-capacity trace-capacity
                  :conditional-capacity conditional-capacity
                  :finalizer-capacity finalizer-capacity
-                 :packing-quantum packing-quantum)))
+                 :packing-quantum packing-quantum
+                 :movement-participants movement-participants)))
              (:marksweep
               (let ((marksweep
                       (make-marksweep-space
@@ -285,7 +287,8 @@ ALGORITHM is :SEMISPACE or :MARKSWEEP.  OBJECT-STARTS is :PACKED or :SCALAR."
                  :registry registry :trace-capacity trace-capacity
                  :conditional-capacity conditional-capacity
                  :finalizer-capacity finalizer-capacity
-                 :packing-quantum packing-quantum)))))
+                 :packing-quantum packing-quantum
+                 :movement-participants movement-participants)))))
          ;; Test-only extension seam, like CONFIGURE-MODEL: before graph
          ;; discovery, initialization, accounting or configuration publication.
          (configuration (progn

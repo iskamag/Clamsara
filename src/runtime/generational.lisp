@@ -233,7 +233,8 @@
 (defun make-generational-plan
     (&key nursery-from nursery-to mature root-client coordinator diagnostics
           registry trace-capacity conditional-capacity finalizer-capacity
-          packing-quantum allocation-routes card-granularity)
+          packing-quantum allocation-routes card-granularity
+          movement-participants)
   (unless (and (typep nursery-from 'generational-nursery-space)
                (typep nursery-to 'generational-nursery-space)
                (typep mature 'generational-mature-space)
@@ -264,6 +265,7 @@
            :allocation-routes
            (or allocation-routes
                (list (list :default nursery-from :minor)))
+           :movement-participants movement-participants
            :default-algorithm :generational
            :algorithms '(:generational))))
     (setf (%gen-card-granularity plan) card-granularity

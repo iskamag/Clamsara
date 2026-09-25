@@ -53,7 +53,7 @@
   :depends-on (:clamsara/host-base)
   :serial t
   :components ((:module "src/runtime" :serial t
-                :components ((:file "protocol") (:file "records") (:file "barrier") (:file "finalizers") (:file "trace") (:file "spaces") (:file "cycle") (:file "allocation") ))))
+                :components ((:file "protocol") (:file "records") (:file "barrier") (:file "finalizers") (:file "trace") (:file "participants") (:file "spaces") (:file "cycle") (:file "allocation") ))))
 
 (asdf:defsystem :clamsara/construction/test
   :version "0.1.0"
@@ -138,6 +138,7 @@
                              (asdf:test-op :clamsara/host/atomics/test)
                              (asdf:test-op :clamsara/runtime/test)
                              (asdf:test-op :clamsara/runtime/lifecycle/test)
+                             (asdf:test-op :clamsara/runtime/participants/test)
                              (asdf:test-op :clamsara/acceptance/test)
                              (asdf:test-op :clamsara/quality/stateful/test)
                              (asdf:test-op :clamsara/quality/barrier-history/test)
@@ -211,6 +212,16 @@
              (unless (uiop:symbol-call :clamsara.host.atomics.test
                                       :run-v14-atomics-host-contracts)
                (error "Atomic-place contracts failed"))))
+
+(asdf:defsystem :clamsara/runtime/participants/test
+  :version "0.1.0"
+  :depends-on (:clamsara/quality/support)
+  :components ((:file "test/runtime/participants"))
+  :perform (asdf:test-op (operation component)
+             (declare (ignore operation component))
+             (unless (uiop:symbol-call :clamsara.runtime.participants.test
+                                       :run-movement-participant-tests)
+               (error "Movement participant tests failed"))))
 
 (asdf:defsystem :clamsara/runtime/lifecycle/test
   :version "0.1.0"

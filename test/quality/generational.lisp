@@ -18,7 +18,8 @@
 
 (defun make-generation-world (&key (object-starts :packed)
                                   (nursery-extent 512) (mature-extent 2048)
-                                  (root-count 8) card-granularity)
+                                  (root-count 8) card-granularity
+                                  movement-participants)
   (let* ((base 4096) (quantum 16)
          (total (+ (* 2 nursery-extent) mature-extent))
          (capacity (/ total quantum))
@@ -85,7 +86,8 @@
                     :root-client roots :coordinator coordinator :diagnostics diagnostics
                     :registry registry :trace-capacity capacity :conditional-capacity capacity
                     :finalizer-capacity 8 :packing-quantum quantum
-                    :card-granularity card-granularity))
+                    :card-granularity card-granularity
+                    :movement-participants movement-participants))
              (configuration (construct-plan plan clients))
              (context (bind-mutator configuration :generation-quality :default)))
         (%make-generation-world
@@ -469,5 +471,30 @@ Only requested old objects are allocated before the setup minor."
   t)
 (defun run-generational-quality-tests-with-cards ()
   (run-card-remembered-edges)
+  (run-generational-quality-tests-with-participants)
   (format t "~&QUALITY-GENERATIONAL-CARDS-PASS~%")
   t)
+
+(defun run-generational-quality-tests-with-participants ()
+  ;; A source-indexed participant attached to the generational plan must stage
+  ;; a move row per promoted source and a tombstone per reclaimed source.
+  (dolist (starts '(:packed :scalar))
+    (let* ((participant (make-source-directory-participant :capacity 64))
+           (world (make-generation-world :object-starts starts
+                                         :movement-participants
+                                         (list participant))))
+      (unwind-protect
+           (let ((old (allocate-leaf world)))
+             (set-world-root world 0 old)
+             (complete-cycle world :minor)   ; promotes old
+             (set-world-root world 0 nil)
+             (let ((record (complete-cycle world :all)))  ; reclaims mature old
+               (count-is record :objects-dead 1))
+             (let ((deaths 0))
+               (map-participant-directory
+                participant (lambda (key value dead)
+                  (declare (ignore key value))
+                  (when (eq dead 1) (incf deaths))))
+               ;; The reclaimed mature source must have a tombstone row.
+               (check (plusp deaths) "No tombstone for a reclaimed source")))
+        (close-quality-world world)))))

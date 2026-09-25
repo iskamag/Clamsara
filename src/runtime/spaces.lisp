@@ -417,7 +417,8 @@
 (defun make-semispace-plan (&key from-space to-space root-client coordinator
                               diagnostics registry trace-capacity
                               conditional-capacity finalizer-capacity
-                              packing-quantum allocation-routes)
+                              packing-quantum allocation-routes
+                              movement-participants)
   (unless (and (typep from-space 'semispace-space)
                (typep to-space 'semispace-space)
                (= (%space-extent from-space) (%space-extent to-space))
@@ -435,6 +436,7 @@
    :trace-capacity trace-capacity :conditional-capacity conditional-capacity
    :finalizer-capacity finalizer-capacity :packing-quantum packing-quantum
    :allocation-routes (or allocation-routes (list (list :default from-space :all)))
+   :movement-participants movement-participants
    :default-algorithm :semispace :algorithms '(:semispace)))
 
 ;;; ------------------------------------------------------------------
@@ -653,7 +655,8 @@
 
 (defun make-marksweep-plan (&key space root-client coordinator diagnostics registry
                               trace-capacity conditional-capacity
-                              finalizer-capacity packing-quantum allocation-routes)
+                              finalizer-capacity packing-quantum allocation-routes
+                              movement-participants)
   (unless (and (typep space 'marksweep-space)
                (= (%space-packing-quantum space) packing-quantum))
     (%runtime-reject :invalid-marksweep-space))
@@ -664,4 +667,5 @@
    :conditional-capacity conditional-capacity
    :finalizer-capacity finalizer-capacity :packing-quantum packing-quantum
    :allocation-routes (or allocation-routes (list (list :default space :all)))
+   :movement-participants movement-participants
    :default-algorithm :marksweep :algorithms '(:marksweep)))

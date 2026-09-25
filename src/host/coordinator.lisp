@@ -176,3 +176,28 @@
 (defmethod fatal-diagnostic ((diagnostics simulator-diagnostics) reason)
   (setf (simulator-fatal-reason diagnostics) reason)
   (throw (simulator-fatal-escape diagnostics) reason))
+
+;;; ------------------------------------------------------------------
+;;; One root pass over the actual stop and root operations (threst.tex).
+;;; There is no unconditional unwind release: failed Await has no coverage
+;;; and takes explicit cancellation, while callback failure after partial
+;;; correction retains the stop and enters closed failure.
+
+(defun stopped-root-pass (coordinator root-client diagnostics function)
+  (multiple-value-bind (token request-failure)
+      (request-safepoint coordinator :all :collection)
+    (if request-failure
+        (values nil request-failure)
+        (multiple-value-bind (same-token coverage await-failure)
+            (await-safepoint coordinator token)
+          (declare (ignore same-token))
+          (if await-failure
+              (progn
+                (unless (eq :cancelled (release-safepoint coordinator token))
+                  (fatal-diagnostic diagnostics :safepoint-cancel-invariant))
+                (values nil await-failure))
+              (progn
+                (with-root-snapshot root-client coverage function)
+                (unless (eq :released (release-safepoint coordinator token))
+                  (fatal-diagnostic diagnostics :safepoint-release-invariant))
+                (values t nil)))))))

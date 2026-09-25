@@ -230,9 +230,53 @@
                  "old terminal token lost repeat history")))
     t))
 
+(defun test-stopped-root-pass ()
+  ;; THREST.TEX's stopped-root-pass: a complete root pass under coverage, and
+  ;; failed-Await cancellation that runs no callback and releases nothing.
+  (let* ((client (clamsara::make-simulator-root-client :provider-capacity 2))
+         (provider (clamsara::make-simulator-root-provider 2))
+         (token (register-root-provider client :stopped-pass 2 provider))
+         (coordinator (clamsara::make-simulator-coordinator
+                       client :stop-capacity 4 :await-bound 8))
+         (diagnostics (clamsara::make-simulator-diagnostics))
+         (visits 0)
+         (stored nil))
+    (declare (ignore token))
+    ;; Covered path: the callback performs a real root store and returns; the
+    ;; pass reports success and the stop is released.
+    (multiple-value-bind (ok failure)
+        (clamsara:stopped-root-pass
+         coordinator client diagnostics
+         (lambda (snapshot)
+           (map-root-locations
+            snapshot
+            (lambda (root-client location)
+              (declare (ignore root-client))
+              (incf visits)
+              (store-root client location :stopped-pass-value)))
+           (setf stored :pass-complete)))
+      (%assert (and ok (null failure) (= 2 visits) (eq stored :pass-complete))
+               "covered stopped-root-pass returned ~S/~S visits=~S" ok failure visits)
+      (%assert (eq :released (clamsara::simulator-stop-state coordinator))
+               "covered stopped-root-pass did not release the stop"))
+    ;; Failed Await: no callback runs, the stop cancels, and the failure reason
+    ;; is returned.
+    (setf (clamsara::simulator-await-fail-after coordinator) 0)
+    (let ((ran nil))
+      (multiple-value-bind (ok failure)
+          (clamsara:stopped-root-pass
+           coordinator client diagnostics (lambda (snapshot) (declare (ignore snapshot))
+                                           (setf ran t)))
+        (%assert (and (null ok) (eq :coverage-failed failure) (null ran))
+                 "failed-Await stopped-root-pass returned ~S/~S ran=~S" ok failure ran)
+        (%assert (eq :cancelled (clamsara::simulator-stop-state coordinator))
+                 "failed-Await stopped-root-pass did not cancel the stop")))
+    t))
+
 (defun run-v14-coordination-host-contracts ()
   (test-request-admission-and-release-states)
   (test-partial-join-before-and-after-all-providers)
   (test-short-await-bound-and-capacity)
   (test-distinct-preallocated-coverage-records)
+  (test-stopped-root-pass)
   (values t :complete))

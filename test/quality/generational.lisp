@@ -6,18 +6,19 @@
                 #:make-generational-nursery-space
                 #:make-generational-mature-space
                 #:make-generational-plan)
-  (:export #:run-generational-quality-tests #:run-generational-history-tests))
+  (:export #:run-generational-quality-tests #:run-generational-history-tests
+           #:run-generational-quality-tests-with-cards))
 (in-package #:clamsara.quality.generational)
 
 (defstruct (generation-world
              (:include quality-world)
              (:constructor %make-generation-world)
              (:conc-name generation-))
-  mature-base mature-limit leaf-kind weak-kind ephemeron-kind)
+  mature-base mature-limit leaf-kind weak-kind ephemeron-kind card-granularity)
 
 (defun make-generation-world (&key (object-starts :packed)
                                   (nursery-extent 512) (mature-extent 2048)
-                                  (root-count 8))
+                                  (root-count 8) card-granularity)
   (let* ((base 4096) (quantum 16)
          (total (+ (* 2 nursery-extent) mature-extent))
          (capacity (/ total quantum))
@@ -83,7 +84,8 @@
                     :nursery-from from :nursery-to to :mature mature
                     :root-client roots :coordinator coordinator :diagnostics diagnostics
                     :registry registry :trace-capacity capacity :conditional-capacity capacity
-                    :finalizer-capacity 8 :packing-quantum quantum))
+                    :finalizer-capacity 8 :packing-quantum quantum
+                    :card-granularity card-granularity))
              (configuration (construct-plan plan clients))
              (context (bind-mutator configuration :generation-quality :default)))
         (%make-generation-world
@@ -93,7 +95,8 @@
          :roots roots :root-token token :root-provider provider :root-count root-count
          :coordinator coordinator :plan plan :registry registry :node-kind node :space from
          :mature-base mature-base :mature-limit (+ base total)
-         :leaf-kind leaf :weak-kind weak :ephemeron-kind ephemeron)))))
+         :leaf-kind leaf :weak-kind weak :ephemeron-kind ephemeron
+         :card-granularity card-granularity)))))
 
 (defun allocate-kind (world name descriptor)
   (multiple-value-bind (reference status reason)
@@ -172,8 +175,9 @@
        (check (eq status :complete) "CAS returned ~S" status)
        (values observed changed)))))
 
-(defun run-remembered-edges (starts operation)
-  (let* ((world (make-generation-world :object-starts starts))
+(defun run-remembered-edges (starts operation &optional card-granularity)
+  (let* ((world (make-generation-world :object-starts starts
+                                       :card-granularity card-granularity))
          (parent (allocate-node world 10)))
     (set-world-root world 0 parent)
     (set-world-root world 1 parent)
@@ -441,4 +445,29 @@ Only requested old objects are allocated before the setup minor."
     (run-conditional-matrix starts)
     (run-reversed-ephemeron-chain starts))
   (format t "~&QUALITY-GENERATIONAL-PASS~%")
+  t)
+
+;;; Card-indexed remembered set: the same complete history run with exact card
+;;; coverage instead of the conservative whole-mature fallback.  This drives
+;;; store/CAS, deletion, major-then-minor, and address stability through the
+;;; card rule, so a card bug cannot hide behind the fallback scan.
+(defun check-card-mode (starts card-granularity)
+  (let ((world (make-generation-world :object-starts starts
+                                      :card-granularity card-granularity)))
+    (unwind-protect
+         (check (clamsara::%gen-card-active-p (world-plan world))
+                "Card mode did not activate")
+      (close-quality-world world))))
+
+(defun run-card-remembered-edges ()
+  (dolist (starts '(:packed :scalar))
+    (dolist (operation '(:store :cas))
+      ;; Two card widths: one cell per object, and a coarse multi-object card.
+      (dolist (card-granularity '(16 64))
+        (run-remembered-edges starts operation card-granularity)
+        (check-card-mode starts card-granularity))))
+  t)
+(defun run-generational-quality-tests-with-cards ()
+  (run-card-remembered-edges)
+  (format t "~&QUALITY-GENERATIONAL-CARDS-PASS~%")
   t)

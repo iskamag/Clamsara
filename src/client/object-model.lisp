@@ -36,6 +36,12 @@
 (defgeneric reference-encoding-equal-p (model left right))
 (defgeneric reference-equal (model left right))
 
+;;; Internal-only: the byte address of a validated borrowed object location,
+;;; derived from its owning descriptor's authoritative start.  Used by
+;;; source-indexed components (cards, movement participants) under a stop; not
+;;; a public client operation and not a second allocation map.
+(defgeneric reference-location-object-address (model location))
+
 ;;; Opaque, snapshotted object-kind and conditional-location descriptions.
 (defgeneric make-object-kind-description
     (model name &key size-rule alignment-rule strong-layout

@@ -211,7 +211,9 @@
           ;; Only this old edge retains the child.  The plan-authored barrier
           ;; must dirty the conservative mature card.
           (set-child old-parent young-child)
-          (check (clamsara::%gen-remembered-dirty-p plan)
+          (check (if (clamsara::%gen-card-active-p plan)
+                     (find 1 (clamsara::%gen-card-marks plan))
+                     (clamsara::%gen-remembered-dirty-p plan))
                  "Old-to-young store did not dirty remembered state")
           (cycle :minor '((:objects-discovered . 1) (:objects-moved . 1)
                           (:bytes-moved . 16) (:objects-dead . 0)
@@ -224,7 +226,9 @@
               (check (and (valid-reference-p bound promoted-child)
                           (>= (reference-address bound promoted-child) mature-base))
                      "Remembered edge did not preserve/promote young child")))
-          (check (not (clamsara::%gen-remembered-dirty-p plan))
+          (check (if (clamsara::%gen-card-active-p plan)
+                     (not (find 1 (clamsara::%gen-card-marks plan)))
+                     (not (clamsara::%gen-remembered-dirty-p plan)))
                  "Remembered card did not clear after complete correction")
           ;; An empty repeat minor leaves old objects stable and reports zero.
           (cycle :minor '((:objects-discovered . 0) (:objects-moved . 0)
@@ -305,7 +309,9 @@
             (set-root 1 nil)
             (let ((unremembered (allocate-kind :leaf leaf-kind)))
               (set-child old-parent unremembered)
-              (setf (clamsara::%gen-remembered-dirty-p plan) nil)
+              (if (clamsara::%gen-card-active-p plan)
+                  (fill (clamsara::%gen-card-marks plan) 0)
+                  (setf (clamsara::%gen-remembered-dirty-p plan) nil))
               (cycle :minor '((:objects-discovered . 0) (:objects-moved . 0)
                               (:bytes-moved . 0) (:objects-dead . 1)
                               (:weak-corrections . 2)

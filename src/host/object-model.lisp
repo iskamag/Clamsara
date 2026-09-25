@@ -1388,6 +1388,25 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
         (aref (host-model-words (host-reference-location-model location))
               index))))
 
+;; Private modelling helper: a validated borrowed object location's byte
+;; address, derived from its owning descriptor's authoritative start.  This is
+;; the same base+word-offset reconstruction used for relocation; it is not a
+;; second allocation map.  Only for use under an existing stop, on a location
+;; the caller already holds.
+(defun %host-location-object-address (model location)
+  (%host-validate-location model location)
+  (let* ((descriptor (host-reference-location-descriptor location))
+         (start (%host-descriptor-start model descriptor)))
+    (unless (integerp start)
+      (error "Reference location has no authoritative start"))
+    (+ start
+       (* 8 (- (host-reference-location-word-index location)
+               (%host-arena-word-index-at-address model start))))))
+
+(defmethod reference-location-object-address
+    ((model host-object-model) location)
+  (%host-location-object-address model location))
+
 (defun (setf %host-location-value) (value location)
   (let ((stage (host-reference-location-stage location))
         (index (host-reference-location-word-index location)))

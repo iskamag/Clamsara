@@ -12,16 +12,26 @@
                       :reader %gen-state-resource-id)
    (source-resource-id :initform (gensym "GENERATIONAL-SOURCES-")
                        :reader %gen-source-resource-id)
+   ;; Card bitmap marks over the mature range.  A set card records a
+   ;; remembered-set writer whose location intersects it; the word-level
+   ;; location is available only from synchronization-aware volatile
+   ;; metadata, so this profile is exact at card granularity and is rejected
+   ;; at construction when a wider region would be required instead.
+   (card-granularity :initform nil :accessor %gen-card-granularity)
+   (card-marks :initform nil :accessor %gen-card-marks)
+   (card-active-p :initform nil :accessor %gen-card-active-p)
+   (card-resource-id :initform (gensym "GENERATIONAL-CARDS-")
+                     :reader %gen-card-resource-id)
    (mature-source-starts :initform nil :accessor %gen-mature-source-starts)
    (promotion-addresses :initform nil :accessor %gen-promotion-addresses)
    (promotion-present :initform nil :accessor %gen-promotion-present)
    (scratch-starts :initform nil :accessor %gen-scratch-starts)
    (scratch-limits :initform nil :accessor %gen-scratch-limits)
    (scratch-count :initform 0 :accessor %gen-scratch-count)
-   (nursery-object-count :initform 0 :accessor %gen-nursery-object-count)
    (mature-object-count :initform 0 :accessor %gen-mature-object-count)
    (reservation-failure :initform nil :accessor %gen-reservation-failure)
-   ;; A single conservative card covers the entire mature range.
+   ;; A single conservative whole-range fallback used only when this profile
+   ;; must retire remembered state without exact card coverage.
    (remembered-dirty-p :initform nil :accessor %gen-remembered-dirty-p)
    (remembered-candidate-p :initform nil
                            :accessor %gen-remembered-candidate-p)
@@ -80,6 +90,10 @@
   (let* ((trace-capacity (%plan-trace-capacity plan))
          (descriptor-capacity
            (%marksweep-descriptor-capacity (%gen-mature plan)))
+         (card-cells (if (%gen-card-granularity plan)
+                         (ceiling (%space-extent (%gen-mature plan))
+                                  (%gen-card-granularity plan))
+                         nil))
          (entries (+ (* 2 trace-capacity) (* 2 descriptor-capacity))))
     (append
      (call-next-method)
@@ -94,7 +108,14 @@
             :minimum-physical-bytes (+ 16 (* 8 trace-capacity))
             :logical-entry-bound trace-capacity :auxiliary-bytes 1024
             :allocation-context :construction-only
-            :exhaustion-action :reject-before-publication)))))
+            :exhaustion-action :reject-before-publication))
+     (when card-cells
+       (list (make-resource-contribution
+              plan (%gen-card-resource-id plan) :packed-bit-vector
+              :minimum-physical-bytes (+ 16 (ceiling card-cells 8))
+              :logical-entry-bound card-cells :auxiliary-bytes 512
+              :allocation-context :construction-only
+              :exhaustion-action :reject-before-publication))))))
 
 (defmethod component-barrier-contributions ((plan generational-plan))
   (%gen-barrier-descriptions plan))
@@ -167,12 +188,32 @@
       (fill (%gen-mature-source-starts plan) nil)
       (%register-resource-auxiliary
        construction (%gen-source-resource-id plan)
-       (%gen-mature-source-starts plan))))
+       (%gen-mature-source-starts plan)))
+    (when (%gen-card-granularity plan)
+      (multiple-value-bind (vector present-p physical entries auxiliary)
+          (construction-resource construction (%gen-card-resource-id plan))
+        (let ((cells (ceiling (%space-extent (%gen-mature plan))
+                              (%gen-card-granularity plan))))
+          (unless (and present-p (typep vector 'simple-bit-vector)
+                       (>= physical (+ 16 (ceiling cells 8)))
+                       (>= entries cells) (>= (length vector) cells)
+                       (>= auxiliary 512))
+            (%runtime-reject :resource-capacity-mismatch))
+          (setf (%gen-card-marks plan) vector
+                (%gen-card-active-p plan) t)
+          (fill vector 0)
+          (%register-resource-auxiliary construction (%gen-card-resource-id plan)
+                                        vector)))))
   (values))
 
 (defmethod validate-component :after
     ((plan generational-plan) configuration)
   (declare (ignore configuration))
+  (when (%gen-card-granularity plan)
+    (unless (and (%gen-card-granularity plan)
+                 (%positive-power-of-two-p (%gen-card-granularity plan))
+                 (%gen-card-marks plan))
+      (%runtime-reject :invalid-generational-spaces)))
   (let* ((from (%gen-nursery-from plan))
          (to (%gen-nursery-to plan))
          (mature (%gen-mature plan))
@@ -192,7 +233,7 @@
 (defun make-generational-plan
     (&key nursery-from nursery-to mature root-client coordinator diagnostics
           registry trace-capacity conditional-capacity finalizer-capacity
-          packing-quantum allocation-routes)
+          packing-quantum allocation-routes card-granularity)
   (unless (and (typep nursery-from 'generational-nursery-space)
                (typep nursery-to 'generational-nursery-space)
                (typep mature 'generational-mature-space)
@@ -203,6 +244,10 @@
                (eq (%semispace-role nursery-from) :allocation)
                (eq (%semispace-role nursery-to) :reserve))
     (%runtime-reject :invalid-generational-spaces))
+  (when (and card-granularity
+             (not (and (integerp card-granularity) (plusp card-granularity)
+                       (zerop (mod (%space-extent mature) card-granularity)))))
+    (%runtime-reject :invalid-card-granularity))
   (setf (%semispace-partner nursery-from) nursery-to
         (%semispace-partner nursery-to) nursery-from)
   (let ((plan
@@ -221,7 +266,8 @@
                (list (list :default nursery-from :minor)))
            :default-algorithm :generational
            :algorithms '(:generational))))
-    (setf (%gen-barrier-descriptions plan)
+    (setf (%gen-card-granularity plan) card-granularity
+          (%gen-barrier-descriptions plan)
           (list (make-instance 'generational-remembered-contribution
                                :plan plan)))
     plan))
@@ -247,13 +293,42 @@
   (declare (ignore contribution reservation context operation location old final))
   (values))
 
+(defun %gen-mature-card-index (plan address)
+  ;; Card index over the mature range.  The location address is the byte
+  ;; address of the written slot; whole-object card activation is a
+  ;; conservative superset of the paper's slot-intersection rule.
+  (let* ((mature (%gen-mature plan))
+         (base (%space-base mature))
+         (granularity (%gen-card-granularity plan)))
+    (and (integerp address) granularity
+         (<= base address) (< address (%space-limit mature))
+         (floor (- address base) granularity))))
+
+(defun %gen-mark-card (plan address)
+  (if (%gen-card-active-p plan)
+      (let ((index (%gen-mature-card-index plan address)))
+        (if index
+            (setf (sbit (%gen-card-marks plan) index) 1)
+            ;; A location outside the mature range cannot originate an
+            ;; old-to-young remembered edge.
+            nil))
+      (setf (%gen-remembered-dirty-p plan) t))
+  (values))
+
+(defun %gen-cards-empty-p (plan)
+  (if (%gen-card-active-p plan)
+      (not (find 1 (%gen-card-marks plan)))
+      (not (%gen-remembered-dirty-p plan))))
+
 (defmethod barrier-contribution-after-exposure
     ((contribution generational-remembered-contribution)
      reservation context operation location old final)
-  (declare (ignore context operation location old final))
+  (declare (ignore context operation old final))
   (unless (eq reservation contribution)
     (%runtime-reject :fatal-invariant))
-  (setf (%gen-remembered-dirty-p (%gen-contribution-plan contribution)) t)
+  (let* ((plan (%gen-contribution-plan contribution))
+         (model (configuration-object-model (%context-configuration context))))
+    (%gen-mark-card plan (reference-location-object-address model location)))
   (values))
 
 (defmethod barrier-contribution-cancel
@@ -316,8 +391,7 @@
         (setf (%gen-reservation-failure plan) :capacity-exhausted)
         (return-from %gen-reserve-nursery-start))
       (setf (aref (%gen-promotion-addresses plan) cell) destination
-            (aref (%gen-promotion-present plan) cell) 1)
-      (incf (%gen-nursery-object-count plan))))
+            (aref (%gen-promotion-present plan) cell) 1)))
   (values))
 
 (defun %gen-snapshot-mature-start (plan address)
@@ -361,8 +435,7 @@
 (defun %gen-reserve-promotions (plan cycle)
   (fill (%gen-promotion-addresses plan) 0)
   (fill (%gen-promotion-present plan) 0)
-  (setf (%gen-nursery-object-count plan) 0
-        (%gen-reservation-failure plan) nil
+  (setf (%gen-reservation-failure plan) nil
         (%gen-enumeration-cycle plan) cycle)
   (unless (%gen-copy-active-free-list plan)
     (return-from %gen-reserve-promotions (values :failed :capacity-exhausted)))
@@ -375,8 +448,7 @@
         (values :failed (%gen-reservation-failure plan))))
     ;; Any subset of the reserved objects can create at most one additional
     ;; free interval per possible nursery object.
-    (when (> (1+ (+ (%gen-mature-object-count plan)
-                    (%gen-nursery-object-count plan)))
+    (when (> (1+ (%gen-mature-object-count plan))
              (%marksweep-descriptor-capacity mature))
       (return-from %gen-reserve-promotions
         (values :failed :capacity-exhausted))))
@@ -387,7 +459,10 @@
   (prepare-space (%gen-nursery-to plan) cycle)
   (when (eq (%cycle-scope cycle) :all)
     (prepare-space (%gen-mature plan) cycle))
-  (setf (%gen-remembered-candidate-p plan) nil)
+  ;; Cards set by writers since the last cycle remain set for this cycle's scan;
+  ;; a card clears only after the scan completes (see %finish-plan-reclamation).
+  (unless (%gen-card-active-p plan)
+    (setf (%gen-remembered-candidate-p plan) nil))
   (multiple-value-bind (status reason)
       (%gen-snapshot-mature-sources plan cycle)
     (unless (eq status :complete)
@@ -485,16 +560,59 @@
                   (%marksweep-reclaim-free-start mature) end)))))))
   (values))
 
+(defun %gen-scan-card-strong-source (plan cycle start)
+  ;; Paper rule (collectors.tex): a set card scans the allocated predecessor
+  ;; whose extent overlaps it and every allocated start below its exclusive end,
+  ;; with only strong slots that intersect the card.  Since a whole mature
+  ;; object activates the card containing its address, every start whose object
+  ;; intersects a set card is itself marked; scanning the marked starts and
+  ;; pruning slot addresses outside set cards is exactly the three-part rule
+  ;; over the authoritative object-start map.
+  (let ((model (%space-model (%gen-mature plan))))
+    (map-reference-locations
+     model start
+     (lambda (identity location)
+       (let* ((address (reference-location-object-address model location))
+              (index (%gen-mature-card-index plan address)))
+         (when (and index (eql 1 (sbit (%gen-card-marks plan) index)))
+           (funcall (%cycle-strong-callback cycle) identity location)))))))
+
+(defun %gen-highest-set-card (plan)
+  ;; Exclusive card index one past the highest set card, or NIL when none is
+  ;; set.  Every allocated start whose object intersects a set card lies at or
+  ;; below the end of that card, so starts above this bound need no scan.
+  (when (%gen-card-active-p plan)
+    (let ((marks (%gen-card-marks plan)))
+      (loop for index downfrom (1- (length marks)) to 0
+            when (eql 1 (sbit marks index))
+              do (return (1+ index))))))
+
 (defmethod %trace-plan-additional-roots ((plan generational-plan) cycle)
   (when (and (eq (%cycle-scope cycle) :minor)
-             (%gen-remembered-dirty-p plan))
+             (not (%gen-cards-empty-p plan)))
     (setf (%gen-enumeration-cycle plan) cycle
           (%gen-enumeration-mode plan) :strong)
-    (dotimes (index (%gen-mature-object-count plan))
-      (map-reference-locations
-       (%space-model (%gen-mature plan))
-       (aref (%gen-mature-source-starts plan) index)
-       (%cycle-strong-callback cycle))))
+    (if (%gen-card-active-p plan)
+        (let ((mature (%gen-mature plan))
+              (bound (or (%gen-highest-set-card plan) 0))
+              (end (and (%gen-highest-set-card plan)
+                        (+ (%space-base (%gen-mature plan))
+                           (* (%gen-highest-set-card plan)
+                              (%gen-card-granularity plan))))))
+          (let ((model (%space-model mature)))
+            (dotimes (index (%gen-mature-object-count plan))
+              (let ((start (aref (%gen-mature-source-starts plan) index)))
+                ;; Paper: skip every allocated start above the highest set
+                ;; card's exclusive end; interior slots are card-pruned below.
+                (when (and end
+                           (< (reference-address model start) end))
+                  (%gen-scan-card-strong-source plan cycle start))))))
+        ;; No exact card coverage: conservatively scan every mature source.
+        (dotimes (index (%gen-mature-object-count plan))
+          (map-reference-locations
+           (%space-model (%gen-mature plan))
+           (aref (%gen-mature-source-starts plan) index)
+           (%cycle-strong-callback cycle)))))
   (if (%trace-failed-reason (%cycle-trace cycle))
       (values :failed (%trace-failed-reason (%cycle-trace cycle)))
       (values :complete nil)))
@@ -578,9 +696,10 @@
         (incf ready-participants)))
     ;; Minors promote every young survivor, leaving no nursery targets.
     ;; Majors copy young survivors within the nursery, so corrected mature
-    ;; slots can still point into it. Keep the whole mature card dirty rather
-    ;; than lose those surviving edges at the next minor.
-    (setf (%gen-remembered-candidate-p plan) (eq (%cycle-scope cycle) :all))
+    ;; slots can still point into it. Keep the whole mature range remembered
+    ;; for the next minor rather than lose those surviving edges.
+    (unless (%gen-card-active-p plan)
+      (setf (%gen-remembered-candidate-p plan) (eq (%cycle-scope cycle) :all)))
     (values :complete nil)))
 
 (defun %gen-publish-mature-free-candidate (mature)
@@ -606,6 +725,11 @@
   (if (eq (%cycle-scope cycle) :all)
       (finish-space (%gen-mature plan) cycle)
       (%gen-publish-mature-free-candidate (%gen-mature plan)))
-  (setf (%gen-remembered-dirty-p plan)
-        (%gen-remembered-candidate-p plan))
+  (if (%gen-card-active-p plan)
+      ;; A minor's scan is the complete rescan for every card it read, so the
+      ;; cards clear now.  A major leaves corrected mature slots pointing into
+      ;; the surviving nursery without a fresh store, so every card stays set.
+      (fill (%gen-card-marks plan) (if (eq (%cycle-scope cycle) :all) 1 0))
+      (setf (%gen-remembered-dirty-p plan)
+            (%gen-remembered-candidate-p plan)))
   (values :complete nil))

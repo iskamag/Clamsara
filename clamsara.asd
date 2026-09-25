@@ -149,6 +149,8 @@
                              (asdf:test-op :clamsara/quality/finalizers/test)
                              (asdf:test-op :clamsara/quality/finalizer-drain/test)
                              (asdf:test-op :clamsara/quality/model-resources/test)
+                             (asdf:test-op :clamsara/quality/generational/test)
+                             (asdf:test-op :clamsara/tools/test)
                              (asdf:test-op :clamsara/quality/test))))
 
 (asdf:defsystem :clamsara/quality/barrier-history/test
@@ -214,12 +216,14 @@
   :version "0.1.0"
   :depends-on (:clamsara)
   :serial t
-  :components ((:file "test/runtime/semispace") (:file "test/runtime/marksweep")
+  :components ((:file "test/metadata/metadata") (:file "test/runtime/semispace")
+               (:file "test/runtime/marksweep")
                (:file "test/runtime/retained-failure")
                (:file "test/metadata/semispace"))
   :perform (asdf:test-op (operation component)
              (declare (ignore operation component))
-             (unless (and (uiop:symbol-call :clamsara.runtime.test :run-v14-runtime-tests)
+             (unless (and (uiop:symbol-call :clamsara :run-metadata-tests)
+                          (uiop:symbol-call :clamsara.runtime.test :run-v14-runtime-tests)
                           (uiop:symbol-call :clamsara.runtime.marksweep.test
                                             :run-marksweep-runtime-tests)
                           (uiop:symbol-call :clamsara.metadata.semispace.test
@@ -341,6 +345,8 @@
              (declare (ignore operation component))
              (unless (and (uiop:symbol-call :clamsara.quality.generational
                                            :run-generational-quality-tests)
+                          (uiop:symbol-call :clamsara.quality.generational
+                                           :run-generational-quality-tests-with-cards)
                           (uiop:symbol-call :clamsara.quality.generational
                                            :run-generational-history-tests)
                           (uiop:symbol-call :clamsara.quality.reference-variants

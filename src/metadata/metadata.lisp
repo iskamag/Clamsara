@@ -384,12 +384,22 @@ index to the provider's canonical key and is used only for traversal."
     (values start end (if (= start end) 0
                           (ceiling (- end start) g)))))
 
-(defun %range-indices (storage range)
-  (multiple-value-bind (start end count) (%check-range storage range)
-    (declare (ignore end))
-    (if (zerop count) nil
-        (loop for i from (%address-index storage start)
-                below (+ (%address-index storage start) count) collect i))))
+(defmacro %do-range-cells ((index-var key-var storage range) &body body)
+  "Execute BODY once per cell in RANGE, ascending.  INDEX-VAR receives the cell
+index and KEY-VAR its canonical key.  RANGE is validated completely before the
+first iteration; no index or key list is ever materialized.  An empty range
+runs BODY zero times."
+  (let ((start (gensym "START-"))
+        (end (gensym "END-"))
+        (count (gensym "COUNT-"))
+        (first (gensym "FIRST-")))
+    `(multiple-value-bind (,start ,end ,count) (%check-range ,storage ,range)
+       (declare (ignore ,end))
+       (when (plusp ,count)
+         (let ((,first (%address-index ,storage ,start)))
+           (dotimes (,index-var ,count)
+             (let ((,key-var (%canonical-key ,storage (+ ,first ,index-var))))
+               ,@body)))))))
 
 (defun %ensure-logical-value (m key value)
   (unless (metadata-value-valid-p m key value)
@@ -519,27 +529,46 @@ index to the provider's canonical key and is used only for traversal."
 (defmethod metadata-reset-range ((m range-metadata) range)
   (%ensure-initialized m)
   ;; Validate the complete range, role reset semantics, and all keys before
-  ;; the first mutation.  Runtime reset is deliberately not a rollback.
-  (let ((keys (mapcar (lambda (i) (%canonical-key m i))
-                      (%range-indices m range))))
-    (dolist (key keys) (metadata-default-value m key))
-    (dolist (key keys) (%reset-cell m key)))
+  ;; the first mutation.  Runtime reset is deliberately not a rollback.  Two
+  ;; index-iterating passes avoid materializing any per-cell list.
+  (%do-range-cells (index key m range)
+    (declare (ignore index))
+    (metadata-default-value m key))
+  (%do-range-cells (index key m range)
+    (declare (ignore index))
+    (%reset-cell m key))
   m)
 
 (defmethod metadata-fold ((m range-metadata) range function initial-value)
   (%ensure-initialized m)
   (unless (functionp function) (error 'metadata-invalid :metadata m :fact :fold-function))
-  (let ((keys (mapcar (lambda (i) (%canonical-key m i)) (%range-indices m range))) (generation (metadata-generation m)) (accumulator initial-value))
+  ;; Bounds are validated before the traversal begins, so an invalid range
+  ;; signals without invoking the callback or mutating state.
+  (let ((generation (metadata-generation m)) (accumulator initial-value))
     (%begin-traversal (list m))
-    (unwind-protect (dolist (key keys accumulator) (setf accumulator (funcall function (metadata-ref m key) accumulator)) (%assert-unchanged m generation))
+    (unwind-protect
+         (progn
+           (%do-range-cells (index key m range)
+             (declare (ignore index))
+             (setf accumulator (funcall function (metadata-ref m key) accumulator))
+             (%assert-unchanged m generation))
+           accumulator)
       (%end-traversal (list m)))))
 
 (defmethod metadata-map-present ((m range-metadata) range function)
   (%ensure-initialized m)
   (unless (functionp function) (error 'metadata-invalid :metadata m :fact :map-function))
-  (let ((keys (mapcar (lambda (i) (%canonical-key m i)) (%range-indices m range))) (generation (metadata-generation m)))
+  (let ((generation (metadata-generation m)))
     (%begin-traversal (list m))
-    (unwind-protect (dolist (key keys m) (let ((value (metadata-ref m key))) (unless (metadata-value-equal-p m key value (metadata-default-value m key)) (funcall function key value) (%assert-unchanged m generation))))
+    (unwind-protect
+         (progn
+           (%do-range-cells (index key m range)
+             (declare (ignore index))
+             (let ((value (metadata-ref m key)))
+               (unless (metadata-value-equal-p m key value (metadata-default-value m key))
+                 (funcall function key value)
+                 (%assert-unchanged m generation))))
+           m)
       (%end-traversal (list m)))))
 
 (defun %full-range (m)

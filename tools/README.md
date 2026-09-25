@@ -68,8 +68,7 @@ reported separately and either makes the process fail. Only
 `GCBENCH-ACCEPTED` together with exit 0 is this runner's acceptance result.
 This is hosted workload evidence, not Mezzano or supervisor admission.
 
-Keep the log and source revision. Verify the original fixture hashes in
-`docs/fixture-sha256.json` before and after a reported run. Do not treat the
+Keep the log and source revision. Do not treat the
 older temporary driver's `:STATUS :OK` with `:FINAL-COLLECTION-STATUS :NOT-RUN`
 or a swallowed `GCBENCH-CLOSE-ERROR` as full acceptance.
 
@@ -85,7 +84,7 @@ It compares all original degree/base cases after real moving collections.
 With the unchanged shared Maclina dependency, it stops at the first degree-2
 mismatch. The same mismatch occurs before collection and with host conses.
 An explicitly selected temporary compiler candidate passes all twelve cases;
-see `docs/maclina-special-bindings.md`. The candidate is not auto-installed.
+the candidate is not auto-installed.
 Returning NIL from all four TESTFRPOLY subtests is therefore not acceptance.
 After the value comparisons, the probe also calls the original TESTFRPOLY
 entry in the same environment. It never clears fixture globals for shutdown;
@@ -102,14 +101,11 @@ This loads only Maclina/Extrinsicl/Clostrum/Trucler, not Clamsara. It compares
 required globally special assignment and nested rebinding with native Lisp.
 It reports all three cases and exits unsuccessfully while any differ. Adding
 an explicit SPECIAL declaration repairs only one of the two failing cases.
-See `docs/workload-boundaries.md` before attempting an adapter workaround.
 
 ## Unapplied Maclina candidate and broader binding probe
 
 `tools/patches/maclina-special-bindings.patch` is a dependency patch, not a
 runtime override. Apply it only to an explicitly selected separate checkout.
-`docs/maclina-special-bindings.md` gives the base revision, source-selection
-steps, test evidence, remaining failures, and preserved positive logs.
 
 - `tools/probe-maclina-special-tests.lisp` runs fourteen focused upstream
   checks in each of the native and cross VMs. It needs FiveAM and asserts that

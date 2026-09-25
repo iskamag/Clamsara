@@ -1,5 +1,5 @@
 ;;;; Independent postbinding unwind and exact cleanup-order histories.
-;;;; See docs/geometry-unwind-review.md. No protocol implementation is replaced.
+;;;; No protocol implementation is replaced.
 (defpackage #:clamsara.quality.construction-exit-history
   (:use #:cl #:clamsara #:clamsara.quality.support)
   (:export #:run-construction-exit-history-tests))

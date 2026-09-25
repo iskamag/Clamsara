@@ -1,5 +1,5 @@
 ;;;; Independent geometry histories, integrated from the fixed-snapshot review.
-;;;; See docs/geometry-snapshot-review.md and docs/geometry-unwind-review.md.
+;;;; Integrated from the fixed-snapshot geometry review.
 (defpackage #:clamsara.quality.kind-history
   (:use #:cl #:clamsara #:clamsara.quality.support)
   (:export #:run-kind-history-tests))

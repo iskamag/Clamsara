@@ -1,5 +1,5 @@
 ;;;; Integration of the unchanged 94 independent assertion histories.
-;;;; Provenance: docs/evidence/cas-boundaries-a3a0bae/independent-baseline/acceptance-03.lisp.
+;;;; Provenance: the frozen CAS-boundary independent baseline.
 ;;;; Only package/entrypoint, shared fixture and passive observer wiring differ.
 ;;;; This is scoped hosted evidence, not a full conformance or target claim.
 ;;;; Independently authored acceptance assertions for the frozen CAS contract.

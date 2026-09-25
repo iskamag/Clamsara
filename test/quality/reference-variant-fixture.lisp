@@ -1,5 +1,5 @@
 ;;;; Independent whole-code-row assertions, adapted from frozen 9dd8629 RED.
-;;;; See docs/reference-variant-row-design.md for provenance and scope.
+;;;; Provenance and scope are fixed by the reference-variant row design.
 ;;;; The original aggregate runner treated CL zero as false; use PLUSP here.
 
 (defpackage #:clamsara.quality.reference-variants

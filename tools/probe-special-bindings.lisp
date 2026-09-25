@@ -1,6 +1,6 @@
 ;;;; Plain Maclina vs native binding semantics. No Clamsara is loaded.
 ;;;; This is an honest failing gate while the separate nonlocal-exit defects
-;;;; remain. See docs/maclina-special-bindings.md for baseline/candidate evidence.
+;;;; remain.
 ;;;; Keyword arguments are explicitly quoted because the plain client does not
 ;;;; automatically describe new keywords as constants.
 

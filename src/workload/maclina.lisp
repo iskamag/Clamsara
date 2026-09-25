@@ -4,8 +4,8 @@
 ;;;; STRUCT payloads are allocated only through the v14 context; the host CL
 ;;;; objects used by Maclina for code, environments and closures are not
 ;;;; silently treated as managed references.  The Maclina/Trucler generic
-;;;; extensions, including the compiler-private macro seam, are documented in
-;;;; docs/workload-boundaries.md.
+;;;; extensions, including the compiler-private macro seam, are a documented
+;;;; integration boundary of this adapter.
 
 (in-package #:clamsara)
 

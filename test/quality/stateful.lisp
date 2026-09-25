@@ -62,7 +62,7 @@
 
 (defun assert-reference-fates (world algorithm old-references reachable)
   ;; These are hosted representation-generation/address-reuse checks.  They are
-  ;; not generational-GC evidence; docs/quality-stateful.md reserves that matrix.
+  ;; not generational-GC evidence; that matrix is reserved to generational tests.
   (dolist (entry old-references)
     (let ((id (car entry)) (reference (cdr entry)))
       (if (or (eq algorithm :semispace)

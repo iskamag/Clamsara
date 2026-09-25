@@ -1,5 +1,5 @@
 ;;;; Integration of the eight parent boundary regressions, assertions preserved.
-;;;; Original: docs/evidence/cas-boundaries-a3a0bae/cases-02.lisp.
+;;;; Integrated from the frozen CAS-boundary regression set.
 ;;;; Shared real fixture, repeatable strict runner and explicit fatal-escape catch.
 (defpackage #:clamsara.quality.barrier-boundaries
   (:use #:cl #:clamsara #:clamsara.quality.support)

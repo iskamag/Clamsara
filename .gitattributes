@@ -1,19 +1,2 @@
 # Preserve literal unified-diff context and verbatim diagnostic output.
 tools/patches/*.patch whitespace=-blank-at-eol,-space-before-tab
-docs/*.log whitespace=-blank-at-eol
-
-# Preserve exact native/source evidence bytes, including diagnostic whitespace.
-docs/evidence/variant-rows-4e7c28f/** -whitespace
-docs/evidence/cas-boundaries-a3a0bae/** -whitespace
-
-docs/evidence/opaque-admission-06b2615/** -whitespace
-
-docs/evidence/gcbench-52e08f1/** -whitespace
-
-docs/evidence/mapc-52e08f1/** -whitespace
-
-docs/evidence/client-boundary-1099d62/** -whitespace
-docs/evidence/list-baseline-1099d62/** -whitespace
-docs/evidence/shared-copy-04bff62/** -whitespace
-docs/evidence/finalizer-admission-1099d62/** -whitespace
-docs/evidence/claimore-finite-mgc/** -whitespace

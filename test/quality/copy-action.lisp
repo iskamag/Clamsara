@@ -1,5 +1,5 @@
 ;;;; Hosted shared-copy graph and failure regressions.
-;;;; Independent original: docs/evidence/shared-copy-04bff62/regression-source/.
+;;;; Integrated from the frozen shared-copy regression source.
 ;;;; Private-action preservation only, not full protocol or target conformance.
 (defpackage #:clamsara.quality.copy-action
   (:use #:cl #:clamsara #:clamsara.quality.support)

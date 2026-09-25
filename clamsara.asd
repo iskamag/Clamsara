@@ -1,4 +1,4 @@
-;;;; Clamsara canonical implementation. See docs/migration.md for evidence limits.
+;;;; Clamsara canonical implementation. No conformance claim beyond the tests.
 
 (asdf:defsystem :clamsara/protocol
   :version "0.1.0"

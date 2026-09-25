@@ -7,3 +7,5 @@ The engine is mostly-there, but much of the code is incomplete (undergoing a maj
 There is a paper documenting the specification, but it's not yet public.
 
 Load it via asdf
+
+Hold your expectations low.

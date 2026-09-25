@@ -318,6 +318,7 @@
   :components ((:file "test/workload/adapter") (:file "test/workload/values")
                (:file "test/workload/teardown") (:file "test/workload/code-roots")
                (:file "test/workload/selectors") (:file "test/workload/numbers")
+               (:file "test/workload/rest")
                (:file "test/workload/mapc") (:file "test/workload/mapc-capacity"))
   :perform (asdf:test-op (operation component)
              (declare (ignore operation component))
@@ -333,6 +334,8 @@
                                            :run-workload-selector-tests)
                           (uiop:symbol-call :clamsara.workload.numbers.test
                                            :run-workload-number-tests)
+                          (uiop:symbol-call :clamsara.workload.rest.test
+                                           :run-workload-rest-tests)
                           (uiop:symbol-call :clamsara.workload.mapc.test
                                            :run-workload-mapc-tests)
                           (uiop:symbol-call :clamsara.workload.mapc-capacity.test

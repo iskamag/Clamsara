@@ -251,6 +251,116 @@ arguments and initialize the new object without retaining stale encodings."
       (%cons* environment (first values)
                (%list* environment (rest values)))))
 
+;;; ---------------------------------------------------------------------------
+;;; Guest &rest bridge.
+;;;
+;;; Maclina's VM builds a rest list with MACLINA.VM-SHARED:LISTIFY-REST-ARGS,
+;;; which uses a host LOOP/COLLECT and therefore yields a HOST list.  Guest
+;;; CAR/CDR require managed CONS cells, so any guest lambda with &REST (and the
+;;; adapter's own guest APPEND/NCONC/MAPCAR/LIST forms) breaks.
+;;;
+;;; Candidate fix: override that one VM helper at this workload boundary.  The
+;;; VM calls it by symbol (`maclina.vm-shared:listify-rest-args`) and SBCL does
+;;; not inline the call in the compiled VM, so the override is live.  The
+;;; bridge copies the raw argument words into one fixed native-cell extent and
+;;; PUBLISHES that extent before the first allocation, so a moving collection
+;;; corrects both the pending inputs and the accumulated tail.  It never
+;;; traverses a host container as guest storage.
+
+(defvar *rest-bridge-active-p* nil)
+(defvar *rest-bridge-original* nil)
+
+(defun %workload-rest-bridge-environment ()
+  "The open workload environment whose VM is executing, or NIL."
+  (let ((environment (and (boundp '*workload-environment*)
+                          *workload-environment*)))
+    (when (and environment
+               (not (workload-closed-p environment))
+               (workload-provider-vm (workload-root-provider environment)))
+      environment)))
+
+(defun %managed-rest-list-from-words (environment stack argsi nfixed nargs)
+  "Build a managed CONS chain from the VM argument words
+STACK[ARGSI+NFIXED .. ARGSI+NARGS), preserving their order.
+
+The argument words are copied into a contiguous native-cell extent that is
+published (native-cell-count advanced) before the first allocation; the
+accumulated tail lives in slot zero of that extent.  On success the result is
+written to STACK[ARGSI] -- the slot the VM's argument-completion prologue
+re-pushes -- and the extent is released.  On any exit the extent is cleared."
+  (declare (type (simple-array t (*)) stack))
+  (let* ((provider (workload-root-provider environment))
+         (cells (workload-provider-native-cells provider))
+         (capacity (length cells))
+         (length (- nargs nfixed))
+         (result-slot argsi)          ; prologue re-pushes STACK[ARGSI]
+         (start (+ argsi (if (zerop length) 0 1)))
+         (end (+ start length)))
+    (unless (and (integerp length) (not (minusp length))
+                 (<= 0 result-slot) (< result-slot capacity)
+                 (<= start end capacity)
+                 (<= end (workload-provider-capacity provider)))
+      (error 'workload-capability-error :operation 'rest-list-bridge
+             :reason (list :native-cell-capacity length)))
+    (let ((saved (workload-provider-native-cell-count provider))
+          (result nil)
+          (settled nil))
+      (unwind-protect
+           (progn
+             ;; Copy every argument word into its own cell.  Slots in the extent
+             ;; are disjoint from the two temporaries %CONS* borrows.
+             (dotimes (i length)
+               (setf (car (aref cells (+ start i)))
+                     (svref stack (+ argsi nfixed i))
+                     (cdr (aref cells (+ start i))) nil))
+             ;; Publish the whole extent before any allocation.
+             (setf (workload-provider-native-cell-count provider) end)
+             ;; Build right to left.  Each %CONS* can move the pending inputs
+             ;; and the accumulated tail; both are in the published extent.
+             (loop for i downfrom (1- length) to 0
+                   do (setf result
+                            (%cons* environment
+                                    (car (aref cells (+ start i)))
+                                    result)))
+             ;; Publish into the completion slot; the prologue overwrites it
+             ;; with the same value, so this is idempotent.
+             (setf (svref stack result-slot) result
+                   settled t)
+             result)
+        (setf (workload-provider-native-cell-count provider) saved)
+        (dotimes (i length)
+          (setf (car (aref cells (+ start i))) nil
+                (cdr (aref cells (+ start i))) nil)))
+      (unless settled (setf (svref stack result-slot) nil))
+      result)))
+
+(defun %install-rest-bridge ()
+  "Install the managed &REST bridge over the VM's host-list builder."
+  (unless *rest-bridge-active-p*
+    (let ((original (fdefinition 'maclina.vm-shared:listify-rest-args)))
+      (setf *rest-bridge-original* original)
+      (setf (fdefinition 'maclina.vm-shared:listify-rest-args)
+            (lambda (nfixed stack argsi nargs)
+              (let ((environment (%workload-rest-bridge-environment)))
+                (if (and environment
+                         (typep (maclina.vm-cross::vm-client maclina.vm-cross::*vm*)
+                                'workload-maclina-client))
+                    (%managed-rest-list-from-words
+                     environment stack argsi nfixed nargs)
+                    ;; A non-workload VM keeps the dependency's own behavior.
+                    (funcall original nfixed stack argsi nargs)))))
+      (setf *rest-bridge-active-p* t)))
+  t)
+
+(defun %uninstall-rest-bridge ()
+  (when *rest-bridge-active-p*
+    (let ((current (fdefinition 'maclina.vm-shared:listify-rest-args))
+          (original *rest-bridge-original*))
+      (declare (ignore current))
+      (when original
+        (setf (fdefinition 'maclina.vm-shared:listify-rest-args) original))
+      (setf *rest-bridge-active-p* nil))))
+
 (defun %proper-guest-list-p (environment value)
   (loop for cursor = value then (%guest-cdr environment cursor)
         while (%guest-cons-p environment cursor)
@@ -952,6 +1062,8 @@ all benchmark warmup before collecting evidence."
     ;; VM state and root-provider source descriptors are provisioned before
     ;; the first source form executes.  The provider/token themselves were
     ;; registered by MAKE-WORKLOAD-ENVIRONMENT's caller.
+    ;; Install the managed &REST bridge before any guest source executes.
+    (%install-rest-bridge)
     (maclina.vm-cross:initialize-vm (workload-stack-size environment) client)
     (workload-provider-bind-maclina
      (workload-root-provider environment) client runtime)

@@ -79,7 +79,7 @@
                   :extent nursery-extent :packing-quantum quantum :role :reserve))
              (mature (make-generational-mature-space
                       :name :quality-mature :object-start-map (starts domain-m)
-                      :marks (make-side-marks :domain domain-m)
+                      
                       :extent mature-extent :packing-quantum quantum
                       :descriptor-capacity (1+ capacity)))
              (plan (make-generational-plan

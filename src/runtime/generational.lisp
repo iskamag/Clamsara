@@ -65,13 +65,26 @@
                  :packing-quantum packing-quantum :role role))
 
 (defun make-generational-mature-space
-    (&key name object-start-map marks extent packing-quantum
-          descriptor-capacity)
+    (&key name object-start-map (marks nil marks-p) extent packing-quantum
+          descriptor-capacity (mark-kind :epoch))
+  "Mature MarkSweep space for the generational profile.
+
+When MARKS is not supplied, the space installs logical epoch marks over the
+object-start map's domain, so a major retires marks by advancing an epoch
+rather than clearing the range (collectors.tex, MarkSweep mark epoch)."
   (unless (and (typep descriptor-capacity '(integer 1 *))
                (typep extent '(integer 1 *))
                (%positive-power-of-two-p packing-quantum)
                (zerop (mod extent packing-quantum)))
     (%runtime-reject :invalid-marksweep-space))
+  (unless marks-p
+    (let ((domain (and (typep object-start-map 'metadata)
+                       (metadata-domain object-start-map))))
+      (unless domain
+        (%runtime-reject :invalid-marksweep-space))
+      (setf marks (ecase mark-kind
+                    (:epoch (make-epoch-marks :domain domain))
+                    (:bit (make-side-marks :domain domain))))))
   (make-instance 'generational-mature-space
                  :name name :object-start-map object-start-map :marks marks
                  :extent extent :packing-quantum packing-quantum

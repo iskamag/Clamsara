@@ -85,7 +85,7 @@
            (clamsara::make-generational-mature-space
             :name :mature
             :object-start-map (clamsara::make-object-start-marks :domain domain-m)
-            :marks (clamsara::make-side-marks :domain domain-m)
+            
             :extent mature-extent :packing-quantum q :descriptor-capacity 128))
          (registry (clamsara::make-sequential-finalizer-registry
                     :capacity 8 :root-client roots))
@@ -375,7 +375,7 @@
                   :name :capacity-mature
                   :object-start-map (clamsara::make-object-start-marks
                                      :domain domain-m)
-                  :marks (clamsara::make-side-marks :domain domain-m)
+                  
                   :extent mature-extent :packing-quantum q
                   :descriptor-capacity 8))
          (registry (clamsara::make-sequential-finalizer-registry

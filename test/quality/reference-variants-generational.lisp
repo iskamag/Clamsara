@@ -70,7 +70,6 @@
                   :extent nursery-extent :packing-quantum quantum :role :reserve))
              (mature (clamsara::make-generational-mature-space
                       :name :quality-mature :object-start-map (starts domain-m)
-                      
                       :extent mature-extent :packing-quantum quantum
                       :descriptor-capacity (1+ capacity)))
              (plan (clamsara::make-generational-plan

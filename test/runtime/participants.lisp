@@ -331,6 +331,36 @@
       (check (eq t (order-sources-live participant))
              "Source was already retired when participant finished"))))
 
+(defclass signalling-cycle (clamsara::sequential-cycle) ())
+(defmethod map-cycle-movements ((cycle signalling-cycle) function)
+  ;; Stage nothing observable, then signal: the participant must not be left
+  ;; with a prepared flag or staged rows.
+  (declare (ignore function))
+  (error "Enumerator signalled"))
+
+(defun run-signalling-prepare-leaves-no-rows ()
+  ;; If the cycle enumerators signal mid-prepare, the participant must not be
+  ;; left with partial staged rows or a prepared flag.
+  (let ((participant (make-source-directory-participant :capacity 8)))
+    (with-quality-world (w :algorithm :semispace
+                           :movement-participants (list participant))
+      (set-world-root w 0 (allocate-node w 1))
+      (collect-world w :scope :all)
+      ;; A cycle object carrying the real configuration but a signalling
+      ;; movement enumerator.
+      (let ((bad (make-instance 'signalling-cycle)))
+        (setf (clamsara::%cycle-configuration bad)
+              (clamsara::%cycle-configuration (clamsara::%plan-cycle
+                                               (world-plan w))))
+        (handler-case
+            (progn (prepare-movement-participant participant bad)
+                   (error "Signalling prepare returned normally"))
+          (error () nil)))
+      (check (zerop (participant-directory-count participant))
+             "Signalling prepare left staged rows")
+      (check (not (clamsara::%participant-prepared-p participant))
+             "Signalling prepare left the participant prepared"))))
+
 (defun run-movement-participant-tests ()
   (run-profile (lambda (algorithm starts)
                  (run-source-directory-lifecycle algorithm starts)))
@@ -341,6 +371,7 @@
   (run-prepare-exactly-once-per-cycle)
   (run-capacity-boundary)
   (run-finish-precedes-source-retirement)
+  (run-signalling-prepare-leaves-no-rows)
   (run-ready-participant-cancelled-once)
   (run-middle-participant-failure)
   (run-failed-finish-holds-stop)

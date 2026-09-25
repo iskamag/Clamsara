@@ -99,38 +99,49 @@ construction-fixed row bound."
   (fill (%participant-dead-p participant) 0)
   (let ((model (configuration-object-model
                 (%cycle-configuration cycle)))
-        (overflow nil))
-    (flet ((row (source value dead)
-             (let ((index (%participant-find participant model source)))
-               (cond (index
-                      ;; A source moves or dies once; a later duplicate is a
-                      ;; different fact for the same start only if it disagrees.
-                      (when (and (not dead)
-                                 (not (eql 1 (aref (%participant-dead-p participant) index))))
-                        (setf (aref (%participant-values participant) index) value)))
-                     ((>= (%participant-count participant)
-                          (%participant-capacity participant))
-                      (setf overflow t))
-                     (t
-                      (let ((index (%participant-count participant)))
-                        (setf (aref (%participant-keys participant) index) source
-                              (aref (%participant-values participant) index) value
-                              (aref (%participant-dead-p participant) index)
-                              (if dead 1 0))
-                        (incf (%participant-count participant))))))))
-      (map-cycle-movements cycle (lambda (old new) (row old new nil)))
-      ;; Deaths are staged second so a source that both moved and is reported
-      ;; dead keeps the move's destination rather than a tombstone.
-      (map-cycle-deaths
-       cycle (lambda (space start) (declare (ignore space)) (row start nil t))))
+        (overflow nil)
+        (ready nil))
+    (unwind-protect
+         (flet ((row (source value dead)
+                  (let ((index (%participant-find participant model source)))
+                    (cond (index
+                           ;; A source moves or dies once; a later duplicate is
+                           ;; a different fact for the same start only if it
+                           ;; disagrees.
+                           (when (and (not dead)
+                                      (not (eql 1 (aref (%participant-dead-p
+                                                         participant) index))))
+                             (setf (aref (%participant-values participant) index)
+                                   value)))
+                          ((>= (%participant-count participant)
+                               (%participant-capacity participant))
+                           (setf overflow t))
+                          (t
+                           (let ((index (%participant-count participant)))
+                             (setf (aref (%participant-keys participant) index)
+                                   source
+                                   (aref (%participant-values participant) index)
+                                   value
+                                   (aref (%participant-dead-p participant) index)
+                                   (if dead 1 0))
+                             (incf (%participant-count participant))))))))
+           (map-cycle-movements cycle (lambda (old new) (row old new nil)))
+           ;; Deaths are staged second so a source that both moved and is
+           ;; reported dead keeps the move's destination rather than a
+           ;; tombstone.
+           (map-cycle-deaths
+            cycle (lambda (space start)
+                    (declare (ignore space)) (row start nil t)))
+           ;; Reaching here means both enumerations returned normally.
+           (setf ready (not overflow)))
+      ;; Any non-ready exit -- capacity overflow or a signalling enumerator --
+      ;; leaves this participant with no staged rows.  It never became ready,
+      ;; so the driver's ready-list cancellation cannot reach it.
+      (unless ready
+        (setf (%participant-count participant) 0
+              (%participant-prepared-p participant) nil)))
     (if overflow
-        ;; This participant never became ready, so the driver's ready-list
-        ;; cancellation will not reach it.  Clear its own staged rows before
-        ;; reporting the precommit failure.
-        (progn
-          (setf (%participant-count participant) 0
-                (%participant-prepared-p participant) nil)
-          (values :retained :capacity-exhausted))
+        (values :retained :capacity-exhausted)
         (progn
           (setf (%participant-prepared-p participant) t)
           (values :ready nil)))))

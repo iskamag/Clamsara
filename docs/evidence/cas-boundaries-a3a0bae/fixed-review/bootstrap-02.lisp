@@ -1,8 +1,0 @@
-(require :asdf)
-(asdf:initialize-source-registry '(:source-registry (:directory #p"/tmp/clamsara-cas-fixed-review-byz5pwd5/") :ignore-inherited-configuration))
-(asdf:initialize-output-translations '(:output-translations (t #p"/tmp/clamsara-cas-fixed-review-byz5pwd5/independent-review/cas-fixed/fasl-02/") :ignore-inherited-configuration))
-(assert (equal (truename #p"/tmp/clamsara-cas-fixed-review-byz5pwd5/") (truename (asdf:system-source-directory :clamsara))))
-(asdf:load-system :clamsara/quality/support)
-(format t "~&FIXED-SOURCE ~A~%" (asdf:system-source-directory :clamsara))
-(load #p"/tmp/clamsara-staged-ledger-review-tirxn_0p/independent-review/cas-contract/acceptance-03.lisp")
-(load #p"/tmp/clamsara-cas-fixed-review-byz5pwd5/independent-review/cas-fixed/additional-05.lisp")

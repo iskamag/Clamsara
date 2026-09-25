@@ -1,8 +1,0 @@
-{
-  "pid": 19747,
-  "command": "sbcl --noinform --non-interactive --load /tmp/clamsara-gcbench-52e08f1-tfa6uf75/independent-review/gabriel-next/capacity-native-v3-y4t009zr/bootstrap.lisp > /tmp/clamsara-gcbench-52e08f1-tfa6uf75/independent-review/gabriel-next/capacity-native-v3-y4t009zr/native.log 2>&1",
-  "cwd": "/tmp/clamsara-mapc-draft-wd3ba0th",
-  "source": "/tmp/clamsara-gcbench-52e08f1-tfa6uf75/independent-review/gabriel-next/capacity-strengthening-v3/capacity-ownership-v3.lisp",
-  "private_cache": "/tmp/clamsara-gcbench-52e08f1-tfa6uf75/independent-review/gabriel-next/capacity-native-v3-y4t009zr/fasl",
-  "expected_scope": "1 synthetic self-check, 5 runtime groups, 17 owners"
-}

@@ -1,7 +1,0 @@
-(require :asdf)
-(push #p"/tmp/clamsara-description-review-7p14doks/" asdf:*central-registry*)
-(assert (equal (truename #p"/tmp/clamsara-description-review-7p14doks/")
-               (truename (asdf:system-source-directory :clamsara))))
-(asdf:load-system :clamsara/acceptance/test)
-(load #p"/tmp/clamsara-ownership-granularity-case.lisp")
-(clamsara.acceptance.resources-layout::test-ownership-update-keeps-descriptor-granularity)

@@ -1,9 +1,0 @@
-{
-  "pid": 18497,
-  "exit_code": 0,
-  "process_seconds": 6.894719808013178,
-  "snapshot": "/tmp/clamsara-mapc-draft-wd3ba0th",
-  "scope": "main/tools/workload/generational/quality-generational/structure",
-  "pins_unchanged": true,
-  "capacity_gate": "not run"
-}

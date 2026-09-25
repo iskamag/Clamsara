@@ -1,7 +1,0 @@
-{
-  "pid": 17570,
-  "command": "sbcl --noinform --non-interactive --load /tmp/clamsara-gcbench-52e08f1-tfa6uf75/independent-review/gabriel-next/native-strict9-c2zybsxw/bootstrap.lisp > /tmp/clamsara-gcbench-52e08f1-tfa6uf75/independent-review/gabriel-next/native-strict9-c2zybsxw/native.log 2>&1",
-  "source_root": "/tmp/clamsara-gcbench-52e08f1-tfa6uf75",
-  "private_cache": "/tmp/clamsara-gcbench-52e08f1-tfa6uf75/independent-review/gabriel-next/native-strict9-c2zybsxw/fasl",
-  "scope": "exclusive native strict9 baseline; no capacity gate"
-}

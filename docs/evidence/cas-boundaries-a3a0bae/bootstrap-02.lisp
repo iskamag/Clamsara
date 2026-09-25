@@ -1,5 +1,0 @@
-(require :asdf)
-(assert (equal (truename #p"/home/iskam/src/vibe/Clamsara/")
-               (truename (asdf:system-source-directory :clamsara))))
-(asdf:load-system :clamsara/quality/support)
-(load #p"/tmp/clamsara-cas-boundary-red-5tso_czk/cases-02.lisp")

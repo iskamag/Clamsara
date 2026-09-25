@@ -110,9 +110,30 @@ This constructor performs no binding and is intended for setup only."
       (error 'workload-capability-error :operation operation
              :reason :missing-configuration-method))))
 
+(defun %store-outcome (operation effective status)
+  ;; Shared shape of every root/barrier store boundary: the stored encoding is
+  ;; authoritative, any other status (including :RETRY) is a caller error.
+  (case status
+    (:stored effective)
+    (otherwise (error 'workload-error :operation operation :reason status))))
+
+(defun %resolver-outcome (operation result status reason)
+  ;; Shared shape of the borrowed-location resolvers: a present/complete
+  ;; answer yields the resolver result, stale/retry are plain workload errors,
+  ;; and an unknown status is a capability error unless it is the no-resolver
+  ;; NIL convention, which passes RESULT through.
+  (case status
+    ((:present :complete) result)
+    (:stale (error 'workload-error :operation operation :reason :stale))
+    (:retry (error 'workload-error :operation operation :reason :retry))
+    (otherwise
+     (if (null status) result
+         (error 'workload-capability-error
+                :operation operation :reason (or reason status))))))
+
 (defun make-workload-environment
     (configuration &key execution allocation-domain root-client root-provider
-                            root-token root-locations (root-capacity 4096) kinds
+                            root-token root-locations kinds
                             (word-bytes 8) (array-header-bytes 0)
                             (stack-size 65536))
   "Bind one Maclina workload context to an admitted v14 configuration.
@@ -124,7 +145,6 @@ than guessing how registration works.  KINDS is a property list mapping
 :CONS, :ARRAY, :STRUCT, :SYMBOL and any extension names to WORKLOAD-KIND
 objects.  EXECUTION and ALLOCATION-DOMAIN are the caller's prebound records.
 No benchmark source is read or compiled here."
-  (declare (ignore root-capacity))
   (unless (and configuration execution allocation-domain root-client
                root-provider root-token root-locations)
     (error 'workload-capability-error :operation 'make-workload-environment
@@ -191,18 +211,7 @@ fallback to guessed indexing."
              :reason :missing-model-resolver))
     (multiple-value-bind (result status reason)
         (funcall resolver (workload-model environment) object :strong key function)
-      (case status
-        ((:present :complete) result)
-        (:stale (error 'workload-error :operation 'indexed-reference-location
-                       :reason :stale))
-        (:retry (error 'workload-error :operation 'indexed-reference-location
-                       :reason :retry))
-        (otherwise
-         (if (null status)
-             result
-             (error 'workload-capability-error
-                    :operation 'indexed-reference-location
-                    :reason (or reason status))))))))
+      (%resolver-outcome 'indexed-reference-location result status reason))))
 
 (defun workload-temporary-root-clear (environment index)
   (root-provider-store
@@ -243,9 +252,8 @@ fallback to guessed indexing."
                (workload-root-token environment)
                (aref (workload-root-locations environment) 0)
                value)
-            (unless (eq root-status :stored)
-              (error 'workload-error :operation 'root-provider-store
-                     :reason root-status))
+            (setf root-value
+                  (%store-outcome 'root-provider-store root-value root-status))
             (setf effective
                   (%with-slot-location
                    environment object key
@@ -254,14 +262,7 @@ fallback to guessed indexing."
                          (barrier-store (workload-barrier environment)
                                         (workload-context environment)
                                         location root-value)
-                       (case status
-                         (:stored new)
-                         (:retry
-                          (error 'workload-error :operation 'barrier-store
-                                 :reason :retry))
-                         (otherwise
-                          (error 'workload-error :operation 'barrier-store
-                                 :reason status))))))))
+                       (%store-outcome 'barrier-store new status))))))
           effective)
       (root-provider-store
        (workload-root-client environment)

@@ -199,12 +199,7 @@ guest values."
                            (workload-root-token environment)
                            (%temporary-root-location environment index)
                            value)
-    (case status
-      (:stored effective)
-      (:retry (error 'workload-error :operation 'root-provider-store
-                     :reason :retry))
-      (otherwise (error 'workload-error :operation 'root-provider-store
-                        :reason status)))))
+    (%store-outcome 'root-provider-store effective status)))
 
 (defun %allocate-guest (environment kind-name count values &optional initializer)
   "Allocate one object while VALUES occupy caller-provided root slots.
@@ -244,12 +239,6 @@ arguments and initialize the new object without retaining stale encodings."
      (workload-write-slot environment object :cdr
                            (workload-temporary-root-load environment 1))
      object)))
-
-(defun %list* (environment values)
-  (if (null values)
-      nil
-      (%cons* environment (first values)
-               (%list* environment (rest values)))))
 
 ;;; ---------------------------------------------------------------------------
 ;;; Guest &rest bridge.
@@ -460,17 +449,7 @@ BARRIER-READ/STORE."
              :reason :missing-model-resolver))
     (multiple-value-bind (result status reason)
         (funcall resolver (workload-model environment) object index function)
-      (case status
-        ((:present :complete) result)
-        (:stale (error 'workload-error :operation 'array-element-location
-                       :reason :stale))
-        (:retry (error 'workload-error :operation 'array-element-location
-                       :reason :retry))
-        (otherwise
-         (if (null status) result
-             (error 'workload-capability-error
-                    :operation 'array-element-location
-                    :reason (or reason status))))))))
+      (%resolver-outcome 'array-element-location result status reason))))
 
 (defun %guest-array-ref (environment array index)
   (unless (%guest-array-p environment array)
@@ -627,11 +606,6 @@ BARRIER-READ/STORE."
   (setf (gethash (%property-key symbol indicator)
                  (workload-client-properties client)) value)
   value)
-
-(defun %lookup-fdefinition (client environment designator)
-  (if (symbolp designator)
-      (clostrum:fdefinition client environment designator)
-      designator))
 
 (defun %struct-slot-identity (index)
   ;; Slot zero is the managed structure type tag; seven words remain for data.
@@ -804,26 +778,8 @@ host graph."
            (rplacd* (object value)
              (workload-write-slot environment object :cdr value)
              object)
-           (list-fn (&rest values)
-             (declare (dynamic-extent values))
-             (%list* environment values))
-           (length* (value) (%guest-length environment value))
-           (mapcar* (function list)
-             (let ((result nil))
-               (loop for cursor = list then (%guest-cdr environment cursor)
-                     while (%guest-cons-p environment cursor)
-                     do (setf result
-                              (%cons* environment
-                                      (funcall function
-                                               (%guest-car environment cursor))
-                                      result)))
-               (let ((forward nil))
-                 (loop for cursor = result
-                       while (%guest-cons-p environment cursor)
-                       do (push (%guest-car environment cursor) forward)
-                          (setf cursor (%guest-cdr environment cursor)))
-                 (%list* environment forward))))
-           (mapc* (function &rest lists)
+            (length* (value) (%guest-length environment value))
+            (mapc* (function &rest lists)
              (declare (dynamic-extent lists))
              (%workload-mapc environment function lists))
            (member* (item list &key (test (lambda (a b) (%guest-eql environment a b)))
@@ -845,51 +801,7 @@ host graph."
                                       (if key (funcall key (%guest-car environment pair))
                                           (%guest-car environment pair))))
                      do (return pair)))
-           (append* (&rest lists)
-             (declare (dynamic-extent lists))
-             (labels ((copy (list tail)
-                        (if (%guest-cons-p environment list)
-                            (%cons* environment (%guest-car environment list)
-                                    (copy (%guest-cdr environment list) tail))
-                            tail)))
-               (reduce (lambda (left right) (copy left right))
-                       lists :from-end t :initial-value nil)))
-           (copy-tree* (value)
-             (if (%guest-cons-p environment value)
-                 (%cons* environment
-                         (copy-tree* (%guest-car environment value))
-                         (copy-tree* (%guest-cdr environment value)))
-                 value))
-           (nconc* (&rest lists)
-             (declare (dynamic-extent lists))
-             (let ((head nil) (tail nil))
-               (dolist (list lists head)
-                 (unless (null list)
-                   (if (null head) (setf head list)
-                       (workload-write-slot environment tail :cdr list))
-                   (setf tail list)
-                   (loop while (%guest-cons-p environment
-                                               (%guest-cdr environment tail))
-                         do (setf tail (%guest-cdr environment tail)))))))
-           (reverse* (list)
-             (let ((result nil))
-               (loop for cursor = list then (%guest-cdr environment cursor)
-                     while (%guest-cons-p environment cursor)
-                     do (setf result
-                              (%cons* environment
-                                      (%guest-car environment cursor) result)))
-               result))
-           (subst* (new old tree &key (test (lambda (a b) (%guest-eql environment a b))))
-             (if (funcall test old tree)
-                 new
-                 (if (%guest-cons-p environment tree)
-                     (%cons* environment
-                             (subst* new old (%guest-car environment tree)
-                                     :test test)
-                             (subst* new old (%guest-cdr environment tree)
-                                     :test test))
-                     tree)))
-           (equal* (left right)
+            (equal* (left right)
              (cond ((and (%guest-cons-p environment left)
                          (%guest-cons-p environment right))
                     (and (equal* (%guest-car environment left)
@@ -908,12 +820,8 @@ host graph."
       (fset 'cl:consp #'consp*) (fset 'cl:atom #'atom*)
       (%install-workload-cxr-functions client runtime)
       (fset 'cl:rplaca #'rplaca*) (fset 'cl:rplacd #'rplacd*)
-      (fset 'cl:list #'list-fn) (fset 'cl:length #'length*)
-      (fset 'cl:mapcar #'mapcar*) (fset 'cl:mapc #'mapc*)
+      (fset 'cl:length #'length*) (fset 'cl:mapc #'mapc*)
       (fset 'cl:member #'member*) (fset 'cl:assoc #'assoc*)
-      (fset 'cl:append #'append*) (fset 'cl:nconc #'nconc*)
-      (fset 'cl:reverse #'reverse*) (fset 'cl:subst #'subst*)
-      (fset 'cl:copy-tree #'copy-tree*)
       (fset 'cl:equal #'equal*)
       ;; Install TIME as a guest macro.  The wrapped form runs once and
       ;; MULTIPLE-VALUE-PROG1 preserves every value; timing/reporting happens

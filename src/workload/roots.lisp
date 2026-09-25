@@ -38,12 +38,7 @@ created by this function."
        (workload-context environment)
        (workload-root-token environment)
        location value))
-    (case status
-      (:stored effective)
-      (:retry (error 'workload-error :operation 'root-provider-store
-                     :reason :retry))
-      (otherwise (error 'workload-error :operation 'root-provider-store
-                        :reason status)))))
+    (%store-outcome 'root-provider-store effective status)))
 
 (defun workload-root-load (root-set index)
   (let* ((environment (workload-root-set-environment root-set))
@@ -57,41 +52,8 @@ created by this function."
 (defun workload-root-place (root-set index value)
   (%root-store root-set index value))
 
-(defmacro with-workload-root ((root-set index value) &body body)
-  "Keep VALUE in one already-registered physical root through BODY.
-The slot is cleared even when BODY exits nonlocally.  A RETRY is surfaced;
-this helper never stores directly through a host vector."
-  (let ((set (gensym "ROOT-SET"))
-        (slot (gensym "SLOT"))
-        (item (gensym "VALUE")))
-    `(let* ((,set ,root-set) (,slot ,index) (,item ,value))
-       (%root-store ,set ,slot ,item)
-       (unwind-protect (progn ,@body)
-         (%root-store ,set ,slot nil)))))
-
-(defmacro with-workload-roots ((root-set bindings) &body body)
-  "Reserve a fixed set of physical roots for BINDINGS.
-BINDINGS is ((index value) ...).  The implementation is deliberately
-unrolled at macro expansion so entering/leaving the roots creates no helper
-list and has a deterministic cleanup order."
-  (let ((set-var (gensym "ROOT-SET")))
-    (labels ((expand (remaining)
-               (if (null remaining)
-                   `(progn ,@body)
-                   `(%with-workload-root-values
-                      ,set-var ,(caar remaining) ,(cadar remaining)
-                      (lambda () ,(expand (cdr remaining)))))))
-      `(let ((,set-var ,root-set))
-         ,(expand bindings)))))
-
-(defun %with-workload-root-values (root-set index value function)
-  (%root-store root-set index value)
-  (unwind-protect (funcall function)
-    (%root-store root-set index nil)))
-
 (export '(workload-root-set make-workload-root-set workload-root-load
-          workload-root-clear workload-root-place with-workload-root
-          with-workload-roots))
+          workload-root-clear workload-root-place))
 
 
 ;;; ---- fixed Maclina execution/root provider -------------------------------
@@ -458,8 +420,7 @@ census uses separate bounded control scratch and never changes descriptors."
   (values))
 
 (export '(workload-root-set make-workload-root-set workload-root-load
-          workload-root-place workload-root-clear with-workload-root
-          with-workload-roots
+          workload-root-place workload-root-clear
           workload-root-location workload-root-provider
           make-workload-root-provider workload-provider-location
           workload-provider-bind-maclina workload-provider-bind-vm

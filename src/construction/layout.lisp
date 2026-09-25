@@ -356,17 +356,13 @@
         ((place-search (remaining free-intervals)
            (if (null remaining)
                (values t free-intervals)
-               (let ((placement
-                       (find-if (lambda (item)
-                                  (%placement-ready-p item assignments))
-                                ordered)))
-                 ;; ORDERED contains all requests; select only a member still
-                 ;; remaining while preserving its global rank.
-                 (setf placement
-                       (find-if (lambda (item)
-                                  (and (member item remaining :test #'eq)
-                                       (%placement-ready-p item assignments)))
-                                ordered))
+                (let ((placement
+                        ;; ORDERED contains all requests; select only a member
+                        ;; still remaining while preserving its global rank.
+                        (find-if (lambda (item)
+                                   (and (member item remaining :test #'eq)
+                                        (%placement-ready-p item assignments)))
+                                 ordered)))
                  (unless placement
                    (%reject :derived-placement-cycle
                             (mapcar #'%placement-description-path remaining)))

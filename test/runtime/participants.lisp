@@ -297,6 +297,40 @@
              (clamsara::runtime-rejection () t))
            "Ordinary allocation was admitted under a retained stop")))
 
+(defclass order-probe-participant (movement-participant)
+  ((rows :initform nil :accessor order-rows)
+   (sources-live-at-finish :initform :unset :accessor order-sources-live)))
+(defmethod prepare-movement-participant ((p order-probe-participant) cycle)
+  (setf (order-rows p) nil
+        (order-sources-live p) :unset)
+  (map-cycle-movements cycle (lambda (old new) (push (cons old new) (order-rows p))))
+  (values :ready nil))
+(defmethod cancel-movement-participant ((p order-probe-participant) cycle)
+  (declare (ignore p cycle)) (values))
+(defmethod finish-movement-participant ((p order-probe-participant) cycle)
+  ;; At finish the source must still be live; source retirement happens after
+  ;; participants finish (execution.tex closed-commit order).  A real
+  ;; destination-substituting participant depends on this.
+  (let ((model (configuration-object-model (clamsara::%cycle-configuration cycle))))
+    (setf (order-sources-live p)
+          (every (lambda (pair)
+                   (handler-case
+                       (progn (normalize-reference model (car pair)) t)
+                     (error () nil)))
+                 (order-rows p))))
+  (values))
+
+(defun run-finish-precedes-source-retirement ()
+  (let ((participant (make-instance 'order-probe-participant)))
+    (with-quality-world (w :algorithm :semispace
+                           :movement-participants (list participant))
+      (set-world-root w 0 (allocate-node w 1))
+      (collect-world w :scope :all)
+      (check (plusp (length (order-rows participant)))
+             "Order probe staged no moves")
+      (check (eq t (order-sources-live participant))
+             "Source was already retired when participant finished"))))
+
 (defun run-movement-participant-tests ()
   (run-profile (lambda (algorithm starts)
                  (run-source-directory-lifecycle algorithm starts)))
@@ -306,6 +340,7 @@
   (run-directory-matches-cycle-counts)
   (run-prepare-exactly-once-per-cycle)
   (run-capacity-boundary)
+  (run-finish-precedes-source-retirement)
   (run-ready-participant-cancelled-once)
   (run-middle-participant-failure)
   (run-failed-finish-holds-stop)

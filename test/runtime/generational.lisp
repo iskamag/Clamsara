@@ -374,7 +374,6 @@
                   :name :capacity-mature
                   :object-start-map (clamsara::make-object-start-marks
                                      :domain domain-m)
-                  
                   :extent mature-extent :packing-quantum q
                   :descriptor-capacity 8))
          (registry (clamsara::make-sequential-finalizer-registry

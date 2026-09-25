@@ -481,8 +481,18 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
     (coerce (funcall function layout) 'vector)))
 
 (defun %host-range-field (range suffix)
+  ;; The suffix-to-symbol mapping is fixed and literal.  Building the symbol
+  ;; name with FORMAT consed a fresh string on every field read on the
+  ;; allocation hot path (route refresh, descriptor lookup).  STRING= compares
+  ;; without allocating.
   (let ((function
-          (%host-function (format nil "%SIMULATOR-LAYOUT-RANGE-~A" suffix))))
+          (%host-function
+           (cond ((string= suffix "SPACE") "%SIMULATOR-LAYOUT-RANGE-SPACE")
+                 ((string= suffix "MAP") "%SIMULATOR-LAYOUT-RANGE-MAP")
+                 ((string= suffix "BASE") "%SIMULATOR-LAYOUT-RANGE-BASE")
+                 ((string= suffix "LIMIT") "%SIMULATOR-LAYOUT-RANGE-LIMIT")
+                 ((string= suffix "GENERATION") "%SIMULATOR-LAYOUT-RANGE-GENERATION")
+                 (t (error "Unknown installed-layout range suffix ~A" suffix))))))
     (unless function
       (error "Installed-layout range accessor ~A is unavailable" suffix))
     (funcall function range)))

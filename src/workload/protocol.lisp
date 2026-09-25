@@ -198,20 +198,12 @@ provides this private, construction-bound resolver:
      model start :strong identity function)
 
 It validates generation/kind/identity and invokes FUNCTION only while the
-location is borrowed.  A missing resolver is a capability error, never a
-fallback to guessed indexing."
-  (let* ((package (find-package '#:clamsara))
-         (name (and package
-                     (find-symbol "%CALL-WITH-SIMULATOR-REFERENCE-LOCATION"
-                                  package)))
-         (resolver (and name (fboundp name) (symbol-function name))))
-    (unless resolver
-      (error 'workload-capability-error
-             :operation 'indexed-reference-location
-             :reason :missing-model-resolver))
-    (multiple-value-bind (result status reason)
-        (funcall resolver (workload-model environment) object :strong key function)
-      (%resolver-outcome 'indexed-reference-location result status reason))))
+location is borrowed.  An identity the installed model cannot resolve is
+reported as :STALE by the resolver itself, never a guessed index."
+  (multiple-value-bind (result status reason)
+      (%call-with-simulator-reference-location
+       (workload-model environment) object :strong key function)
+    (%resolver-outcome 'indexed-reference-location result status reason)))
 
 (defun workload-temporary-root-clear (environment index)
   (root-provider-store

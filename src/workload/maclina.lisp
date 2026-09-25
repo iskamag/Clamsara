@@ -439,16 +439,9 @@ registered VM/root slot."
   "Borrow an exact raw array element location from the simulator model.
 Numeric elements are not references and therefore must not be sent through
 BARRIER-READ/STORE."
-  (let* ((package (find-package '#:clamsara))
-         (name (and package
-                     (find-symbol "%CALL-WITH-SIMULATOR-ARRAY-ELEMENT"
-                                  package)))
-         (resolver (and name (fboundp name) (symbol-function name))))
-    (unless resolver
-      (error 'workload-capability-error :operation 'array-element-location
-             :reason :missing-model-resolver))
-    (multiple-value-bind (result status reason)
-        (funcall resolver (workload-model environment) object index function)
+  (multiple-value-bind (result status reason)
+        (%call-with-simulator-array-element
+         (workload-model environment) object index function)
       (%resolver-outcome 'array-element-location result status reason))))
 
 (defun %guest-array-ref (environment array index)

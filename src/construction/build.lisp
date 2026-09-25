@@ -321,13 +321,23 @@ space/model-consuming group before any component initialization occurs."
                    (mapcar #'%component-node-path
                            (%initialization-group-nodes group))))))))
 
+(defun %runtime-entry-point (name reason)
+  ;; CONSTRUCTION sits below HOST/RUNTIME in the ASDF graph, so these
+  ;; integration points cannot be direct calls without a dependency cycle.
+  ;; They resolve dynamically: a construction-only image loads without the
+  ;; upper layers and rejects with a stable reason when it reaches one.  The
+  ;; quoted symbol keeps the reference grep-visible and SYMBOL-FUNCTION keeps
+  ;; the reference out of call position, so no undefined-function warning.
+  (if (fboundp name) (symbol-function name) (%reject reason)))
+
 (defun %register-configuration-auxiliary (construction object)
-  (unless (fboundp '%register-resource-auxiliary)
-    (%reject :resource-auxiliary-registrar-unavailable))
-  (handler-case
-      (%register-resource-auxiliary construction :configuration-auxiliary object)
-    (error (condition)
-      (%reject :configuration-auxiliary-registration-failed nil condition)))
+  (let ((register
+          (%runtime-entry-point
+           '%register-resource-auxiliary :resource-auxiliary-registrar-unavailable)))
+    (handler-case
+        (funcall register construction :configuration-auxiliary object)
+      (error (condition)
+        (%reject :configuration-auxiliary-registration-failed nil condition))))
   object)
 
 (defun %register-owner-auxiliary-storage (construction clients nodes)
@@ -444,9 +454,10 @@ backing it.  Component/client/host objects are registered by their owners."
   root)
 
 (defun %call-runtime-barrier-composer (barriers bound-model construction)
-  (unless (fboundp 'make-composed-barrier)
-    (%reject :barrier-composer-unavailable))
-  (let ((actuals
+  (let ((composer
+          (%runtime-entry-point
+           'make-composed-barrier :barrier-composer-unavailable))
+        (actuals
           (map 'simple-vector #'%barrier-description-actual barriers))
         (facts
           (map 'simple-vector
@@ -466,7 +477,7 @@ backing it.  Component/client/host objects are registered by their owners."
     (%register-builder-tree construction facts)
     (let ((barrier
             (handler-case
-                (make-composed-barrier actuals facts bound-model)
+                (funcall composer actuals facts bound-model)
               (error (condition)
                 (%reject :barrier-composition-signaled
                          (loop for description across barriers
@@ -480,14 +491,16 @@ backing it.  Component/client/host objects are registered by their owners."
       barrier)))
 
 (defun %register-installed-layout-storage (construction configuration)
-  (unless (fboundp '%register-installed-layout-auxiliary)
-    (%reject :installed-layout-auxiliary-registrar-unavailable))
-  (handler-case
-      (%register-installed-layout-auxiliary
-       construction (%configuration-layout configuration)
-       :configuration-auxiliary)
-    (error (condition)
-      (%reject :installed-layout-auxiliary-registration-failed nil condition)))
+  (let ((register
+          (%runtime-entry-point
+           '%register-installed-layout-auxiliary
+           :installed-layout-auxiliary-registrar-unavailable)))
+    (handler-case
+        (funcall register
+                 construction (%configuration-layout configuration)
+                 :configuration-auxiliary)
+      (error (condition)
+        (%reject :installed-layout-auxiliary-registration-failed nil condition))))
   ;; The installed layout does not retain its opaque release capability, but
   ;; the exact transaction log does.  Charge that record explicitly.
   (let ((entry (find :layout (%context-transaction-log construction)
@@ -497,13 +510,14 @@ backing it.  Component/client/host objects are registered by their owners."
   (values))
 
 (defun %register-bound-model-storage (construction bound-model)
-  (unless (fboundp '%register-bound-object-model-auxiliary)
-    (%reject :bound-model-auxiliary-registrar-unavailable))
-  (handler-case
-      (%register-bound-object-model-auxiliary
-       construction bound-model :configuration-auxiliary)
-    (error (condition)
-      (%reject :bound-model-auxiliary-registration-failed nil condition)))
+  (let ((register
+          (%runtime-entry-point
+           '%register-bound-object-model-auxiliary
+           :bound-model-auxiliary-registrar-unavailable)))
+    (handler-case
+        (funcall register construction bound-model :configuration-auxiliary)
+      (error (condition)
+        (%reject :bound-model-auxiliary-registration-failed nil condition))))
   (values))
 
 (defun %validate-final-resource-state (state target-maximum)
@@ -546,11 +560,12 @@ backing it.  Component/client/host objects are registered by their owners."
 (defun %close-resource-capacity-account
     (resources construction account target-maximum)
   ;; ACCOUNT and all retained graph objects already exist and are registered.
-  (unless (fboundp '%close-resource-manifests)
-    (%reject :resource-manifest-closer-unavailable))
-  (handler-case (%close-resource-manifests construction)
-    (error (condition)
-      (%reject :resource-manifest-closure-signaled nil condition)))
+  (let ((close-manifests
+          (%runtime-entry-point
+           '%close-resource-manifests :resource-manifest-closer-unavailable)))
+    (handler-case (funcall close-manifests construction)
+      (error (condition)
+        (%reject :resource-manifest-closure-signaled nil condition))))
   (loop for description in resources
         for entry across account
         do (let* ((identity (%resource-description-identity description))
@@ -722,15 +737,15 @@ backing it.  Component/client/host objects are registered by their owners."
             result))))))
 
 (defun %close-runtime-for-shutdown (configuration)
-  (unless (fboundp '%close-configuration-runtime)
-    (%reject :runtime-close-unavailable))
-  (%close-configuration-runtime configuration))
+  (funcall (%runtime-entry-point
+            '%close-configuration-runtime :runtime-close-unavailable)
+           configuration))
 
 (defun %drain-runtime-for-shutdown (configuration)
-  (unless (fboundp '%drain-configuration-runtime)
-    (%reject :runtime-drain-unavailable))
   (multiple-value-call #'values
-    (%drain-configuration-runtime configuration)))
+    (funcall (%runtime-entry-point
+              '%drain-configuration-runtime :runtime-drain-unavailable)
+             configuration)))
 
 (defmethod shutdown-configuration ((configuration %configuration))
   (case (%configuration-state configuration)

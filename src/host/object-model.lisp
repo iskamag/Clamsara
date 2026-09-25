@@ -471,31 +471,8 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
 
 ;;; Installed layout/binding adapter -----------------------------------------
 
-(defun %host-function (name)
-  (let ((symbol (find-symbol name :clamsara)))
-    (and symbol (fboundp symbol) (symbol-function symbol))))
-
 (defun %host-layout-ranges (layout)
-  (let ((function (%host-function "SIMULATOR-LAYOUT-RANGES")))
-    (unless function (error "Installed-layout range service is unavailable"))
-    (coerce (funcall function layout) 'vector)))
-
-(defun %host-range-field (range suffix)
-  ;; The suffix-to-symbol mapping is fixed and literal.  Building the symbol
-  ;; name with FORMAT consed a fresh string on every field read on the
-  ;; allocation hot path (route refresh, descriptor lookup).  STRING= compares
-  ;; without allocating.
-  (let ((function
-          (%host-function
-           (cond ((string= suffix "SPACE") "%SIMULATOR-LAYOUT-RANGE-SPACE")
-                 ((string= suffix "MAP") "%SIMULATOR-LAYOUT-RANGE-MAP")
-                 ((string= suffix "BASE") "%SIMULATOR-LAYOUT-RANGE-BASE")
-                 ((string= suffix "LIMIT") "%SIMULATOR-LAYOUT-RANGE-LIMIT")
-                 ((string= suffix "GENERATION") "%SIMULATOR-LAYOUT-RANGE-GENERATION")
-                 (t (error "Unknown installed-layout range suffix ~A" suffix))))))
-    (unless function
-      (error "Installed-layout range accessor ~A is unavailable" suffix))
-    (funcall function range)))
+  (coerce (simulator-layout-ranges layout) 'vector))
 
 (defun %host-metadata-geometry (metadata)
   (multiple-value-bind (base limit granularity) (metadata-bounds metadata)
@@ -521,8 +498,8 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
   (values (host-binding-space binding) (host-binding-metadata binding)))
 
 (defun %host-binding-matches-range-p (binding range)
-  (and (eq (host-binding-space binding) (%host-range-field range "SPACE"))
-       (eq (host-binding-metadata binding) (%host-range-field range "MAP"))))
+  (and (eq (host-binding-space binding) (%simulator-layout-range-space range))
+       (eq (host-binding-metadata binding) (%simulator-layout-range-map range))))
 
 (defun %host-next-power-of-two (minimum)
   (let ((value 1))
@@ -611,8 +588,8 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
     (let ((ranges-by-space (make-hash-table :test #'eq)))
       (dotimes (range-index (length parent-ranges))
         (let* ((range (aref parent-ranges range-index))
-               (space (%host-range-field range "SPACE"))
-               (map (%host-range-field range "MAP"))
+               (space (%simulator-layout-range-space range))
+               (map (%simulator-layout-range-map range))
                (maps (or (gethash space ranges-by-space)
                          (setf (gethash space ranges-by-space)
                                (make-hash-table :test #'eq)))))
@@ -641,9 +618,9 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
     (let ((total-bytes 0) (total-cells 0))
       (dotimes (index (length parent-ranges))
         (let* ((range (aref parent-ranges index))
-               (base (%host-range-field range "BASE"))
-               (limit (%host-range-field range "LIMIT"))
-               (map (%host-range-field range "MAP")))
+               (base (%simulator-layout-range-base range))
+               (limit (%simulator-layout-range-limit range))
+               (map (%simulator-layout-range-map range)))
           (multiple-value-bind (map-base map-limit granularity)
               (%host-metadata-geometry map)
             (unless (and (integerp base) (integerp limit) (< base limit)
@@ -676,9 +653,9 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
           (error "Hosted nonbase codes require 46-bit fixnums"))
         (dotimes (index (length parent-ranges))
           (let ((range (aref parent-ranges index)))
-            (unless (and (typep (%host-range-field range "BASE")
+            (unless (and (typep (%simulator-layout-range-base range)
                                 '(integer 0 #.most-positive-fixnum))
-                         (typep (%host-range-field range "LIMIT")
+                         (typep (%simulator-layout-range-limit range)
                                 '(integer 0 #.most-positive-fixnum)))
               (error "Hosted nonbase code rows require fixnum address bounds")))))
       (let* ((snapshot-data (multiple-value-list (%host-snapshot-kind-catalogue model)))
@@ -754,9 +731,9 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
               (descriptor-offset 0) (arena-offset 0))
           (dotimes (index (length parent-ranges))
             (let* ((parent (aref parent-ranges index))
-                   (base (%host-range-field parent "BASE"))
-                   (limit (%host-range-field parent "LIMIT"))
-                   (map (%host-range-field parent "MAP")))
+                   (base (%simulator-layout-range-base parent))
+                   (limit (%simulator-layout-range-limit parent))
+                   (map (%simulator-layout-range-map parent)))
               (multiple-value-bind (map-base map-limit granularity)
                   (%host-metadata-geometry map)
                 (declare (ignore map-base map-limit))
@@ -764,12 +741,12 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
                        (route
                          (%make-host-route
                           :parent parent
-                          :space (%host-range-field parent "SPACE") :map map
+                          :space (%simulator-layout-range-space parent) :map map
                           :base base :limit limit :granularity granularity
                           :cell-count cell-count
                           :descriptor-offset descriptor-offset
                           :arena-offset arena-offset
-                          :generation (%host-range-field parent "GENERATION"))))
+                          :generation (%simulator-layout-range-generation parent))))
                   (setf (aref routes index) route)
                   (dotimes (cell cell-count)
                     (let* ((descriptor (+ descriptor-offset cell))
@@ -788,9 +765,9 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
 
 (defun %host-refresh-route (route)
   (let ((parent (host-route-parent route)))
-    (setf (host-route-space route) (%host-range-field parent "SPACE")
-          (host-route-map route) (%host-range-field parent "MAP")
-          (host-route-generation route) (%host-range-field parent "GENERATION")))
+    (setf (host-route-space route) (%simulator-layout-range-space parent)
+          (host-route-map route) (%simulator-layout-range-map parent)
+          (host-route-generation route) (%simulator-layout-range-generation parent)))
   route)
 
 (defun %host-route-at-address (model address)

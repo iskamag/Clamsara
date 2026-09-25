@@ -244,6 +244,30 @@
     (check (zerop (count-finishes ready))
            "Cancelled participant was finished anyway")))
 
+(defun run-middle-participant-failure ()
+  ;; Three participants, the middle one fails: the prefix is cancelled exactly
+  ;; once, the failing one is not cancelled, and the later one is never touched.
+  (let* ((first (make-instance 'counting-participant))
+         (middle (make-instance 'counting-participant :fail-prepare-p t))
+         (last (make-instance 'counting-participant))
+         (world (make-quality-world :algorithm :semispace
+                                    :movement-participants
+                                    (list first middle last))))
+    (set-world-root world 0 (allocate-node world 1))
+    (let ((record (collect-world world :scope :all)))
+      (check (and (eq :retained (cycle-result-status record))
+                  (eq :capacity-exhausted (cycle-result-reason record)))
+             "Expected precommit failure, got ~S/~S"
+             (cycle-result-status record) (cycle-result-reason record)))
+    (check (= 1 (count-cancels first))
+           "Prefix participant not cancelled exactly once")
+    (check (zerop (count-cancels middle))
+           "Failing participant was cancelled by the driver")
+    (check (zerop (count-cancels last))
+           "Participant after the failure was touched")
+    (check (zerop (count-finishes last))
+           "Participant after the failure was finished")))
+
 (defclass bad-finish-participant (movement-participant) ())
 (defmethod prepare-movement-participant ((p bad-finish-participant) cycle)
   (declare (ignore p cycle)) (values :ready nil))
@@ -283,6 +307,7 @@
   (run-prepare-exactly-once-per-cycle)
   (run-capacity-boundary)
   (run-ready-participant-cancelled-once)
+  (run-middle-participant-failure)
   (run-failed-finish-holds-stop)
   (format t "~&MOVEMENT-PARTICIPANT-PASS~%")
   t)

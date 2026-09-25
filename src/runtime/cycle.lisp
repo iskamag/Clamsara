@@ -329,9 +329,13 @@
         (when (eq (%cycle-conditional-mode cycle) :commit)
           (store-reference-raw
            model value-location (aref (%conditional-new-value cycle) index))
-          (when clear-key-p
-            (store-reference-raw
-             model key-location (aref (%conditional-new-key cycle) index))))
+          ;; A live key moved by this cycle is corrected (clear-key-p does not
+          ;; gate correction); a dead key is cleared only when specified.
+          ;; Both are exactly the cases where the staged key differs from the
+          ;; observed one, so an unchanged key stays untouched.
+          (let ((new-key (aref (%conditional-new-key cycle) index)))
+            (unless (reference-encoding-equal-p model key new-key)
+              (store-reference-raw model key-location new-key))))
         (setf (%cycle-conditional-match-p cycle) t))))
   (values))
 
@@ -527,6 +531,15 @@
               (%check-or-commit-conditionals cycle :validate)
             (unless (eq status :complete)
               (return-from %execute-cycle (%cycle-failure cycle reason))))
+          ;; No claim, reservation or active work item may survive into
+          ;; reclamation: "Finish returns complete only after quiescence, else
+          ;; the first failure reason."  The context's own termination check is
+          ;; the evidence, not the individual drain statuses.
+          (multiple-value-bind (status reason)
+              (finish-trace-context (%cycle-trace cycle))
+            (unless (eq status :complete)
+              (return-from %execute-cycle
+                (%cycle-failure cycle (or reason :fatal-invariant)))))
           (multiple-value-bind (status reason) (%prepare-plan-reclamation plan cycle)
             (unless (eq status :complete)
               (return-from %execute-cycle (%cycle-failure cycle reason))))

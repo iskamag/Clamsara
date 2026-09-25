@@ -113,6 +113,7 @@
                (:file "test/acceptance/host-safety")
                (:file "test/acceptance/resources-layout")
                (:file "test/acceptance/conditional-lifecycle")
+               (:file "test/acceptance/ephemeron-key")
                (:file "test/acceptance/object-model-safety"))
   :perform (asdf:test-op (operation component)
              (declare (ignore operation component))
@@ -124,6 +125,8 @@
                                            :run-resources-layout-acceptance)
                           (uiop:symbol-call :clamsara.acceptance.conditional-lifecycle
                                            :run-conditional-lifecycle-acceptance)
+                          (uiop:symbol-call :clamsara.acceptance.ephemeron-key
+                                           :run-ephemeron-key-acceptance)
                           (uiop:symbol-call :clamsara.acceptance.object-model
                                            :run-object-model-safety-acceptance))
                (error "Acceptance contracts failed"))))
@@ -140,6 +143,7 @@
                              (asdf:test-op :clamsara/runtime/lifecycle/test)
                              (asdf:test-op :clamsara/runtime/participants/test)
                              (asdf:test-op :clamsara/acceptance/test)
+                             (asdf:test-op :clamsara/quality/driver-quiescence/test)
                              (asdf:test-op :clamsara/quality/stateful/test)
                              (asdf:test-op :clamsara/quality/barrier-history/test)
                              (asdf:test-op :clamsara/quality/barrier-admission/test)
@@ -272,6 +276,16 @@
              (unless (uiop:symbol-call :clamsara.quality.stateful
                                       :run-stateful-quality-tests)
                (error "Stateful quality tests failed"))))
+
+(asdf:defsystem :clamsara/quality/driver-quiescence/test
+  :version "0.1.0"
+  :depends-on (:clamsara/quality/support)
+  :components ((:file "test/quality/driver-quiescence"))
+  :perform (asdf:test-op (operation component)
+             (declare (ignore operation component))
+             (unless (uiop:symbol-call :clamsara.quality.driver-quiescence
+                                      :run-driver-quiescence-tests)
+               (error "Driver quiescence tests failed"))))
 
 (asdf:defsystem :clamsara/quality
   :version "0.1.0"

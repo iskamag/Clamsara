@@ -150,6 +150,7 @@
                              (asdf:test-op :clamsara/quality/finalizers/test)
                              (asdf:test-op :clamsara/quality/finalizer-drain/test)
                              (asdf:test-op :clamsara/quality/model-resources/test)
+                             (asdf:test-op :clamsara/generational/test)
                              (asdf:test-op :clamsara/quality/generational/test)
                              (asdf:test-op :clamsara/tools/test)
                              (asdf:test-op :clamsara/quality/test))))

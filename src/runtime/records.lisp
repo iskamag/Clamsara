@@ -85,10 +85,14 @@
    (generation :initform 0 :accessor %trace-generation)
    (capacity :initarg :capacity :reader %trace-capacity)
    (source-spaces :initarg :source-spaces :reader %trace-source-spaces)
-   (source-starts :initarg :source-starts :reader %trace-source-starts)
+   ;; One canonical source byte address per direct claim cell.  Identity is the
+   ;; model's opaque address, never a reference object's identity.
+   (source-addresses :initarg :source-addresses :reader %trace-source-addresses)
    (states :initarg :states :reader %trace-states)
    (work-spaces :initarg :work-spaces :reader %trace-work-spaces)
-   (work-starts :initarg :work-starts :reader %trace-work-starts)
+   ;; One committed destination byte address per work item.  A reference is
+   ;; rebuilt from the owning space only when a consumer scans or matches it.
+   (work-addresses :initarg :work-addresses :reader %trace-work-addresses)
    (reserved-count :initform 0 :accessor %trace-reserved-count)
    (committed-count :initform 0 :accessor %trace-committed-count)
    (take-index :initform 0 :accessor %trace-take-index)
@@ -197,10 +201,10 @@
                                   :displaced-index-offset object-offset)
                  (incf object-offset count))))
       (let* ((trace-source-spaces (objects trace-capacity))
-             (trace-source-starts (objects trace-capacity))
+             (trace-source-addresses (objects trace-capacity))
              (trace-states (objects trace-capacity))
              (trace-work-spaces (objects trace-capacity))
-             (trace-work-starts (objects trace-capacity))
+             (trace-work-addresses (objects trace-capacity))
              (cycle (make-instance
                      'sequential-cycle :plan plan :trace nil
                      :movement-old (objects trace-capacity)
@@ -227,10 +231,10 @@
               (make-instance 'sequential-trace-context
                              :cycle cycle :capacity trace-capacity
                              :source-spaces trace-source-spaces
-                             :source-starts trace-source-starts
+                             :source-addresses trace-source-addresses
                              :states trace-states
                              :work-spaces trace-work-spaces
-                             :work-starts trace-work-starts)
+                             :work-addresses trace-work-addresses)
               (%cycle-root-callback cycle)
               (lambda (root-client location)
                 (%trace-root-location cycle root-client location))
@@ -289,8 +293,8 @@
         ;; one acquired vector without hiding their headers.
         (dolist (object
                   (list cycle (%cycle-trace cycle)
-                        trace-source-spaces trace-source-starts trace-states
-                        trace-work-spaces trace-work-starts
+                        trace-source-spaces trace-source-addresses trace-states
+                        trace-work-spaces trace-work-addresses
                         (%cycle-movement-old cycle) (%cycle-movement-new cycle)
                         (%cycle-death-spaces cycle) (%cycle-death-starts cycle)
                         (%cycle-retirement-starts cycle)

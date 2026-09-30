@@ -142,6 +142,7 @@
                              (asdf:test-op :clamsara/runtime/test)
                              (asdf:test-op :clamsara/runtime/lifecycle/test)
                              (asdf:test-op :clamsara/runtime/participants/test)
+                             (asdf:test-op :clamsara/runtime/reference-identity/test)
                              (asdf:test-op :clamsara/acceptance/test)
                              (asdf:test-op :clamsara/quality/driver-quiescence/test)
                              (asdf:test-op :clamsara/quality/stateful/test)
@@ -227,6 +228,18 @@
              (unless (uiop:symbol-call :clamsara.runtime.participants.test
                                        :run-movement-participant-tests)
                (error "Movement participant tests failed"))))
+
+(asdf:defsystem :clamsara/runtime/reference-identity/test
+  :version "0.1.0"
+  :description "Reference-identity portability over a non-interning model."
+  :depends-on (:clamsara/quality/support)
+  :components ((:file "test/runtime/reference-identity"))
+  :perform (asdf:test-op (operation component)
+             (declare (ignore operation component))
+             (unless (uiop:symbol-call
+                      :clamsara.runtime.reference-identity.test
+                      :run-reference-identity-tests)
+               (error "Reference-identity tests failed"))))
 
 (asdf:defsystem :clamsara/runtime/lifecycle/test
   :version "0.1.0"

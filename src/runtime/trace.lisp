@@ -28,10 +28,10 @@
         (%trace-active-index context) nil
         (%trace-failed-reason context) nil)
   (fill (%trace-source-spaces context) nil)
-  (fill (%trace-source-starts context) nil)
+  (fill (%trace-source-addresses context) nil)
   (fill (%trace-states context) nil)
   (fill (%trace-work-spaces context) nil)
-  (fill (%trace-work-starts context) nil)
+  (fill (%trace-work-addresses context) nil)
   context)
 
 (defmethod begin-trace-context ((cycle sequential-cycle) scope work-capacity)
@@ -48,10 +48,8 @@
 (defmethod trace-scope-contains-p ((context sequential-trace-context) space start)
   (%space-in-cycle-scope-p space (trace-context-cycle context) start))
 
-(defun %trace-direct-index (context space start)
+(defun %trace-direct-index (context space address)
   (let* ((cycle (trace-context-cycle context))
-         (model (configuration-object-model (%cycle-configuration cycle)))
-         (address (reference-address model start))
          (offset 0))
     (dolist (candidate (%plan-spaces (%cycle-plan cycle)))
       (let* ((quantum (%space-packing-quantum candidate))
@@ -71,12 +69,26 @@
           (incf offset cells))))
     nil))
 
+(defun %trace-source-address (context start)
+  (reference-address
+   (configuration-object-model
+    (%cycle-configuration (trace-context-cycle context)))
+   start))
+
+(defun %trace-work-start (context space address)
+  ;; Rebuild the canonical destination reference at the model boundary.
+  (runtime-start-reference
+   (configuration-object-model
+    (%cycle-configuration (trace-context-cycle context)))
+   space address))
+
 (defun %trace-source-index (context space start)
-  (let ((index (%trace-direct-index context space start)))
+  (let* ((address (%trace-source-address context start))
+         (index (%trace-direct-index context space address)))
     (when (and index
                (aref (%trace-states context) index)
                (eq space (aref (%trace-source-spaces context) index))
-               (eql start (aref (%trace-source-starts context) index))
+               (eql address (aref (%trace-source-addresses context) index))
                (not (eq :abandoned (aref (%trace-states context) index))))
       index)))
 
@@ -102,14 +114,16 @@
 (defmethod trace-claim-object ((context sequential-trace-context) space start)
   (when (%trace-failed-reason context)
     (return-from trace-claim-object (values :failed nil nil)))
-  (let ((direct-index (%trace-direct-index context space start)))
+  (let* ((address (%trace-source-address context start))
+         (direct-index (%trace-direct-index context space address)))
     (unless direct-index
       (trace-fail context :fatal-invariant)
       (return-from trace-claim-object (values :failed nil nil)))
     (let ((state (aref (%trace-states context) direct-index)))
       (when state
         (unless (and (eq space (aref (%trace-source-spaces context) direct-index))
-                     (eql start (aref (%trace-source-starts context) direct-index)))
+                     (eql address
+                          (aref (%trace-source-addresses context) direct-index)))
           (trace-fail context :fatal-invariant)
           (return-from trace-claim-object (values :failed nil nil)))
         (return-from trace-claim-object
@@ -125,7 +139,7 @@
         (trace-fail context :capacity-exhausted)
         (return-from trace-claim-object (values :failed nil nil)))
       (setf (aref (%trace-source-spaces context) direct-index) space
-            (aref (%trace-source-starts context) direct-index) start
+            (aref (%trace-source-addresses context) direct-index) address
             (aref (%trace-states context) direct-index) :claimed)
       (incf (%trace-reserved-count context))
       (values :first
@@ -153,7 +167,8 @@
         (trace-fail context :capacity-exhausted)
         (return-from trace-commit-object :failed))
       (setf (aref (%trace-work-spaces context) work-index) work-space
-            (aref (%trace-work-starts context) work-index) work-start
+            (aref (%trace-work-addresses context) work-index)
+            (%trace-source-address context work-start)
             (aref (%trace-states context) claim-index) :committed)
       (incf (%trace-committed-count context))
       (%cycle-counter-incf (trace-context-cycle context) :objects-discovered)
@@ -178,7 +193,9 @@
      (let ((index (%trace-take-index context)))
        (setf (%trace-active-index context) index)
        (values (aref (%trace-work-spaces context) index)
-               (aref (%trace-work-starts context) index)
+               (%trace-work-start context
+                                  (aref (%trace-work-spaces context) index)
+                                  (aref (%trace-work-addresses context) index))
                :work)))
     ((< (%trace-committed-count context) (%trace-reserved-count context))
      (values nil nil :wait))
@@ -189,7 +206,8 @@
   (let ((index (%trace-active-index context)))
     (unless (and index
                  (eq space (aref (%trace-work-spaces context) index))
-                 (eql start (aref (%trace-work-starts context) index)))
+                 (eql (%trace-source-address context start)
+                      (aref (%trace-work-addresses context) index)))
       (trace-fail context :fatal-invariant)
       (return-from trace-finish-work (values)))
     (setf (%trace-active-index context) nil
@@ -213,8 +231,11 @@
 
 (defmethod map-trace-discoveries ((context sequential-trace-context) function)
   (dotimes (index (%trace-committed-count context))
-    (funcall function (aref (%trace-work-spaces context) index)
-             (aref (%trace-work-starts context) index)))
+    (funcall function
+             (aref (%trace-work-spaces context) index)
+             (%trace-work-start context
+                                (aref (%trace-work-spaces context) index)
+                                (aref (%trace-work-addresses context) index))))
   (values))
 
 (defun %metadata-present-p (metadata key)

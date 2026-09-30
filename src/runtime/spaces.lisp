@@ -434,15 +434,14 @@
     (%runtime-reject :invalid-semispace-pair))
   (setf (%semispace-partner from-space) to-space
         (%semispace-partner to-space) from-space)
-  (%make-common-plan-instance
-   'semispace-plan
+  (%make-space-plan
+   'semispace-plan :semispace :spaces (list from-space to-space)
    :root-client root-client :coordinator coordinator :diagnostics diagnostics
-   :registry registry :spaces (list from-space to-space)
-   :trace-capacity trace-capacity :conditional-capacity conditional-capacity
+   :registry registry :trace-capacity trace-capacity
+   :conditional-capacity conditional-capacity
    :finalizer-capacity finalizer-capacity :packing-quantum packing-quantum
    :allocation-routes (or allocation-routes (list (list :default from-space :all)))
-   :movement-participants movement-participants
-   :default-algorithm :semispace :algorithms '(:semispace)))
+   :movement-participants movement-participants))
 
 ;;; ------------------------------------------------------------------
 ;;; Marking spaces.
@@ -695,12 +694,9 @@
   (unless (and (typep space 'marksweep-space)
                (= (%space-packing-quantum space) packing-quantum))
     (%runtime-reject :invalid-marksweep-space))
-  (%make-common-plan-instance
-   'marksweep-plan :root-client root-client
+  (%make-space-plan
+   'marksweep-plan :marksweep :spaces (list space) :root-client root-client
    :coordinator coordinator :diagnostics diagnostics :registry registry
-   :spaces (list space) :trace-capacity trace-capacity
-   :conditional-capacity conditional-capacity
+   :trace-capacity trace-capacity :conditional-capacity conditional-capacity
    :finalizer-capacity finalizer-capacity :packing-quantum packing-quantum
-   :allocation-routes (or allocation-routes (list (list :default space :all)))
-   :movement-participants movement-participants
-   :default-algorithm :marksweep :algorithms '(:marksweep)))
+   :allocation-routes allocation-routes :movement-participants movement-participants))

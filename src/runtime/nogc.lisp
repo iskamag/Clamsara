@@ -80,12 +80,9 @@ finalizer closure from inventing reclamation."
   (unless (and (typep space 'nogc-space)
                (= (%space-packing-quantum space) packing-quantum))
     (%runtime-reject :invalid-nogc-space))
-  (%make-common-plan-instance
-   'nogc-plan :root-client root-client
+  (%make-space-plan
+   'nogc-plan :nogc :spaces (list space) :root-client root-client
    :coordinator coordinator :diagnostics diagnostics :registry registry
-   :spaces (list space) :trace-capacity trace-capacity
-   :conditional-capacity conditional-capacity
+   :trace-capacity trace-capacity :conditional-capacity conditional-capacity
    :finalizer-capacity finalizer-capacity :packing-quantum packing-quantum
-   :allocation-routes (or allocation-routes (list (list :default space :all)))
-   :movement-participants nil
-   :default-algorithm :nogc :algorithms '(:nogc)))
+   :allocation-routes allocation-routes :movement-participants nil))

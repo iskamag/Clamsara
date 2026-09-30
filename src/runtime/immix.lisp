@@ -304,12 +304,9 @@ reserved extent."
   (unless (and (typep space 'immix-space)
                (= (%space-packing-quantum space) packing-quantum))
     (%runtime-reject :invalid-immix-space))
-  (%make-common-plan-instance
-   'immix-plan :root-client root-client
+  (%make-space-plan
+   'immix-plan :immix :spaces (list space) :root-client root-client
    :coordinator coordinator :diagnostics diagnostics :registry registry
-   :spaces (list space) :trace-capacity trace-capacity
-   :conditional-capacity conditional-capacity
+   :trace-capacity trace-capacity :conditional-capacity conditional-capacity
    :finalizer-capacity finalizer-capacity :packing-quantum packing-quantum
-   :allocation-routes (or allocation-routes (list (list :default space :all)))
-   :movement-participants movement-participants
-   :default-algorithm :immix :algorithms '(:immix)))
+   :allocation-routes allocation-routes :movement-participants movement-participants))

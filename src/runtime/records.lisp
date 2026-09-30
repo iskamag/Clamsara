@@ -395,6 +395,26 @@
                      :causes causes :reasons reasons :counters counters initargs)))
     plan))
 
+(defun %make-space-plan (class algorithm &key spaces root-client coordinator
+                                              diagnostics registry trace-capacity
+                                              conditional-capacity
+                                              finalizer-capacity packing-quantum
+                                              allocation-routes
+                                              movement-participants)
+  "Construct one full-heap plan over SPACES.
+
+ALGORITHM is both the default and the sole admitted algorithm.  ROUTES default
+to the first space under a full (:ALL) scope."
+  (%make-common-plan-instance
+   class :root-client root-client :coordinator coordinator
+   :diagnostics diagnostics :registry registry :spaces spaces
+   :trace-capacity trace-capacity :conditional-capacity conditional-capacity
+   :finalizer-capacity finalizer-capacity :packing-quantum packing-quantum
+   :allocation-routes (or allocation-routes
+                          (list (list :default (first spaces) :all)))
+   :movement-participants movement-participants
+   :default-algorithm algorithm :algorithms (list algorithm)))
+
 (defmethod component-resources ((plan sequential-runtime-plan))
   (let* ((objects (%runtime-object-entry-count
                    (%plan-trace-capacity plan)

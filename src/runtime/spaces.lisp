@@ -4,6 +4,14 @@
 (defclass runtime-allocator ()
   ((last-valid-p :initform nil :accessor %allocator-last-valid-p)))
 
+(defun %check-space-extent (extent packing-quantum)
+  "Require a positive, quantum-multiple extent with a power-of-two quantum."
+  (unless (and (typep extent '(integer 1 *))
+               (%positive-power-of-two-p packing-quantum)
+               (zerop (mod extent packing-quantum)))
+    (%runtime-reject :invalid-space-extent))
+  (values))
+
 (defclass bump-runtime-allocator (runtime-allocator)
   ((space :initarg :space :reader %allocator-space)
    (cursor :initform 0 :accessor %allocator-cursor)
@@ -205,10 +213,7 @@
                                       extent packing-quantum role)
   (unless (member role '(:allocation :reserve))
     (%runtime-reject :invalid-space-role))
-  (unless (and (typep extent '(integer 1 *))
-               (%positive-power-of-two-p packing-quantum)
-               (zerop (mod extent packing-quantum)))
-    (%runtime-reject :invalid-space-extent))
+  (%check-space-extent extent packing-quantum)
   (make-instance 'semispace-space :name name :object-start-map object-start-map
                  :extent extent :packing-quantum packing-quantum :role role
                  :forwarding forwarding))

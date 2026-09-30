@@ -57,10 +57,7 @@
     (&key name object-start-map forwarding extent packing-quantum role)
   (unless (member role '(:allocation :reserve))
     (%runtime-reject :invalid-space-role))
-  (unless (and (typep extent '(integer 1 *))
-               (%positive-power-of-two-p packing-quantum)
-               (zerop (mod extent packing-quantum)))
-    (%runtime-reject :invalid-space-extent))
+  (%check-space-extent extent packing-quantum)
   (make-instance 'generational-nursery-space
                  :name name :object-start-map object-start-map
                  :forwarding forwarding :extent extent

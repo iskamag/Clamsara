@@ -35,10 +35,7 @@
   (values))
 
 (defun make-nogc-space (&key name object-start-map extent packing-quantum)
-  (unless (and (typep extent '(integer 1 *))
-               (%positive-power-of-two-p packing-quantum)
-               (zerop (mod extent packing-quantum)))
-    (%runtime-reject :invalid-space-extent))
+  (%check-space-extent extent packing-quantum)
   (make-instance 'nogc-space :name name :object-start-map object-start-map
                  :extent extent :packing-quantum packing-quantum))
 

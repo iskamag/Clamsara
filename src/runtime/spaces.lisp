@@ -601,6 +601,34 @@
       (incf (%marksweep-candidate-count space))))
   t)
 
+(defun %marksweep-reset-free-candidate (space cycle)
+  "Begin a fresh free-interval candidate over SPACE for CYCLE."
+  (setf (%marksweep-reclaim-cycle space) cycle
+        (%marksweep-reclaim-cursor space) (%space-base space)
+        (%marksweep-reclaim-free-start space) (%space-base space)
+        (%marksweep-candidate-count space) 0
+        (%marksweep-candidate-ready-p space) nil))
+
+(defun %marksweep-close-free-candidate (space)
+  "Append SPACE's trailing free interval.  Return T when it fit."
+  (when (%marksweep-add-free space (%marksweep-reclaim-free-start space)
+                             (%space-limit space))
+    (setf (%marksweep-candidate-ready-p space) t)))
+
+(defun %marksweep-publish-free-candidate (space)
+  "Make SPACE's ready candidate authoritative; recycle the old maps."
+  (unless (%marksweep-candidate-ready-p space)
+    (%runtime-reject :fatal-invariant))
+  (rotatef (%marksweep-active-starts space) (%marksweep-candidate-starts space))
+  (rotatef (%marksweep-active-limits space) (%marksweep-candidate-limits space))
+  (let ((allocator (%space-allocator space)))
+    (setf (%free-starts allocator) (%marksweep-active-starts space)
+          (%free-limits allocator) (%marksweep-active-limits space)
+          (%free-count allocator) (%marksweep-candidate-count space)
+          (%allocator-last-valid-p allocator) nil))
+  (setf (%marksweep-candidate-ready-p space) nil)
+  (values))
+
 (defun %marksweep-visit-start (space address)
   (let* ((cycle (%marksweep-reclaim-cycle space))
          (model (%space-model space))
@@ -624,21 +652,15 @@
     (setf (%marksweep-reclaim-cursor space) end)))
 
 (defmethod reclaim-space ((space marksweep-space) cycle)
-  (setf (%marksweep-reclaim-cycle space) cycle
-        (%marksweep-reclaim-cursor space) (%space-base space)
-        (%marksweep-reclaim-free-start space) (%space-base space)
-        (%marksweep-candidate-count space) 0)
+  (%marksweep-reset-free-candidate space cycle)
   (handler-case
       (progn
         (metadata-map-present (%space-object-start-map space)
                               (%space-range space)
                               (%marksweep-reclaim-callback space))
-        (unless (%marksweep-add-free space
-                                     (%marksweep-reclaim-free-start space)
-                                     (%space-limit space))
+        (unless (%marksweep-close-free-candidate space)
           (return-from reclaim-space
             (values :retained :capacity-exhausted)))
-        (setf (%marksweep-candidate-ready-p space) t)
         (values :ready nil))
     (error ()
       (setf (%marksweep-candidate-ready-p space) nil)
@@ -661,14 +683,7 @@
         (metadata-reset (%space-object-start-map space)
                         (reference-address (%space-model space) start))
         (runtime-retire-object-representation (%space-model space) start))))
-  (rotatef (%marksweep-active-starts space) (%marksweep-candidate-starts space))
-  (rotatef (%marksweep-active-limits space) (%marksweep-candidate-limits space))
-  (let ((allocator (%space-allocator space)))
-    (setf (%free-starts allocator) (%marksweep-active-starts space)
-          (%free-limits allocator) (%marksweep-active-limits space)
-          (%free-count allocator) (%marksweep-candidate-count space)
-          (%allocator-last-valid-p allocator) nil))
-  (setf (%marksweep-candidate-ready-p space) nil)
+  (%marksweep-publish-free-candidate space)
   (values))
 
 (defclass marksweep-plan (sequential-runtime-plan) ())

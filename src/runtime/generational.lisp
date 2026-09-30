@@ -648,26 +648,18 @@ rather than clearing the range (collectors.tex, MarkSweep mark epoch)."
 
 (defun %gen-build-mature-free-candidate (plan cycle)
   (let ((mature (%gen-mature plan)))
-    (setf (%marksweep-reclaim-cycle mature) cycle
-          (%marksweep-reclaim-cursor mature) (%space-base mature)
-          (%marksweep-reclaim-free-start mature) (%space-base mature)
-          (%marksweep-candidate-count mature) 0
-          (%marksweep-candidate-ready-p mature) nil
-          (%gen-enumeration-cycle plan) cycle
+    (%marksweep-reset-free-candidate mature cycle)
+    (setf (%gen-enumeration-cycle plan) cycle
           (%gen-enumeration-mode plan) :free)
     (metadata-map-present (%space-object-start-map mature)
                           (%space-range mature)
                           (%gen-mature-callback plan))
     (unless (%trace-failed-reason (%cycle-trace cycle))
-      (unless (%marksweep-add-free
-               mature (%marksweep-reclaim-free-start mature)
-               (%space-limit mature))
+      (unless (%marksweep-close-free-candidate mature)
         (trace-fail (%cycle-trace cycle) :capacity-exhausted)))
     (if (%trace-failed-reason (%cycle-trace cycle))
         (values :failed (%trace-failed-reason (%cycle-trace cycle)))
-        (progn
-          (setf (%marksweep-candidate-ready-p mature) t)
-          (values :ready nil)))))
+        (values :ready nil))))
 
 (defun %gen-cancel-ready (plan cycle spaces participants)
   (dotimes (index participants)
@@ -713,21 +705,6 @@ rather than clearing the range (collectors.tex, MarkSweep mark epoch)."
       (setf (%gen-remembered-candidate-p plan) (eq (%cycle-scope cycle) :all)))
     (values :complete nil)))
 
-(defun %gen-publish-mature-free-candidate (mature)
-  (unless (%marksweep-candidate-ready-p mature)
-    (%runtime-reject :fatal-invariant))
-  (rotatef (%marksweep-active-starts mature)
-           (%marksweep-candidate-starts mature))
-  (rotatef (%marksweep-active-limits mature)
-           (%marksweep-candidate-limits mature))
-  (let ((allocator (%space-allocator mature)))
-    (setf (%free-starts allocator) (%marksweep-active-starts mature)
-          (%free-limits allocator) (%marksweep-active-limits mature)
-          (%free-count allocator) (%marksweep-candidate-count mature)
-          (%allocator-last-valid-p allocator) nil))
-  (setf (%marksweep-candidate-ready-p mature) nil)
-  (values))
-
 (defmethod %finish-plan-reclamation ((plan generational-plan) cycle)
   (dolist (participant (%plan-movement-participants plan))
     (finish-movement-participant participant cycle))
@@ -735,7 +712,7 @@ rather than clearing the range (collectors.tex, MarkSweep mark epoch)."
   (finish-space (%gen-nursery-to plan) cycle)
   (if (eq (%cycle-scope cycle) :all)
       (finish-space (%gen-mature plan) cycle)
-      (%gen-publish-mature-free-candidate (%gen-mature plan)))
+      (%marksweep-publish-free-candidate (%gen-mature plan)))
   (if (%gen-card-active-p plan)
       ;; A minor's scan is the complete rescan for every card it read, so the
       ;; cards clear now.  A major leaves corrected mature slots pointing into

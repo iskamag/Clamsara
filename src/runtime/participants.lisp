@@ -10,9 +10,10 @@
 ;;;; tombstones for dead sources."
 ;;;;
 ;;;; A participant holds one bounded source-indexed row table: for each distinct
-;;;; source start, either its destination (a move) or a tombstone (a death).
-;;;; Prepare stages the rows from the cycle enumerators without touching any
-;;;; published representation, so precommit cancellation is a bounded clear.
+;;;; source start, either its destination (a move) or a tombstone (a death), plus
+;;;; a construction-fixed eq index from the canonical start to its row.  Prepare
+;;;; stages the rows from the cycle enumerators without touching any published
+;;;; representation, so precommit cancellation is a bounded clear.
 (in-package #:clamsara)
 
 (defclass source-directory-participant (movement-participant)
@@ -23,6 +24,9 @@
    (values :initform nil :accessor %participant-values)
    (dead-p :initform nil :accessor %participant-dead-p)
    (count :initform 0 :accessor %participant-count)
+   ;; Canonical source start -> staged row index.  Preallocated to CAPACITY at
+   ;; construction; staging never grows or rehashes it.
+   (index :initform nil :accessor %participant-index)
    (prepared-p :initform nil :accessor %participant-prepared-p)))
 
 (defun make-source-directory-participant (&key capacity)
@@ -43,7 +47,9 @@ cycle."
            :runtime-object-vector
            :minimum-physical-bytes (+ 16 (* 8 (* 3 capacity)))
            :logical-entry-bound (* 3 capacity)
-           :auxiliary-bytes 1024
+           ;; Rows plus the construction-fixed source index, whose backing is
+           ;; proportional to the distinct-source bound.
+           :auxiliary-bytes (+ 1024 (* 24 capacity))
            :allocation-context :construction-only
            :exhaustion-action :reject-before-publication))))
 
@@ -55,7 +61,7 @@ cycle."
                    (>= physical (+ 16 (* 8 (* 3 capacity))))
                    (>= entries (* 3 capacity))
                    (>= (length storage) (* 3 capacity))
-                   (>= auxiliary 1024))
+                   (>= auxiliary (+ 1024 (* 24 capacity))))
         (%runtime-reject :participant-resource-capacity))
       (setf (%participant-keys participant)
             (make-array capacity :displaced-to storage)
@@ -70,20 +76,34 @@ cycle."
                             (%participant-dead-p participant)))
         (%register-resource-auxiliary context (%participant-resource-id participant)
                                       object))
-      (fill (%participant-keys participant) nil)
-      (fill (%participant-values participant) nil)
-      (fill (%participant-dead-p participant) 0)
-      (setf (%participant-count participant) 0
-            (%participant-prepared-p participant) nil)
+      ;; The source index is fixed at construction.  CAPACITY distinct sources
+      ;; can be staged, so SBCL provisions backing for them here and staging
+      ;; never rehashes or allocates.
+      (let ((index (make-hash-table :test #'eq :size capacity
+                                    :rehash-threshold 1.0)))
+        (setf (%participant-index participant) index)
+        (%register-resource-auxiliary context (%participant-resource-id participant)
+                                      index))
+      (%participant-reset-rows participant)
       (values))))
 
-(defun %participant-find (participant model key)
-  "Return the staged row index for KEY, or NIL.  Bounded linear probe over the
-construction-fixed row bound."
-  (dotimes (index (%participant-count participant) nil)
-    (let ((existing (aref (%participant-keys participant) index)))
-      (when (reference-equal model existing key)
-        (return index)))))
+(defun %participant-reset-rows (participant)
+  "Clear staged rows and the source index, leaving the participant unprepared.
+Safe before construction initialization."
+  (setf (%participant-count participant) 0
+        (%participant-prepared-p participant) nil)
+  (when (%participant-keys participant)
+    (fill (%participant-keys participant) nil)
+    (fill (%participant-values participant) nil)
+    (fill (%participant-dead-p participant) 0))
+  (let ((index (%participant-index participant)))
+    (when index (clrhash index)))
+  (values))
+
+(defun %participant-find (participant key)
+  "Return the staged row index for canonical source KEY, or NIL.  O(1) probe of
+the construction-fixed source index; no allocation on the collector path."
+  (gethash key (%participant-index participant)))
 
 (defmethod prepare-movement-participant
     ((participant source-directory-participant) cycle)
@@ -93,17 +113,12 @@ construction-fixed row bound."
   (when (%participant-prepared-p participant)
     (%runtime-reject :fatal-invariant))
   ;; Stage from scratch for this cycle.
-  (setf (%participant-count participant) 0)
-  (fill (%participant-keys participant) nil)
-  (fill (%participant-values participant) nil)
-  (fill (%participant-dead-p participant) 0)
-  (let ((model (configuration-object-model
-                (%cycle-configuration cycle)))
-        (overflow nil)
+  (%participant-reset-rows participant)
+  (let ((overflow nil)
         (ready nil))
     (unwind-protect
          (flet ((row (source value dead)
-                  (let ((index (%participant-find participant model source)))
+                  (let ((index (%participant-find participant source)))
                     (cond (index
                            ;; A source moves or dies once; a later duplicate is
                            ;; a different fact for the same start only if it
@@ -123,7 +138,9 @@ construction-fixed row bound."
                                    (aref (%participant-values participant) index)
                                    value
                                    (aref (%participant-dead-p participant) index)
-                                   (if dead 1 0))
+                                   (if dead 1 0)
+                                   (gethash source (%participant-index participant))
+                                   index)
                              (incf (%participant-count participant))))))))
            (map-cycle-movements cycle (lambda (old new) (row old new nil)))
            ;; Deaths are staged second so a source that both moved and is
@@ -138,8 +155,7 @@ construction-fixed row bound."
       ;; leaves this participant with no staged rows.  It never became ready,
       ;; so the driver's ready-list cancellation cannot reach it.
       (unless ready
-        (setf (%participant-count participant) 0
-              (%participant-prepared-p participant) nil)))
+        (%participant-reset-rows participant)))
     (if overflow
         (values :retained :capacity-exhausted)
         (progn
@@ -150,8 +166,7 @@ construction-fixed row bound."
     ((participant source-directory-participant) cycle)
   (declare (ignore cycle))
   ;; Bounded, non-failing, cycle-idempotent clear of staged state.
-  (setf (%participant-count participant) 0
-        (%participant-prepared-p participant) nil)
+  (%participant-reset-rows participant)
   (values))
 
 (defmethod finish-movement-participant

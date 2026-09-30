@@ -734,6 +734,7 @@ runs BODY zero times."
   (when (and (storage-model storage) (storage-field storage))
     (multiple-value-bind (identity width legal operations orders object-kinds overlaps copy-behavior checkpoint)
         (describe-metadata-field-offer (storage-model storage) (storage-field storage))
+      (declare (ignore object-kinds overlaps))
       (unless (and identity (= width 1) (listp legal) (member 0 legal :test #'eql) (member 1 legal :test #'eql) (listp operations) (member :read operations) (member :write operations) (member :cas operations) (listp orders) (intersection orders '(:relaxed :acquire :release :acq-rel :sequential)) copy-behavior checkpoint)
         (error 'metadata-invalid :metadata storage :fact :invalid-offered-field))))
   storage)

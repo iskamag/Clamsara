@@ -190,7 +190,9 @@
         (check (not (once-prepared participant))
                "Participant stayed prepared after collect"))))
   (let ((participant (make-source-directory-participant :capacity 8)))
-    (with-quality-world (w :algorithm :semispace
+    ;; A nonmoving plan leaves its live sources resolvable, so a manual second
+    ;; prepare can be driven against a real, current cycle.
+    (with-quality-world (w :algorithm :marksweep
                            :movement-participants (list participant))
       (set-world-root w 0 (allocate-node w 1))
       (collect-world w :scope :all)

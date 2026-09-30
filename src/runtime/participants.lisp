@@ -11,7 +11,9 @@
 ;;;;
 ;;;; A participant holds one bounded source-indexed row table: for each distinct
 ;;;; source start, either its destination (a move) or a tombstone (a death), plus
-;;;; a construction-fixed eq index from the canonical start to its row.  Prepare
+;;;; a construction-fixed index from the canonical source byte address to its
+;;;; row.  Identity is the model's opaque address, never a reference object's
+;;;; EQ identity, so a non-interning model deduplicates correctly.  Prepare
 ;;;; stages the rows from the cycle enumerators without touching any published
 ;;;; representation, so precommit cancellation is a bounded clear.
 (in-package #:clamsara)
@@ -24,8 +26,8 @@
    (values :initform nil :accessor %participant-values)
    (dead-p :initform nil :accessor %participant-dead-p)
    (count :initform 0 :accessor %participant-count)
-   ;; Canonical source start -> staged row index.  Preallocated to CAPACITY at
-   ;; construction; staging never grows or rehashes it.
+   ;; Canonical source byte address -> staged row index.  Preallocated to
+   ;; CAPACITY at construction; staging never grows or rehashes it.
    (index :initform nil :accessor %participant-index)
    (prepared-p :initform nil :accessor %participant-prepared-p)))
 
@@ -78,8 +80,9 @@ cycle."
                                       object))
       ;; The source index is fixed at construction.  CAPACITY distinct sources
       ;; can be staged, so SBCL provisions backing for them here and staging
-      ;; never rehashes or allocates.
-      (let ((index (make-hash-table :test #'eq :size capacity
+      ;; never rehashes or allocates.  Addresses are integers, so EQL identity
+      ;; is exact regardless of whether the model interns references.
+      (let ((index (make-hash-table :test #'eql :size capacity
                                     :rehash-threshold 1.0)))
         (setf (%participant-index participant) index)
         (%register-resource-auxiliary context (%participant-resource-id participant)
@@ -101,8 +104,9 @@ Safe before construction initialization."
   (values))
 
 (defun %participant-find (participant key)
-  "Return the staged row index for canonical source KEY, or NIL.  O(1) probe of
-the construction-fixed source index; no allocation on the collector path."
+  "Return the staged row index for canonical source byte address KEY, or NIL.
+O(1) probe of the construction-fixed source index; no allocation on the
+collector path."
   (gethash key (%participant-index participant)))
 
 (defmethod prepare-movement-participant
@@ -114,11 +118,13 @@ the construction-fixed source index; no allocation on the collector path."
     (%runtime-reject :fatal-invariant))
   ;; Stage from scratch for this cycle.
   (%participant-reset-rows participant)
-  (let ((overflow nil)
+  (let ((model (configuration-object-model (%cycle-configuration cycle)))
+        (overflow nil)
         (ready nil))
     (unwind-protect
          (flet ((row (source value dead)
-                  (let ((index (%participant-find participant source)))
+                  (let* ((address (reference-address model source))
+                         (index (%participant-find participant address)))
                     (cond (index
                            ;; A source moves or dies once; a later duplicate is
                            ;; a different fact for the same start only if it
@@ -139,7 +145,7 @@ the construction-fixed source index; no allocation on the collector path."
                                    value
                                    (aref (%participant-dead-p participant) index)
                                    (if dead 1 0)
-                                   (gethash source (%participant-index participant))
+                                   (gethash address (%participant-index participant))
                                    index)
                              (incf (%participant-count participant))))))))
            (map-cycle-movements cycle (lambda (old new) (row old new nil)))

@@ -1481,14 +1481,15 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
   (unless (functionp function) (error "Reference mapper is not callable"))
   (let* ((descriptor (%host-normalized-descriptor-index model start))
          (kind (aref (host-model-descriptor-kinds model) descriptor))
-         (layout (host-object-kind-description-strong-layout kind))
-         (generation (aref (host-model-descriptor-generations model) descriptor)))
+         (layout (host-object-kind-description-strong-layout kind)))
     ;; The strong scanner runs once per live object per cycle; borrow and
-    ;; release each location inline so no per-slot closure is allocated.
+    ;; release each location inline so no per-slot closure is allocated.  The
+    ;; generation is read per slot, exactly as the generic borrow helper does.
     (flet ((scan (identity offset)
              (let ((location
                      (%host-borrow-location
-                      model descriptor generation
+                      model descriptor
+                      (aref (host-model-descriptor-generations model) descriptor)
                       (%host-object-word-index model descriptor offset)
                       identity :strong)))
                (unwind-protect (funcall function identity location)

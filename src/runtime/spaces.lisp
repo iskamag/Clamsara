@@ -440,11 +440,61 @@
    :default-algorithm :semispace :algorithms '(:semispace)))
 
 ;;; ------------------------------------------------------------------
+;;; Marking spaces.
+;;;
+;;; MarkSweep and Immix both retain one logical mark map and share the exact
+;;; claim/mark/commit trace protocol and the mark-based liveness test.  Those
+;;; live here once; each concrete space supplies its own reclamation.
+
+(defclass marking-space (runtime-space)
+  ((marks :initarg :marks :reader %space-marks)))
+
+(defmethod component-dependencies ((space marking-space))
+  (append (call-next-method) (list (%space-marks space))))
+
+(defmethod %space-in-cycle-scope-p ((space marking-space) cycle start)
+  (declare (ignore space start))
+  ;; A nonmoving marking space is traced only under a full stop.
+  (eq (%cycle-scope cycle) :all))
+
+(defmethod trace-object ((space marking-space)
+                         (context sequential-trace-context) start)
+  (multiple-value-bind (status claim reservation)
+      (trace-claim-object context space start)
+    (case status
+      (:seen start)
+      (:failed start)
+      (:first
+       (handler-case
+           (progn
+             ;; Marking the object is the liveness fact; publication is
+             ;; ordered through the context commit.
+             (metadata-set-bit (%space-marks space)
+                               (reference-address (%space-model space) start))
+             (if (eq :complete
+                     (trace-commit-object context claim reservation space start))
+                 start
+                 (progn (trace-fail context :fatal-invariant) start)))
+         (error ()
+           (trace-abandon-object context claim reservation :preflight-failed)
+           start))))))
+
+(defmethod object-live-p ((space marking-space) cycle reference)
+  (declare (ignore cycle))
+  (let ((model (%space-model space)))
+    (if (not (valid-reference-p model reference))
+        nil
+        (multiple-value-bind (start descriptor) (normalize-reference model reference)
+          (declare (ignore descriptor))
+          (and (%space-contains-address-p space (reference-address model start))
+               (marks-active-p (%space-marks space)
+                               (reference-address model start)))))))
+
+;;; ------------------------------------------------------------------
 ;;; MarkSweep.
 
-(defclass marksweep-space (runtime-space)
-  ((marks :initarg :marks :reader %space-marks)
-   (descriptor-capacity :initarg :descriptor-capacity
+(defclass marksweep-space (marking-space)
+  ((descriptor-capacity :initarg :descriptor-capacity
                         :reader %marksweep-descriptor-capacity)
    (free-resource-id :initform (gensym "MARKSWEEP-FREE-")
                      :reader %marksweep-free-resource-id)
@@ -458,9 +508,6 @@
    (reclaim-cursor :initform 0 :accessor %marksweep-reclaim-cursor)
    (reclaim-free-start :initform 0 :accessor %marksweep-reclaim-free-start)
    (reclaim-callback :initform nil :accessor %marksweep-reclaim-callback)))
-
-(defmethod component-dependencies ((space marksweep-space))
-  (append (call-next-method) (list (%space-marks space))))
 
 (defmethod component-resources ((space marksweep-space))
   (let ((entries (* 4 (%marksweep-descriptor-capacity space))))
@@ -529,10 +576,6 @@
                  :extent extent :packing-quantum packing-quantum
                  :descriptor-capacity descriptor-capacity))
 
-(defmethod %space-in-cycle-scope-p ((space marksweep-space) cycle start)
-  (declare (ignore space start))
-  (eq (%cycle-scope cycle) :all))
-
 (defmethod prepare-space ((space marksweep-space) cycle)
   (declare (ignore cycle))
   ;; A stopped cycle prepares a fresh logical mark epoch without changing the
@@ -542,37 +585,6 @@
   (setf (%marksweep-candidate-count space) 0
         (%marksweep-candidate-ready-p space) nil)
   (values))
-
-(defmethod trace-object ((space marksweep-space)
-                         (context sequential-trace-context) start)
-  (multiple-value-bind (status claim reservation)
-      (trace-claim-object context space start)
-    (case status
-      (:seen start)
-      (:failed start)
-      (:first
-       (handler-case
-           (progn
-             (metadata-set-bit (%space-marks space)
-                               (reference-address (%space-model space) start))
-             (if (eq :complete
-                     (trace-commit-object context claim reservation space start))
-                 start
-                 (progn (trace-fail context :fatal-invariant) start)))
-         (error ()
-           (trace-abandon-object context claim reservation :preflight-failed)
-           start))))))
-
-(defmethod object-live-p ((space marksweep-space) cycle reference)
-  (declare (ignore cycle))
-  (let ((model (%space-model space)))
-    (if (not (valid-reference-p model reference))
-        nil
-        (multiple-value-bind (start descriptor) (normalize-reference model reference)
-          (declare (ignore descriptor))
-          (and (%space-contains-address-p space (reference-address model start))
-               (marks-active-p (%space-marks space)
-                               (reference-address model start)))))))
 
 (defun %marksweep-add-free (space start limit)
   (when (< start limit)

@@ -337,7 +337,7 @@ rather than clearing the range (collectors.tex, MarkSweep mark epoch)."
 (defmethod barrier-contribution-after-exposure
     ((contribution generational-remembered-contribution)
      reservation context operation location old final)
-  (declare (ignore context operation old final))
+  (declare (ignore operation old final))
   (unless (eq reservation contribution)
     (%runtime-reject :fatal-invariant))
   (let* ((plan (%gen-contribution-plan contribution))
@@ -509,11 +509,6 @@ rather than clearing the range (collectors.tex, MarkSweep mark epoch)."
   (and (member (%cycle-scope cycle) '(:minor :all) :test #'eq)
        (eq (%semispace-role space) :allocation)))
 
-(defmethod %space-in-cycle-scope-p
-    ((space generational-mature-space) cycle start)
-  (declare (ignore space start))
-  (eq (%cycle-scope cycle) :all))
-
 (defun %reserve-promotion-copy-destination (space cycle start model)
   (let* ((plan (%cycle-plan cycle))
          (destination (%gen-mature plan))
@@ -605,17 +600,17 @@ rather than clearing the range (collectors.tex, MarkSweep mark epoch)."
     (setf (%gen-enumeration-cycle plan) cycle
           (%gen-enumeration-mode plan) :strong)
     (if (%gen-card-active-p plan)
-        (let ((mature (%gen-mature plan))
-              (bound (or (%gen-highest-set-card plan) 0))
-              (end (and (%gen-highest-set-card plan)
-                        (+ (%space-base (%gen-mature plan))
-                           (* (%gen-highest-set-card plan)
-                              (%gen-card-granularity plan))))))
+        (let* ((mature (%gen-mature plan))
+               (highest (%gen-highest-set-card plan))
+               ;; Exclusive byte address of the highest set card.  Every start
+               ;; that intersects a set card lies below it; starts above need no
+               ;; scan (interior slots are card-pruned by the scanner).
+               (end (and highest
+                         (+ (%space-base mature)
+                            (* highest (%gen-card-granularity plan))))))
           (let ((model (%space-model mature)))
             (dotimes (index (%gen-mature-object-count plan))
               (let ((start (aref (%gen-mature-source-starts plan) index)))
-                ;; Paper: skip every allocated start above the highest set
-                ;; card's exclusive end; interior slots are card-pruned below.
                 (when (and end
                            (< (reference-address model start) end))
                   (%gen-scan-card-strong-source plan cycle start))))))

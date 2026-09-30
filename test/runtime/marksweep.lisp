@@ -25,12 +25,17 @@
   (values))
 
 (defun run-marksweep-runtime-tests ()
-  (run-marksweep-lifecycle (function clamsara::make-side-marks) nil)
-  (run-marksweep-lifecycle (function clamsara::make-epoch-marks) t)
+  (run-marksweep-lifecycle :side nil)
+  (run-marksweep-lifecycle :epoch t)
   (format t "~&V14-MARKSWEEP-LIFECYCLE-OK~%")
   t)
 
-(defun run-marksweep-lifecycle (make-marks epoch-p)
+(defun %marks-for (mark-kind domain)
+  (ecase mark-kind
+    (:side (clamsara::make-side-marks :domain domain))
+    (:epoch (clamsara::make-epoch-marks :domain domain))))
+
+(defun run-marksweep-lifecycle (mark-kind epoch-p)
   (let* ((q 16) (extent 1024) (base 4096)
          (roots (clamsara::make-simulator-root-client :provider-capacity 8))
          (application-roots (clamsara::make-simulator-root-provider 1))
@@ -63,7 +68,7 @@
             :name :marksweep
             :object-start-map
             (clamsara::make-object-start-marks :domain domain)
-            :marks (clamsara::make-side-marks :domain domain)
+            :marks (%marks-for mark-kind domain)
             :extent extent :packing-quantum q :descriptor-capacity 64))
          (registry (clamsara::make-sequential-finalizer-registry
                     :capacity 8 :root-client roots))

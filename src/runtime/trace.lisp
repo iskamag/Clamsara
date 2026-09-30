@@ -276,16 +276,17 @@
                  (trace-finish-work context cycle space start))
              (error ()
                ;; The active item deliberately remains active.  A failed scan
-               ;; is not quiescent or reclaimable.
+               ;; is not quiescent or reclaimable.  Report the first published
+               ;; reason when a callback already recorded one.
                (trace-fail context :fatal-invariant)
-               (return (values :failed :fatal-invariant)))))
+               (return (values :failed (%trace-failed-reason context))))))
           (:quiescent (return (values :complete nil)))
           (:failed (return (values :failed (%trace-failed-reason context))))
           (:wait
            ;; No concurrent producer exists in this profile.  WAIT therefore
            ;; denotes an invariant fault rather than a spin or mutator wait.
            (trace-fail context :fatal-invariant)
-           (return (values :failed :fatal-invariant))))))))
+           (return (values :failed (%trace-failed-reason context)))))))))
 
 (defun %record-cycle-movement (cycle old new)
   (let ((index (%cycle-movement-count cycle)))

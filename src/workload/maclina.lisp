@@ -368,53 +368,6 @@ CAR/CDR or storage."
               while (%guest-cons-p environment cursor)
               collect (%guest-car environment cursor)))))
 
-(defun %host-list->guest (environment values)
-  "Copy transient host REST values into managed CONS cells.
-
-The VM's argument-list bridge supplies a host list.  Keep every element in a
-registered slot before the first allocation, and retain the growing result in
-another slot; the host list itself is never used as guest storage.  On
-success slot one holds the result until the caller transfers it to its own
-registered VM/root slot."
-  (let ((count (length values))
-        (completed nil))
-    (unless (<= (+ count 2) (length (workload-root-locations environment)))
-      (error 'workload-capability-error :operation 'rest-list-bridge
-             :reason (list :root-capacity count)))
-    (unwind-protect
-         (progn
-           (loop for value in values
-                 for index from 2
-                 do (%store-temporary-root environment index value))
-           (%store-temporary-root environment 0 nil)
-           (%store-temporary-root environment 1 nil)
-           (loop for index from (1- count) downto 0
-                 do (%allocate-guest
-                     environment :cons 2 nil
-                     (lambda (object)
-                       ;; Save the old result before slot one becomes the new
-                       ;; cell.  Slot zero is owned by WORKLOAD-WRITE-SLOT,
-                       ;; so write CDR first, then CAR.
-                       (%store-temporary-root
-                        environment 0
-                        (workload-temporary-root-load environment 1))
-                       (%store-temporary-root environment 1 object)
-                       (workload-write-slot
-                        environment object :cdr
-                        (workload-temporary-root-load environment 0))
-                       (workload-write-slot
-                        environment object :car
-                        (workload-temporary-root-load environment (+ 2 index))))))
-           (setf completed t)
-           (workload-temporary-root-load environment 1))
-      ;; A failed bridge must not leave a partially-built list hidden in a
-      ;; reserved root.  On success the caller owns the transfer/clear step.
-      (unless completed
-        (%store-temporary-root environment 1 nil))
-      (%store-temporary-root environment 0 nil)
-      (loop for index from 2 below (+ 2 count)
-            do (%store-temporary-root environment index nil)))))
-
 (defun %guest-atom-p (environment value)
   (not (%guest-cons-p environment value)))
 
@@ -444,12 +397,17 @@ BARRIER-READ/STORE."
          (workload-model environment) object index function)
       (%resolver-outcome 'array-element-location result status reason)))
 
-(defun %guest-array-ref (environment array index)
+(defun %check-guest-array-access (environment array index)
+  "Validate ARRAY and INDEX once for both the reference and set paths."
   (unless (%guest-array-p environment array)
     (error 'type-error :datum array :expected-type 'array))
   (unless (and (integerp index) (<= 0 index)
                (< index (%guest-length environment array)))
     (error 'type-error :datum index :expected-type '(integer 0)))
+  (values))
+
+(defun %guest-array-ref (environment array index)
+  (%check-guest-array-access environment array index)
   (if (%guest-array-numeric-p environment array)
       (%with-array-element-location environment array index
                                      (lambda (location)
@@ -461,11 +419,7 @@ BARRIER-READ/STORE."
       (workload-read-slot environment array index)))
 
 (defun %guest-array-set (environment value array index)
-  (unless (%guest-array-p environment array)
-    (error 'type-error :datum array :expected-type 'array))
-  (unless (and (integerp index) (<= 0 index)
-               (< index (%guest-length environment array)))
-    (error 'type-error :datum index :expected-type '(integer 0)))
+  (%check-guest-array-access environment array index)
   (if (%guest-array-numeric-p environment array)
       (%with-array-element-location
        environment array index

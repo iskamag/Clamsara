@@ -18,9 +18,8 @@
 ;;;; in the first run that fits, and a run whose lines are exhausted is skipped.
 (in-package #:clamsara)
 
-(defclass immix-space (runtime-space)
-  ((marks :initarg :marks :reader %space-marks)
-   (line-size :initarg :line-size :reader %immix-line-size)
+(defclass immix-space (marking-space)
+  ((line-size :initarg :line-size :reader %immix-line-size)
    (block-size :initarg :block-size :reader %immix-block-size)
    (line-resource-id :initform (gensym "IMMIX-LINES-")
                      :reader %immix-line-resource-id)
@@ -43,9 +42,6 @@
 
 (defun %immix-line-count (space)
   (ceiling (%space-extent space) (%immix-line-size space)))
-
-(defmethod component-dependencies ((space immix-space))
-  (append (call-next-method) (list (%space-marks space))))
 
 (defmethod component-resources ((space immix-space))
   (let* ((lines (%immix-line-count space))
@@ -192,50 +188,12 @@ reserved extent."
           (%runtime-reject :capacity-exhausted))))
     (values)))
 
-(defmethod %space-in-cycle-scope-p ((space immix-space) cycle start)
-  (declare (ignore space start))
-  (eq (%cycle-scope cycle) :all))
-
 (defmethod prepare-space ((space immix-space) cycle)
   (declare (ignore cycle))
   ;; A fresh logical mark epoch without changing the allocation map.
   (marks-retire (%space-marks space))
   (setf (%immix-candidate-ready-p space) nil)
   (values))
-
-(defmethod trace-object ((space immix-space)
-                         (context sequential-trace-context) start)
-  (multiple-value-bind (status claim reservation)
-      (trace-claim-object context space start)
-    (case status
-      (:seen start)
-      (:failed start)
-      (:first
-       (handler-case
-           (progn
-             ;; Marking the object is the line fact: reclaim derives the lines
-             ;; it spans from this start.  The mark is published only through
-             ;; the context's commit, which also orders the work item.
-             (metadata-set-bit (%space-marks space)
-                               (reference-address (%space-model space) start))
-             (if (eq :complete
-                     (trace-commit-object context claim reservation space start))
-                 start
-                 (progn (trace-fail context :fatal-invariant) start)))
-         (error ()
-           (trace-abandon-object context claim reservation :preflight-failed)
-           start))))))
-
-(defmethod object-live-p ((space immix-space) cycle reference)
-  (declare (ignore cycle))
-  (let ((model (%space-model space)))
-    (if (not (valid-reference-p model reference))
-        nil
-        (multiple-value-bind (start descriptor) (normalize-reference model reference)
-          (declare (ignore descriptor))
-          (and (%space-contains-address-p space (reference-address model start))
-               (marks-active-p (%space-marks space)
-                               (reference-address model start)))))))
 
 ;;; ------------------------------------------------------------------
 ;;; Reclamation: build the complete candidate free-line map.

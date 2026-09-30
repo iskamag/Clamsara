@@ -17,8 +17,7 @@
   (let* ((runtime (make-workload-runtime :extent (* 1024 1024) :root-capacity 1024))
          (env (clamsara::workload-runtime-environment runtime))
          (config (clamsara::workload-runtime-configuration runtime))
-         (plan (clamsara::workload-runtime-plan runtime))
-         (model (clamsara::workload-model env)))
+         (plan (clamsara::workload-runtime-plan runtime)))
     (labels ((ev (form) (workload-eval env form))
              (discharge ()
                (dotimes (i (clamsara::workload-provider-temporary-capacity

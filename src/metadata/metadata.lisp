@@ -392,13 +392,18 @@ runs BODY zero times."
   (let ((start (gensym "START-"))
         (end (gensym "END-"))
         (count (gensym "COUNT-"))
-        (first (gensym "FIRST-")))
+        (first (gensym "FIRST-"))
+        (step (gensym "STEP-")))
     `(multiple-value-bind (,start ,end ,count) (%check-range ,storage ,range)
        (declare (ignore ,end))
        (when (plusp ,count)
          (let ((,first (%address-index ,storage ,start)))
-           (dotimes (,index-var ,count)
-             (let ((,key-var (%canonical-key ,storage (+ ,first ,index-var))))
+           (dotimes (,step ,count)
+             ;; INDEX-VAR and KEY-VAR are bound in the same LET* as the body, so
+             ;; a body may declare either one IGNORE without a warning about a
+             ;; variable from an outer scope.
+             (let* ((,index-var (+ ,first ,step))
+                    (,key-var (%canonical-key ,storage ,index-var)))
                ,@body)))))))
 
 (defun %ensure-logical-value (m key value)
@@ -434,12 +439,42 @@ runs BODY zero times."
                (values observed t))
         (values observed nil))))
 
-(defmethod metadata-ref ((storage scalar-bit-storage) key) (%ensure-initialized storage) (aref (storage-vector storage) (%address-index storage key)))
-(defmethod metadata-set ((storage scalar-bit-storage) key value) (%ensure-initialized storage) (%ensure-writable storage) (%ensure-logical-value storage key value) (setf (aref (storage-vector storage) (%address-index storage key)) value) (%bump-generation storage) value)
-(defmethod metadata-cas ((storage scalar-bit-storage) key old new) (%ensure-initialized storage) (%ensure-writable storage) (%ensure-logical-value storage key new) (let* ((i (%address-index storage key)) (observed (aref (storage-vector storage) i))) (if (metadata-value-equal-p storage key observed old) (progn (setf (aref (storage-vector storage) i) new) (%bump-generation storage) (values observed t)) (values observed nil))))
-(defmethod metadata-ref ((storage side-forwarding) key) (%ensure-initialized storage) (aref (storage-vector storage) (%address-index storage key)))
-(defmethod metadata-set ((storage side-forwarding) key value) (%ensure-initialized storage) (%ensure-writable storage) (%ensure-logical-value storage key value) (setf (aref (storage-vector storage) (%address-index storage key)) value) (%bump-generation storage) value)
-(defmethod metadata-cas ((storage side-forwarding) key old new) (%ensure-initialized storage) (%ensure-writable storage) (%ensure-logical-value storage key new) (let* ((i (%address-index storage key)) (observed (aref (storage-vector storage) i))) (if (metadata-value-equal-p storage key observed old) (progn (setf (aref (storage-vector storage) i) new) (%bump-generation storage) (values observed t)) (values observed nil))))
+;;; Scalar (one array element per cell) storages.  SCALAR-BIT-STORAGE,
+;;; SIDE-FORWARDING and the other forwarding storages share this element-wise
+;;; implementation; only the logical role methods differ.
+(defun %scalar-ref (storage key)
+  (%ensure-initialized storage)
+  (aref (storage-vector storage) (%address-index storage key)))
+(defun %scalar-set (storage key value)
+  (%ensure-initialized storage) (%ensure-writable storage)
+  (%ensure-logical-value storage key value)
+  (setf (aref (storage-vector storage) (%address-index storage key)) value)
+  (%bump-generation storage)
+  value)
+(defun %scalar-cas (storage key old new)
+  (%ensure-initialized storage) (%ensure-writable storage)
+  (%ensure-logical-value storage key new)
+  (let* ((i (%address-index storage key))
+         (observed (aref (storage-vector storage) i)))
+    (if (metadata-value-equal-p storage key observed old)
+        (progn (setf (aref (storage-vector storage) i) new)
+               (%bump-generation storage)
+               (values observed t))
+        (values observed nil))))
+
+(defmethod metadata-ref ((storage scalar-bit-storage) key)
+  (%scalar-ref storage key))
+(defmethod metadata-set ((storage scalar-bit-storage) key value)
+  (%scalar-set storage key value))
+(defmethod metadata-cas ((storage scalar-bit-storage) key old new)
+  (%scalar-cas storage key old new))
+
+(defmethod metadata-ref ((storage side-forwarding) key)
+  (%scalar-ref storage key))
+(defmethod metadata-set ((storage side-forwarding) key value)
+  (%scalar-set storage key value))
+(defmethod metadata-cas ((storage side-forwarding) key old new)
+  (%scalar-cas storage key old new))
 
 ;;; Offered fields use client metadata generics.
 (defun %field-read (storage key) (field-read (storage-model storage) (storage-field storage) key))
@@ -532,10 +567,10 @@ runs BODY zero times."
   ;; the first mutation.  Runtime reset is deliberately not a rollback.  Two
   ;; index-iterating passes avoid materializing any per-cell list.
   (%do-range-cells (index key m range)
-    (declare (ignore index))
+    (declare (ignorable index key))
     (metadata-default-value m key))
   (%do-range-cells (index key m range)
-    (declare (ignore index))
+    (declare (ignorable index key))
     (%reset-cell m key))
   m)
 
@@ -549,7 +584,7 @@ runs BODY zero times."
     (unwind-protect
          (progn
            (%do-range-cells (index key m range)
-             (declare (ignore index))
+             (declare (ignorable index key))
              (setf accumulator (funcall function (metadata-ref m key) accumulator))
              (%assert-unchanged m generation))
            accumulator)
@@ -563,7 +598,7 @@ runs BODY zero times."
     (unwind-protect
          (progn
            (%do-range-cells (index key m range)
-             (declare (ignore index))
+             (declare (ignorable index key))
              (let ((value (metadata-ref m key)))
                (unless (metadata-value-equal-p m key value (metadata-default-value m key))
                  (funcall function key value)
@@ -728,6 +763,9 @@ runs BODY zero times."
     ;; with actual atomic methods rather than inheriting this implementation.
     (error 'metadata-invalid :metadata storage
            :fact :exclusive-storage-cannot-promise-atomicity))
+  ;; Reject a concrete storage whose logical role has no concrete default /
+  ;; validity / equality methods before publication.
+  (%validate-logical-role storage)
   t)
 
 (defmethod validate-component :after ((m metadata) configuration)

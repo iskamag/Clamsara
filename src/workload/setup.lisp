@@ -17,13 +17,19 @@
           (page-size 256) (object-capacity nil)
           (max-object-bytes (* 8 1024 1024))
           (root-capacity 131072) (root-provider-capacity 4)
-          (execution :workload) (allocation-domain :default))
-  "Construct a real semispace workload environment.
+          (execution :workload) (allocation-domain :default)
+          plan-factory plan-extent)
+  "Construct a real workload environment.
 
-This setup provisions fixed CONS/STRUCT kinds and the host model's opaque
-variable-size generic, single-float and integer array kinds, plus scan-zero
-bignums with immediate sign/limb words. Variable sizes use opaque rules and
-indexed layouts, never a slot vector proportional to element count."
+The default plan is the SemiSpace reference collector over two equal `extent`
+byte spaces.  A benchmark that compares collectors may instead supply
+PLAN-FACTORY (a function of the whole space, the metadata domains, and the
+already-constructed roots/coordinator/diagnostics/registry) and PLAN-EXTENT
+(the total managed byte extent).  This setup provisions fixed CONS/STRUCT kinds
+and the host model's opaque variable-size generic, single-float and integer
+array kinds, plus scan-zero bignums with immediate sign/limb words. Variable
+sizes use opaque rules and indexed layouts, never a slot vector proportional to
+element count."
   (unless (and (plusp extent) (plusp quantum) (zerop (mod extent quantum))
                (zerop (mod base quantum)) (> extent (* 2 quantum)))
     (error 'workload-capability-error :operation 'make-workload-runtime
@@ -41,17 +47,37 @@ indexed layouts, never a slot vector proportional to element count."
                            effective-object-capacity
                            required-object-capacity)))
     (let* ((finalizer-capacity 128)
-           (roots (make-simulator-root-client
-                   :provider-capacity root-provider-capacity
-                   ;; Keep application and framework root bounds distinct.
-                   :root-capacity (+ root-capacity (* 2 finalizer-capacity))))
+           (semi-domain-0
+           (make-metadata-domain :base base :limit (+ base extent)
+                                 :granularity quantum))
+         (semi-domain-1
+           (make-metadata-domain :base (+ base extent)
+                                 :limit (+ base (* 2 extent))
+                                 :granularity quantum))
+         (semi-from
+           (make-semispace-space
+            :name :from :object-start-map
+            (make-object-start-marks :domain semi-domain-0)
+            :forwarding (make-side-forwarding :domain semi-domain-0)
+            :extent extent :packing-quantum quantum :role :allocation))
+         (semi-to
+           (make-semispace-space
+            :name :to :object-start-map
+            (make-object-start-marks :domain semi-domain-1)
+            :forwarding (make-side-forwarding :domain semi-domain-1)
+            :extent extent :packing-quantum quantum :role :reserve))
+         (roots (make-simulator-root-client
+                 :provider-capacity root-provider-capacity
+                 ;; Keep application and framework root bounds distinct.
+                 :root-capacity (+ root-capacity (* 2 finalizer-capacity))))
          (root-provider (make-workload-root-provider root-capacity))
          (root-token (register-root-provider roots :workload root-capacity
                                              root-provider))
          (coordinator (make-simulator-coordinator
                        roots :stop-capacity 16384 :await-bound 16384))
+         (managed-extent (or plan-extent (* 2 extent)))
          (address-space (make-simulator-address-space
-                         :base base :byte-extent (* 2 extent)
+                         :base base :byte-extent managed-extent
                          :alignment quantum :page-size page-size
                          :coordinator coordinator))
          (model (make-host-object-model
@@ -117,31 +143,29 @@ indexed layouts, never a slot vector proportional to element count."
                    :model model :roots roots :coordinator coordinator
                    :address-space address-space :atomics atomics
                    :diagnostics diagnostics))
-         (domain-0 (make-metadata-domain
-                    :base base :limit (+ base extent) :granularity quantum))
-         (domain-1 (make-metadata-domain
-                    :base (+ base extent) :limit (+ base (* 2 extent))
-                    :granularity quantum))
-         (from (make-semispace-space
-                :name :from
-                :object-start-map
-                (make-object-start-marks :domain domain-0)
-                :forwarding (make-side-forwarding :domain domain-0)
-                :extent extent :packing-quantum quantum :role :allocation))
-         (to (make-semispace-space
-              :name :to
-              :object-start-map
-              (make-object-start-marks :domain domain-1)
-              :forwarding (make-side-forwarding :domain domain-1)
-              :extent extent :packing-quantum quantum :role :reserve))
          (registry (make-sequential-finalizer-registry
                     :capacity finalizer-capacity :root-client roots))
-         (plan (make-semispace-plan
-                :from-space from :to-space to :root-client roots
+         (plan
+           (if plan-factory
+               ;; A caller-selected collector.  The factory receives the whole
+               ;; managed extent and the shared services; the address-space and
+               ;; model already cover the same [base, base+managed-extent).
+               (funcall plan-factory
+                        :base base :byte-extent managed-extent
+                        :object-capacity effective-object-capacity
+                        :quantum quantum :packing-quantum quantum
+                        :trace-capacity effective-object-capacity
+                        :conditional-capacity 4096
+                        :finalizer-capacity finalizer-capacity
+                        :root-client roots :coordinator coordinator
+                        :diagnostics diagnostics :registry registry)
+               (make-semispace-plan
+                :from-space semi-from :to-space semi-to :root-client roots
                 :coordinator coordinator :diagnostics diagnostics
                 :registry registry :trace-capacity effective-object-capacity
-                :conditional-capacity 4096 :finalizer-capacity finalizer-capacity
-                :packing-quantum quantum))
+                :conditional-capacity 4096
+                :finalizer-capacity finalizer-capacity
+                :packing-quantum quantum)))
          (configuration (construct-plan plan clients))
          (context (bind-mutator configuration execution allocation-domain))
          (kinds (list :cons (make-workload-kind :cons cons-kind 32 quantum)
@@ -185,7 +209,8 @@ indexed layouts, never a slot vector proportional to element count."
      :roots roots :root-provider root-provider :root-token root-token
      :configuration configuration :context context :environment environment
      :model model :clients clients :plan plan :coordinator coordinator
-     :address-space address-space :from-space from :to-space to))))
+     :address-space address-space :from-space (and (not plan-factory) semi-from)
+     :to-space (and (not plan-factory) semi-to)))))
 
 (defun close-workload-runtime (runtime)
   "Collect dead workload payload, then release this runtime's owned services.
@@ -300,4 +325,8 @@ and retry. The discharge collection may move live objects on rejection."
       (close-workload-runtime runtime))))
 
 (export '(workload-runtime make-workload-runtime close-workload-runtime
-          run-workload-smoke))
+          run-workload-smoke
+          workload-runtime-environment workload-runtime-configuration
+          workload-runtime-context workload-runtime-plan
+          workload-runtime-roots workload-runtime-model workload-runtime-coordinator
+          workload-runtime-address-space))

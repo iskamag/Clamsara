@@ -15,11 +15,6 @@
 (defun %checked-target-add (left right maximum path)
   (%checked-target-value (+ left right) maximum path))
 
-(defun %construction-align-up (value alignment maximum path)
-  (let* ((mask (1- alignment))
-         (sum (%checked-target-add value mask maximum path)))
-    (logand sum (lognot mask))))
-
 (defun %offer-exclusion-range (value path)
   ;; The reference sequential offer uses fresh (BASE . EXCLUSIVE-LIMIT)
   ;; intervals.  A two-element proper list is accepted as the same interval.
@@ -204,17 +199,22 @@
 
 (defun %free-range-candidates (placement extent free-intervals target-maximum)
   (let ((alignment (%placement-description-alignment placement))
-        (path (%placement-description-path placement))
+        (mask (1- (%placement-description-alignment placement)))
         (ranges nil))
     (dolist (free free-intervals)
-      (let ((base (%construction-align-up (car free) alignment target-maximum path)))
-        (loop while (and (<= base (cdr free))
-                         (<= extent (- (cdr free) base)))
-              do (push (cons base (+ base extent)) ranges)
-                 (if (or (zerop extent)
-                         (> base (- target-maximum alignment)))
-                     (return)
-                     (incf base alignment)))))
+      ;; Round the free interval's start up to the requested alignment.  If that
+      ;; aligned base would exceed TARGET-MAXIMUM the interval holds no admitted
+      ;; candidate, so skip it rather than signal a spurious target overflow.
+      (let ((rounded (+ (car free) mask)))
+        (unless (> rounded target-maximum)
+          (let ((base (logand rounded (lognot mask))))
+            (loop while (and (<= base (cdr free))
+                             (<= extent (- (cdr free) base)))
+                  do (push (cons base (+ base extent)) ranges)
+                     (if (or (zerop extent)
+                             (> base (- target-maximum alignment)))
+                         (return)
+                         (incf base alignment)))))))
     (nreverse ranges)))
 
 (defun %constraint-values (constraint construction)

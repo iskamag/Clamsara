@@ -495,11 +495,34 @@
                "unsupported target profile was admitted")
     (%ct-check (null *ct-log*) "target rejection caused effects")))
 
+(defun %ct-test-free-range-at-arena-top ()
+  ;; A free interval at the very top of the address space must yield no
+  ;; candidate (or a fitting one) but must never report a spurious arithmetic
+  ;; overflow for a satisfiable placement.
+  (let* ((maximum (1- (ash 1 48)))
+         (placement (%make-placement-description :alignment 16 :path '(:probe))))
+    (flet ((candidates (free)
+             (handler-case
+                 (%free-range-candidates placement 8 (list free) maximum)
+               (construction-rejected (condition)
+                 (list :rejected (construction-rejection-reason condition))))))
+      ;; Interval entirely below the top but not 16-aligned: rounds up within it.
+      (%ct-check (equal '((281474976710640 . 281474976710648))
+                        (candidates (cons 281474976710640 281474976710655)))
+                 "aligned top-of-arena interval did not resolve")
+      ;; A tail interval too short to hold an aligned 8-byte object: no
+      ;; candidate, and specifically not an arithmetic-overflow rejection.
+      (%ct-check (null (candidates (cons 281474976710645 281474976710655)))
+                 "short top-of-arena interval produced a candidate")
+      (%ct-check (null (candidates (cons 281474976710655 281474976710655)))
+                 "empty top-of-arena interval produced a candidate"))))
+
 (defun run-v14-construction-contracts ()
   (%ct-test-success-and-shutdown)
   (%ct-test-failure-unwind)
   (%ct-test-explicit-cycle-cohort)
   (%ct-test-pre-effect-rejections)
+  (%ct-test-free-range-at-arena-top)
   (format t "~&v14 construction contracts: ~D checks passed~%" *ct-checks*)
   t)
 

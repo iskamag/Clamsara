@@ -229,26 +229,40 @@ barriers, ordered-barriers, result schema, and their lookup tables."
           (when (eql (%barrier-description-replacement-policy transformer)
                      :transform)
             (pushnew observer (gethash transformer edges) :test #'eq)))))
-    ;; Stable Kahn order.
-    (let ((remaining (copy-list barriers)) (ordered nil))
-      (loop while remaining
-            for ready =
-              (sort
-               (remove-if-not
-                (lambda (candidate)
-                  (notany (lambda (source)
-                            (and (member source remaining :test #'eq)
-                                 (member candidate (gethash source edges)
-                                         :test #'eq)))
-                          barriers))
-                remaining)
-               #'< :key #'%barrier-description-position)
-            do (unless ready
-                 (%reject :barrier-order-cycle
-                          (mapcar #'%barrier-description-path remaining)))
-               (let ((next (first ready)))
+    ;; Stable Kahn order.  In-degree counters and successor lists replace the
+    ;; per-round rescan of every remaining candidate; among the ready set the
+    ;; smallest position is emitted, matching the previous sort selection.
+    (let ((indegree (make-hash-table :test #'eq))
+          (successors (make-hash-table :test #'eq))
+          (ready nil)
+          (ordered nil))
+      (dolist (barrier barriers)
+        (setf (gethash barrier indegree) 0
+              (gethash barrier successors) nil))
+      (dolist (source barriers)
+        (dolist (target (gethash source edges))
+          (incf (gethash target indegree))
+          (push target (gethash source successors))))
+      (dolist (barrier barriers)
+        (when (zerop (gethash barrier indegree))
+          (push barrier ready)))
+      (loop while ready
+            do (let ((next (reduce (lambda (a b)
+                                     (if (< (%barrier-description-position a)
+                                            (%barrier-description-position b))
+                                         a b))
+                                   ready)))
+                 (setf ready (delete next ready :test #'eq))
                  (push next ordered)
-                 (setf remaining (delete next remaining :test #'eq))))
+                 (dolist (dependent (gethash next successors))
+                   (when (zerop (decf (gethash dependent indegree)))
+                     (push dependent ready)))))
+      (unless (= (length ordered) (length barriers))
+        (%reject :barrier-order-cycle
+                 (mapcar #'%barrier-description-path
+                         (remove-if-not (lambda (barrier)
+                                          (plusp (gethash barrier indegree)))
+                                        barriers))))
       (coerce (nreverse ordered) 'simple-vector))))
 
 (defun %merge-result-schema (results)

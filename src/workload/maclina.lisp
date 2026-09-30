@@ -442,7 +442,7 @@ BARRIER-READ/STORE."
   (multiple-value-bind (result status reason)
         (%call-with-simulator-array-element
          (workload-model environment) object index function)
-      (%resolver-outcome 'array-element-location result status reason))))
+      (%resolver-outcome 'array-element-location result status reason)))
 
 (defun %guest-array-ref (environment array index)
   (unless (%guest-array-p environment array)

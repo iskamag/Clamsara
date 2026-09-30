@@ -236,6 +236,10 @@
    (state :initform :private :accessor %configuration-state)
    (initialization-order :initform nil
                          :accessor %configuration-initialization-order)
+   ;; Tail pointer into INITIALIZATION-ORDER so appending one component is O(1)
+   ;; instead of copying or re-walking the list.
+   (initialization-order-tail :initform nil
+                              :accessor %configuration-initialization-order-tail)
    (shutdown-deactivation-index :initform 0
                                 :accessor %configuration-shutdown-deactivation-index)
    (shutdown-release-index :initform 0

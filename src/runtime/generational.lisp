@@ -40,7 +40,10 @@
    (enumeration-cycle :initform nil :accessor %gen-enumeration-cycle)
    (enumeration-mode :initform nil :accessor %gen-enumeration-mode)
    (nursery-callback :initform nil :accessor %gen-nursery-callback)
-   (mature-callback :initform nil :accessor %gen-mature-callback)))
+   (mature-callback :initform nil :accessor %gen-mature-callback)
+   ;; Fixed minor-scan callback; built once so the per-cycle card scan does not
+   ;; allocate a fresh closure for every mature source.
+   (card-scan-callback :initform nil :accessor %gen-card-scan-callback)))
 
 (defclass generational-remembered-contribution ()
   ((plan :initarg :plan :reader %gen-contribution-plan)))
@@ -179,13 +182,22 @@ rather than clearing the range (collectors.tex, MarkSweep mark epoch)."
             (%gen-mature-callback plan)
             (lambda (key value)
               (declare (ignore value))
-              (%gen-visit-mature-start plan key)))
+              (%gen-visit-mature-start plan key))
+            (%gen-card-scan-callback plan)
+            (lambda (identity location)
+              (let* ((model (%space-model (%gen-mature plan)))
+                     (address (reference-location-object-address model location))
+                     (index (%gen-mature-card-index plan address)))
+                (when (and index (eql 1 (sbit (%gen-card-marks plan) index)))
+                  (funcall (%cycle-strong-callback (%gen-enumeration-cycle plan))
+                           identity location)))))
       (dolist (object (list (%gen-promotion-addresses plan)
                             (%gen-promotion-present plan)
                             (%gen-scratch-starts plan)
                             (%gen-scratch-limits plan)
                             (%gen-nursery-callback plan)
-                            (%gen-mature-callback plan)))
+                            (%gen-mature-callback plan)
+                            (%gen-card-scan-callback plan)))
         (%register-resource-auxiliary
          construction (%gen-state-resource-id plan) object)))
     (multiple-value-bind (objects present-p physical entries auxiliary)
@@ -576,13 +588,8 @@ rather than clearing the range (collectors.tex, MarkSweep mark epoch)."
   ;; pruning slot addresses outside set cards is exactly the three-part rule
   ;; over the authoritative object-start map.
   (let ((model (%space-model (%gen-mature plan))))
-    (map-reference-locations
-     model start
-     (lambda (identity location)
-       (let* ((address (reference-location-object-address model location))
-              (index (%gen-mature-card-index plan address)))
-         (when (and index (eql 1 (sbit (%gen-card-marks plan) index)))
-           (funcall (%cycle-strong-callback cycle) identity location)))))))
+    (map-reference-locations model start (%gen-card-scan-callback plan))
+    (values)))
 
 (defun %gen-highest-set-card (plan)
   ;; Exclusive card index one past the highest set card, or NIL when none is

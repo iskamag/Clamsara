@@ -32,24 +32,56 @@
 
 (defun make-metadata-domain (&key base limit granularity (addressed-p t)
                                   placement-identity key-function)
-  "Make immutable finite addressed metadata geometry.
+  "Make immutable finite metadata geometry.
 
-BASE and LIMIT are the byte-address extent and GRANULARITY the cell size.  The
-specification permits non-address (ordinal) key domains, but no concrete
-storage implements one here, so KEY-FUNCTION and a non-addressed domain are
-rejected rather than accepted and silently ignored."
-  (when (or key-function (not addressed-p))
-    (error 'metadata-invalid :fact :unimplemented-key-domain))
+BASE and LIMIT are the byte-address extent for an addressed domain.  For an
+ordinal domain they are nonnegative integer cell ordinals; no object address is
+guessed by this class.  KEY-FUNCTION, when supplied, maps a cell index to the
+provider's canonical key and is used only for traversal.
+
+Specification note: metadata.tex admits non-address (ordinal) key domains and
+requires a concrete implementation to define canonical keys and coverage.  No
+storage in this tree exercises that path yet, so such a domain is constructed
+here but a storage bound to it reports :UNRESOLVED-BOUNDS at validation."
   (unless (and (integerp granularity) (> granularity 0)
                (if placement-identity (or (null base) (and (integerp base) (>= base 0))) (integerp base))
                (if placement-identity (or (null limit) (and (integerp limit) (>= limit 0)))
                    (and (integerp limit) (<= 0 base limit))))
     (error 'metadata-invalid :fact (list :bad-domain base limit granularity placement-identity)))
+  (unless (or (null key-function) (functionp key-function))
+    (error 'metadata-invalid :fact (list :bad-key-function key-function)))
   (unless (or placement-identity (and (integerp base) (integerp limit)))
     (error 'metadata-invalid :fact :unresolved-domain-needs-placement-identity))
   (make-instance 'metadata-domain :base base :limit limit
                  :granularity granularity :addressed-p addressed-p
                  :placement-identity placement-identity :key-function key-function))
+
+;;; Domain-level accessors.  These are the only places the specification's
+;;; non-address (ordinal / KEY-FUNCTION) domain fields are consulted; the
+;;; storage-level %CANONICAL-KEY / %STORAGE-CELL-COUNT are their addressed
+;;; specializations.  No concrete storage exercises the ordinal path yet, so a
+;;; bound storage reports :UNRESOLVED-BOUNDS at validation instead.
+
+(defun %domain-cell-count (domain)
+  (let ((base (metadata-domain-base domain))
+        (limit (metadata-domain-limit domain))
+        (g (metadata-domain-granularity domain)))
+    (ceiling (- limit base) g)))
+
+(defun %domain-key (domain index)
+  (let ((f (metadata-domain-key-function domain)))
+    (if f (funcall f index)
+        (+ (metadata-domain-base domain)
+           (* index (metadata-domain-granularity domain))))))
+
+(defun %valid-domain-p (domain)
+  (and (typep domain 'metadata-domain)
+       (integerp (metadata-domain-base domain))
+       (integerp (metadata-domain-limit domain))
+       (integerp (metadata-domain-granularity domain))
+       (<= 0 (metadata-domain-base domain)
+           (metadata-domain-limit domain))
+       (> (metadata-domain-granularity domain) 0)))
 
 
 ;;; -------------------------------------------------------------------------
@@ -191,9 +223,8 @@ rejected rather than accepted and silently ignored."
    (keys :initarg :keys :initform nil :reader storage-keys)
    (model :initarg :model :initform nil :reader storage-model)
    (field :initarg :field :initform nil :reader storage-field)
-   (atomics :initarg :atomics :initform nil :reader storage-atomics)
-   (places :initarg :places :initform nil :reader storage-places)
-   (field-description :initform nil :accessor storage-field-description)))
+    (atomics :initarg :atomics :initform nil :reader storage-atomics)
+    (places :initarg :places :initform nil :reader storage-places)))
 
 (defclass packed-bit-storage (metadata-storage range-metadata) ())
 (defclass scalar-bit-storage (metadata-storage range-metadata) ())
@@ -700,12 +731,11 @@ runs BODY zero times."
   (setf (metadata-generation storage) 0 (metadata-initialized-p storage) t) nil)
 
 (defun %validate-field-description (storage)
-  (when (and (storage-model storage) (storage-field storage) (null (storage-field-description storage)))
+  (when (and (storage-model storage) (storage-field storage))
     (multiple-value-bind (identity width legal operations orders object-kinds overlaps copy-behavior checkpoint)
         (describe-metadata-field-offer (storage-model storage) (storage-field storage))
       (unless (and identity (= width 1) (listp legal) (member 0 legal :test #'eql) (member 1 legal :test #'eql) (listp operations) (member :read operations) (member :write operations) (member :cas operations) (listp orders) (intersection orders '(:relaxed :acquire :release :acq-rel :sequential)) copy-behavior checkpoint)
-        (error 'metadata-invalid :metadata storage :fact :invalid-offered-field))
-      (setf (storage-field-description storage) (list identity width legal operations orders object-kinds overlaps copy-behavior checkpoint))))
+        (error 'metadata-invalid :metadata storage :fact :invalid-offered-field))))
   storage)
 
 (defun %validate-logical-role (storage)

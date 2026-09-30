@@ -393,16 +393,16 @@
                          (when (= (- (cdr range) (car range)) extent)
                            (let* ((alias-p (member range alias-ranges
                                                    :test #'equal))
-                                  (solution
-                                    (%make-placement-solution
-                                     :description placement :base (car range)
-                                     :exclusive-limit (cdr range)
-                                     :derived-size
-                                     (and (%placement-description-derived-p
-                                           placement)
-                                          extent)
-                                     :alias-of (and alias-p (copy-list range))
-                                     :object-start-map
+                                   (solution
+                                     (%make-placement-solution
+                                      :description placement :base (car range)
+                                      :exclusive-limit (cdr range)
+                                      :derived-size
+                                      (and (%placement-description-derived-p
+                                            placement)
+                                           extent)
+                                      :alias-of (and alias-p (copy-list range))
+                                      :object-start-map
                                      (%placement-description-object-start-map
                                       placement)))
                                   (new-free

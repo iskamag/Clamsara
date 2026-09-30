@@ -770,7 +770,6 @@ backing it.  Component/client/host objects are registered by their owners."
       (%drain-runtime-for-shutdown configuration)
     (case status
       (:retained
-       (setf (%configuration-shutdown-reason configuration) reason)
        (return-from shutdown-configuration (values :retained reason)))
       (:complete nil)
       (otherwise
@@ -793,6 +792,5 @@ backing it.  Component/client/host objects are registered by their owners."
                (setf (%configuration-shutdown-release-index configuration)
                      (1+ index)))
     (setf (%context-state construction) :released
-          (%configuration-state configuration) :complete
-          (%configuration-shutdown-reason configuration) nil)
+          (%configuration-state configuration) :complete)
     (values :complete nil)))

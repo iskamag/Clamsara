@@ -183,6 +183,10 @@
   address-width exclusions exclusive-limit)
 
 (defstruct (%placement-solution (:constructor %make-placement-solution))
+  ;; construction.tex: "The final solution exposes assigned ranges, free
+  ;; intervals and derived sizes through the construction lookup operations."
+  ;; DERIVED-SIZE is retained for that exposure; no lookup operation reads it
+  ;; yet, so the clause is only partially implemented.
   description base exclusive-limit derived-size alias-of object-start-map)
 
 (defstruct (%resource-state (:constructor %make-resource-state))
@@ -232,12 +236,10 @@
    (state :initform :private :accessor %configuration-state)
    (initialization-order :initform nil
                          :accessor %configuration-initialization-order)
-   (activation-order :initform nil :accessor %configuration-activation-order)
    (shutdown-deactivation-index :initform 0
                                 :accessor %configuration-shutdown-deactivation-index)
    (shutdown-release-index :initform 0
-                           :accessor %configuration-shutdown-release-index)
-   (shutdown-reason :initform nil :accessor %configuration-shutdown-reason)))
+                           :accessor %configuration-shutdown-release-index)))
 
 (defmethod configuration-plan ((configuration %configuration))
   (%configuration-plan configuration))

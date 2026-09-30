@@ -13,8 +13,11 @@ noise is part of the measurement, not removed.
 ```sh
 python3 bench/gabriel/run.py                       # default collectors/workloads
 python3 bench/gabriel/run.py --collectors semispace,immix --workloads takr,deriv
-python3 bench/gabriel/run.py --extent-mib 2 --dynamic-space-mib 4096
+python3 bench/gabriel/run.py --extent-mib 2 --dynamic-space-mib 4096 --repeats 3
 ```
+
+`--repeats N` runs each workload N times and reports the median, which damps
+scheduling jitter on the short workloads. The default is 3.
 
 Outputs (default under `bench/gabriel/results/`, git-ignored):
 
@@ -56,9 +59,11 @@ curve, not for speed.
 
 Per workload the runner records:
 
-- `elapsed` — wall seconds in the workload entrypoint;
-- `host-bytes` — host bytes consed (`sb-ext:get-bytes-consed`) over the run,
-  including the guest compiler, so it is a whole-path figure;
+- `elapsed` — wall seconds in the workload entrypoint only (read/compile is
+  excluded; that is reported separately as `load`);
+- `host-bytes` — host bytes consed (`sb-ext:get-bytes-consed`) over the whole
+  run, including the guest interpreter, so it is a whole-path figure dominated
+  by the interpreter, not by the collector;
 - `gc.count`, `gc.time`, `gc.pause-max` — collection cycles entered, wall time
   inside them, and the longest single pause.
 

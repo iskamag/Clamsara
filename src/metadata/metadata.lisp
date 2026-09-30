@@ -32,45 +32,25 @@
 
 (defun make-metadata-domain (&key base limit granularity (addressed-p t)
                                   placement-identity key-function)
-  "Make immutable finite metadata geometry.
+  "Make immutable finite addressed metadata geometry.
 
-BASE and LIMIT are the byte-address extent for an addressed domain.  For an
-ordinal domain they are still nonnegative integer cell ordinals; no object
-address is guessed by this class.  KEY-FUNCTION, when supplied, maps a cell
-index to the provider's canonical key and is used only for traversal."
+BASE and LIMIT are the byte-address extent and GRANULARITY the cell size.  The
+specification permits non-address (ordinal) key domains, but no concrete
+storage implements one here, so KEY-FUNCTION and a non-addressed domain are
+rejected rather than accepted and silently ignored."
+  (when (or key-function (not addressed-p))
+    (error 'metadata-invalid :fact :unimplemented-key-domain))
   (unless (and (integerp granularity) (> granularity 0)
                (if placement-identity (or (null base) (and (integerp base) (>= base 0))) (integerp base))
                (if placement-identity (or (null limit) (and (integerp limit) (>= limit 0)))
                    (and (integerp limit) (<= 0 base limit))))
     (error 'metadata-invalid :fact (list :bad-domain base limit granularity placement-identity)))
-  (unless (or (null key-function) (functionp key-function))
-    (error 'metadata-invalid :fact (list :bad-key-function key-function)))
   (unless (or placement-identity (and (integerp base) (integerp limit)))
     (error 'metadata-invalid :fact :unresolved-domain-needs-placement-identity))
   (make-instance 'metadata-domain :base base :limit limit
                  :granularity granularity :addressed-p addressed-p
                  :placement-identity placement-identity :key-function key-function))
 
-(defun %domain-cell-count (domain)
-  (let ((base (metadata-domain-base domain))
-        (limit (metadata-domain-limit domain))
-        (g (metadata-domain-granularity domain)))
-    (ceiling (- limit base) g)))
-
-(defun %domain-key (domain index)
-  (let ((f (metadata-domain-key-function domain)))
-    (if f (funcall f index)
-        (+ (metadata-domain-base domain)
-           (* index (metadata-domain-granularity domain))))))
-
-(defun %valid-domain-p (domain)
-  (and (typep domain 'metadata-domain)
-       (integerp (metadata-domain-base domain))
-       (integerp (metadata-domain-limit domain))
-       (integerp (metadata-domain-granularity domain))
-       (<= 0 (metadata-domain-base domain)
-           (metadata-domain-limit domain))
-       (> (metadata-domain-granularity domain) 0)))
 
 ;;; -------------------------------------------------------------------------
 ;;; Logical role protocols.  Role classes are behavioral protocols, not

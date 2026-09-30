@@ -871,12 +871,6 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
            (%host-descriptor-active-p model descriptor)
            descriptor))))
 
-(defun %host-published-descriptor-at-start (model start)
-  (let* ((route (%host-route-at-address model start))
-         (descriptor (and route (%host-descriptor-index-at-start route start))))
-    (and descriptor (%host-descriptor-active-p model descriptor)
-         (%host-route-start-p route start) descriptor)))
-
 (defun simulator-reference-address (reference)
   "Pure hosted reference decoder used by the installed address-space route."
   (and (typep reference 'host-reference)

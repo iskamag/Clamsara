@@ -237,14 +237,21 @@ space/model-consuming group before any component initialization occurs."
     (values pre post)))
 
 (defun %initialize-group (group configuration construction)
-  (dolist (node (%initialization-group-nodes group))
-    (let ((component (%component-node-component node)))
-      ;; Begun is recorded before entry, so partial initialization unwinds.
-      (setf (%configuration-initialization-order configuration)
-            (append (%configuration-initialization-order configuration)
-                    (list component)))
-      (initialize-component component construction)
-      (setf (%component-node-initialized-p node) t))))
+  ;; Grow the stored initialization order in place via a tail pointer instead
+  ;; of copying the whole list per component (quadratic in group size).  Each
+  ;; component is still appended and published before its INITIALIZE-COMPONENT
+  ;; call, so partial initialization unwinds correctly.
+  (let* ((head (%configuration-initialization-order configuration))
+         (tail (last head)))
+    (dolist (node (%initialization-group-nodes group))
+      (let ((component (%component-node-component node))
+            (cell (list nil)))
+        (setf (car cell) component)
+        (if tail (setf (cdr tail) cell) (setf head cell))
+        (setf tail cell
+              (%configuration-initialization-order configuration) head)
+        (initialize-component component construction)
+        (setf (%component-node-initialized-p node) t)))))
 
 (defun %bind-configuration-object-model
     (nodes offered-model configuration construction)

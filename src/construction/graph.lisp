@@ -466,24 +466,39 @@
                 (push dependency-group dependencies)))))
         (setf (%initialization-group-dependencies group)
               (sort dependencies #'< :key #'%initialization-group-index))))
-    ;; Stable Kahn order with dependencies before consumers.
-    (let ((remaining (copy-list groups)) (ordered nil))
-      (loop while remaining
-            for ready = (sort
-                         (remove-if-not
-                          (lambda (group)
-                            (every (lambda (dependency)
-                                     (member dependency ordered :test #'eq))
-                                   (%initialization-group-dependencies group)))
-                          remaining)
-                         #'< :key #'%initialization-group-index)
-            do (unless ready
-                 (%reject :cohort-dependency-cycle
-                          (mapcar (lambda (group)
-                                    (mapcar #'%component-node-path
-                                            (%initialization-group-nodes group)))
-                                  remaining)))
-               (let ((next (first ready)))
-                 (setf remaining (delete next remaining :test #'eq)
-                       ordered (append ordered (list next)))))
-      ordered)))
+    ;; Stable Kahn order with dependencies before consumers.  In-degree
+    ;; counters avoid re-scanning every remaining group each round; among the
+    ;; ready set the smallest group index is emitted, matching the previous
+    ;; sort-by-index selection exactly.
+    (let ((indegree (make-hash-table :test #'eq))
+          (dependents (make-hash-table :test #'eq))
+          (ready nil)
+          (ordered nil))
+      (dolist (group groups)
+        (setf (gethash group indegree)
+              (length (%initialization-group-dependencies group)))
+        (dolist (dependency (%initialization-group-dependencies group))
+          (push group (gethash dependency dependents))))
+      (dolist (group groups)
+        (when (zerop (gethash group indegree))
+          (push group ready)))
+      (loop while ready
+            do (let ((next (reduce (lambda (a b)
+                                     (if (< (%initialization-group-index a)
+                                            (%initialization-group-index b))
+                                         a b))
+                                   ready)))
+                 (setf ready (delete next ready :test #'eq))
+                 (push next ordered)
+                 (dolist (dependent (gethash next dependents))
+                   (when (zerop (decf (gethash dependent indegree)))
+                     (push dependent ready)))))
+      (unless (= (length ordered) (length groups))
+        (%reject :cohort-dependency-cycle
+                 (mapcar (lambda (group)
+                           (mapcar #'%component-node-path
+                                   (%initialization-group-nodes group)))
+                         (remove-if-not (lambda (group)
+                                          (plusp (gethash group indegree)))
+                                        groups))))
+      (nreverse ordered))))

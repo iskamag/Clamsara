@@ -477,6 +477,20 @@
         (%plan-state plan) :initialized)
   (values))
 
+(defgeneric %plan-required-work-capacity (plan))
+
+(defmethod %plan-required-work-capacity ((plan sequential-runtime-plan))
+  "Cells one cycle can discover: SemiSpace's roles are mutually exclusive source
+domains, so the greater equals the largest space; every other plan trusts all of
+its co-resident spaces and needs their sum."
+  (if (typep plan 'semispace-plan)
+      (loop for space in (%plan-spaces plan)
+            maximize (ceiling (%space-extent space)
+                              (%space-packing-quantum space)))
+      (loop for space in (%plan-spaces plan)
+            sum (ceiling (%space-extent space)
+                         (%space-packing-quantum space)))))
+
 (defmethod validate-component ((plan sequential-runtime-plan) configuration)
   (unless (eq configuration (%plan-configuration plan))
     (%runtime-reject :foreign-configuration))
@@ -484,16 +498,8 @@
     (%runtime-reject :foreign-plan))
   (unless (configuration-object-model configuration)
     (%runtime-reject :unbound-object-model))
-  (let ((required
-          (if (typep plan 'semispace-plan)
-              (loop for space in (%plan-spaces plan)
-                    maximize (ceiling (%space-extent space)
-                                      (%space-packing-quantum space)))
-              (loop for space in (%plan-spaces plan)
-                    sum (ceiling (%space-extent space)
-                                 (%space-packing-quantum space))))))
-    (when (> required (%plan-trace-capacity plan))
-      (%runtime-reject :invalid-trace-capacity)))
+  (when (> (%plan-required-work-capacity plan) (%plan-trace-capacity plan))
+    (%runtime-reject :invalid-trace-capacity))
   (values))
 
 (defmethod activate-component ((plan sequential-runtime-plan) context)

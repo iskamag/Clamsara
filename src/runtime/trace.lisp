@@ -1,10 +1,18 @@
 ;;;; Shared sequential reference dispatcher, claims, work and discovery replay.
 (in-package #:clamsara)
 
+;;; A plan may exclude a space from tracing even under an admitted scope.  The
+;;; required reference plans trust every space under :ALL; NoGC trusts none, so
+;;; its objects keep their exact encodings and no reclaim work is generated.
+(defgeneric %plan-trusts-space-in-cycle-p (plan space))
+(defmethod %plan-trusts-space-in-cycle-p ((plan sequential-runtime-plan) space)
+  (declare (ignore plan space)) t)
+
 (defgeneric %space-in-cycle-scope-p (space cycle start))
 (defmethod %space-in-cycle-scope-p ((space component) cycle start)
-  (declare (ignore space start))
-  (eq (%cycle-scope cycle) :all))
+  (declare (ignore start))
+  (and (eq (%cycle-scope cycle) :all)
+       (%plan-trusts-space-in-cycle-p (%cycle-plan cycle) space)))
 
 (defun %reset-trace-context (context scope)
   (let* ((capacity (%trace-capacity context))

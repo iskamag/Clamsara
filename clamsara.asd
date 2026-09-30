@@ -53,7 +53,7 @@
   :depends-on (:clamsara/host-base)
   :serial t
   :components ((:module "src/runtime" :serial t
-                :components ((:file "protocol") (:file "records") (:file "barrier") (:file "finalizers") (:file "trace") (:file "participants") (:file "spaces") (:file "cycle") (:file "allocation") ))))
+                :components ((:file "protocol") (:file "records") (:file "barrier") (:file "finalizers") (:file "trace") (:file "participants") (:file "spaces") (:file "nogc") (:file "immix") (:file "cycle") (:file "allocation") ))))
 
 (asdf:defsystem :clamsara/construction/test
   :version "0.1.0"
@@ -234,6 +234,8 @@
   :serial t
   :components ((:file "test/metadata/metadata") (:file "test/runtime/semispace")
                (:file "test/runtime/marksweep")
+               (:file "test/runtime/nogc")
+               (:file "test/runtime/immix")
                (:file "test/runtime/retained-failure")
                (:file "test/metadata/semispace"))
   :perform (asdf:test-op (operation component)
@@ -242,6 +244,10 @@
                           (uiop:symbol-call :clamsara.runtime.test :run-v14-runtime-tests)
                           (uiop:symbol-call :clamsara.runtime.marksweep.test
                                             :run-marksweep-runtime-tests)
+                          (uiop:symbol-call :clamsara.runtime.nogc.test
+                                            :run-nogc-runtime-tests)
+                          (uiop:symbol-call :clamsara.runtime.immix.test
+                                            :run-immix-runtime-tests)
                           (uiop:symbol-call :clamsara.metadata.semispace.test
                                             :run-metadata-semispace-runtime-tests)
                           (uiop:symbol-call :clamsara.runtime.retained-failure.test

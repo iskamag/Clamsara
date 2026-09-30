@@ -29,8 +29,15 @@
    #:make-host-atomics
    #:make-semispace-space
    #:make-semispace-plan
+   #:make-nogc-space
+   #:make-nogc-plan
    #:make-marksweep-space
    #:make-marksweep-plan
+   #:make-immix-space
+   #:make-immix-plan
+   #:make-generational-nursery-space
+   #:make-generational-mature-space
+   #:make-generational-plan
    #:make-sequential-finalizer-registry
    #:activate-component
    #:allocate-object

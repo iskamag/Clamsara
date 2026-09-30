@@ -17,13 +17,6 @@
 
 (defclass nogc-space (runtime-space) ())
 
-(defmethod component-resources ((space nogc-space))
-  (list (make-resource-contribution
-         space (%space-state-resource-id space) :runtime-object-vector
-         :minimum-physical-bytes 16 :logical-entry-bound 0
-         :auxiliary-bytes 1024 :allocation-context :construction-only
-         :exhaustion-action :reject-before-publication)))
-
 (defmethod initialize-component :after ((space nogc-space) context)
   (let ((allocator (make-instance 'bump-runtime-allocator :space space)))
     (setf (%allocator-cursor allocator) (%space-base space)

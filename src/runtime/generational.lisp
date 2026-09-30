@@ -576,7 +576,7 @@ rather than clearing the range (collectors.tex, MarkSweep mark epoch)."
                   (%marksweep-reclaim-free-start mature) end)))))))
   (values))
 
-(defun %gen-scan-card-strong-source (plan cycle start)
+(defun %gen-scan-card-strong-source (plan start)
   ;; Paper rule (collectors.tex): a set card scans the allocated predecessor
   ;; whose extent overlaps it and every allocated start below its exclusive end,
   ;; with only strong slots that intersect the card.  Since a whole mature
@@ -617,7 +617,7 @@ rather than clearing the range (collectors.tex, MarkSweep mark epoch)."
               (let ((start (aref (%gen-mature-source-starts plan) index)))
                 (when (and end
                            (< (reference-address model start) end))
-                  (%gen-scan-card-strong-source plan cycle start))))))
+                  (%gen-scan-card-strong-source plan start))))))
         ;; No exact card coverage: conservatively scan every mature source.
         (dotimes (index (%gen-mature-object-count plan))
           (map-reference-locations

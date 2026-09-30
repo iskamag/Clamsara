@@ -1487,27 +1487,31 @@ caller ABI is MAX-INTERIOR-DISPLACEMENT."
   (unless (functionp function) (error "Reference mapper is not callable"))
   (let* ((descriptor (%host-normalized-descriptor-index model start))
          (kind (aref (host-model-descriptor-kinds model) descriptor))
-         (layout (host-object-kind-description-strong-layout kind)))
-    (if (typep layout 'host-indexed-layout)
-        (let ((count (aref (host-model-descriptor-counts model) descriptor))
-              (identity-base (host-indexed-layout-identity-base layout))
-              (identity-function
-                (host-indexed-layout-identity-function layout))
-              (base-offset (host-indexed-layout-base-offset layout))
-              (stride (host-indexed-layout-element-word-bytes layout)))
-          (dotimes (index count)
-            (let ((identity
-                    (funcall identity-function (+ identity-base index))))
-              (%host-call-with-borrowed-object-location
-               model descriptor identity :strong (+ base-offset (* index stride))
-               (lambda (location) (funcall function identity location))))))
-        (loop for slot across layout
-              do (let ((identity (host-slot-description-identity slot)))
-                   (%host-call-with-borrowed-object-location
-                    model descriptor identity :strong
-                    (host-slot-description-offset slot)
-                    (lambda (location)
-                      (funcall function identity location)))))))
+         (layout (host-object-kind-description-strong-layout kind))
+         (generation (aref (host-model-descriptor-generations model) descriptor)))
+    ;; The strong scanner runs once per live object per cycle; borrow and
+    ;; release each location inline so no per-slot closure is allocated.
+    (flet ((scan (identity offset)
+             (let ((location
+                     (%host-borrow-location
+                      model descriptor generation
+                      (%host-object-word-index model descriptor offset)
+                      identity :strong)))
+               (unwind-protect (funcall function identity location)
+                 (%host-release-location location)))))
+      (if (typep layout 'host-indexed-layout)
+          (let ((count (aref (host-model-descriptor-counts model) descriptor))
+                (identity-base (host-indexed-layout-identity-base layout))
+                (identity-function
+                  (host-indexed-layout-identity-function layout))
+                (base-offset (host-indexed-layout-base-offset layout))
+                (stride (host-indexed-layout-element-word-bytes layout)))
+            (dotimes (index count)
+              (scan (funcall identity-function (+ identity-base index))
+                    (+ base-offset (* index stride)))))
+          (loop for slot across layout
+                do (scan (host-slot-description-identity slot)
+                         (host-slot-description-offset slot))))))
   (values))
 
 (defmethod map-weak-descriptors

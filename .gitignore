@@ -8,3 +8,4 @@ slop-archives
 *~
 agent-board
 bench/gabriel/results/
+__pycache__/

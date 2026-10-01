@@ -40,6 +40,13 @@
             (sb-mop:generic-function-methods generic))))
   #-sbcl (%runtime-reject :unsupported-barrier-method-admission))
 
+(defun %barrier-event-driver-supported-p (event)
+  "Which admitted barrier events this required sequential profile drives.
+:ROOT-READ is a declared event whose only driver, ROOT-PROVIDER-READ, belongs to
+the optional selective-exposure profile; admitting it here would compose a rule
+that never runs."
+  (member event '(:read :store :cas :root-store :bulk) :test #'eq))
+
 (defun make-composed-barrier (ordered-actuals ordered-facts model)
   (unless (and (vectorp ordered-actuals) (vectorp ordered-facts)
                (= (length ordered-actuals) (length ordered-facts)))
@@ -53,6 +60,11 @@
                    (or (listp events) (vectorp events))
                    (member policy '(:observe :transform :observe-final)))
         (%runtime-reject :invalid-barrier-composition))
+      ;; Every admitted event must name a driver entry this profile installs;
+      ;; otherwise the rule composes and can never execute.
+      (dolist (event (coerce events 'list))
+        (unless (%barrier-event-driver-supported-p event)
+          (%runtime-reject :unsupported-barrier-event)))
       ;; The paper does not settle shared-vs-separate reservation/callback
       ;; ownership for a dual READ+CAS contribution. Do not choose a contract
       ;; by allocating more scratch. Reject before publishing this composition.
@@ -130,6 +142,11 @@
       (cond ((%barrier-event-p barrier index :read) :read)
             ((%barrier-event-p barrier index :cas) :cas))
       (when (%barrier-event-p barrier index operation) operation)))
+
+(defun %barrier-bulk-locations-p (locations)
+  "A bulk operand is a nonempty proper sequence of writable locations."
+  (and (typep locations 'sequence)
+       (plusp (length locations))))
 
 (defun %check-context-barrier-storage (context count)
   (unless (and (slot-boundp context 'barrier-reservations)
@@ -325,6 +342,63 @@
                      matched-p :complete)))
       (%finish-barrier-invocation barrier context outcome guard-owned-p))))
 
+(defun %execute-barrier-bulk-operation (barrier context locations new-values)
+  "One aggregate :BULK insertion over LOCATIONS with NEW-VALUES.
+
+Every applicable :BULK rule reserves, admits, transforms and is exposed exactly
+once for the whole operation; the driver then writes the sole raw store per
+location.  A :BULK rule sees the equal-length location/old/candidate sequences,
+so it either processes the exact layout under one aggregate reservation or
+lowers internally to scalar work.  Scalar :STORE rules are not part of a bulk
+operation."
+  (%validate-barrier-entry barrier context)
+  (unless (eq (%context-barrier-state context) :idle)
+    (return-from %execute-barrier-bulk-operation (values nil :retry)))
+  (let ((count (length locations)))
+    (unless (and (%barrier-bulk-locations-p locations)
+                 (typep new-values 'sequence) (= (length new-values) count))
+      (%runtime-reject :invalid-bulk-operation)))
+  (%check-context-barrier-storage context (length (%barrier-contributions barrier)))
+  (let ((outcome nil) (guard-owned-p nil) (count (length locations)))
+    (setf (%context-barrier-state context) :pre-effect)
+    (incf (%plan-barrier-pin-count (%context-plan context)))
+    (unwind-protect
+         (macrolet ((retry ()
+                      '(progn (setf outcome :retry)
+                              (return-from %execute-barrier-bulk-operation
+                                (values nil :retry)))))
+           (fill (%context-barrier-reservations context) nil)
+           (fill (%context-barrier-reserved-p context) nil)
+           (when (eq (%reserve-barrier-path barrier context :bulk locations) :retry)
+             (retry))
+           (when (%barrier-busy-p barrier) (retry))
+           (setf (%barrier-busy-p barrier) t guard-owned-p t)
+           (when (eq (%admit-barrier-path barrier context :bulk locations) :retry)
+             (retry))
+           (let ((old (map 'simple-vector
+                           (lambda (location)
+                             (%barrier-raw-load barrier location :store))
+                           locations))
+                 (final new-values))
+             (%check-barrier-still-open barrier context)
+             (multiple-value-bind (value status)
+                 (%transform-barrier-path barrier context :bulk locations
+                                          old new-values)
+               (when (eq status :retry) (retry))
+               (setf final value))
+             (setf (%context-barrier-state context) :exposing)
+             (%barrier-exposure-callbacks
+              barrier context :bulk locations old old final t)
+             (dotimes (position count)
+               (%barrier-raw-store barrier (elt locations position)
+                                   (elt final position) :store))
+             (%check-barrier-still-open barrier context)
+             (%barrier-exposure-callbacks
+              barrier context :bulk locations old old final nil))
+           (setf outcome :complete)
+           (values count :stored))
+      (%finish-barrier-invocation barrier context outcome guard-owned-p))))
+
 (defun %barrier-store-operation (barrier context location new operation)
   (multiple-value-bind (value matched-p status)
       (%execute-barrier-operation barrier context location operation nil new)
@@ -347,12 +421,21 @@
      location expected new)
   (%execute-barrier-operation barrier context location :cas expected new))
 
+(defmethod barrier-bulk-store ((barrier composed-barrier)
+                               (context sequential-execution-context)
+                               locations new-values)
+  (%execute-barrier-bulk-operation barrier context locations new-values))
+
 (defmethod barrier-store ((barrier composed-barrier) context location new)
   (declare (ignore barrier context location new))
   (%runtime-reject :foreign-context))
 
 (defmethod barrier-read ((barrier composed-barrier) context location)
   (declare (ignore barrier context location))
+  (%runtime-reject :foreign-context))
+
+(defmethod barrier-bulk-store ((barrier composed-barrier) context locations new-values)
+  (declare (ignore barrier context locations new-values))
   (%runtime-reject :foreign-context))
 
 (defmethod barrier-compare-exchange

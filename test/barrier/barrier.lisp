@@ -227,6 +227,48 @@
              "missing contribution methods were admitted: ~S" reason)
     t))
 
+(defun test-bulk-store-drives-bulk-rule ()
+  ;; A :BULK rule reserves, admits, transforms and is exposed once for the whole
+  ;; aggregate operation, and the driver writes the raw store per location.
+  (let* ((model (make-instance 'test-barrier-model :value :old))
+         (contribution (%make-contribution :bulk-rule))
+         (barrier (%barrier model (list contribution)
+                            (list (%facts '(:bulk) :observe))))
+         (context (%context 1 barrier)))
+    (multiple-value-bind (count status)
+        (barrier-bulk-store barrier context (list :a :b :c) (list :x :y :z))
+      (%assert (and (eql 3 count) (eq :stored status))
+               "bulk store returned ~S/~S" count status))
+    (%assert (= 1 (%count-events contribution :reserve))
+             "bulk rule reserved ~D times" (%count-events contribution :reserve))
+    (%assert (= 1 (%count-events contribution :admit))
+             "bulk rule admitted ~D times" (%count-events contribution :admit))
+    (%assert (= 1 (%count-events contribution :before))
+             "bulk rule before-exposure ran ~D times"
+             (%count-events contribution :before))
+    (%assert (= 1 (%count-events contribution :after))
+             "bulk rule after-exposure ran ~D times"
+             (%count-events contribution :after))
+    (%assert (= 3 (test-model-stores model))
+             "bulk store wrote ~D raw slots" (test-model-stores model))
+    t))
+
+(defun test-undeclared-driver-event-rejected ()
+  ;; :ROOT-READ is a declared event with no required-profile driver entry.
+  ;; Admitting it would compose a rule that never runs.
+  (let ((reason
+          (handler-case
+              (progn
+                (%barrier (make-instance 'test-barrier-model :value nil)
+                          (list (%make-contribution :root-read))
+                          (list (%facts '(:root-read) :observe)))
+                nil)
+            (clamsara::runtime-rejection (condition)
+              (clamsara::runtime-rejection-reason condition)))))
+    (%assert (eq reason :unsupported-barrier-event)
+             "driverless event admitted: ~S" reason)
+    t))
+
 (defun test-store-order-and-observe-final ()
   (let* ((model (make-instance 'test-barrier-model :value 0))
          (first (%make-contribution :first
@@ -494,6 +536,8 @@
        (progn
          (test-composition-rejects-missing-methods)
          (test-invalid-contexts-rejected)
+         (test-bulk-store-drives-bulk-rule)
+         (test-undeclared-driver-event-rejected)
          (test-store-order-and-observe-final)
          (test-store-retry-and-reverse-cancellation)
          (test-cas-mismatch-and-success)

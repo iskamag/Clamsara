@@ -59,6 +59,7 @@
    #:barrier-contribution-reserve
    #:barrier-contribution-transform
    #:barrier-read
+   #:barrier-bulk-store
    #:barrier-store
    #:begin-collector-checkpoint
    #:begin-trace-context

@@ -30,6 +30,7 @@
 (defgeneric barrier-store (barrier context location new))
 (defgeneric barrier-compare-exchange (barrier context location expected new))
 (defgeneric barrier-read (barrier context location))
+(defgeneric barrier-bulk-store (barrier context locations new-values))
 (defgeneric barrier-contribution-reserve
     (contribution context operation location))
 (defgeneric barrier-contribution-admit

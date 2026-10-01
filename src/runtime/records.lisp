@@ -524,6 +524,14 @@ its co-resident spaces and needs their sum."
     (%runtime-reject :unbound-object-model))
   (when (> (%plan-required-work-capacity plan) (%plan-trace-capacity plan))
     (%runtime-reject :invalid-trace-capacity))
+  ;; A cycle stages at most one record per live finalizer registration, so the
+  ;; plan's FINALIZER-CAPACITY must cover the bound registry's live capacity.
+  ;; Otherwise a full registry makes %stage-finalizer-registration overflow its
+  ;; staging vector and the cycle retains :WEAK-STORAGE-EXHAUSTED at a legal
+  ;; registration load (construction.tex charges the F-entry staging account).
+  (when (> (%registry-capacity (%plan-registry plan))
+           (%plan-finalizer-capacity plan))
+    (%runtime-reject :invalid-finalizer-capacity))
   (values))
 
 (defmethod activate-component ((plan sequential-runtime-plan) context)

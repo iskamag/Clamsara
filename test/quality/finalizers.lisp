@@ -275,8 +275,28 @@
    (lambda () (make-sequential-finalizer-registry :capacity 2 :registration-capacity 1))
    :invalid-finalizer-capacity))
 
+(defun run-plan-registry-capacity-coupling ()
+  ;; A cycle stages one record per live finalizer registration, so a plan whose
+  ;; FINALIZER-CAPACITY is below the bound registry's live capacity can overflow
+  ;; its staging vector at a legal registration load.  Construction must reject
+  ;; that coupling before publication.
+  (signals-runtime-reason
+   (lambda ()
+     (let ((world (make-quality-world
+                   :algorithm :semispace :extent 2048 :packing-quantum 16
+                   :trace-capacity 256 :conditional-capacity 64
+                   :finalizer-capacity 16
+                   :configure-plan
+                   (lambda (plan)
+                     ;; Lower only the plan's staging bound, below the registry.
+                     (setf (slot-value plan 'clamsara::finalizer-capacity) 2)))))
+       (close-quality-world world)))
+   :invalid-finalizer-capacity)
+  t)
+
 (defun run-finalizer-registration-tests ()
   (run-registration-capacity-admission)
+  (run-plan-registry-capacity-coupling)
   (run-profile
    (lambda (algorithm starts)
      (run-cancel-reuse algorithm starts)

@@ -141,11 +141,41 @@
                                        (immix-world-context world)))
           "Immix mutator did not unbind"))
 
+(defun run-immix-cancel-restores-scan-cursor ()
+  "A cancelled reservation must not let the next run selection hand back an
+occupied run.  The allocator snapshots both the byte and the run-scan cursor, so
+a cancel after selecting the first run restores the scan cursor too."
+  (let* ((world (make-immix-world :line-size 64 :block-size 256 :extent 4096))
+         (space (immix-world-space world))
+         (allocator (clamsara::%space-allocator space))
+         (base (clamsara::%space-base space)))
+    ;; Fill the first run with live reservations (no collection runs, so they
+    ;; stay authoritative), then cancel one and allocate again.
+    (dotimes (index 120)
+      (multiple-value-bind (address ok)
+          (allocate-raw allocator 32 16 :node)
+        (%check ok "raw allocation ~D failed" index)
+        (%check (= address (+ base (* index 32))) "unexpected raw address")))
+    (let ((before (clamsara::%allocator-cursor allocator)))
+      (multiple-value-bind (address ok)
+          (allocate-raw allocator 32 16 :node)
+        (%check ok "reservation failed")
+        (clamsara::%cancel-raw-allocation allocator)
+        (%check (= (clamsara::%allocator-cursor allocator) before)
+                "cancel did not restore the byte cursor"))
+      ;; The next request that cannot fit the remainder must not reuse an
+      ;; occupied run; with the whole space reserved it simply fails.
+      (multiple-value-bind (address ok)
+          (allocate-raw allocator 2048 16 :node)
+        (%check (not ok) "cancel let a fresh run reuse occupied lines: ~S" address)))
+    t))
+
 (defun run-immix-runtime-tests ()
   (run-immix-reclamation)
   (run-immix-floating-garbage)
   (run-immix-partial-line)
   (run-immix-geometry-rejection)
+  (run-immix-cancel-restores-scan-cursor)
   (format t "~&V14-IMMIX-LIFECYCLE-OK~%")
   t)
 

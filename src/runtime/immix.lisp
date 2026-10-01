@@ -274,7 +274,11 @@ reserved extent."
            (start (%align-up old alignment))
            (end (+ start bytes)))
       (when (and (>= end start) (<= end (%allocator-limit allocator)))
+        ;; Snapshot BOTH cursors, not only the byte cursor: a cancel must
+        ;; restore the run-scan cursor too, or the next run selection rescans
+        ;; from a stale line and hands back an occupied run.
         (setf (%allocator-last-cursor allocator) old
+              (%immix-last-cursor-line allocator) (%immix-cursor-line allocator)
               (%allocator-cursor allocator) end
               (%allocator-last-valid-p allocator) t)
         (return (values start t))))

@@ -1,7 +1,7 @@
 ;;;; Optional paper-v14 sequential generational composition.
 (in-package #:clamsara)
 
-(defclass generational-nursery-space (semispace-space) ())
+(defclass generational-nursery-space (copying-space) ())
 (defclass generational-mature-space (marksweep-space) ())
 
 (defclass generational-plan (sequential-runtime-plan)
@@ -239,15 +239,15 @@ rather than clearing the range (collectors.tex, MarkSweep mark epoch)."
          (to (%gen-nursery-to plan))
          (mature (%gen-mature plan))
          (q (%plan-packing-quantum plan)))
-    (unless (and (typep from 'generational-nursery-space)
-                 (typep to 'generational-nursery-space)
+    (unless (and (typep from 'copying-space)
+                 (typep to 'copying-space)
                  (typep mature 'generational-mature-space)
                  (= (%space-extent from) (%space-extent to))
                  (= (%space-packing-quantum from) q)
                  (= (%space-packing-quantum to) q)
                  (= (%space-packing-quantum mature) q)
-                 (eq (%semispace-role from) :allocation)
-                 (eq (%semispace-role to) :reserve))
+                 (eq (%copying-role from) :allocation)
+                 (eq (%copying-role to) :reserve))
       (%runtime-reject :invalid-generational-spaces)))
   (values))
 
@@ -256,22 +256,22 @@ rather than clearing the range (collectors.tex, MarkSweep mark epoch)."
           registry trace-capacity conditional-capacity finalizer-capacity
           packing-quantum allocation-routes card-granularity
           movement-participants)
-  (unless (and (typep nursery-from 'generational-nursery-space)
-               (typep nursery-to 'generational-nursery-space)
+  (unless (and (typep nursery-from 'copying-space)
+               (typep nursery-to 'copying-space)
                (typep mature 'generational-mature-space)
                (= (%space-extent nursery-from) (%space-extent nursery-to))
                (= (%space-packing-quantum nursery-from) packing-quantum)
                (= (%space-packing-quantum nursery-to) packing-quantum)
                (= (%space-packing-quantum mature) packing-quantum)
-               (eq (%semispace-role nursery-from) :allocation)
-               (eq (%semispace-role nursery-to) :reserve))
+               (eq (%copying-role nursery-from) :allocation)
+               (eq (%copying-role nursery-to) :reserve))
     (%runtime-reject :invalid-generational-spaces))
   (when (and card-granularity
              (not (and (integerp card-granularity) (plusp card-granularity)
                        (zerop (mod (%space-extent mature) card-granularity)))))
     (%runtime-reject :invalid-card-granularity))
-  (setf (%semispace-partner nursery-from) nursery-to
-        (%semispace-partner nursery-to) nursery-from)
+  (%set-copying-pair nursery-from nursery-to)
+  (%set-copying-pair nursery-to nursery-from)
   (let ((plan
           (%make-common-plan-instance
            'generational-plan
@@ -376,7 +376,7 @@ rather than clearing the range (collectors.tex, MarkSweep mark epoch)."
 (defun %gen-active-nursery (plan)
   (find :allocation
         (list (%gen-nursery-from plan) (%gen-nursery-to plan))
-        :key #'%semispace-role :test #'eq))
+        :key #'%copying-role :test #'eq))
 
 (defun %gen-reserve-cell-index (plan source address)
   (let ((index (floor (- address (%space-base source))
@@ -516,7 +516,7 @@ rather than clearing the range (collectors.tex, MarkSweep mark epoch)."
     ((space generational-nursery-space) cycle start)
   (declare (ignore start))
   (and (member (%cycle-scope cycle) '(:minor :all) :test #'eq)
-       (eq (%semispace-role space) :allocation)))
+       (eq (%copying-role space) :allocation)))
 
 (defun %reserve-promotion-copy-destination (space cycle start model)
   (let* ((plan (%cycle-plan cycle))

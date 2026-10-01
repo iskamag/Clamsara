@@ -221,7 +221,7 @@
                     (make-object-kind-description offer :other :size-rule 32 :alignment-rule 16))))
          (model (world-model world))
          (reserve (find :reserve (clamsara::%plan-spaces (world-plan world))
-                       :key #'clamsara::%semispace-role))
+                       :key #'clamsara::%copying-role))
          (address (clamsara::%space-base reserve))
          (snapshot (gethash token (clamsara::host-model-description-snapshots model)))
          (foreign (make-object-kind-description (make-host-object-model) :alias :size-rule 32 :alignment-rule 16))
@@ -280,7 +280,7 @@
                (make-object-kind-description offer :array-stage :size-rule variable
                  :alignment-rule 16 :strong-layout '(:indexed :base-offset 16))))))
          (model (world-model world))
-         (reserve (find :reserve (clamsara::%plan-spaces (world-plan world)) :key #'clamsara::%semispace-role))
+         (reserve (find :reserve (clamsara::%plan-spaces (world-plan world)) :key #'clamsara::%copying-role))
          (map (space-object-start-map reserve))
          (address (clamsara::%space-base reserve))
          (alias-count (check-catalogue-account world)))

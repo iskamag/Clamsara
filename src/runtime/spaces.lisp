@@ -180,18 +180,35 @@
   nil)
 
 ;;; ------------------------------------------------------------------
-;;; SemiSpace.
+;;; Copying-space role.
+;;;
+;;; A copying space owns one half of a copying pair: a role (:ALLOCATION
+;;; collects, :RESERVE receives), a partner, and a forwarding stratum.  Plans
+;;; and the allocation router compose against this protocol, never a concrete
+;;; SemiSpace class, so a new copying space (the generational nursery, or a
+;;; host-supplied one) composes without editing the plan.
 
-(defclass semispace-space (runtime-space)
-  ((partner :initform nil :accessor %semispace-partner)
-   (role :initarg :role :accessor %semispace-role)
-   (candidate-role :initform nil :accessor %semispace-candidate-role)
+(defclass copying-space (runtime-space)
+  ((partner :initform nil :accessor %copying-partner)
+   (role :initarg :role :accessor %copying-role)
+   (candidate-role :initform nil :accessor %copying-candidate-role)
    (forwarding :initarg :forwarding :reader %space-forwarding)))
 
-(defmethod component-dependencies ((space semispace-space))
+(defgeneric copying-partner (space))
+(defmethod copying-partner ((space copying-space)) (%copying-partner space))
+(defgeneric copying-role (space))
+(defmethod copying-role ((space copying-space)) (%copying-role space))
+(defgeneric %set-copying-pair (space partner))
+(defmethod %set-copying-pair ((space copying-space) partner)
+  (setf (%copying-partner space) partner)
+  (values))
+
+(defclass semispace-space (copying-space) ())
+
+(defmethod component-dependencies ((space copying-space))
   (append (call-next-method) (list (%space-forwarding space))))
 
-(defmethod initialize-component :after ((space semispace-space) context)
+(defmethod initialize-component :after ((space copying-space) context)
   (unless (typep (%space-forwarding space) 'forwarding-metadata)
     (%runtime-reject :invalid-forwarding-metadata))
   (multiple-value-bind (base limit granularity)
@@ -226,18 +243,18 @@
 
 (defun %copying-destination (space cycle start)
   (declare (ignore cycle start))
-  (%semispace-partner space))
+  (%copying-partner space))
 
-(defmethod %space-in-cycle-scope-p ((space semispace-space) cycle start)
+(defmethod %space-in-cycle-scope-p ((space copying-space) cycle start)
   (declare (ignore start))
   (and (member (%cycle-scope cycle) '(:all :minor))
-       (eq (%semispace-role space) :allocation)))
+       (eq (%copying-role space) :allocation)))
 
-(defmethod prepare-space ((space semispace-space) cycle)
+(defmethod prepare-space ((space copying-space) cycle)
   (declare (ignore cycle))
-  (setf (%semispace-candidate-role space)
-        (if (eq (%semispace-role space) :allocation) :reserve :allocation))
-  (when (eq (%semispace-role space) :reserve)
+  (setf (%copying-candidate-role space)
+        (if (eq (%copying-role space) :allocation) :reserve :allocation))
+  (when (eq (%copying-role space) :reserve)
     (let ((allocator (%space-allocator space)))
       (setf (%allocator-cursor allocator) (%space-base space)
             (%allocator-last-valid-p allocator) nil)
@@ -336,11 +353,11 @@
                                              :preflight-failed)))
                  start)))))))))
 
-(defmethod trace-object ((space semispace-space)
+(defmethod trace-object ((space copying-space)
                          (context sequential-trace-context) start)
   (%trace-copy-object space context start #'%reserve-semispace-copy-destination))
 
-(defmethod object-live-p ((space semispace-space) cycle reference)
+(defmethod object-live-p ((space copying-space) cycle reference)
   (declare (ignore cycle))
   (let ((model (%space-model space)))
     (if (not (valid-reference-p model reference))
@@ -367,11 +384,11 @@
           (trace-fail (%cycle-trace cycle) :capacity-exhausted)))))
   (values))
 
-(defmethod reclaim-space ((space semispace-space) cycle)
+(defmethod reclaim-space ((space copying-space) cycle)
   ;; Enumerate every source representation while authoritative starts still
   ;; exist.  The callback cannot mutate traversed metadata, so actual clear and
   ;; retirement remain a later closed commit obligation.
-  (when (eq (%semispace-role space) :allocation)
+  (when (eq (%copying-role space) :allocation)
     (setf (%cycle-current-retirement-space cycle) space)
     (metadata-map-present (%space-object-start-map space) (%space-range space)
                           (%cycle-retirement-callback cycle))
@@ -383,13 +400,13 @@
   ;; Copy allocation already checked every bound before forwarding.
   (values :ready nil))
 
-(defmethod cancel-reclaim-space ((space semispace-space) cycle)
+(defmethod cancel-reclaim-space ((space copying-space) cycle)
   (declare (ignore cycle))
-  (setf (%semispace-candidate-role space) nil)
+  (setf (%copying-candidate-role space) nil)
   (values))
 
-(defmethod finish-space ((space semispace-space) cycle)
-  (when (eq (%semispace-role space) :allocation)
+(defmethod finish-space ((space copying-space) cycle)
+  (when (eq (%copying-role space) :allocation)
     (metadata-reset-range (%space-object-start-map space) (%space-range space))
     ;; The authoritative clear precedes bounded retirement of every source
     ;; representation, not only live objects that have movement records.
@@ -403,10 +420,10 @@
     (let ((allocator (%space-allocator space)))
       (setf (%allocator-cursor allocator) (%space-base space)
             (%allocator-last-valid-p allocator) nil))
-    (setf (%semispace-role space) :reserve))
-  (when (%semispace-candidate-role space)
-    (setf (%semispace-role space) (%semispace-candidate-role space)
-          (%semispace-candidate-role space) nil))
+    (setf (%copying-role space) :reserve))
+  (when (%copying-candidate-role space)
+    (setf (%copying-role space) (%copying-candidate-role space)
+          (%copying-candidate-role space) nil))
   (values))
 
 (defclass semispace-plan (sequential-runtime-plan) ())
@@ -424,16 +441,16 @@
                               conditional-capacity finalizer-capacity
                               packing-quantum allocation-routes
                               movement-participants)
-  (unless (and (typep from-space 'semispace-space)
-               (typep to-space 'semispace-space)
+  (unless (and (typep from-space 'copying-space)
+               (typep to-space 'copying-space)
                (= (%space-extent from-space) (%space-extent to-space))
                (= (%space-packing-quantum from-space) packing-quantum)
                (= (%space-packing-quantum to-space) packing-quantum)
-               (eq (%semispace-role from-space) :allocation)
-               (eq (%semispace-role to-space) :reserve))
+               (eq (%copying-role from-space) :allocation)
+               (eq (%copying-role to-space) :reserve))
     (%runtime-reject :invalid-semispace-pair))
-  (setf (%semispace-partner from-space) to-space
-        (%semispace-partner to-space) from-space)
+  (%set-copying-pair from-space to-space)
+  (%set-copying-pair to-space from-space)
   (%make-space-plan
    'semispace-plan :semispace :spaces (list from-space to-space)
    :root-client root-client :coordinator coordinator :diagnostics diagnostics

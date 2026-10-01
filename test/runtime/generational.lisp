@@ -321,9 +321,135 @@
     (check (eq :unbound (unbind-mutator configuration context))
            "Generational mutator did not unbind")
     (run-generational-capacity-test)
+    (run-generational-post-publication-bound)
     (format t "~&V14-GENERATIONAL-LIFECYCLE-OK~%")
     t))
 
+
+(defun %ppb-alloc (context descriptor)
+  (multiple-value-bind (reference status reason)
+      (allocate-object context :quality-node 32 16 descriptor)
+    (check (eq status :allocated) "postpub alloc failed: ~S" reason)
+    reference))
+
+(defun %ppb-root (roots context token provider index value)
+  (multiple-value-bind (effective status)
+      (root-provider-store roots context token
+                           (clamsara::simulator-root-location provider index) value)
+    (declare (ignore effective))
+    (check (eq status :stored) "postpub root store failed")))
+
+(defun run-generational-post-publication-bound ()
+  "A minor's mature free candidate is built AFTER promotion, so a descriptor
+shortfall must be caught at :PREPARING, never after forwarding is published.
+A fragmented mature space plus a bulk promotion exceeding the descriptor
+capacity is the trigger: the preflight must bound by mature PLUS promoted
+starts, not the mature count alone."
+  (let* ((q 16) (nursery-extent 256) (mature-extent 512) (base 4096)
+         (total (+ (* 2 nursery-extent) mature-extent))
+         (roots (clamsara::make-simulator-root-client :provider-capacity 16))
+         (provider (clamsara::make-simulator-root-provider 8))
+         (token (register-root-provider roots :postpub 8 provider))
+         (coordinator (clamsara::make-simulator-coordinator
+                       roots :stop-capacity 128 :await-bound 32))
+         (address-space
+           (clamsara::make-simulator-address-space
+            :base base :byte-extent total :alignment q :page-size 16
+            :coordinator coordinator))
+         (model (clamsara::make-host-object-model
+                 :capacity (ceiling total q) :kind-capacity 8 :slot-capacity 16
+                 :variant-capacity 0 :location-capacity 16
+                 :handle-capacity 128 :stage-capacity 4 :max-object-bytes 32))
+         (node-kind (make-object-kind-description
+                     model :quality-node :size-rule 32 :alignment-rule q
+                     :strong-layout '(:quality-id :left :right)))
+         (clients (clamsara::make-simulator-clients
+                   :model model :roots roots :coordinator coordinator
+                   :address-space address-space
+                   :atomics (clamsara::make-host-atomics)
+                   :diagnostics (clamsara::make-simulator-diagnostics)))
+         (registry (clamsara::make-sequential-finalizer-registry
+                    :capacity 8 :root-client roots))
+         (mature-base (+ base (* 2 nursery-extent)))
+         (domain-0 (clamsara::make-metadata-domain
+                    :base base :limit (+ base nursery-extent) :granularity q))
+         (domain-1 (clamsara::make-metadata-domain
+                    :base (+ base nursery-extent) :limit mature-base :granularity q))
+         (domain-m (clamsara::make-metadata-domain
+                    :base mature-base :limit (+ base total) :granularity q))
+         (from (clamsara::make-generational-nursery-space
+                :name :ppb-from
+                :object-start-map (clamsara::make-object-start-marks :domain domain-0)
+                :forwarding (clamsara::make-side-forwarding :domain domain-0)
+                :extent nursery-extent :packing-quantum q :role :allocation))
+         (to (clamsara::make-generational-nursery-space
+              :name :ppb-to
+              :object-start-map (clamsara::make-object-start-marks :domain domain-1)
+              :forwarding (clamsara::make-side-forwarding :domain domain-1)
+              :extent nursery-extent :packing-quantum q :role :reserve))
+         (mature (clamsara::make-generational-mature-space
+                  :name :ppb-mature
+                  :object-start-map (clamsara::make-object-start-marks :domain domain-m)
+                  :extent mature-extent :packing-quantum q :descriptor-capacity 3))
+         (plan (clamsara::make-generational-plan
+                :nursery-from from :nursery-to to :mature mature
+                :root-client roots :coordinator coordinator
+                :diagnostics (clamsara::make-simulator-diagnostics)
+                :registry registry :trace-capacity (ceiling total q)
+                :conditional-capacity (ceiling total q)
+                :finalizer-capacity 8 :packing-quantum q))
+         (configuration (construct-plan plan clients))
+         (context (bind-mutator configuration :ppb :default)))
+    (let ((bound (configuration-object-model configuration)))
+      (labels ((alloc (id)
+               (let ((r (%ppb-alloc context node-kind)))
+                 (let ((seen 0))
+                   (map-reference-locations
+                    bound r
+                    (lambda (identity loc)
+                      (declare (ignore identity))
+                      (when (zerop seen)
+                        (barrier-store (configuration-barrier configuration)
+                                       context loc id))
+                      (incf seen))))
+                 r))
+             (root (i v) (%ppb-root roots context token provider i v))
+             (run-cycle (scope)
+               (let ((rec (make-cycle-result-record plan)))
+                 (collect configuration scope :explicit rec) rec)))
+      ;; Fragmented mature: a minor of unrooted objects, a promote, a major,
+      ;; then an empty minor leave several mature free intervals.
+      (dotimes (i 6) (alloc i))
+      (run-cycle :minor)
+      (alloc 100)
+      (root 1 (alloc 101))
+      (alloc 102)
+      (run-cycle :minor)
+      (run-cycle :all)
+      (run-cycle :minor)
+      ;; Now promote a bulk batch that splits the mature free intervals past
+      ;; the descriptor capacity.  The shortfall must be caught at :PREPARING.
+      (alloc 200)
+      (alloc 201)
+      (root 2 (alloc 202))
+      (root 3 (alloc 203))
+      (root 4 (alloc 204))
+      (root 5 (alloc 205))
+      (alloc 206)
+      (root 6 (alloc 207))
+      (let ((record (run-cycle :minor)))
+        (check (and (eq :retained (cycle-result-status record))
+                    (eq :preparing (cycle-result-phase record))
+                    (eq :capacity-exhausted (cycle-result-reason record)))
+               "Post-publication capacity bound not caught at :PREPARING: ~S/~S/~S"
+               (cycle-result-status record) (cycle-result-phase record)
+               (cycle-result-reason record))
+        (check (not (clamsara::%cycle-forwarding-published-p
+                     (clamsara::%plan-cycle plan)))
+               "A capacity shortfall published forwarding")))
+      (check (eq :unbound (unbind-mutator configuration context))
+             "postpub mutator did not unbind"))
+    t))
 
 (defun run-generational-capacity-test ()
   (let* ((q 16) (nursery-extent 64) (mature-extent 32) (base 16384)

@@ -159,6 +159,7 @@ a cancel after selecting the first run restores the scan cursor too."
     (let ((before (clamsara::%allocator-cursor allocator)))
       (multiple-value-bind (address ok)
           (allocate-raw allocator 32 16 :node)
+        (declare (ignore address))
         (%check ok "reservation failed")
         (clamsara::%cancel-raw-allocation allocator)
         (%check (= (clamsara::%allocator-cursor allocator) before)

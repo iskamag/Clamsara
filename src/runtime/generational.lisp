@@ -27,8 +27,12 @@
    (promotion-present :initform nil :accessor %gen-promotion-present)
    (scratch-starts :initform nil :accessor %gen-scratch-starts)
    (scratch-limits :initform nil :accessor %gen-scratch-limits)
-   (scratch-count :initform 0 :accessor %gen-scratch-count)
-   (mature-object-count :initform 0 :accessor %gen-mature-object-count)
+    (scratch-count :initform 0 :accessor %gen-scratch-count)
+    (mature-object-count :initform 0 :accessor %gen-mature-object-count)
+    ;; Nursery objects that reserved a promotion destination this minor.  The
+    ;; mature free candidate is built after promotion, so its worst-case
+    ;; interval count is bounded by mature PLUS promoted starts.
+    (promotion-count :initform 0 :accessor %gen-promotion-count)
    (reservation-failure :initform nil :accessor %gen-reservation-failure)
    ;; A single conservative whole-range fallback used only when this profile
    ;; must retire remembered state without exact card coverage.
@@ -414,7 +418,8 @@ rather than clearing the range (collectors.tex, MarkSweep mark epoch)."
         (setf (%gen-reservation-failure plan) :capacity-exhausted)
         (return-from %gen-reserve-nursery-start))
       (setf (aref (%gen-promotion-addresses plan) cell) destination
-            (aref (%gen-promotion-present plan) cell) 1)))
+            (aref (%gen-promotion-present plan) cell) 1
+            (%gen-promotion-count plan) (1+ (%gen-promotion-count plan)))))
   (values))
 
 (defun %gen-snapshot-mature-start (plan address)
@@ -459,6 +464,7 @@ rather than clearing the range (collectors.tex, MarkSweep mark epoch)."
   (fill (%gen-promotion-addresses plan) 0)
   (fill (%gen-promotion-present plan) 0)
   (setf (%gen-reservation-failure plan) nil
+        (%gen-promotion-count plan) 0
         (%gen-enumeration-cycle plan) cycle)
   (unless (%gen-copy-active-free-list plan)
     (return-from %gen-reserve-promotions (values :failed :capacity-exhausted)))
@@ -469,9 +475,12 @@ rather than clearing the range (collectors.tex, MarkSweep mark epoch)."
     (when (%gen-reservation-failure plan)
       (return-from %gen-reserve-promotions
         (values :failed (%gen-reservation-failure plan))))
-    ;; Any subset of the reserved objects can create at most one additional
-    ;; free interval per possible nursery object.
-    (when (> (1+ (%gen-mature-object-count plan))
+    ;; A minor's mature free candidate is built AFTER promotion, so its starts
+    ;; are the mature snapshot plus every promoted destination.  Each live start
+    ;; can open at most one free interval, so bound the descriptor demand by
+    ;; mature PLUS promoted starts, not the mature count alone.
+    (when (> (1+ (+ (%gen-mature-object-count plan)
+                    (%gen-promotion-count plan)))
              (%marksweep-descriptor-capacity mature))
       (return-from %gen-reserve-promotions
         (values :failed :capacity-exhausted))))
